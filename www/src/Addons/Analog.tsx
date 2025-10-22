@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FormCheck, Row, Tab, Tabs } from 'react-bootstrap';
 import * as yup from 'yup';
@@ -133,6 +133,22 @@ export const analogScheme = {
 		.number()
 		.label('Error Rate 2')
 		.validateSelectionWhenValue('AnalogInputEnabled', ANALOG_ERROR_RATES),
+	joystickCenterX: yup
+		.number()
+		.label('Joystick Center X')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
+	joystickCenterY: yup
+		.number()
+		.label('Joystick Center Y')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
+	joystickCenterX2: yup
+		.number()
+		.label('Joystick Center X2')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
+	joystickCenterY2: yup
+		.number()
+		.label('Joystick Center Y2')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
 };
 
 export const analogState = {
@@ -153,6 +169,10 @@ export const analogState = {
 	outer_deadzone2: 95,
 	auto_calibrate: 0,
 	auto_calibrate2: 0,
+	joystickCenterX: 0,
+	joystickCenterY: 0,
+	joystickCenterX2: 0,
+	joystickCenterY2: 0,
 	analog_smoothing: 0,
 	analog_smoothing2: 0,
 	smoothing_factor: 5,
@@ -161,7 +181,7 @@ export const analogState = {
 	analog_error2: 1,
 };
 
-const Analog = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes) => {
+const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }: AddonPropTypes) => {
 	const { usedPins } = useContext(AppContext);
 	const { t } = useTranslation();
 	const availableAnalogPins = ANALOG_PINS.filter(
@@ -346,18 +366,133 @@ const Analog = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes
 										))}
 									</FormSelect>
 								</Row>
-								<FormCheck
-									label={t('AddonsConfig:analog-auto-calibrate')}
-									type="switch"
-									id="Auto_calibrate"
-									className="col-sm-3 ms-3"
-									isInvalid={false}
-									checked={Boolean(values.auto_calibrate)}
-									onChange={(e) => {
-										handleCheckbox('auto_calibrate');
-										handleChange(e);
-									}}
-								/>
+								<div className="d-flex align-items-center">
+									<FormCheck
+										label={t('AddonsConfig:analog-auto-calibrate')}
+										type="switch"
+										id="Auto_calibrate"
+										className="col-sm-3 ms-3"
+										isInvalid={false}
+										checked={Boolean(values.auto_calibrate)}
+										onChange={(e) => {
+											handleCheckbox('auto_calibrate');
+											handleChange(e);
+										}}
+									/>
+									<button
+										type="button"
+										className="btn btn-sm btn-outline-secondary ms-2"
+										disabled={Boolean(values.auto_calibrate)}
+										onClick={async () => {
+											try {
+												// 多步骤校准流程
+												const steps = [
+													{ direction: '左上', position: 'top-left' },
+													{ direction: '右上', position: 'top-right' },
+													{ direction: '左下', position: 'bottom-left' },
+													{ direction: '右下', position: 'bottom-right' }
+												];
+												
+												const calibrationValues = [];
+												
+												for (let i = 0; i < steps.length; i++) {
+													const step = steps[i];
+													const stepNumber = i + 1;
+													
+													// 显示提示框
+													const userConfirmed = confirm(
+														`校准步骤 ${stepNumber}/4\n\n` +
+														`请将摇杆1拨动到${step.direction}位置，然后松开让其回中\n\n` +
+														`确认摇杆1已回中后，点击"确定"记录中心值${stepNumber}`
+													);
+													
+													if (!userConfirmed) {
+														alert('校准已取消');
+														return;
+													}
+													
+													// 读取当前中心值
+													console.log(`Fetching joystick 1 center for step ${stepNumber}...`);
+													const res = await fetch('/api/getJoystickCenter');
+													console.log('Response status:', res.status);
+													
+													if (!res.ok) {
+														throw new Error(`HTTP error! status: ${res.status}`);
+													}
+													
+													const data = await res.json();
+													console.log('Response data:', data);
+													
+													if (!data.success || data.error) {
+														alert(`校准失败: ${data.error || 'Unknown error'}`);
+														console.error('API Error:', data.error);
+														return;
+													}
+													
+													calibrationValues.push({
+														step: stepNumber,
+														direction: step.direction,
+														x: data.x || 0,
+														y: data.y || 0
+													});
+													
+													console.log(`Step ${stepNumber} completed:`, calibrationValues[i]);
+												}
+												
+												// 计算四个点的中心值
+												const avgX = Math.round(calibrationValues.reduce((sum, val) => sum + val.x, 0) / 4);
+												const avgY = Math.round(calibrationValues.reduce((sum, val) => sum + val.y, 0) / 4);
+												
+												// 更新摇杆1的中心值
+												setFieldValue('joystickCenterX', avgX);
+												setFieldValue('joystickCenterY', avgY);
+												
+												console.log('Calibration completed:', {
+													values: calibrationValues,
+													finalCenter: { x: avgX, y: avgY }
+												});
+												
+												// 显示成功提示
+												alert(
+													`摇杆1校准成功！\n\n` +
+													`校准数据：\n` +
+													`• 左上: X=${calibrationValues[0].x}, Y=${calibrationValues[0].y}\n` +
+													`• 右上: X=${calibrationValues[1].x}, Y=${calibrationValues[1].y}\n` +
+													`• 左下: X=${calibrationValues[2].x}, Y=${calibrationValues[2].y}\n` +
+													`• 右下: X=${calibrationValues[3].x}, Y=${calibrationValues[3].y}\n\n` +
+													`最终中心值: X=${avgX}, Y=${avgY}\n\n` +
+													`请保存配置以应用校准值。`
+												);
+											} catch (err) {
+												console.error('Failed to calibrate joystick 1', err);
+												alert('摇杆1校准失败: ' + (err instanceof Error ? err.message : String(err)));
+											}
+										}}
+									>
+										{t('AddonsConfig:analog-calibrate-button') || 'Calibrate Stick 1'}
+									</button>
+									<div className="ms-3 small text-muted">
+										{`Center: X=${values.joystickCenterX}, Y=${values.joystickCenterY}`}
+									</div>
+								</div>
+								{Boolean(values.auto_calibrate) && (
+									<div className="alert alert-info mt-2 mb-3">
+										<small>
+											<strong>摇杆1自动校准已启用：</strong> 系统会在开机时自动读取摇杆1中心值。如需手动校准，请先取消勾选"自动校准"。
+										</small>
+									</div>
+								)}
+								{!Boolean(values.auto_calibrate) && (
+									<div className="alert alert-warning mt-2 mb-3">
+										<small>
+											<strong>摇杆1手动校准模式：</strong> 
+											<br />• 点击"校准"按钮开始多步骤校准流程
+											<br />• 按提示将摇杆拨动到四个方向并回中
+											<br />• 系统将自动计算最佳中心值
+											<br />• 保存配置后重启设备以应用校准
+										</small>
+									</div>
+								)}
 							</Row>
 						</Tab>
 						<Tab
@@ -512,18 +647,133 @@ const Analog = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes
 										))}
 									</FormSelect>
 								</Row>
-								<FormCheck
-									label={t('AddonsConfig:analog-auto-calibrate')}
-									type="switch"
-									id="Auto_calibrate2"
-									className="col-sm-3 ms-3"
-									isInvalid={false}
-									checked={Boolean(values.auto_calibrate2)}
-									onChange={(e) => {
-										handleCheckbox('auto_calibrate2');
-										handleChange(e);
-									}}
-								/>
+								<div className="d-flex align-items-center">
+									<FormCheck
+										label={t('AddonsConfig:analog-auto-calibrate')}
+										type="switch"
+										id="Auto_calibrate2"
+										className="col-sm-3 ms-3"
+										isInvalid={false}
+										checked={Boolean(values.auto_calibrate2)}
+										onChange={(e) => {
+											handleCheckbox('auto_calibrate2');
+											handleChange(e);
+										}}
+									/>
+									<button
+										type="button"
+										className="btn btn-sm btn-outline-secondary ms-2"
+										disabled={Boolean(values.auto_calibrate2)}
+										onClick={async () => {
+											try {
+												// 多步骤校准流程
+												const steps = [
+													{ direction: '左上', position: 'top-left' },
+													{ direction: '右上', position: 'top-right' },
+													{ direction: '左下', position: 'bottom-left' },
+													{ direction: '右下', position: 'bottom-right' }
+												];
+												
+												const calibrationValues = [];
+												
+												for (let i = 0; i < steps.length; i++) {
+													const step = steps[i];
+													const stepNumber = i + 1;
+													
+													// 显示提示框
+													const userConfirmed = confirm(
+														`校准步骤 ${stepNumber}/4\n\n` +
+														`请将摇杆2拨动到${step.direction}位置，然后松开让其回中\n\n` +
+														`确认摇杆2已回中后，点击"确定"记录中心值${stepNumber}`
+													);
+													
+													if (!userConfirmed) {
+														alert('校准已取消');
+														return;
+													}
+													
+													// 读取当前中心值
+													console.log(`Fetching joystick 2 center for step ${stepNumber}...`);
+													const res = await fetch('/api/getJoystickCenter2');
+													console.log('Response status:', res.status);
+													
+													if (!res.ok) {
+														throw new Error(`HTTP error! status: ${res.status}`);
+													}
+													
+													const data = await res.json();
+													console.log('Response data:', data);
+													
+													if (!data.success || data.error) {
+														alert(`校准失败: ${data.error || 'Unknown error'}`);
+														console.error('API Error:', data.error);
+														return;
+													}
+													
+													calibrationValues.push({
+														step: stepNumber,
+														direction: step.direction,
+														x: data.x || 0,
+														y: data.y || 0
+													});
+													
+													console.log(`Step ${stepNumber} completed:`, calibrationValues[i]);
+												}
+												
+												// 计算四个点的中心值
+												const avgX = Math.round(calibrationValues.reduce((sum, val) => sum + val.x, 0) / 4);
+												const avgY = Math.round(calibrationValues.reduce((sum, val) => sum + val.y, 0) / 4);
+												
+												// 更新摇杆2的中心值
+												setFieldValue('joystickCenterX2', avgX);
+												setFieldValue('joystickCenterY2', avgY);
+												
+												console.log('Calibration completed:', {
+													values: calibrationValues,
+													finalCenter: { x: avgX, y: avgY }
+												});
+												
+												// 显示成功提示
+												alert(
+													`摇杆2校准成功！\n\n` +
+													`校准数据：\n` +
+													`• 左上: X=${calibrationValues[0].x}, Y=${calibrationValues[0].y}\n` +
+													`• 右上: X=${calibrationValues[1].x}, Y=${calibrationValues[1].y}\n` +
+													`• 左下: X=${calibrationValues[2].x}, Y=${calibrationValues[2].y}\n` +
+													`• 右下: X=${calibrationValues[3].x}, Y=${calibrationValues[3].y}\n\n` +
+													`最终中心值: X=${avgX}, Y=${avgY}\n\n` +
+													`请保存配置以应用校准值。`
+												);
+											} catch (err) {
+												console.error('Failed to calibrate joystick 2', err);
+												alert('摇杆2校准失败: ' + (err instanceof Error ? err.message : String(err)));
+											}
+										}}
+									>
+										{t('AddonsConfig:analog-calibrate-button') || 'Calibrate Stick 2'}
+									</button>
+									<div className="ms-3 small text-muted">
+										{`Center: X=${values.joystickCenterX2}, Y=${values.joystickCenterY2}`}
+									</div>
+								</div>
+								{Boolean(values.auto_calibrate2) && (
+									<div className="alert alert-info mt-2 mb-3">
+										<small>
+											<strong>摇杆2自动校准已启用：</strong> 系统会在开机时自动读取摇杆2中心值。如需手动校准，请先取消勾选"自动校准"。
+										</small>
+									</div>
+								)}
+								{!Boolean(values.auto_calibrate2) && (
+									<div className="alert alert-warning mt-2 mb-3">
+										<small>
+											<strong>摇杆2手动校准模式：</strong> 
+											<br />• 点击"校准"按钮开始多步骤校准流程
+											<br />• 按提示将摇杆拨动到四个方向并回中
+											<br />• 系统将自动计算最佳中心值
+											<br />• 保存配置后重启设备以应用校准
+										</small>
+									</div>
+								)}
 							</Row>
 						</Tab>
 					</Tabs>

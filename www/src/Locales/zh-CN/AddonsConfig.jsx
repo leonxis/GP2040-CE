@@ -28,6 +28,7 @@ export default {
 	'inner-deadzone-size': '内部死区范围 (%)',
 	'outer-deadzone-size': '外部死区范围 (%)',
 	'analog-auto-calibrate': '自动校准',
+	'analog-calibrate-button': '手动校准',
 	'analog-smoothing': '平滑模拟信号',
 	'smoothing-factor': '平滑因数',
 	'analog-error-label': '误差率',

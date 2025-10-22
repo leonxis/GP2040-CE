@@ -31,6 +31,7 @@ export default {
 	'inner-deadzone-size': 'Inner Deadzone Size (%)',
 	'outer-deadzone-size': 'Outer Deadzone Size (%)',
 	'analog-auto-calibrate': 'Auto Calibration',
+	'analog-calibrate-button': 'Calibrate',
 	'analog-smoothing': 'Analog Smoothing',
 	'smoothing-factor': 'Smoothing Factor',
 	'analog-error-label': 'Error Rate',
