@@ -387,10 +387,10 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											try {
 												// 多步骤校准流程
 												const steps = [
-													{ direction: '左上', position: 'top-left' },
-													{ direction: '右上', position: 'top-right' },
-													{ direction: '左下', position: 'bottom-left' },
-													{ direction: '右下', position: 'bottom-right' }
+													{ direction: t('AddonsConfig:analog-calibration-direction-top-left'), position: 'top-left' },
+													{ direction: t('AddonsConfig:analog-calibration-direction-top-right'), position: 'top-right' },
+													{ direction: t('AddonsConfig:analog-calibration-direction-bottom-left'), position: 'bottom-left' },
+													{ direction: t('AddonsConfig:analog-calibration-direction-bottom-right'), position: 'bottom-right' }
 												];
 												
 												const calibrationValues = [];
@@ -401,13 +401,13 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													
 													// 显示提示框
 													const userConfirmed = confirm(
-														`校准步骤 ${stepNumber}/4\n\n` +
-														`请将摇杆1拨动到${step.direction}位置，然后松开让其回中\n\n` +
-														`确认摇杆1已回中后，点击"确定"记录中心值${stepNumber}`
+														t('AddonsConfig:analog-calibration-step-title', { step: stepNumber }) + '\n\n' +
+														t('AddonsConfig:analog-calibration-step-instruction', { stick: '1', direction: step.direction }) + '\n\n' +
+														t('AddonsConfig:analog-calibration-step-confirm', { stick: '1', step: stepNumber })
 													);
 													
 													if (!userConfirmed) {
-														alert('校准已取消');
+														alert(t('AddonsConfig:analog-calibration-cancelled'));
 														return;
 													}
 													
@@ -424,7 +424,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													console.log('Response data:', data);
 													
 													if (!data.success || data.error) {
-														alert(`校准失败: ${data.error || 'Unknown error'}`);
+														alert(t('AddonsConfig:analog-calibration-failed', { error: data.error || 'Unknown error' }));
 														console.error('API Error:', data.error);
 														return;
 													}
@@ -454,22 +454,22 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 												
 												// 显示成功提示
 												alert(
-													`摇杆1校准成功！\n\n` +
-													`校准数据：\n` +
-													`• 左上: X=${calibrationValues[0].x}, Y=${calibrationValues[0].y}\n` +
-													`• 右上: X=${calibrationValues[1].x}, Y=${calibrationValues[1].y}\n` +
-													`• 左下: X=${calibrationValues[2].x}, Y=${calibrationValues[2].y}\n` +
-													`• 右下: X=${calibrationValues[3].x}, Y=${calibrationValues[3].y}\n\n` +
-													`最终中心值: X=${avgX}, Y=${avgY}\n\n` +
-													`请保存配置以应用校准值。`
+													t('AddonsConfig:analog-calibration-success-stick-1') + '\n\n' +
+													t('AddonsConfig:analog-calibration-data') + '\n' +
+													`• ${t('AddonsConfig:analog-calibration-direction-top-left')}: X=${calibrationValues[0].x}, Y=${calibrationValues[0].y}\n` +
+													`• ${t('AddonsConfig:analog-calibration-direction-top-right')}: X=${calibrationValues[1].x}, Y=${calibrationValues[1].y}\n` +
+													`• ${t('AddonsConfig:analog-calibration-direction-bottom-left')}: X=${calibrationValues[2].x}, Y=${calibrationValues[2].y}\n` +
+													`• ${t('AddonsConfig:analog-calibration-direction-bottom-right')}: X=${calibrationValues[3].x}, Y=${calibrationValues[3].y}\n\n` +
+													t('AddonsConfig:analog-calibration-final-center', { x: avgX, y: avgY }) + '\n\n' +
+													t('AddonsConfig:analog-calibration-save-notice')
 												);
 											} catch (err) {
 												console.error('Failed to calibrate joystick 1', err);
-												alert('摇杆1校准失败: ' + (err instanceof Error ? err.message : String(err)));
+												alert(t('AddonsConfig:analog-calibration-failed', { error: err instanceof Error ? err.message : String(err) }));
 											}
 										}}
 									>
-										{t('AddonsConfig:analog-calibrate-button') || 'Calibrate Stick 1'}
+										{t('AddonsConfig:analog-calibrate-stick-1-button')}
 									</button>
 									<div className="ms-3 small text-muted">
 										{`Center: X=${values.joystickCenterX}, Y=${values.joystickCenterY}`}
@@ -478,18 +478,18 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 								{Boolean(values.auto_calibrate) && (
 									<div className="alert alert-info mt-2 mb-3">
 										<small>
-											<strong>摇杆1自动校准已启用：</strong> 系统会在开机时自动读取摇杆1中心值。如需手动校准，请先取消勾选"自动校准"。
+											<strong>{t('AddonsConfig:analog-auto-calibration-enabled-stick-1')}：</strong> {t('AddonsConfig:analog-calibration-auto-mode-instruction', { stick: '1' })}
 										</small>
 									</div>
 								)}
 								{!Boolean(values.auto_calibrate) && (
 									<div className="alert alert-warning mt-2 mb-3">
 										<small>
-											<strong>摇杆1手动校准模式：</strong> 
-											<br />• 点击"校准"按钮开始多步骤校准流程
-											<br />• 按提示将摇杆拨动到四个方向并回中
-											<br />• 系统将自动计算最佳中心值
-											<br />• 保存配置后重启设备以应用校准
+											<strong>{t('AddonsConfig:analog-manual-calibration-mode-stick-1')}：</strong> 
+											<br />• {t('AddonsConfig:analog-calibration-manual-mode-instruction-1')}
+											<br />• {t('AddonsConfig:analog-calibration-manual-mode-instruction-2')}
+											<br />• {t('AddonsConfig:analog-calibration-manual-mode-instruction-3')}
+											<br />• {t('AddonsConfig:analog-calibration-manual-mode-instruction-4')}
 										</small>
 									</div>
 								)}
@@ -668,10 +668,10 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											try {
 												// 多步骤校准流程
 												const steps = [
-													{ direction: '左上', position: 'top-left' },
-													{ direction: '右上', position: 'top-right' },
-													{ direction: '左下', position: 'bottom-left' },
-													{ direction: '右下', position: 'bottom-right' }
+													{ direction: t('AddonsConfig:analog-calibration-direction-top-left'), position: 'top-left' },
+													{ direction: t('AddonsConfig:analog-calibration-direction-top-right'), position: 'top-right' },
+													{ direction: t('AddonsConfig:analog-calibration-direction-bottom-left'), position: 'bottom-left' },
+													{ direction: t('AddonsConfig:analog-calibration-direction-bottom-right'), position: 'bottom-right' }
 												];
 												
 												const calibrationValues = [];
@@ -682,13 +682,13 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													
 													// 显示提示框
 													const userConfirmed = confirm(
-														`校准步骤 ${stepNumber}/4\n\n` +
-														`请将摇杆2拨动到${step.direction}位置，然后松开让其回中\n\n` +
-														`确认摇杆2已回中后，点击"确定"记录中心值${stepNumber}`
+														t('AddonsConfig:analog-calibration-step-title', { step: stepNumber }) + '\n\n' +
+														t('AddonsConfig:analog-calibration-step-instruction', { stick: '2', direction: step.direction }) + '\n\n' +
+														t('AddonsConfig:analog-calibration-step-confirm', { stick: '2', step: stepNumber })
 													);
 													
 													if (!userConfirmed) {
-														alert('校准已取消');
+														alert(t('AddonsConfig:analog-calibration-cancelled'));
 														return;
 													}
 													
@@ -705,7 +705,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													console.log('Response data:', data);
 													
 													if (!data.success || data.error) {
-														alert(`校准失败: ${data.error || 'Unknown error'}`);
+														alert(t('AddonsConfig:analog-calibration-failed', { error: data.error || 'Unknown error' }));
 														console.error('API Error:', data.error);
 														return;
 													}
@@ -735,22 +735,22 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 												
 												// 显示成功提示
 												alert(
-													`摇杆2校准成功！\n\n` +
-													`校准数据：\n` +
-													`• 左上: X=${calibrationValues[0].x}, Y=${calibrationValues[0].y}\n` +
-													`• 右上: X=${calibrationValues[1].x}, Y=${calibrationValues[1].y}\n` +
-													`• 左下: X=${calibrationValues[2].x}, Y=${calibrationValues[2].y}\n` +
-													`• 右下: X=${calibrationValues[3].x}, Y=${calibrationValues[3].y}\n\n` +
-													`最终中心值: X=${avgX}, Y=${avgY}\n\n` +
-													`请保存配置以应用校准值。`
+													t('AddonsConfig:analog-calibration-success-stick-2') + '\n\n' +
+													t('AddonsConfig:analog-calibration-data') + '\n' +
+													`• ${t('AddonsConfig:analog-calibration-direction-top-left')}: X=${calibrationValues[0].x}, Y=${calibrationValues[0].y}\n` +
+													`• ${t('AddonsConfig:analog-calibration-direction-top-right')}: X=${calibrationValues[1].x}, Y=${calibrationValues[1].y}\n` +
+													`• ${t('AddonsConfig:analog-calibration-direction-bottom-left')}: X=${calibrationValues[2].x}, Y=${calibrationValues[2].y}\n` +
+													`• ${t('AddonsConfig:analog-calibration-direction-bottom-right')}: X=${calibrationValues[3].x}, Y=${calibrationValues[3].y}\n\n` +
+													t('AddonsConfig:analog-calibration-final-center', { x: avgX, y: avgY }) + '\n\n' +
+													t('AddonsConfig:analog-calibration-save-notice')
 												);
 											} catch (err) {
 												console.error('Failed to calibrate joystick 2', err);
-												alert('摇杆2校准失败: ' + (err instanceof Error ? err.message : String(err)));
+												alert(t('AddonsConfig:analog-calibration-failed', { error: err instanceof Error ? err.message : String(err) }));
 											}
 										}}
 									>
-										{t('AddonsConfig:analog-calibrate-button') || 'Calibrate Stick 2'}
+										{t('AddonsConfig:analog-calibrate-stick-2-button')}
 									</button>
 									<div className="ms-3 small text-muted">
 										{`Center: X=${values.joystickCenterX2}, Y=${values.joystickCenterY2}`}
@@ -759,18 +759,18 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 								{Boolean(values.auto_calibrate2) && (
 									<div className="alert alert-info mt-2 mb-3">
 										<small>
-											<strong>摇杆2自动校准已启用：</strong> 系统会在开机时自动读取摇杆2中心值。如需手动校准，请先取消勾选"自动校准"。
+											<strong>{t('AddonsConfig:analog-auto-calibration-enabled-stick-2')}：</strong> {t('AddonsConfig:analog-calibration-auto-mode-instruction', { stick: '2' })}
 										</small>
 									</div>
 								)}
 								{!Boolean(values.auto_calibrate2) && (
 									<div className="alert alert-warning mt-2 mb-3">
 										<small>
-											<strong>摇杆2手动校准模式：</strong> 
-											<br />• 点击"校准"按钮开始多步骤校准流程
-											<br />• 按提示将摇杆拨动到四个方向并回中
-											<br />• 系统将自动计算最佳中心值
-											<br />• 保存配置后重启设备以应用校准
+											<strong>{t('AddonsConfig:analog-manual-calibration-mode-stick-2')}：</strong> 
+											<br />• {t('AddonsConfig:analog-calibration-manual-mode-instruction-1')}
+											<br />• {t('AddonsConfig:analog-calibration-manual-mode-instruction-2')}
+											<br />• {t('AddonsConfig:analog-calibration-manual-mode-instruction-3')}
+											<br />• {t('AddonsConfig:analog-calibration-manual-mode-instruction-4')}
 										</small>
 									</div>
 								)}
