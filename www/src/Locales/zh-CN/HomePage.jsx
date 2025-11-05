@@ -1,0 +1,17 @@
+export default {
+	'architecture-text': '架构: {{architecture}}',
+	'build-type-text': '构建类型: {{build}}',
+	'build-text': '构建版本: {{build}}',
+	'current-text': '当前版本: {{version}}',
+	'get-update-text': '获取最新版本',
+	'header-text': '欢迎使用 GP2040-CE Web 配置工具！',
+	'latest-text': '最新版本: {{version}}',
+	'memory-flash-text': '闪存',
+	'memory-board-text': '板载闪存',
+	'memory-header-text': '内存 (KB)',
+	'memory-heap-text': '堆内存',
+	'memory-static-allocations-text': '静态分配',
+	'sub-header-text': '请选择一个菜单选项继续。',
+	'system-stats-header-text': '系统状态',
+	'version-text': '版本',
+};
