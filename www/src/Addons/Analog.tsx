@@ -429,8 +429,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 														alert(t('AddonsConfig:analog-calibration-failed', { error: data.error || 'Unknown error' }));
 													console.error('API Error:', data.error);
 													return;
-													}
-													
+												}
+												
 													calibrationValues.push({
 														step: stepNumber,
 														direction: step.direction,
