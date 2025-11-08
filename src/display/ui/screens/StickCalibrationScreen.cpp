@@ -2,6 +2,7 @@
 #include "eventmanager.h"
 #include "GPGFX_UI_screens.h"
 #include "system.h"
+#include "addons/analog_utils.h"
 
 void StickCalibrationScreen::init() {
     getRenderer()->clearScreen();
@@ -23,31 +24,8 @@ void StickCalibrationScreen::shutdown() {
 }
 
 void StickCalibrationScreen::readJoystickCenter(uint8_t stickNum, uint16_t& x, uint16_t& y) {
-    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-    x = 0;
-    y = 0;
-    
-    if (!analogOptions.enabled) {
-        return;
-    }
-    
-    adc_init();
-    
-    Pin_t xPin = (stickNum == 0) ? analogOptions.analogAdc1PinX : analogOptions.analogAdc2PinX;
-    Pin_t yPin = (stickNum == 0) ? analogOptions.analogAdc1PinY : analogOptions.analogAdc2PinY;
-    
-    const uint8_t ADC_PIN_OFFSET = 26;
-    if (isValidPin(xPin)) {
-        adc_gpio_init(xPin);
-        adc_select_input(xPin - ADC_PIN_OFFSET);
-        x = adc_read();
-    }
-    
-    if (isValidPin(yPin)) {
-        adc_gpio_init(yPin);
-        adc_select_input(yPin - ADC_PIN_OFFSET);
-        y = adc_read();
-    }
+    // Use unified ADC reading function from analog_utils
+    readJoystickADC(stickNum, x, y);
 }
 
 void StickCalibrationScreen::getStateInfo(const char*& stickLabel, const char*& direction) {
@@ -92,31 +70,13 @@ void StickCalibrationScreen::getStateInfo(const char*& stickLabel, const char*& 
 }
 
 void StickCalibrationScreen::saveCalibration() {
-    // Calculate average center values for stick 1
-    uint32_t avgX1 = (calibrationValues[0] + calibrationValues[2] + 
-                       calibrationValues[4] + calibrationValues[6]) / 4;
-    uint32_t avgY1 = (calibrationValues[1] + calibrationValues[3] + 
-                       calibrationValues[5] + calibrationValues[7]) / 4;
+    // Calculate average center values using unified function
+    uint32_t avgX1, avgY1, avgX2, avgY2;
+    calculateCalibrationCenter(calibrationValues, avgX1, avgY1);
+    calculateCalibrationCenter(calibrationValues2, avgX2, avgY2);
     
-    // Calculate average center values for stick 2
-    uint32_t avgX2 = (calibrationValues2[0] + calibrationValues2[2] + 
-                      calibrationValues2[4] + calibrationValues2[6]) / 4;
-    uint32_t avgY2 = (calibrationValues2[1] + calibrationValues2[3] + 
-                      calibrationValues2[5] + calibrationValues2[7]) / 4;
-    
-    // Save to storage
-    AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-    analogOptions.joystick_center_x = avgX1;
-    analogOptions.joystick_center_y = avgY1;
-    analogOptions.joystick_center_x2 = avgX2;
-    analogOptions.joystick_center_y2 = avgY2;
-    
-    // Disable auto calibration to use manual values
-    analogOptions.auto_calibrate = 0;
-    analogOptions.auto_calibrate2 = 0;
-    
-    // Save to flash
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
+    // Save to storage using unified function
+    saveCalibrationValues(avgX1, avgY1, avgX2, avgY2);
 }
 
 int8_t StickCalibrationScreen::update() {

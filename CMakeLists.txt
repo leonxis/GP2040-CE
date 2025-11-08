@@ -240,6 +240,7 @@ src/config_legacy.cpp
 src/config_utils.cpp
 src/webconfig.cpp
 src/addons/analog.cpp
+src/addons/analog_utils.cpp
 src/addons/board_led.cpp
 src/addons/bootsel_button.cpp
 src/addons/focus_mode.cpp

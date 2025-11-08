@@ -35,6 +35,7 @@
 #include "lwip/def.h"
 #include "lwip/mem.h"
 #include "addons/input_macro.h"
+#include "addons/analog_utils.h"
 
 #define PATH_CGI_ACTION "/cgi/action"
 
@@ -2583,36 +2584,10 @@ std::string reboot() {
 std:: string getJoystickCenter() {
     const size_t capacity = JSON_OBJECT_SIZE(10);
     DynamicJsonDocument doc(capacity);
-    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     
     uint16_t x = 0, y = 0;
-    bool success = true;
-    std::string error_msg = "";
-    
-    // Check if analog input is enabled
-    if (!analogOptions.enabled) {
-        success = false;
-        error_msg = "Analog input is not enabled";
-    } else {
-        // Initialize ADC if not already initialized
-        adc_init();
-        
-        // Check if specific stick is requested via query parameter
-        // For now, we'll read both sticks and return the appropriate one
-        // In a more sophisticated implementation, we could parse query parameters
-        
-        // Read first stick X/Y
-        if (isValidPin(analogOptions.analogAdc1PinX)) {
-            adc_gpio_init(analogOptions.analogAdc1PinX);
-            adc_select_input(analogOptions.analogAdc1PinX - 26);
-            x = adc_read();
-        }
-        if (isValidPin(analogOptions.analogAdc1PinY)) {
-            adc_gpio_init(analogOptions.analogAdc1PinY);
-            adc_select_input(analogOptions.analogAdc1PinY - 26);
-            y = adc_read();
-        }
-    }
+    bool success = readJoystickADC(0, x, y);
+    std::string error_msg = success ? "" : "Analog input is not enabled or pins are invalid";
     
     JsonObject o = doc.to<JsonObject>();
     o["success"] = success;
@@ -2629,32 +2604,10 @@ std:: string getJoystickCenter() {
 std:: string getJoystickCenter2() {
     const size_t capacity = JSON_OBJECT_SIZE(10);
     DynamicJsonDocument doc(capacity);
-    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     
     uint16_t x = 0, y = 0;
-    bool success = true;
-    std::string error_msg = "";
-    
-    // Check if analog input is enabled
-    if (!analogOptions.enabled) {
-        success = false;
-        error_msg = "Analog input is not enabled";
-    } else {
-        // Initialize ADC if not already initialized
-        adc_init();
-        
-        // Read second stick X/Y
-        if (isValidPin(analogOptions.analogAdc2PinX)) {
-            adc_gpio_init(analogOptions.analogAdc2PinX);
-            adc_select_input(analogOptions.analogAdc2PinX - 26);
-            x = adc_read();
-        }
-        if (isValidPin(analogOptions.analogAdc2PinY)) {
-            adc_gpio_init(analogOptions.analogAdc2PinY);
-            adc_select_input(analogOptions.analogAdc2PinY - 26);
-            y = adc_read();
-        }
-    }
+    bool success = readJoystickADC(1, x, y);
+    std::string error_msg = success ? "" : "Analog input is not enabled or pins are invalid";
     
     JsonObject o = doc.to<JsonObject>();
     o["success"] = success;
