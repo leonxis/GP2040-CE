@@ -117,6 +117,9 @@ bool DisplayAddon::updateDisplayScreen() {
         case RESTART:
             gpScreen = new RestartScreen(gpDisplay, bootMode);
             break;
+        case STICK_CALIBRATION:
+            gpScreen = new StickCalibrationScreen(gpDisplay);
+            break;
         default:
             gpScreen = nullptr;
             break;

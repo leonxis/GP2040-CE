@@ -70,6 +70,8 @@ class MainMenuScreen : public GPScreen {
         void selectTurboMode();
         int32_t currentTurboMode();
 
+        void startStickCalibration();
+
         void updateMenuNavigation(GpioAction action);
         void updateEventMenuNavigation(GpioAction action);
         void chooseAndReturn();
@@ -151,6 +153,7 @@ class MainMenuScreen : public GPScreen {
         bool updateTurbo;
 
         std::vector<MenuEntry> mainMenu = {
+            {"Stick Calibrate", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::startStickCalibration, this), -1},
             {"Input Mode", NULL, &inputModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"D-Pad Mode", NULL, &dpadModeMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"SOCD Mode",  NULL, &socdModeMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},

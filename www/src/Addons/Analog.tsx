@@ -385,7 +385,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										disabled={Boolean(values.auto_calibrate)}
 										onClick={async () => {
 											try {
-												// 多步骤校准流程
+												// Multi-step calibration process
 												const steps = [
 													{ direction: t('AddonsConfig:analog-calibration-direction-top-left'), position: 'top-left' },
 													{ direction: t('AddonsConfig:analog-calibration-direction-top-right'), position: 'top-right' },
@@ -399,7 +399,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													const step = steps[i];
 													const stepNumber = i + 1;
 													
-													// 显示提示框
+													
+													// Show confirmation dialog
 													const userConfirmed = confirm(
 														t('AddonsConfig:analog-calibration-step-title', { step: stepNumber }) + '\n\n' +
 														t('AddonsConfig:analog-calibration-step-instruction', { stick: '1', direction: step.direction }) + '\n\n' +
@@ -411,24 +412,25 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 														return;
 													}
 													
-													// 读取当前中心值
+													
+													// Read current center value
 													console.log(`Fetching joystick 1 center for step ${stepNumber}...`);
-													const res = await fetch('/api/getJoystickCenter');
-													console.log('Response status:', res.status);
+												const res = await fetch('/api/getJoystickCenter');
+												console.log('Response status:', res.status);
 													
 													if (!res.ok) {
 														throw new Error(`HTTP error! status: ${res.status}`);
 													}
 													
-													const data = await res.json();
-													console.log('Response data:', data);
-													
+												const data = await res.json();
+												console.log('Response data:', data);
+												
 													if (!data.success || data.error) {
 														alert(t('AddonsConfig:analog-calibration-failed', { error: data.error || 'Unknown error' }));
-														console.error('API Error:', data.error);
-														return;
-													}
-													
+													console.error('API Error:', data.error);
+													return;
+												}
+												
 													calibrationValues.push({
 														step: stepNumber,
 														direction: step.direction,
@@ -439,11 +441,12 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													console.log(`Step ${stepNumber} completed:`, calibrationValues[i]);
 												}
 												
-												// 计算四个点的中心值
+
+												// Calculate center value from four points
 												const avgX = Math.round(calibrationValues.reduce((sum, val) => sum + val.x, 0) / 4);
 												const avgY = Math.round(calibrationValues.reduce((sum, val) => sum + val.y, 0) / 4);
 												
-												// 更新摇杆1的中心值
+												// Update joystick 1 center values
 												setFieldValue('joystickCenterX', avgX);
 												setFieldValue('joystickCenterY', avgY);
 												
@@ -452,7 +455,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													finalCenter: { x: avgX, y: avgY }
 												});
 												
-												// 显示成功提示
+												
+												// Show success message
 												alert(
 													t('AddonsConfig:analog-calibration-success-stick-1') + '\n\n' +
 													t('AddonsConfig:analog-calibration-data') + '\n' +
@@ -648,25 +652,25 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									</FormSelect>
 								</Row>
 								<div className="d-flex align-items-center">
-									<FormCheck
-										label={t('AddonsConfig:analog-auto-calibrate')}
-										type="switch"
-										id="Auto_calibrate2"
-										className="col-sm-3 ms-3"
-										isInvalid={false}
-										checked={Boolean(values.auto_calibrate2)}
-										onChange={(e) => {
-											handleCheckbox('auto_calibrate2');
-											handleChange(e);
-										}}
-									/>
+								<FormCheck
+									label={t('AddonsConfig:analog-auto-calibrate')}
+									type="switch"
+									id="Auto_calibrate2"
+									className="col-sm-3 ms-3"
+									isInvalid={false}
+									checked={Boolean(values.auto_calibrate2)}
+									onChange={(e) => {
+										handleCheckbox('auto_calibrate2');
+										handleChange(e);
+									}}
+								/>
 									<button
 										type="button"
 										className="btn btn-sm btn-outline-secondary ms-2"
 										disabled={Boolean(values.auto_calibrate2)}
 										onClick={async () => {
 											try {
-												// 多步骤校准流程
+												// Multi-step calibration process
 												const steps = [
 													{ direction: t('AddonsConfig:analog-calibration-direction-top-left'), position: 'top-left' },
 													{ direction: t('AddonsConfig:analog-calibration-direction-top-right'), position: 'top-right' },
@@ -680,7 +684,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													const step = steps[i];
 													const stepNumber = i + 1;
 													
-													// 显示提示框
+													
+													// Show confirmation dialog
 													const userConfirmed = confirm(
 														t('AddonsConfig:analog-calibration-step-title', { step: stepNumber }) + '\n\n' +
 														t('AddonsConfig:analog-calibration-step-instruction', { stick: '2', direction: step.direction }) + '\n\n' +
@@ -692,7 +697,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 														return;
 													}
 													
-													// 读取当前中心值
+													
+													// Read current center value
 													console.log(`Fetching joystick 2 center for step ${stepNumber}...`);
 													const res = await fetch('/api/getJoystickCenter2');
 													console.log('Response status:', res.status);
@@ -720,11 +726,12 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													console.log(`Step ${stepNumber} completed:`, calibrationValues[i]);
 												}
 												
-												// 计算四个点的中心值
+
+												// Calculate center value from four points
 												const avgX = Math.round(calibrationValues.reduce((sum, val) => sum + val.x, 0) / 4);
 												const avgY = Math.round(calibrationValues.reduce((sum, val) => sum + val.y, 0) / 4);
 												
-												// 更新摇杆2的中心值
+												// Update joystick 2 center values
 												setFieldValue('joystickCenterX2', avgX);
 												setFieldValue('joystickCenterY2', avgY);
 												
@@ -733,7 +740,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													finalCenter: { x: avgX, y: avgY }
 												});
 												
-												// 显示成功提示
+												
+												// Show success message
 												alert(
 													t('AddonsConfig:analog-calibration-success-stick-2') + '\n\n' +
 													t('AddonsConfig:analog-calibration-data') + '\n' +
