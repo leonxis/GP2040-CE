@@ -10,7 +10,8 @@ enum DisplayMode {
     STATS,
     MAIN_MENU,
     RESTART,
-    SYSTEM_ERROR
+    SYSTEM_ERROR,
+    STICK_CALIBRATION
 };
 
 #include "ui/screens/ButtonLayoutScreen.h"
@@ -21,6 +22,7 @@ enum DisplayMode {
 #include "ui/screens/RestartScreen.h"
 #include "ui/screens/SplashScreen.h"
 #include "ui/screens/StatsScreen.h"
+#include "ui/screens/StickCalibrationScreen.h"
 #include "ui/screens/SystemErrorScreen.h"
 
 #endif

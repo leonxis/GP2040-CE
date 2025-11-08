@@ -415,20 +415,20 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													
 													// Read current center value
 													console.log(`Fetching joystick 1 center for step ${stepNumber}...`);
-													const res = await fetch('/api/getJoystickCenter');
-													console.log('Response status:', res.status);
+												const res = await fetch('/api/getJoystickCenter');
+												console.log('Response status:', res.status);
 													
 													if (!res.ok) {
 														throw new Error(`HTTP error! status: ${res.status}`);
 													}
 													
-													const data = await res.json();
-													console.log('Response data:', data);
-													
+												const data = await res.json();
+												console.log('Response data:', data);
+												
 													if (!data.success || data.error) {
 														alert(t('AddonsConfig:analog-calibration-failed', { error: data.error || 'Unknown error' }));
-														console.error('API Error:', data.error);
-														return;
+													console.error('API Error:', data.error);
+													return;
 													}
 													
 													calibrationValues.push({
@@ -652,18 +652,18 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									</FormSelect>
 								</Row>
 								<div className="d-flex align-items-center">
-									<FormCheck
-										label={t('AddonsConfig:analog-auto-calibrate')}
-										type="switch"
-										id="Auto_calibrate2"
-										className="col-sm-3 ms-3"
-										isInvalid={false}
-										checked={Boolean(values.auto_calibrate2)}
-										onChange={(e) => {
-											handleCheckbox('auto_calibrate2');
-											handleChange(e);
-										}}
-									/>
+								<FormCheck
+									label={t('AddonsConfig:analog-auto-calibrate')}
+									type="switch"
+									id="Auto_calibrate2"
+									className="col-sm-3 ms-3"
+									isInvalid={false}
+									checked={Boolean(values.auto_calibrate2)}
+									onChange={(e) => {
+										handleCheckbox('auto_calibrate2');
+										handleChange(e);
+									}}
+								/>
 									<button
 										type="button"
 										className="btn btn-sm btn-outline-secondary ms-2"

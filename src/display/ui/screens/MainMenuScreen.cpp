@@ -130,6 +130,10 @@ void MainMenuScreen::setMenuHome() {
 
     exitToScreen = -1;
     prevValues = Storage::getInstance().GetGamepad()->debouncedGpio;
+    // Initialize prevButtonState with current button state to prevent immediate button press detection
+    // when returning from other screens with a button still pressed
+    prevButtonState = getGamepad()->state.buttons;
+    prevDpadState = getGamepad()->state.dpad;
     isMenuReady = true;
 }
 
@@ -471,4 +475,13 @@ void MainMenuScreen::selectTurboMode() {
 
 int32_t MainMenuScreen::currentTurboMode() {
     return updateTurbo;
+}
+
+void MainMenuScreen::startStickCalibration() {
+    // Only allow calibration if analog input is enabled
+    if (!Storage::getInstance().getAddonOptions().analogOptions.enabled) {
+        return;
+    }
+    exitToScreen = DisplayMode::STICK_CALIBRATION;
+    exitToScreenBeforePrompt = DisplayMode::STICK_CALIBRATION;
 }
