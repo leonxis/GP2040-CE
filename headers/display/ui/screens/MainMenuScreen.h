@@ -71,6 +71,10 @@ class MainMenuScreen : public GPScreen {
         int32_t currentTurboMode();
 
         void startStickCalibration();
+        void selectGPIO22Mapping();
+        int32_t currentGPIO22Mapping();
+        void selectGPIO25Mapping();
+        int32_t currentGPIO25Mapping();
 
         void updateMenuNavigation(GpioAction action);
         void updateEventMenuNavigation(GpioAction action);
@@ -152,6 +156,23 @@ class MainMenuScreen : public GPScreen {
         bool prevTurbo;
         bool updateTurbo;
 
+        std::vector<MenuEntry> backStickSelectionMenu = {};  // Left stick / Right stick selection
+        std::vector<MenuEntry> gpio22MappingMenu = {};       // GPIO22 button mapping
+        std::vector<MenuEntry> gpio25MappingMenu = {};       // GPIO25 button mapping
+        GpioAction prevGPIO22Action;
+        GpioAction updateGPIO22Action;
+        GpioAction prevGPIO25Action;
+        GpioAction updateGPIO25Action;
+        bool backStickChangesPending = false;  // Track if back stick mappings changed
+
+        void selectBackStickType();  // Select Left stick or Right stick
+        int32_t currentBackStickType();
+        void enterBackStickMapping(bool isGPIO22);  // Enter mapping menu for selected stick
+        void exitBackStickSelection();  // Exit back to main menu with reboot prompt if needed
+        
+        std::string getGpioActionName(GpioAction action);
+        void buildButtonMappingMenu(std::vector<MenuEntry>* menu, std::function<int32_t()> currentValueFunc, std::function<void()> selectFunc, bool isGPIO22);
+
         std::vector<MenuEntry> mainMenu = {
             {"Stick Calibrate", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::startStickCalibration, this), -1},
             {"Input Mode", NULL, &inputModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
@@ -160,6 +181,7 @@ class MainMenuScreen : public GPScreen {
             {"Profile",    NULL, &profilesMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Focus Mode", NULL, &focusModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Turbo",      NULL, &turboModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
+            {"Back stick", NULL, &backStickSelectionMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Exit",       NULL, &saveMenu,      std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
         };
 
