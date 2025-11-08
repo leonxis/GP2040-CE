@@ -164,6 +164,7 @@ class MainMenuScreen : public GPScreen {
         GpioAction prevGPIO25Action;
         GpioAction updateGPIO25Action;
         bool backStickChangesPending = false;  // Track if back stick mappings changed
+        bool backstickRebootPending = false;   // Track if we need to show "Press B1 to restart" prompt
 
         void selectBackStickType();  // Select Left stick or Right stick
         int32_t currentBackStickType();
@@ -175,13 +176,13 @@ class MainMenuScreen : public GPScreen {
 
         std::vector<MenuEntry> mainMenu = {
             {"Stick Calibrate", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::startStickCalibration, this), -1},
+            {"Back stick", NULL, &backStickSelectionMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Input Mode", NULL, &inputModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"D-Pad Mode", NULL, &dpadModeMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"SOCD Mode",  NULL, &socdModeMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Profile",    NULL, &profilesMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Focus Mode", NULL, &focusModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Turbo",      NULL, &turboModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
-            {"Back stick", NULL, &backStickSelectionMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Exit",       NULL, &saveMenu,      std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
         };
 
