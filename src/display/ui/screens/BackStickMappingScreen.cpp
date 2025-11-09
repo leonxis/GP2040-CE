@@ -242,11 +242,6 @@ void BackStickMappingScreen::selectGPIO22Mapping() {
     gpMenu->setMenuTitle("Back stick");
     gpMenu->setMenuSize(18, menuLineSize);
     gpMenu->setIndex(0);
-
-    if (rebootPending) {
-        screenIsPrompting = true;
-        gpMenu->setVisibility(false);
-    }
 }
 
 int32_t BackStickMappingScreen::currentGPIO22Mapping() {
@@ -277,11 +272,6 @@ void BackStickMappingScreen::selectGPIO25Mapping() {
     gpMenu->setMenuTitle("Back stick");
     gpMenu->setMenuSize(18, menuLineSize);
     gpMenu->setIndex(0);
-
-    if (rebootPending) {
-        screenIsPrompting = true;
-        gpMenu->setVisibility(false);
-    }
 }
 
 int32_t BackStickMappingScreen::currentGPIO25Mapping() {
@@ -323,9 +313,16 @@ void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
     if (!isMenuReady || gpMenu == nullptr) return;
 
     if (screenIsPrompting && rebootPending) {
-        if (action == GpioAction::MENU_NAVIGATION_SELECT) {
-            saveOptions();
-            EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
+        switch (action) {
+            case GpioAction::MENU_NAVIGATION_SELECT:
+                saveOptions();
+                EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
+                break;
+            case GpioAction::MENU_NAVIGATION_BACK:
+                screenIsPrompting = false;
+                break;
+            default:
+                break;
         }
         return;
     }
@@ -408,8 +405,12 @@ void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
                 gpMenu->setIndex(0);
                 currentState = STATE_SELECT_STICK;
             } else {
-                exitToScreen = DisplayMode::MAIN_MENU;
-                isMenuReady = false;
+                if (currentMenu == &stickSelectionMenu && changesPending && rebootPending) {
+                    screenIsPrompting = true;
+                } else {
+                    exitToScreen = DisplayMode::MAIN_MENU;
+                    isMenuReady = false;
+                }
             }
             break;
         default:
