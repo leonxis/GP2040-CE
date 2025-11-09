@@ -91,29 +91,6 @@ void MainMenuScreen::init() {
     prevTurbo = Storage::getInstance().getAddonOptions().turboOptions.enabled;
     updateTurbo = Storage::getInstance().getAddonOptions().turboOptions.enabled;
 
-    // Initialize GPIO22 and GPIO25 mappings
-    GpioMappingInfo* gpioPinMappings = Storage::getInstance().getGpioMappings().pins;
-    prevGPIO22Action = gpioPinMappings[22].action;
-    updateGPIO22Action = gpioPinMappings[22].action;
-    prevGPIO25Action = gpioPinMappings[25].action;
-    updateGPIO25Action = gpioPinMappings[25].action;
-    backStickChangesPending = false;
-    backstickRebootPending = false;
-
-    // Build back stick selection menu (Left stick / Right stick)
-    backStickSelectionMenu = {
-        {"Left stick",  NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::selectBackStickType, this), 0},
-        {"Right stick", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::selectBackStickType, this), 1},
-    };
-
-    // Build button mapping menus
-    buildButtonMappingMenu(&gpio22MappingMenu, 
-        std::bind(&MainMenuScreen::currentGPIO22Mapping, this),
-        std::bind(&MainMenuScreen::selectGPIO22Mapping, this), true);
-    buildButtonMappingMenu(&gpio25MappingMenu,
-        std::bind(&MainMenuScreen::currentGPIO25Mapping, this),
-        std::bind(&MainMenuScreen::selectGPIO25Mapping, this), false);
-
     setMenuHome();
 }
 
@@ -129,13 +106,7 @@ void MainMenuScreen::drawScreen() {
     if (!screenIsPrompting) {
 
     } else {
-        // Check if this is a back stick reboot prompt (direct restart like stick calibration)
-        if (backstickRebootPending) {
-            getRenderer()->drawText(2, 0, "[Back stick]");
-            getRenderer()->drawText(4, 1, "Complete!");
-            getRenderer()->drawText(3, 4, "Press B1 to");
-            getRenderer()->drawText(5, 5, "restart");
-        } else if (backStickChangesPending && changeRequiresReboot) {
+        if (changeRequiresReboot) {
             getRenderer()->drawText(1, 1, "Reboot to");
             getRenderer()->drawText(1, 2, "apply settings");
             
@@ -241,282 +212,87 @@ void MainMenuScreen::updateEventMenuNavigation(GpioAction action) {
 }
 
 void MainMenuScreen::updateMenuNavigation(GpioAction action) {
-    if (gpMenu == nullptr)
+    if (gpMenu == nullptr || !isMenuReady)
         return;
 
     uint16_t menuIndex = gpMenu->getIndex();
     uint16_t menuSize = gpMenu->getDataSize();
 
-    if (isMenuReady) {
-        if (screenIsPrompting) {
-            // Check if this is a direct restart prompt (like stick calibration)
-            if (backstickRebootPending) {
-                switch(action) {
-                    case GpioAction::MENU_NAVIGATION_SELECT:
-                        // Save and reboot directly (like stick calibration)
-                        saveOptions();
-                        // Clear exitToScreen to prevent switching to BUTTONS screen
-                        exitToScreen = -1;
-                        exitToScreenBeforePrompt = -1;
-                        // Trigger reboot - this will show RestartScreen with "Gamepad Mode Please Wait"
-                        EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
-                        backstickRebootPending = false;
-                        backStickChangesPending = false;
-                        // Return -1 to prevent screen transition, let restart event handle it
-                        // Note: This is handled in update() which returns exitToScreen (-1)
-                        break;
-                    default:
-                        break;
+    if (screenIsPrompting) {
+        switch (action) {
+            case GpioAction::MENU_NAVIGATION_UP:
+            case GpioAction::MENU_NAVIGATION_DOWN:
+            case GpioAction::MENU_NAVIGATION_LEFT:
+            case GpioAction::MENU_NAVIGATION_RIGHT:
+                promptChoice = !promptChoice;
+                break;
+            case GpioAction::MENU_NAVIGATION_SELECT:
+                if (promptChoice) {
+                    saveOptions();
+                    EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
+                    exitToScreen = DisplayMode::BUTTONS;
+                    exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                } else {
+                    screenIsPrompting = false;
                 }
-            } else {
-                switch(action) {
-                    case GpioAction::MENU_NAVIGATION_UP:
-                    case GpioAction::MENU_NAVIGATION_DOWN:
-                    case GpioAction::MENU_NAVIGATION_LEFT:
-                    case GpioAction::MENU_NAVIGATION_RIGHT:
-                        promptChoice = !promptChoice;
-                        break;
-                    case GpioAction::MENU_NAVIGATION_SELECT:
-                        if (promptChoice) {
-                            // Save and reboot
-                            saveOptions();
-                            // Trigger reboot
-                            EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
-                            exitToScreen = DisplayMode::BUTTONS;
-                            exitToScreenBeforePrompt = DisplayMode::BUTTONS;
-                        } else {
-                            // Cancel - stay in back stick selection menu
-                            screenIsPrompting = false;
-                            backStickChangesPending = false; // Reset flag
-                            // Don't exit, just cancel the prompt
-                        }
-                        break;
-                    case GpioAction::MENU_NAVIGATION_BACK:
-                        // Cancel - stay in back stick selection menu
-                        screenIsPrompting = false;
-                        backStickChangesPending = false; // Reset flag
-                        break;
-                    default:
-                        break;
-                }
-            }
-        } else {
-            // Check if we're in a multi-column menu (back stick mapping menus)
-            bool isTwoColumnMenu = (currentMenu == &gpio22MappingMenu || currentMenu == &gpio25MappingMenu);
-            bool isThreeColumnMenu = (currentMenu == &gpio22MappingMenu || currentMenu == &gpio25MappingMenu);
-            bool isFourColumnMenu = (currentMenu == &gpio22MappingMenu || currentMenu == &gpio25MappingMenu);
-            
-            switch (action) { 
-                case GpioAction::MENU_NAVIGATION_UP:
-                    if (isFourColumnMenu) {
-                        // In four-column mode, UP moves within the same column (decrease by 4)
-                        if (menuIndex == 0) {
-                            // NONE is at index 0, wrap to last item
-                            gpMenu->setIndex(menuSize - 1);
-                        } else if (menuIndex >= 4) {
-                            gpMenu->setIndex(menuIndex - 4);
-                        } else {
-                            // For items 1, 2, 3 (first row), go to NONE (index 0)
-                            gpMenu->setIndex(0);
-                        }
-                    } else if (isThreeColumnMenu) {
-                        // In three-column mode, UP moves within the same column (decrease by 3)
-                        if (menuIndex == 0) {
-                            // NONE is at index 0, wrap to last item
-                            gpMenu->setIndex(menuSize - 1);
-                        } else if (menuIndex >= 3) {
-                            gpMenu->setIndex(menuIndex - 3);
-                        } else {
-                            // Wrap to bottom of same column (for items 1, 2)
-                            uint16_t column = (menuIndex - 1) % 3; // Adjust for NONE
-                            uint16_t maxIndex = ((menuSize - 2) / 3) * 3 + column + 1; // Adjust for NONE
-                            if (maxIndex >= menuSize) maxIndex = menuSize - 1;
-                            gpMenu->setIndex(maxIndex);
-                        }
-                    } else if (isTwoColumnMenu) {
-                        // In two-column mode, UP moves within the same column (decrease by 2)
-                        if (menuIndex >= 2) {
-                            gpMenu->setIndex(menuIndex - 2);
-                        } else {
-                            // Wrap to bottom of same column
-                            uint16_t column = menuIndex % 2;
-                            uint16_t maxIndex = ((menuSize - 1) / 2) * 2 + column;
-                            gpMenu->setIndex(maxIndex);
-                        }
-                    } else {
-                        if ( menuIndex == 0 ) {
-                            gpMenu->setIndex(menuSize-1);
-                        } else {
-                            gpMenu->setIndex(menuIndex-1);
-                        }
-                    }
-                    break;
-                case GpioAction::MENU_NAVIGATION_DOWN:
-                    if (isFourColumnMenu) {
-                        // In four-column mode, DOWN moves within the same column (increase by 4)
-                        if (menuIndex == 0) {
-                            // From NONE, move to first item in first column
-                            gpMenu->setIndex(1);
-                        } else {
-                            uint16_t column = (menuIndex - 1) % 4; // Adjust for NONE
-                            uint16_t nextIndex = menuIndex + 4;
-                            uint16_t maxIndex = ((menuSize - 2) / 4) * 4 + column + 1; // Adjust for NONE
-                            if (maxIndex >= menuSize) maxIndex = menuSize - 1;
-                            if (nextIndex <= maxIndex) {
-                                gpMenu->setIndex(nextIndex);
-                            } else {
-                                // Wrap to top of same column (or NONE if column 0)
-                                if (column == 0) {
-                                    gpMenu->setIndex(0); // Wrap to NONE
-                                } else {
-                                    gpMenu->setIndex(column + 1); // Wrap to top of column
-                                }
-                            }
-                        }
-                    } else if (isThreeColumnMenu) {
-                        // In three-column mode, DOWN moves within the same column (increase by 3)
-                        if (menuIndex == 0) {
-                            // From NONE, move to first item in first column
-                            gpMenu->setIndex(1);
-                        } else {
-                            uint16_t column = (menuIndex - 1) % 3; // Adjust for NONE
-                            uint16_t nextIndex = menuIndex + 3;
-                            uint16_t maxIndex = ((menuSize - 2) / 3) * 3 + column + 1; // Adjust for NONE
-                            if (maxIndex >= menuSize) maxIndex = menuSize - 1;
-                            if (nextIndex <= maxIndex) {
-                                gpMenu->setIndex(nextIndex);
-                            } else {
-                                // Wrap to top of same column (or NONE if column 0)
-                                if (column == 0) {
-                                    gpMenu->setIndex(0); // Wrap to NONE
-                                } else {
-                                    gpMenu->setIndex(column + 1); // Wrap to top of column
-                                }
-                            }
-                        }
-                    } else if (isTwoColumnMenu) {
-                        // In two-column mode, DOWN moves within the same column (increase by 2)
-                        uint16_t column = menuIndex % 2;
-                        uint16_t nextIndex = menuIndex + 2;
-                        uint16_t maxIndex = ((menuSize - 1) / 2) * 2 + column;
-                        if (nextIndex <= maxIndex) {
-                            gpMenu->setIndex(nextIndex);
-                        } else {
-                            // Wrap to top of same column
-                            gpMenu->setIndex(column);
-                        }
-                    } else {
-                        if (menuIndex < menuSize-1) {
-                            gpMenu->setIndex(menuIndex+1);
-                        } else {
-                            gpMenu->setIndex(0);
-                        }
-                    }
-                    break;
-                case GpioAction::MENU_NAVIGATION_LEFT:
-                    if (isFourColumnMenu) {
-                        // In four-column mode, LEFT moves to left column (decrease by 1)
-                        if (menuIndex == 0) {
-                            // From NONE, wrap to last item
-                            gpMenu->setIndex(menuSize - 1);
-                        } else if (menuIndex > 0) {
-                            gpMenu->setIndex(menuIndex - 1);
-                        }
-                    } else if (isThreeColumnMenu) {
-                        // In three-column mode, LEFT moves to left column (decrease by 1)
-                        if (menuIndex == 0) {
-                            // From NONE, wrap to last item
-                            gpMenu->setIndex(menuSize - 1);
-                        } else if (menuIndex > 0) {
-                            gpMenu->setIndex(menuIndex - 1);
-                        }
-                    } else if (isTwoColumnMenu) {
-                        // In two-column mode, LEFT moves to left column (decrease by 1)
-                        if (menuIndex > 0) {
-                            gpMenu->setIndex(menuIndex - 1);
-                        } else {
-                            gpMenu->setIndex(0);
-                        }
-                    } else {
-                        if ((menuIndex-menuLineSize) > 0) {
-                            gpMenu->setIndex(menuIndex - menuLineSize);
-                        } else {
-                            gpMenu->setIndex(0);
-                        }
-                    }
-                    break;
-                case GpioAction::MENU_NAVIGATION_RIGHT:
-                    if (isFourColumnMenu) {
-                        // In four-column mode, RIGHT moves to right column (increase by 1)
-                        if (menuIndex < menuSize - 1) {
-                            gpMenu->setIndex(menuIndex + 1);
-                        } else {
-                            // Wrap to NONE
-                            gpMenu->setIndex(0);
-                        }
-                    } else if (isThreeColumnMenu) {
-                        // In three-column mode, RIGHT moves to right column (increase by 1)
-                        if (menuIndex < menuSize - 1) {
-                            gpMenu->setIndex(menuIndex + 1);
-                        } else {
-                            // Wrap to NONE
-                            gpMenu->setIndex(0);
-                        }
-                    } else if (isTwoColumnMenu) {
-                        // In two-column mode, RIGHT moves to right column (increase by 1)
-                        if (menuIndex < menuSize - 1) {
-                            gpMenu->setIndex(menuIndex + 1);
-                        } else {
-                            gpMenu->setIndex(menuSize - 1);
-                        }
-                    } else {
-                        if ((menuIndex+menuLineSize) < (menuSize-1)) {
-                            gpMenu->setIndex(menuIndex + menuLineSize);
-                        } else {
-                            gpMenu->setIndex(menuSize-1);
-                        }
-                    }
-                    break;
-                case GpioAction::MENU_NAVIGATION_SELECT:
-                    if (currentMenu->at(menuIndex).submenu != nullptr) {
-                        previousMenu = currentMenu;
-                        currentMenu = currentMenu->at(menuIndex).submenu;
-                        gpMenu->setMenuData(currentMenu);
-                        gpMenu->setMenuTitle(previousMenu->at(menuIndex).label);
-                        gpMenu->setIndex(0);
-                    } else {
-                        // Execute the action (which may change menus)
-                        currentMenu->at(menuIndex).action();
-                    }
-                    break;
-                case GpioAction::MENU_NAVIGATION_BACK:
-                    if (previousMenu != nullptr) {
-                        // Check if we're exiting from back stick selection menu to main menu
-                        if (currentMenu == &backStickSelectionMenu && previousMenu == &mainMenu) {
-                            exitBackStickSelection();
-                        } else {
-                            // Normal back navigation
-                            currentMenu = previousMenu;
-                            previousMenu = nullptr;
-                            gpMenu->setMenuData(currentMenu);
-                            // Restore menu size to default (single column)
-                            gpMenu->setMenuSize(18, menuLineSize);
-                            if (currentMenu == &backStickSelectionMenu) {
-                                gpMenu->setMenuTitle("Back stick");
-                            } else if (currentMenu == &mainMenu) {
-                                gpMenu->setMenuTitle(MAIN_MENU_NAME);
-                            }
-                            gpMenu->setIndex(0);
-                        }
-                    } else {
-                        exitToScreen = DisplayMode::BUTTONS;
-                        exitToScreenBeforePrompt = DisplayMode::BUTTONS;
-                    }
-                    break;
-                default:
-                    break;
-            }
+                break;
+            case GpioAction::MENU_NAVIGATION_BACK:
+                screenIsPrompting = false;
+                break;
+            default:
+                break;
         }
+        return;
+    }
+
+    switch (action) {
+        case GpioAction::MENU_NAVIGATION_UP:
+            if (menuSize == 0) break;
+            if (menuIndex == 0) gpMenu->setIndex(menuSize - 1);
+            else gpMenu->setIndex(menuIndex - 1);
+            break;
+        case GpioAction::MENU_NAVIGATION_DOWN:
+            if (menuSize == 0) break;
+            if (menuIndex < menuSize - 1) gpMenu->setIndex(menuIndex + 1);
+            else gpMenu->setIndex(0);
+            break;
+        case GpioAction::MENU_NAVIGATION_LEFT:
+            if ((menuIndex - menuLineSize) > 0) gpMenu->setIndex(menuIndex - menuLineSize);
+            else gpMenu->setIndex(0);
+            break;
+        case GpioAction::MENU_NAVIGATION_RIGHT:
+            if ((menuIndex + menuLineSize) < (menuSize - 1)) gpMenu->setIndex(menuIndex + menuLineSize);
+            else gpMenu->setIndex(menuSize > 0 ? menuSize - 1 : 0);
+            break;
+        case GpioAction::MENU_NAVIGATION_SELECT:
+            if (menuSize == 0) break;
+            if (currentMenu->at(menuIndex).submenu != nullptr) {
+                previousMenu = currentMenu;
+                currentMenu = currentMenu->at(menuIndex).submenu;
+                gpMenu->setMenuData(currentMenu);
+                gpMenu->setMenuTitle(previousMenu->at(menuIndex).label);
+                gpMenu->setIndex(0);
+            } else {
+                currentMenu->at(menuIndex).action();
+            }
+            break;
+        case GpioAction::MENU_NAVIGATION_BACK:
+            if (previousMenu != nullptr) {
+                currentMenu = previousMenu;
+                previousMenu = nullptr;
+                gpMenu->setMenuData(currentMenu);
+                gpMenu->setMenuSize(18, menuLineSize);
+                if (currentMenu == &mainMenu) {
+                    gpMenu->setMenuTitle(MAIN_MENU_NAME);
+                }
+                gpMenu->setIndex(0);
+            } else {
+                exitToScreen = DisplayMode::BUTTONS;
+                exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+            }
+            break;
+        default:
+            break;
     }
 }
 
@@ -609,8 +385,6 @@ void MainMenuScreen::resetOptions() {
         if (prevProfile != updateProfile) updateProfile = prevProfile;
         if (prevFocus != updateFocus) updateFocus = prevFocus;
         if (prevTurbo != updateTurbo) updateTurbo = prevTurbo;
-        if (prevGPIO22Action != updateGPIO22Action) updateGPIO22Action = prevGPIO22Action;
-        if (prevGPIO25Action != updateGPIO25Action) updateGPIO25Action = prevGPIO25Action;
     }
 
     changeRequiresSave = false;
@@ -646,17 +420,6 @@ void MainMenuScreen::saveOptions() {
         }
         if ((bool)prevTurbo != (bool)updateTurbo) {
             addonOptions.turboOptions.enabled = (bool)updateTurbo;
-            saveHasChanged = true;
-        }
-
-        // Save GPIO22 and GPIO25 mappings
-        GpioMappings& gpioMappings = Storage::getInstance().getGpioMappings();
-        if (prevGPIO22Action != updateGPIO22Action) {
-            gpioMappings.pins[22].action = updateGPIO22Action;
-            saveHasChanged = true;
-        }
-        if (prevGPIO25Action != updateGPIO25Action) {
-            gpioMappings.pins[25].action = updateGPIO25Action;
             saveHasChanged = true;
         }
 
@@ -732,195 +495,7 @@ void MainMenuScreen::startStickCalibration() {
     exitToScreenBeforePrompt = DisplayMode::STICK_CALIBRATION;
 }
 
-std::string MainMenuScreen::getGpioActionName(GpioAction action) {
-    switch (action) {
-        case GpioAction::NONE: return "None";
-        case GpioAction::BUTTON_PRESS_UP: return "Up";
-        case GpioAction::BUTTON_PRESS_DOWN: return "Down";
-        case GpioAction::BUTTON_PRESS_LEFT: return "Left";
-        case GpioAction::BUTTON_PRESS_RIGHT: return "Right";
-        case GpioAction::BUTTON_PRESS_B1: return "B1";
-        case GpioAction::BUTTON_PRESS_B2: return "B2";
-        case GpioAction::BUTTON_PRESS_B3: return "B3";
-        case GpioAction::BUTTON_PRESS_B4: return "B4";
-        case GpioAction::BUTTON_PRESS_L1: return "L1";
-        case GpioAction::BUTTON_PRESS_R1: return "R1";
-        case GpioAction::BUTTON_PRESS_L2: return "L2";
-        case GpioAction::BUTTON_PRESS_R2: return "R2";
-        case GpioAction::BUTTON_PRESS_S1: return "S1";
-        case GpioAction::BUTTON_PRESS_S2: return "S2";
-        case GpioAction::BUTTON_PRESS_A1: return "A1";
-        case GpioAction::BUTTON_PRESS_A2: return "A2";
-        case GpioAction::BUTTON_PRESS_L3: return "L3";
-        case GpioAction::BUTTON_PRESS_R3: return "R3";
-        case GpioAction::BUTTON_PRESS_FN: return "FN";
-        case GpioAction::BUTTON_PRESS_A3: return "A3";
-        case GpioAction::BUTTON_PRESS_A4: return "A4";
-        case GpioAction::BUTTON_PRESS_E1: return "E1";
-        case GpioAction::BUTTON_PRESS_E2: return "E2";
-        case GpioAction::BUTTON_PRESS_E3: return "E3";
-        case GpioAction::BUTTON_PRESS_E4: return "E4";
-        case GpioAction::BUTTON_PRESS_E5: return "E5";
-        case GpioAction::BUTTON_PRESS_E6: return "E6";
-        case GpioAction::BUTTON_PRESS_E7: return "E7";
-        case GpioAction::BUTTON_PRESS_E8: return "E8";
-        case GpioAction::BUTTON_PRESS_E9: return "E9";
-        case GpioAction::BUTTON_PRESS_E10: return "E10";
-        case GpioAction::BUTTON_PRESS_E11: return "E11";
-        case GpioAction::BUTTON_PRESS_E12: return "E12";
-        default: return "Other";
-    }
-}
-
-void MainMenuScreen::buildButtonMappingMenu(std::vector<MenuEntry>* menu, std::function<int32_t()> currentValueFunc, std::function<void()> selectFunc, bool isGPIO22) {
-    menu->clear();
-    // Common button actions - using PS4 button names and symbols
-    // Layout: 4 columns
-    // Row 1: Direction arrows (UP, DOWN, LEFT, RIGHT)
-    // Row 2: Shape buttons (CROSS, CIRCLE, SQUARE, TRIANGLE)
-    // Row 3: L1, R1, L2, R2
-    // Row 4: L3, R3, S1, S2 (share/option)
-    // NONE is on a separate line
-    
-    menu->push_back({"NONE",     NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::NONE});
-    // Row 1: Direction arrows
-    menu->push_back({CHAR_UP,    NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_UP});
-    menu->push_back({CHAR_DOWN,  NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_DOWN});
-    menu->push_back({CHAR_LEFT,  NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_LEFT});
-    menu->push_back({CHAR_RIGHT, NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_RIGHT});
-    // Row 2: Shape buttons
-    menu->push_back({CHAR_CROSS, NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_B1});
-    menu->push_back({CHAR_CIRCLE, NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_B2});
-    menu->push_back({CHAR_SQUARE, NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_B3});
-    menu->push_back({CHAR_TRIANGLE, NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_B4});
-    // Row 3: L1, R1, L2, R2
-    menu->push_back({"L1",       NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_L1});
-    menu->push_back({"R1",       NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_R1});
-    menu->push_back({"L2",       NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_L2});
-    menu->push_back({"R2",       NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_R2});
-    // Row 4: L3, R3, S1, S2
-    menu->push_back({"L3",       NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_L3});
-    menu->push_back({"R3",       NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_R3});
-    menu->push_back({"S1",       NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_S1});
-    menu->push_back({"S2",       NULL, nullptr, currentValueFunc, selectFunc, (int32_t)GpioAction::BUTTON_PRESS_S2});
-}
-
-void MainMenuScreen::selectGPIO22Mapping() {
-    if (currentMenu->at(gpMenu->getIndex()).optionValue != -1) {
-        GpioAction valueToSave = (GpioAction)currentMenu->at(gpMenu->getIndex()).optionValue;
-        prevGPIO22Action = Storage::getInstance().getGpioMappings().pins[22].action;
-        updateGPIO22Action = valueToSave;
-
-        // Return to back stick selection menu instead of main menu
-        if (previousMenu != nullptr) {
-            currentMenu = previousMenu;
-            previousMenu = nullptr;
-            gpMenu->setMenuData(currentMenu);
-            gpMenu->setMenuTitle("Back stick");
-            gpMenu->setIndex(0);
-        }
-
-        if (prevGPIO22Action != valueToSave) {
-            backStickChangesPending = true;
-            backstickRebootPending = true;  // Show "Press B1 to restart" prompt
-            changeRequiresSave = true;
-            changeRequiresReboot = true; // GPIO mapping changes require reboot
-        }
-    }
-}
-
-int32_t MainMenuScreen::currentGPIO22Mapping() {
-    // Return the current action value (not index) so GPMenu can show "*" on the selected item
-    return (int32_t)updateGPIO22Action;
-}
-
-void MainMenuScreen::selectGPIO25Mapping() {
-    if (currentMenu->at(gpMenu->getIndex()).optionValue != -1) {
-        GpioAction valueToSave = (GpioAction)currentMenu->at(gpMenu->getIndex()).optionValue;
-        prevGPIO25Action = Storage::getInstance().getGpioMappings().pins[25].action;
-        updateGPIO25Action = valueToSave;
-
-        // Return to back stick selection menu instead of main menu
-        if (previousMenu != nullptr) {
-            currentMenu = previousMenu;
-            previousMenu = nullptr;
-            gpMenu->setMenuData(currentMenu);
-            gpMenu->setMenuTitle("Back stick");
-            gpMenu->setIndex(0);
-        }
-
-        if (prevGPIO25Action != valueToSave) {
-            backStickChangesPending = true;
-            backstickRebootPending = true;  // Show "Press B1 to restart" prompt
-            changeRequiresSave = true;
-            changeRequiresReboot = true; // GPIO mapping changes require reboot
-        }
-    }
-}
-
-int32_t MainMenuScreen::currentGPIO25Mapping() {
-    // Return the current action value (not index) so GPMenu can show "*" on the selected item
-    return (int32_t)updateGPIO25Action;
-}
-
-void MainMenuScreen::selectBackStickType() {
-    if (currentMenu->at(gpMenu->getIndex()).optionValue != -1) {
-        bool isGPIO22 = (currentMenu->at(gpMenu->getIndex()).optionValue == 0); // 0 = Left stick
-        enterBackStickMapping(isGPIO22);
-    }
-}
-
-int32_t MainMenuScreen::currentBackStickType() {
-    return -1; // No current selection needed for this menu
-}
-
-void MainMenuScreen::enterBackStickMapping(bool isGPIO22) {
-    // Set previous menu to backStickSelectionMenu
-    previousMenu = currentMenu;
-    
-    // Navigate to the appropriate mapping menu
-    if (isGPIO22) {
-        currentMenu = &gpio22MappingMenu;
-        gpMenu->setMenuTitle("Left stick");
-    } else {
-        currentMenu = &gpio25MappingMenu;
-        gpMenu->setMenuTitle("Right stick");
-    }
-    
-    // Set menu to display in 4 columns (NONE on first line, other items in 4 columns)
-    // menuSizeX = 4 means 4 columns, menuSizeY = 4 means 4 rows for items (excluding NONE and page line)
-    // First page: NONE on row 1, other items on rows 2-5 (4 rows, 4 columns = 16 items)
-    // Other pages: items on rows 1-4 (4 rows, 4 columns = 16 items)
-    gpMenu->setMenuSize(4, 4); // 4 columns, 4 rows per column (NONE on separate line on first page)
-    
-    gpMenu->setMenuData(currentMenu);
-    gpMenu->setIndex(0);
-}
-
-void MainMenuScreen::exitBackStickSelection() {
-    // Check if there are pending changes
-    if (backStickChangesPending) {
-        // Show direct restart prompt (like stick calibration)
-        if (backstickRebootPending) {
-            screenIsPrompting = true;
-            // Don't set exitToScreenBeforePrompt - we want restart to show RestartScreen, not BUTTONS
-            exitToScreen = -1;
-            exitToScreenBeforePrompt = -1;
-        } else {
-            // Show yes/no prompt for other changes
-            screenIsPrompting = true;
-            promptChoice = true; // Default to Yes (reboot)
-            exitToScreenBeforePrompt = DisplayMode::BUTTONS;
-            exitToScreen = -1;
-        }
-    } else {
-        // No changes, just exit
-        currentMenu = previousMenu;
-        previousMenu = nullptr;
-        gpMenu->setMenuData(currentMenu);
-        // Restore menu size to default (single column)
-        gpMenu->setMenuSize(18, menuLineSize);
-        gpMenu->setMenuTitle(MAIN_MENU_NAME);
-        gpMenu->setIndex(0);
-    }
+void MainMenuScreen::openBackStickMapping() {
+    exitToScreen = DisplayMode::BACK_STICK_MAPPING;
+    exitToScreenBeforePrompt = DisplayMode::BACK_STICK_MAPPING;
 }
