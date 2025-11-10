@@ -67,6 +67,14 @@
 #define DEFAULT_OUTER_DEADZONE2 95
 #endif
 
+#ifndef DEFAULT_ANTI_DEADZONE
+#define DEFAULT_ANTI_DEADZONE 0
+#endif
+
+#ifndef DEFAULT_ANTI_DEADZONE2
+#define DEFAULT_ANTI_DEADZONE2 0
+#endif
+
 #ifndef AUTO_CALIBRATE_ENABLED
 #define AUTO_CALIBRATE_ENABLED 0
 #endif
@@ -126,6 +134,7 @@ typedef struct
     float error_rate;
     float in_deadzone;
     float out_deadzone;
+    float anti_deadzone;
     bool auto_calibration;
     bool forced_circularity;
     uint32_t joystick_center_x;

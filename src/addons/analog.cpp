@@ -6,7 +6,8 @@
 #include "storagemanager.h"
 #include "drivermanager.h"
 
-#include <math.h>
+#include <algorithm>
+#include <cmath>
 
 #define ADC_MAX ((1 << 12) - 1) // 4095
 #define ADC_PIN_OFFSET 26
@@ -31,6 +32,7 @@ void AnalogInput::setup() {
     adc_pairs[0].error_rate = analogOptions.analog_error / 1000.0f;
     adc_pairs[0].in_deadzone = analogOptions.inner_deadzone / 100.0f;
     adc_pairs[0].out_deadzone = analogOptions.outer_deadzone / 100.0f;
+    adc_pairs[0].anti_deadzone = analogOptions.anti_deadzone / 100.0f;
     adc_pairs[0].auto_calibration = analogOptions.auto_calibrate;
     adc_pairs[0].forced_circularity = analogOptions.forced_circularity;
     adc_pairs[0].joystick_center_x = analogOptions.joystick_center_x;
@@ -44,6 +46,7 @@ void AnalogInput::setup() {
     adc_pairs[1].error_rate = analogOptions.analog_error2 / 1000.0f;
     adc_pairs[1].in_deadzone = analogOptions.inner_deadzone2 / 100.0f;
     adc_pairs[1].out_deadzone = analogOptions.outer_deadzone2 / 100.0f;
+    adc_pairs[1].anti_deadzone = analogOptions.anti_deadzone2 / 100.0f;
     adc_pairs[1].auto_calibration = analogOptions.auto_calibrate2;
     adc_pairs[1].forced_circularity = analogOptions.forced_circularity2;
     adc_pairs[1].joystick_center_x = analogOptions.joystick_center_x2;
@@ -186,4 +189,21 @@ void AnalogInput::radialDeadzone(int stick_num, adc_instance & adc_inst) {
     adc_inst.y_value = ((adc_inst.y_magnitude / adc_inst.xy_magnitude) * scaling_factor) + ANALOG_CENTER;
     adc_inst.x_value = std::clamp(adc_inst.x_value, ANALOG_MINIMUM, ANALOG_MAX);
     adc_inst.y_value = std::clamp(adc_inst.y_value, ANALOG_MINIMUM, ANALOG_MAX);
+    if (adc_pairs[stick_num].anti_deadzone > 0.0f) {
+        float x_component = adc_inst.x_value - ANALOG_CENTER;
+        float y_component = adc_inst.y_value - ANALOG_CENTER;
+        float length = std::sqrt((x_component * x_component) + (y_component * y_component));
+        if (length > 0.0f) {
+            float normalized = std::min(length / ANALOG_CENTER, 1.0f);
+            float baseline = std::clamp(adc_pairs[stick_num].anti_deadzone, 0.0f, 1.0f);
+            if (normalized < baseline) {
+                float targetLength = baseline * ANALOG_CENTER;
+                float scale = targetLength / length;
+                x_component *= scale;
+                y_component *= scale;
+                adc_inst.x_value = std::clamp(x_component + ANALOG_CENTER, ANALOG_MINIMUM, ANALOG_MAX);
+                adc_inst.y_value = std::clamp(y_component + ANALOG_CENTER, ANALOG_MINIMUM, ANALOG_MAX);
+            }
+        }
+    }
 }

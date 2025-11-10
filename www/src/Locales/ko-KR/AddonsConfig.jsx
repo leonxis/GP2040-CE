@@ -29,6 +29,7 @@ export default {
 	'analog-adc-2-invert-label': '아날로그 스틱 2 반전',
 	'analog-force-circularity': '강제로 원형을 유지',
 	'inner-deadzone-size': '내부 데드존(%)',
+	'inner-anti-deadzone-size': '내부 안티 데드존(%)',
 	'outer-deadzone-size': '외부 데드존(%)',
 	'analog-auto-calibrate': '자동 보정',
 	'analog-smoothing': '아날로그 스무딩',

@@ -423,6 +423,8 @@ message AnalogOptions
     optional uint32 joystick_center_y = 25;
     optional uint32 joystick_center_x2 = 26;
     optional uint32 joystick_center_y2 = 27;
+    optional uint32 anti_deadzone = 28;
+    optional uint32 anti_deadzone2 = 29;
 }
 
 message TurboOptions

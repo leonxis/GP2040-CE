@@ -89,9 +89,17 @@ export const analogScheme = {
 		.number()
 		.label('Inner Deadzone Size (%)')
 		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+	anti_deadzone: yup
+		.number()
+		.label('Inner Anti-Deadzone Size (%)')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
 	inner_deadzone2: yup
 		.number()
 		.label('Inner Deadzone Size (%)')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+	anti_deadzone2: yup
+		.number()
+		.label('Inner Anti-Deadzone Size (%)')
 		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
 	outer_deadzone: yup
 		.number()
@@ -164,7 +172,9 @@ export const analogState = {
 	forced_circularity: 0,
 	forced_circularity2: 0,
 	inner_deadzone: 5,
+	anti_deadzone: 0,
 	inner_deadzone2: 5,
+	anti_deadzone2: 0,
 	outer_deadzone: 95,
 	outer_deadzone2: 95,
 	auto_calibrate: 0,
@@ -291,6 +301,19 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										value={values.inner_deadzone}
 										error={errors.inner_deadzone}
 										isInvalid={Boolean(errors.inner_deadzone)}
+										onChange={handleChange}
+										min={0}
+										max={100}
+									/>
+									<FormControl
+										type="number"
+										label={t('AddonsConfig:inner-anti-deadzone-size')}
+										name="anti_deadzone"
+										className="form-control-sm"
+										groupClassName="col-sm-3 mb-3"
+										value={values.anti_deadzone}
+										error={errors.anti_deadzone}
+										isInvalid={Boolean(errors.anti_deadzone)}
 										onChange={handleChange}
 										min={0}
 										max={100}
@@ -576,6 +599,19 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										value={values.inner_deadzone2}
 										error={errors.inner_deadzone2}
 										isInvalid={Boolean(errors.inner_deadzone2)}
+										onChange={handleChange}
+										min={0}
+										max={100}
+									/>
+									<FormControl
+										type="number"
+										label={t('AddonsConfig:inner-anti-deadzone-size')}
+										name="anti_deadzone2"
+										className="form-control-sm"
+										groupClassName="col-sm-3 mb-3"
+										value={values.anti_deadzone2}
+										error={errors.anti_deadzone2}
+										isInvalid={Boolean(errors.anti_deadzone2)}
 										onChange={handleChange}
 										min={0}
 										max={100}

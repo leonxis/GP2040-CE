@@ -29,6 +29,7 @@ export default {
 	'analog-adc-2-invert-label': 'Analog Stick 2 Invert',
 	'analog-force-circularity': 'Force Circularity',
 	'inner-deadzone-size': 'Inner Deadzone Size (%)',
+	'inner-anti-deadzone-size': 'Inner Anti-Deadzone Size (%)',
 	'outer-deadzone-size': 'Outer Deadzone Size (%)',
 	'analog-auto-calibrate': 'Auto Calibration',
 	'analog-calibrate-button': 'Calibrate',

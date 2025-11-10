@@ -27,6 +27,7 @@ export default {
 	'analog-adc-2-invert-label': 'Invertir Stick Analógico 2',
 	'analog-force-circularity': 'Forzar Circularidad',
 	'inner-deadzone-size': 'Tamaño de Zona Muerta Interior (%)',
+	'inner-anti-deadzone-size': 'Tamaño de Anti-Zona Muerta Interior (%)',
 	'outer-deadzone-size': 'Tamaño de Zona Muerta Exterior (%)',
 	'analog-auto-calibrate': 'Calibración Automática',
 	'analog-smoothing': 'Suavizado Analógico',

@@ -29,6 +29,7 @@ export default {
 	'analog-adc-2-invert-label': 'アナログスティック 2 反転',
 	'analog-force-circularity': '真円性を強制する',
 	'inner-deadzone-size': '内側デッドゾーン(%)',
+	'inner-anti-deadzone-size': '内側アンチデッドゾーン(%)',
 	'outer-deadzone-size': '外側デッドゾーン(%)',
 	'analog-auto-calibrate': '自動調整',
 	'analog-smoothing': 'アナログスムージング',

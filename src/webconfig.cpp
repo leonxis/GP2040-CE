@@ -1685,6 +1685,8 @@ std::string setAddonOptions()
     docToValue(analogOptions.inner_deadzone2, doc, "inner_deadzone2");
     docToValue(analogOptions.outer_deadzone, doc, "outer_deadzone");
     docToValue(analogOptions.outer_deadzone2, doc, "outer_deadzone2");
+    docToValue(analogOptions.anti_deadzone, doc, "anti_deadzone");
+    docToValue(analogOptions.anti_deadzone2, doc, "anti_deadzone2");
     docToValue(analogOptions.auto_calibrate, doc, "auto_calibrate");
     docToValue(analogOptions.auto_calibrate2, doc, "auto_calibrate2");
     docToValue(analogOptions.joystick_center_x, doc, "joystickCenterX");
@@ -2143,6 +2145,8 @@ std::string getAddonOptions()
     writeDoc(doc, "inner_deadzone2", analogOptions.inner_deadzone2);
     writeDoc(doc, "outer_deadzone", analogOptions.outer_deadzone);
     writeDoc(doc, "outer_deadzone2", analogOptions.outer_deadzone2);
+    writeDoc(doc, "anti_deadzone", analogOptions.anti_deadzone);
+    writeDoc(doc, "anti_deadzone2", analogOptions.anti_deadzone2);
     writeDoc(doc, "auto_calibrate", analogOptions.auto_calibrate);
     writeDoc(doc, "auto_calibrate2", analogOptions.auto_calibrate2);
     writeDoc(doc, "joystickCenterX", analogOptions.joystick_center_x);

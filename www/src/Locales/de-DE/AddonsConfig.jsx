@@ -22,6 +22,7 @@ export default {
 	'analog-adc-2-mode-label': 'Analog Stick 2 Modus',
 	'analog-adc-2-invert-label': 'Analog Stick 2 Invertieren',
 	'analog-force-circularity': 'Zirkularität erzwingen',
+	'inner-anti-deadzone-size': 'Innere Anti-Totzone Größe (%)',
 	'analog-auto-calibrate': 'Auto Kalibrierung',
 	'turbo-header-text': 'Turbo',
 	'turbo-button-pin-label': 'Turbo Pin',

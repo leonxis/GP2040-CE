@@ -26,6 +26,7 @@ export default {
 	'analog-adc-2-invert-label': '模拟摇杆2 反转',
 	'analog-force-circularity': '强制圆形',
 	'inner-deadzone-size': '内部死区范围 (%)',
+	'inner-anti-deadzone-size': '内部反死区范围 (%)',
 	'outer-deadzone-size': '外部死区范围 (%)',
 	'analog-auto-calibrate': '自动校准',
 	'analog-calibrate-button': '手动校准',
