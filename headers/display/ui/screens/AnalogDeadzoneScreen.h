@@ -72,6 +72,7 @@ private:
 	bool isMenuReady = false;
 	bool screenIsPrompting = false;
 	bool changesPending = false;
+	bool restartPending = false;
 
 	int editingStick = 0;
 	int selectedRow = 0;

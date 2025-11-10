@@ -19,6 +19,7 @@ void AnalogDeadzoneScreen::init() {
 	currentState = State::SELECT_STICK;
 	screenIsPrompting = false;
 	changesPending = false;
+	restartPending = false;
 	exitToScreen = -1;
 
 	if (gpMenu == nullptr) {
@@ -225,8 +226,15 @@ void AnalogDeadzoneScreen::updateMenuNavigation(GpioAction action) {
 			enterEdit(gpMenu->getIndex());
 			break;
 		case GpioAction::MENU_NAVIGATION_BACK:
-			exitToScreen = DisplayMode::MAIN_MENU;
-			isMenuReady = false;
+			if (restartPending) {
+				currentState = State::PROMPT_RESTART;
+				screenIsPrompting = true;
+				if (gpMenu) gpMenu->setVisibility(false);
+				resetInputState();
+			} else {
+				exitToScreen = DisplayMode::MAIN_MENU;
+				isMenuReady = false;
+			}
 			break;
 		default:
 			break;
@@ -258,6 +266,7 @@ void AnalogDeadzoneScreen::updateEditNavigation(GpioAction action) {
 void AnalogDeadzoneScreen::updatePromptNavigation(GpioAction action) {
 	switch (action) {
 		case GpioAction::MENU_NAVIGATION_SELECT:
+			restartPending = false;
 			EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
 			break;
 		case GpioAction::MENU_NAVIGATION_BACK:
@@ -303,18 +312,18 @@ void AnalogDeadzoneScreen::enterEdit(int stickIndex) {
 void AnalogDeadzoneScreen::exitEdit(bool discardChanges) {
 	if (!discardChanges && changesPending) {
 		applyChanges();
-		currentState = State::PROMPT_RESTART;
-		screenIsPrompting = true;
-	} else {
-		currentState = State::SELECT_STICK;
-		if (gpMenu) {
-			gpMenu->setMenuData(&stickSelectionMenu);
-			gpMenu->setMenuTitle("DeadZone");
-			gpMenu->setIndex(static_cast<uint16_t>(editingStick));
-			gpMenu->setVisibility(true);
-		}
-		resetInputState();
+		restartPending = true;
 	}
+
+	currentState = State::SELECT_STICK;
+	screenIsPrompting = false;
+	if (gpMenu) {
+		gpMenu->setMenuData(&stickSelectionMenu);
+		gpMenu->setMenuTitle("DeadZone");
+		gpMenu->setIndex(static_cast<uint16_t>(editingStick));
+		gpMenu->setVisibility(true);
+	}
+	resetInputState();
 }
 
 void AnalogDeadzoneScreen::adjustCurrentValue(int delta) {
@@ -331,6 +340,7 @@ void AnalogDeadzoneScreen::adjustCurrentValue(int delta) {
 	if (newValue != *target) {
 		*target = newValue;
 		changesPending = true;
+		restartPending = true;
 	}
 }
 
