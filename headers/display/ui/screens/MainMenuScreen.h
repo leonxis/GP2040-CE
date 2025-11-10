@@ -72,6 +72,7 @@ class MainMenuScreen : public GPScreen {
 
         void startStickCalibration();
         void openBackStickMapping();
+        void openDeadzoneMenu();
 
         void updateMenuNavigation(GpioAction action);
         void updateEventMenuNavigation(GpioAction action);
@@ -156,6 +157,7 @@ class MainMenuScreen : public GPScreen {
         std::vector<MenuEntry> mainMenu = {
             {"Stick Calibrate", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::startStickCalibration, this), -1},
             {"Back stick", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openBackStickMapping, this)},
+            {"DeadZone", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openDeadzoneMenu, this)},
             {"Input Mode", NULL, &inputModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"D-Pad Mode", NULL, &dpadModeMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"SOCD Mode",  NULL, &socdModeMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},

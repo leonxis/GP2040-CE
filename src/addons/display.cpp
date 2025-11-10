@@ -130,6 +130,9 @@ bool DisplayAddon::updateDisplayScreen() {
         case BACK_STICK_MAPPING:
             gpScreen = new BackStickMappingScreen(gpDisplay);
             break;
+        case ANALOG_DEADZONE:
+            gpScreen = new AnalogDeadzoneScreen(gpDisplay);
+            break;
         default:
             gpScreen = nullptr;
             break;

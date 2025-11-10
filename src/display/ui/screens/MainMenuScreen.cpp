@@ -499,3 +499,11 @@ void MainMenuScreen::openBackStickMapping() {
     exitToScreen = DisplayMode::BACK_STICK_MAPPING;
     exitToScreenBeforePrompt = DisplayMode::BACK_STICK_MAPPING;
 }
+
+void MainMenuScreen::openDeadzoneMenu() {
+    if (!Storage::getInstance().getAddonOptions().analogOptions.enabled) {
+        return;
+    }
+    exitToScreen = DisplayMode::ANALOG_DEADZONE;
+    exitToScreenBeforePrompt = DisplayMode::ANALOG_DEADZONE;
+}
