@@ -28,7 +28,6 @@ private:
 	enum class State {
 		SELECT_STICK,
 		EDIT_VALUES,
-		PROMPT_RESTART,
 	};
 
 	void buildMenus();
@@ -36,8 +35,6 @@ private:
 
 	void updateMenuNavigation(GpioAction action);
 	void updateEditNavigation(GpioAction action);
-	void updatePromptNavigation(GpioAction action);
-
 	void enterEdit(int stickIndex);
 	void exitEdit(bool discardChanges);
 	void adjustCurrentValue(int delta);
@@ -70,7 +67,6 @@ private:
 
 	int8_t exitToScreen = -1;
 	bool isMenuReady = false;
-	bool screenIsPrompting = false;
 	bool changesPending = false;
 	bool restartPending = false;
 

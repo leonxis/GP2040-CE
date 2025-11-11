@@ -44,7 +44,6 @@ class BackStickMappingScreen : public GPScreen {
         GPMenu* gpMenu = nullptr;
         const uint8_t menuLineSize = 4;
         bool isMenuReady = false;
-        bool screenIsPrompting = false;
         
         // GPIO mapping state
         GpioAction prevGPIO22Action;
@@ -52,7 +51,6 @@ class BackStickMappingScreen : public GPScreen {
         GpioAction prevGPIO25Action;
         GpioAction updateGPIO25Action;
         bool changesPending = false;
-        bool rebootPending = false;
         Mask_t prevValues = 0;
         int8_t exitToScreen = -1;
 

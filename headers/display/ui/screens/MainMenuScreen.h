@@ -47,6 +47,10 @@ class MainMenuScreen : public GPScreen {
         virtual void init();
         virtual void shutdown();
 
+        static void flagHMLConfigRestartPending();
+        static bool hasHMLConfigRestartPending();
+        static void clearHMLConfigRestartPending();
+
         void testMenu() {}
         void saveAndExit();
         void exitOnly();
@@ -147,6 +151,12 @@ class MainMenuScreen : public GPScreen {
         bool prevFocus;
         bool updateFocus;
 
+        std::vector<MenuEntry> hmlConfigMenu = {
+            {"Stick Calibrate", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::startStickCalibration, this), -1},
+            {"Back stick", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openBackStickMapping, this)},
+            {"DeadZone", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openDeadzoneMenu, this)},
+        };
+
         std::vector<MenuEntry> turboModeMenu = {
             {"Off",        NULL, nullptr,        std::bind(&MainMenuScreen::currentTurboMode, this), std::bind(&MainMenuScreen::selectTurboMode, this), 0},
             {"On",         NULL, nullptr,        std::bind(&MainMenuScreen::currentTurboMode, this), std::bind(&MainMenuScreen::selectTurboMode, this), 1},
@@ -155,9 +165,7 @@ class MainMenuScreen : public GPScreen {
         bool updateTurbo;
 
         std::vector<MenuEntry> mainMenu = {
-            {"Stick Calibrate", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::startStickCalibration, this), -1},
-            {"Back stick", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openBackStickMapping, this)},
-            {"DeadZone", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openDeadzoneMenu, this)},
+            {"HML-CONFIG", NULL, &hmlConfigMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"Input Mode", NULL, &inputModeMenu, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"D-Pad Mode", NULL, &dpadModeMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},
             {"SOCD Mode",  NULL, &socdModeMenu,  std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::testMenu, this)},

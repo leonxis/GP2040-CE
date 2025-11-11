@@ -2,11 +2,11 @@
 
 #include "GPGFX_UI_screens.h"
 #include "GPGFX_core.h"
-#include "GPRestartEvent.h"
 #include "GPStorageSaveEvent.h"
 #include "eventmanager.h"
 #include "storagemanager.h"
 #include "system.h"
+#include "MainMenuScreen.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -17,7 +17,6 @@ void AnalogDeadzoneScreen::init() {
 	getRenderer()->clearScreen();
 
 	currentState = State::SELECT_STICK;
-	screenIsPrompting = false;
 	changesPending = false;
 	restartPending = false;
 	exitToScreen = -1;
@@ -116,7 +115,6 @@ int8_t AnalogDeadzoneScreen::update() {
 		switch (currentState) {
 			case State::SELECT_STICK: updateMenuNavigation(action); break;
 			case State::EDIT_VALUES: updateEditNavigation(action); break;
-			case State::PROMPT_RESTART: updatePromptNavigation(action); break;
 		}
 	};
 
@@ -163,14 +161,6 @@ void AnalogDeadzoneScreen::drawScreen() {
 
 	getRenderer()->clearScreen();
 	if (gpMenu) gpMenu->setVisibility(false);
-
-	if (currentState == State::PROMPT_RESTART) {
-		getRenderer()->drawText(3, 0, "[DeadZone]");
-		getRenderer()->drawText(4, 1, "Complete!");
-		getRenderer()->drawText(3, 3, "Press B1 to");
-		getRenderer()->drawText(5, 4, "restart");
-		return;
-	}
 
 	const char* stickLabel = (editingStick == 0) ? "Left JoyStick" : "Right JoyStick";
 	getRenderer()->drawText(3, 0, "[DeadZone]");
@@ -226,15 +216,12 @@ void AnalogDeadzoneScreen::updateMenuNavigation(GpioAction action) {
 			enterEdit(gpMenu->getIndex());
 			break;
 		case GpioAction::MENU_NAVIGATION_BACK:
-			if (restartPending) {
-				currentState = State::PROMPT_RESTART;
-				screenIsPrompting = true;
-				if (gpMenu) gpMenu->setVisibility(false);
-				resetInputState();
-			} else {
-				exitToScreen = DisplayMode::MAIN_MENU;
-				isMenuReady = false;
-			}
+		if (restartPending) {
+			MainMenuScreen::flagHMLConfigRestartPending();
+			restartPending = false;
+		}
+		exitToScreen = DisplayMode::MAIN_MENU;
+		isMenuReady = false;
 			break;
 		default:
 			break;
@@ -263,36 +250,11 @@ void AnalogDeadzoneScreen::updateEditNavigation(GpioAction action) {
 	}
 }
 
-void AnalogDeadzoneScreen::updatePromptNavigation(GpioAction action) {
-	switch (action) {
-		case GpioAction::MENU_NAVIGATION_SELECT:
-			restartPending = false;
-			EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, true));
-			EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
-			break;
-		case GpioAction::MENU_NAVIGATION_BACK:
-			screenIsPrompting = false;
-			currentState = State::SELECT_STICK;
-			if (gpMenu) {
-				gpMenu->setMenuData(&stickSelectionMenu);
-				gpMenu->setMenuTitle("DeadZone");
-				gpMenu->setIndex(0);
-				gpMenu->setVisibility(true);
-			}
-			isMenuReady = true;
-			resetInputState();
-			break;
-		default:
-			break;
-	}
-}
-
 void AnalogDeadzoneScreen::enterEdit(int stickIndex) {
 	editingStick = stickIndex;
 	selectedRow = 0;
 	changesPending = false;
 	currentState = State::EDIT_VALUES;
-	screenIsPrompting = false;
 	if (gpMenu) gpMenu->setVisibility(false);
 
 	AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
@@ -314,10 +276,10 @@ void AnalogDeadzoneScreen::exitEdit(bool discardChanges) {
 	if (!discardChanges && changesPending) {
 		applyChanges();
 		restartPending = true;
+		MainMenuScreen::flagHMLConfigRestartPending();
 	}
 
 	currentState = State::SELECT_STICK;
-	screenIsPrompting = false;
 	if (gpMenu) {
 		gpMenu->setMenuData(&stickSelectionMenu);
 		gpMenu->setMenuTitle("DeadZone");
@@ -357,6 +319,8 @@ void AnalogDeadzoneScreen::applyChanges() {
 		analogOptions.anti_deadzone2 = static_cast<uint32_t>(antiDeadzoneValue);
 		analogOptions.analog_error2 = convertDisplayToAnalogError(errorValue);
 	}
+
+	EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
 
 	changesPending = false;
 	resetInputState();

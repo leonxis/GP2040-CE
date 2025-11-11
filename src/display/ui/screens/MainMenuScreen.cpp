@@ -6,6 +6,22 @@
 #include "storagemanager.h"
 #include "GPRestartEvent.h"
 
+namespace {
+    bool hmlConfigRestartPending = false;
+}
+
+void MainMenuScreen::flagHMLConfigRestartPending() {
+    hmlConfigRestartPending = true;
+}
+
+bool MainMenuScreen::hasHMLConfigRestartPending() {
+    return hmlConfigRestartPending;
+}
+
+void MainMenuScreen::clearHMLConfigRestartPending() {
+    hmlConfigRestartPending = false;
+}
+
 extern uint32_t getMillis();
 
 void MainMenuScreen::init() {
@@ -278,17 +294,42 @@ void MainMenuScreen::updateMenuNavigation(GpioAction action) {
             break;
         case GpioAction::MENU_NAVIGATION_BACK:
             if (previousMenu != nullptr) {
-                currentMenu = previousMenu;
-                previousMenu = nullptr;
-                gpMenu->setMenuData(currentMenu);
-                gpMenu->setMenuSize(18, menuLineSize);
-                if (currentMenu == &mainMenu) {
+                if (currentMenu == &hmlConfigMenu) {
+                    currentMenu = previousMenu;
+                    previousMenu = nullptr;
+                    gpMenu->setMenuData(currentMenu);
+                    gpMenu->setMenuSize(18, menuLineSize);
                     gpMenu->setMenuTitle(MAIN_MENU_NAME);
+                    gpMenu->setIndex(0);
+
+                    if (hasHMLConfigRestartPending()) {
+                        changeRequiresReboot = true;
+                        screenIsPrompting = true;
+                        promptChoice = true;
+                        exitToScreen = -1;
+                        exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                    }
+                } else {
+                    currentMenu = previousMenu;
+                    previousMenu = nullptr;
+                    gpMenu->setMenuData(currentMenu);
+                    gpMenu->setMenuSize(18, menuLineSize);
+                    if (currentMenu == &mainMenu) {
+                        gpMenu->setMenuTitle(MAIN_MENU_NAME);
+                    }
+                    gpMenu->setIndex(0);
                 }
-                gpMenu->setIndex(0);
             } else {
-                exitToScreen = DisplayMode::BUTTONS;
-                exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                if (hasHMLConfigRestartPending()) {
+                    changeRequiresReboot = true;
+                    screenIsPrompting = true;
+                    promptChoice = true;
+                    exitToScreen = -1;
+                    exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                } else {
+                    exitToScreen = DisplayMode::BUTTONS;
+                    exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                }
             }
             break;
         default:
@@ -389,6 +430,7 @@ void MainMenuScreen::resetOptions() {
 
     changeRequiresSave = false;
     changeRequiresReboot = false;
+    clearHMLConfigRestartPending();
     screenIsPrompting = false;
 }
 

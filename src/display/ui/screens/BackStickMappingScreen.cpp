@@ -1,17 +1,15 @@
 #include "BackStickMappingScreen.h"
 #include "GPGFX_UI_screens.h"
 #include "eventmanager.h"
-#include "GPRestartEvent.h"
 #include "storagemanager.h"
 #include "system.h"
 #include "gamepad.h"
+#include "MainMenuScreen.h"
 
 void BackStickMappingScreen::init() {
     getRenderer()->clearScreen();
 
     exitToScreen = -1;
-    screenIsPrompting = false;
-    rebootPending = false;
     changesPending = false;
     currentState = STATE_SELECT_STICK;
 
@@ -156,14 +154,7 @@ int8_t BackStickMappingScreen::update() {
 void BackStickMappingScreen::drawScreen() {
     if (gpMenu == nullptr) return;
 
-    gpMenu->setVisibility(!screenIsPrompting);
-
-    if (screenIsPrompting) {
-        getRenderer()->drawText(2, 0, "[Back stick]");
-        getRenderer()->drawText(4, 1, "Complete!");
-        getRenderer()->drawText(3, 4, "Press B1 to");
-        getRenderer()->drawText(5, 5, "restart");
-    }
+    gpMenu->setVisibility(true);
 }
 
 void BackStickMappingScreen::buildButtonMappingMenu(std::vector<MenuEntry>* menu,
@@ -232,7 +223,6 @@ void BackStickMappingScreen::selectGPIO22Mapping() {
 
     if (prevGPIO22Action != valueToSave) {
         changesPending = true;
-        rebootPending = true;
     }
 
     currentState = STATE_SELECT_STICK;
@@ -242,6 +232,10 @@ void BackStickMappingScreen::selectGPIO22Mapping() {
     gpMenu->setMenuTitle("Back stick");
     gpMenu->setMenuSize(18, menuLineSize);
     gpMenu->setIndex(0);
+
+    if (changesPending) {
+        saveOptions();
+    }
 }
 
 int32_t BackStickMappingScreen::currentGPIO22Mapping() {
@@ -262,7 +256,6 @@ void BackStickMappingScreen::selectGPIO25Mapping() {
 
     if (prevGPIO25Action != valueToSave) {
         changesPending = true;
-        rebootPending = true;
     }
 
     currentState = STATE_SELECT_STICK;
@@ -272,6 +265,10 @@ void BackStickMappingScreen::selectGPIO25Mapping() {
     gpMenu->setMenuTitle("Back stick");
     gpMenu->setMenuSize(18, menuLineSize);
     gpMenu->setIndex(0);
+
+    if (changesPending) {
+        saveOptions();
+    }
 }
 
 int32_t BackStickMappingScreen::currentGPIO25Mapping() {
@@ -280,8 +277,6 @@ int32_t BackStickMappingScreen::currentGPIO25Mapping() {
 
 void BackStickMappingScreen::saveOptions() {
     if (!changesPending) {
-        screenIsPrompting = false;
-        rebootPending = false;
         return;
     }
 
@@ -301,31 +296,15 @@ void BackStickMappingScreen::saveOptions() {
     }
 
     if (saveHasChanged) {
-        EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, true));
+        EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
+        MainMenuScreen::flagHMLConfigRestartPending();
     }
 
     changesPending = false;
-    rebootPending = false;
-    screenIsPrompting = false;
 }
 
 void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
     if (!isMenuReady || gpMenu == nullptr) return;
-
-    if (screenIsPrompting && rebootPending) {
-        switch (action) {
-            case GpioAction::MENU_NAVIGATION_SELECT:
-                saveOptions();
-                EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
-                break;
-            case GpioAction::MENU_NAVIGATION_BACK:
-                screenIsPrompting = false;
-                break;
-            default:
-                break;
-        }
-        return;
-    }
 
     uint16_t menuIndex = gpMenu->getIndex();
     uint16_t menuSize = (currentMenu != nullptr) ? currentMenu->size() : 0;
@@ -405,12 +384,8 @@ void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
                 gpMenu->setIndex(0);
                 currentState = STATE_SELECT_STICK;
             } else {
-                if (currentMenu == &stickSelectionMenu && changesPending && rebootPending) {
-                    screenIsPrompting = true;
-                } else {
-                    exitToScreen = DisplayMode::MAIN_MENU;
-                    isMenuReady = false;
-                }
+				exitToScreen = DisplayMode::MAIN_MENU;
+				isMenuReady = false;
             }
             break;
         default:

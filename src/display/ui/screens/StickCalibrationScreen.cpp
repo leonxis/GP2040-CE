@@ -3,6 +3,7 @@
 #include "GPGFX_UI_screens.h"
 #include "system.h"
 #include "addons/analog_utils.h"
+#include "MainMenuScreen.h"
 
 void StickCalibrationScreen::init() {
     getRenderer()->clearScreen();
@@ -94,18 +95,15 @@ int8_t StickCalibrationScreen::update() {
     
     prevButtonState = buttonState;
     
-    if (currentState == STATE_COMPLETE) {
-        // Wait for B1 press to confirm restart
-        if (b1Pressed) {
-            // Update prevButtonState before restarting to prevent button press from being detected
-            // by other screens after restart
-            prevButtonState = buttonState;
-            // Trigger restart to apply calibration values immediately
-            // This ensures the new calibration values are loaded from storage and applied on boot
-            EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
-        }
-        return -1;
-    }
+	if (currentState == STATE_COMPLETE) {
+		// Wait for B1 press to finish calibration
+		if (b1Pressed) {
+			prevButtonState = buttonState;
+			MainMenuScreen::flagHMLConfigRestartPending();
+			return DisplayMode::MAIN_MENU;
+		}
+		return -1;
+	}
     
     if (b1Pressed) {
         // Read current joystick center
@@ -180,7 +178,6 @@ int8_t StickCalibrationScreen::update() {
             case STATE_STICK2_BOTTOM_RIGHT:
                 saveCalibration();
                 currentState = STATE_COMPLETE;
-                // Wait for user to press B1 before restarting
                 break;
             default:
                 break;
@@ -197,8 +194,8 @@ void StickCalibrationScreen::drawScreen() {
         // Completion screen
         getRenderer()->drawText(2, 0, "[Calibration]");
         getRenderer()->drawText(4, 1, "Complete!");
-        getRenderer()->drawText(3, 4, "Press B1 to");
-        getRenderer()->drawText(5, 5, "restart");
+		getRenderer()->drawText(3, 4, "Press B1 to");
+		getRenderer()->drawText(5, 5, "finish");
     } else {
         // Calibration in progress
         const char* stickLabel;
