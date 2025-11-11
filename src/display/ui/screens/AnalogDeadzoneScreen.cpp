@@ -267,6 +267,7 @@ void AnalogDeadzoneScreen::updatePromptNavigation(GpioAction action) {
 	switch (action) {
 		case GpioAction::MENU_NAVIGATION_SELECT:
 			restartPending = false;
+			EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, true));
 			EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
 			break;
 		case GpioAction::MENU_NAVIGATION_BACK:
@@ -357,7 +358,6 @@ void AnalogDeadzoneScreen::applyChanges() {
 		analogOptions.analog_error2 = convertDisplayToAnalogError(errorValue);
 	}
 
-	EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, true));
 	changesPending = false;
 	resetInputState();
 }
