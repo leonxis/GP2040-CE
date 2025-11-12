@@ -638,3 +638,8 @@ void MainMenuScreen::openDeadzoneMenu() {
     exitToScreen = DisplayMode::ANALOG_DEADZONE;
     exitToScreenBeforePrompt = DisplayMode::ANALOG_DEADZONE;
 }
+
+void MainMenuScreen::openAPMTest() {
+    exitToScreen = DisplayMode::APM_TEST;
+    exitToScreenBeforePrompt = DisplayMode::APM_TEST;
+}

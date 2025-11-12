@@ -82,6 +82,7 @@ class MainMenuScreen : public GPScreen {
         void startStickCalibration();
         void openBackStickMapping();
         void openDeadzoneMenu();
+        void openAPMTest();
 
         void updateMenuNavigation(GpioAction action);
         void updateEventMenuNavigation(GpioAction action);
@@ -161,6 +162,7 @@ class MainMenuScreen : public GPScreen {
             {"Stick Calibrate", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::startStickCalibration, this), -1},
             {"Back stick", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openBackStickMapping, this)},
             {"Dead Zone", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openDeadzoneMenu, this)},
+            {"APM Test", NULL, nullptr, std::bind(&MainMenuScreen::modeValue, this), std::bind(&MainMenuScreen::openAPMTest, this)},
         };
 
         std::vector<MenuEntry> turboModeMenu = {

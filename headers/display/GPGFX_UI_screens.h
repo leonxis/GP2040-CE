@@ -13,7 +13,8 @@ enum DisplayMode {
     SYSTEM_ERROR,
     STICK_CALIBRATION,
     BACK_STICK_MAPPING,
-    ANALOG_DEADZONE
+    ANALOG_DEADZONE,
+    APM_TEST
 };
 
 #include "ui/screens/ButtonLayoutScreen.h"
@@ -27,6 +28,7 @@ enum DisplayMode {
 #include "ui/screens/StickCalibrationScreen.h"
 #include "ui/screens/BackStickMappingScreen.h"
 #include "ui/screens/AnalogDeadzoneScreen.h"
+#include "ui/screens/APMTestScreen.h"
 #include "ui/screens/SystemErrorScreen.h"
 
 #endif

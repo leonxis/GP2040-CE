@@ -122,7 +122,7 @@ const Navigation = () => {
 						</NavDropdown.Item>
 					</NavDropdown>
 					<NavDropdown title={t('Navigation:links-label')}>
-						<NavDropdown.Item href="https://gp2040-ce.info/" target="_blank">
+						<NavDropdown.Item href="https://gp2040.guff.in/" target="_blank">
 							{t('Navigation:docs-label')}
 						</NavDropdown.Item>
 						<NavDropdown.Item

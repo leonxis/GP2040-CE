@@ -133,6 +133,9 @@ bool DisplayAddon::updateDisplayScreen() {
         case ANALOG_DEADZONE:
             gpScreen = new AnalogDeadzoneScreen(gpDisplay);
             break;
+        case APM_TEST:
+            gpScreen = new APMTestScreen(gpDisplay);
+            break;
         default:
             gpScreen = nullptr;
             break;
