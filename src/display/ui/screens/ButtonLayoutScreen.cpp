@@ -4,6 +4,7 @@
 #include "drivers/ps4/PS4Driver.h"
 #include "drivers/xbone/XBOneDriver.h"
 #include "drivers/xinput/XInputDriver.h"
+#include "drivers/p5general/P5GeneralDriver.h"
 
 // Display names for input history
 static const char * displayNames[INPUT_HISTORY_MAX_MODES][INPUT_HISTORY_MAX_INPUTS] = {
@@ -273,6 +274,13 @@ void ButtonLayoutScreen::generateHeader() {
             case INPUT_MODE_PS5:
                 statusBar += "PS5";
                 if(((PS4Driver*)DriverManager::getInstance().getDriver())->getAuthSent() == true )
+                    statusBar += ":AS";
+                else
+                    statusBar += "   ";
+                break;
+            case INPUT_MODE_P5GENERAL:
+                statusBar += "P5G";
+                if(((P5GeneralDriver*)DriverManager::getInstance().getDriver())->getAuthSent() == true )
                     statusBar += ":AS";
                 else
                     statusBar += "   ";
