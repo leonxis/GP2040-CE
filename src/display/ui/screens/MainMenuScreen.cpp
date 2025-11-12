@@ -8,6 +8,7 @@
 
 namespace {
     bool hmlConfigRestartPending = false;
+    bool shouldOpenHMLConfigMenu = false;
 }
 
 void MainMenuScreen::flagHMLConfigRestartPending() {
@@ -20,6 +21,18 @@ bool MainMenuScreen::hasHMLConfigRestartPending() {
 
 void MainMenuScreen::clearHMLConfigRestartPending() {
     hmlConfigRestartPending = false;
+}
+
+void MainMenuScreen::flagOpenHMLConfigMenu() {
+    shouldOpenHMLConfigMenu = true;
+}
+
+bool MainMenuScreen::hasOpenHMLConfigMenuFlag() {
+    return shouldOpenHMLConfigMenu;
+}
+
+void MainMenuScreen::clearOpenHMLConfigMenuFlag() {
+    shouldOpenHMLConfigMenu = false;
 }
 
 extern uint32_t getMillis();
@@ -108,6 +121,22 @@ void MainMenuScreen::init() {
     updateTurbo = Storage::getInstance().getAddonOptions().turboOptions.enabled;
 
     setMenuHome();
+    
+    // If we should open HML Config menu (e.g., returning from Back stick or Dead Zone screens)
+    if (hasOpenHMLConfigMenuFlag()) {
+        clearOpenHMLConfigMenuFlag();
+        // Find HML Config menu item index
+        for (size_t i = 0; i < mainMenu.size(); i++) {
+            if (mainMenu[i].submenu == &hmlConfigMenu) {
+                previousMenu = currentMenu;
+                currentMenu = &hmlConfigMenu;
+                gpMenu->setMenuData(currentMenu);
+                gpMenu->setMenuTitle("[HML Config]");
+                gpMenu->setIndex(0);
+                break;
+            }
+        }
+    }
 }
 
 void MainMenuScreen::shutdown() {
@@ -123,13 +152,29 @@ void MainMenuScreen::drawScreen() {
 
     } else {
         if (changeRequiresReboot) {
-            getRenderer()->drawText(1, 1, "Reboot to");
-            getRenderer()->drawText(1, 2, "apply settings");
-            
-            if (promptChoice) getRenderer()->drawText(5, 4, CHAR_RIGHT);
-            getRenderer()->drawText(6, 4, "Yes");
-            if (!promptChoice) getRenderer()->drawText(11, 4, CHAR_RIGHT);
-            getRenderer()->drawText(12, 4, "No");
+            if (hmlConfigRebootPrompt) {
+                // Special prompt for HML Config submenu
+                // [HML Config] - centered on line 0 (same position as menu title)
+                std::string title = "[HML Config]";
+                uint16_t titleX = (21 - title.length()) / 2;  // Same centering calculation as menu title
+                getRenderer()->drawText(titleX, 0, title.c_str());
+                // Empty line (line 1)
+                // Reboot to apply ? - left aligned on line 2
+                getRenderer()->drawText(0, 2, "Reboot to apply ?");
+                // B1: Reboot - left aligned on second to last line (line 6)
+                getRenderer()->drawText(0, 6, "B1: Reboot");
+                // B2: Cancel - left aligned on last line (line 7)
+                getRenderer()->drawText(0, 7, "B2: Cancel");
+            } else {
+                // Standard prompt with Yes/No choice
+                getRenderer()->drawText(1, 1, "Reboot to");
+                getRenderer()->drawText(1, 2, "apply settings");
+                
+                if (promptChoice) getRenderer()->drawText(5, 4, CHAR_RIGHT);
+                getRenderer()->drawText(6, 4, "Yes");
+                if (!promptChoice) getRenderer()->drawText(11, 4, CHAR_RIGHT);
+                getRenderer()->drawText(12, 4, "No");
+            }
         } else {
             getRenderer()->drawText(1, 1, "Config has changed.");
             if (changeRequiresSave && !changeRequiresReboot) {
@@ -138,8 +183,6 @@ void MainMenuScreen::drawScreen() {
             } else if (changeRequiresSave && changeRequiresReboot) {
                 getRenderer()->drawText(3, 3, "Would you like");
                 getRenderer()->drawText(1, 4, "to save & restart?");
-            } else {
-
             }
             
             if (promptChoice) getRenderer()->drawText(5, 6, CHAR_RIGHT);
@@ -240,20 +283,49 @@ void MainMenuScreen::updateMenuNavigation(GpioAction action) {
             case GpioAction::MENU_NAVIGATION_DOWN:
             case GpioAction::MENU_NAVIGATION_LEFT:
             case GpioAction::MENU_NAVIGATION_RIGHT:
-                promptChoice = !promptChoice;
+                if (!hmlConfigRebootPrompt) {
+                    // Only toggle choice for standard prompt
+                    promptChoice = !promptChoice;
+                }
                 break;
             case GpioAction::MENU_NAVIGATION_SELECT:
-                if (promptChoice) {
+                if (hmlConfigRebootPrompt) {
+                    // B1 pressed: reboot
                     saveOptions();
                     EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
                     exitToScreen = DisplayMode::BUTTONS;
                     exitToScreenBeforePrompt = DisplayMode::BUTTONS;
                 } else {
-                    screenIsPrompting = false;
+                    // Standard prompt handling
+                    if (promptChoice) {
+                        saveOptions();
+                        EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
+                        exitToScreen = DisplayMode::BUTTONS;
+                        exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                    } else {
+                        screenIsPrompting = false;
+                    }
                 }
                 break;
             case GpioAction::MENU_NAVIGATION_BACK:
-                screenIsPrompting = false;
+                if (hmlConfigRebootPrompt) {
+                    // B2 pressed: cancel reboot prompt, stay in HML Config menu
+                    // Don't clear restart pending flag - user must reboot eventually
+                    screenIsPrompting = false;
+                    hmlConfigRebootPrompt = false;
+                    changeRequiresReboot = false;
+                    // Ensure we stay in HML Config menu
+                    if (currentMenu != &hmlConfigMenu) {
+                        // Restore HML Config menu if we're not already there
+                        previousMenu = currentMenu;
+                        currentMenu = &hmlConfigMenu;
+                        gpMenu->setMenuData(currentMenu);
+                        gpMenu->setMenuTitle("[HML Config]");
+                        gpMenu->setIndex(0);
+                    }
+                } else {
+                    screenIsPrompting = false;
+                }
                 break;
             default:
                 break;
@@ -286,7 +358,12 @@ void MainMenuScreen::updateMenuNavigation(GpioAction action) {
                 previousMenu = currentMenu;
                 currentMenu = currentMenu->at(menuIndex).submenu;
                 gpMenu->setMenuData(currentMenu);
-                gpMenu->setMenuTitle(previousMenu->at(menuIndex).label);
+                // Set menu title with brackets for HML Config submenu
+                std::string menuTitle = previousMenu->at(menuIndex).label;
+                if (currentMenu == &hmlConfigMenu) {
+                    menuTitle = "[HML Config]";
+                }
+                gpMenu->setMenuTitle(menuTitle);
                 gpMenu->setIndex(0);
             } else {
                 currentMenu->at(menuIndex).action();
@@ -295,19 +372,22 @@ void MainMenuScreen::updateMenuNavigation(GpioAction action) {
         case GpioAction::MENU_NAVIGATION_BACK:
             if (previousMenu != nullptr) {
                 if (currentMenu == &hmlConfigMenu) {
-                    currentMenu = previousMenu;
-                    previousMenu = nullptr;
-                    gpMenu->setMenuData(currentMenu);
-                    gpMenu->setMenuSize(18, menuLineSize);
-                    gpMenu->setMenuTitle(MAIN_MENU_NAME);
-                    gpMenu->setIndex(0);
-
+                    // Don't change menu state yet if restart is pending
                     if (hasHMLConfigRestartPending()) {
                         changeRequiresReboot = true;
                         screenIsPrompting = true;
+                        hmlConfigRebootPrompt = true;  // Special prompt for HML Config
                         promptChoice = true;
                         exitToScreen = -1;
                         exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                    } else {
+                        // Only change menu if no restart pending
+                        currentMenu = previousMenu;
+                        previousMenu = nullptr;
+                        gpMenu->setMenuData(currentMenu);
+                        gpMenu->setMenuSize(18, menuLineSize);
+                        gpMenu->setMenuTitle(MAIN_MENU_NAME);
+                        gpMenu->setIndex(0);
                     }
                 } else {
                     currentMenu = previousMenu;
@@ -323,6 +403,7 @@ void MainMenuScreen::updateMenuNavigation(GpioAction action) {
                 if (hasHMLConfigRestartPending()) {
                     changeRequiresReboot = true;
                     screenIsPrompting = true;
+                    hmlConfigRebootPrompt = true;  // Special prompt for HML Config
                     promptChoice = true;
                     exitToScreen = -1;
                     exitToScreenBeforePrompt = DisplayMode::BUTTONS;
@@ -432,6 +513,7 @@ void MainMenuScreen::resetOptions() {
     changeRequiresReboot = false;
     clearHMLConfigRestartPending();
     screenIsPrompting = false;
+    hmlConfigRebootPrompt = false;
 }
 
 void MainMenuScreen::saveOptions() {
@@ -473,6 +555,13 @@ void MainMenuScreen::saveOptions() {
     }
 
     screenIsPrompting = false;
+    
+    // Clear restart pending flag when saving (user confirmed reboot)
+    if (hasHMLConfigRestartPending()) {
+        clearHMLConfigRestartPending();
+    }
+    
+    hmlConfigRebootPrompt = false;
 
     if (exitToScreenBeforePrompt != -1) {
         exitToScreen = exitToScreenBeforePrompt;

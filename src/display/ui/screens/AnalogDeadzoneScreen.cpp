@@ -63,7 +63,7 @@ void AnalogDeadzoneScreen::init() {
 
 	currentMenu = &stickSelectionMenu;
 	gpMenu->setMenuData(currentMenu);
-	gpMenu->setMenuTitle("DeadZone");
+	gpMenu->setMenuTitle("[Dead Zone]");
 	gpMenu->setIndex(0);
 	gpMenu->setVisibility(true);
 
@@ -163,7 +163,7 @@ void AnalogDeadzoneScreen::drawScreen() {
 	if (gpMenu) gpMenu->setVisibility(false);
 
 	const char* stickLabel = (editingStick == 0) ? "Left JoyStick" : "Right JoyStick";
-	getRenderer()->drawText(3, 0, "[DeadZone]");
+	getRenderer()->drawText(3, 0, "[Dead Zone]");
 	getRenderer()->drawText(2, 1, stickLabel);
 
 	struct RowInfo {
@@ -216,12 +216,14 @@ void AnalogDeadzoneScreen::updateMenuNavigation(GpioAction action) {
 			enterEdit(gpMenu->getIndex());
 			break;
 		case GpioAction::MENU_NAVIGATION_BACK:
-		if (restartPending) {
-			MainMenuScreen::flagHMLConfigRestartPending();
-			restartPending = false;
-		}
-		exitToScreen = DisplayMode::MAIN_MENU;
-		isMenuReady = false;
+			if (restartPending) {
+				MainMenuScreen::flagHMLConfigRestartPending();
+				restartPending = false;
+			}
+			// Return to HML Config menu instead of main menu
+			MainMenuScreen::flagOpenHMLConfigMenu();
+			exitToScreen = DisplayMode::MAIN_MENU;
+			isMenuReady = false;
 			break;
 		default:
 			break;
@@ -282,7 +284,7 @@ void AnalogDeadzoneScreen::exitEdit(bool discardChanges) {
 	currentState = State::SELECT_STICK;
 	if (gpMenu) {
 		gpMenu->setMenuData(&stickSelectionMenu);
-		gpMenu->setMenuTitle("DeadZone");
+		gpMenu->setMenuTitle("[Dead Zone]");
 		gpMenu->setIndex(static_cast<uint16_t>(editingStick));
 		gpMenu->setVisibility(true);
 	}

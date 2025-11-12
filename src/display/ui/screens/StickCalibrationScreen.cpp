@@ -90,6 +90,8 @@ int8_t StickCalibrationScreen::update() {
     // Handle B2 (back/cancel)
     if (b2Pressed) {
         prevButtonState = buttonState;
+        // Return to HML Config menu instead of main menu
+        MainMenuScreen::flagOpenHMLConfigMenu();
         return DisplayMode::MAIN_MENU;
     }
     
@@ -100,6 +102,8 @@ int8_t StickCalibrationScreen::update() {
 		if (b1Pressed) {
 			prevButtonState = buttonState;
 			MainMenuScreen::flagHMLConfigRestartPending();
+			// Return to HML Config menu instead of main menu
+			MainMenuScreen::flagOpenHMLConfigMenu();
 			return DisplayMode::MAIN_MENU;
 		}
 		return -1;

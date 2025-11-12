@@ -72,7 +72,6 @@ class BackStickMappingScreen : public GPScreen {
         int32_t currentGPIO25Mapping();
         void saveOptions();
         void updateMenuNavigation(GpioAction action);
-        std::string getGpioActionName(GpioAction action);
 };
 
 #endif

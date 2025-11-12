@@ -59,10 +59,10 @@ void BackStickMappingScreen::init() {
     updateGPIO25Action = gpioMappings.pins[25].action;
 
     stickSelectionMenu.clear();
-    stickSelectionMenu.push_back({"Left stick", nullptr, nullptr,
+    stickSelectionMenu.push_back({"Left Joystick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
         std::bind(&BackStickMappingScreen::selectStickType, this), 0});
-    stickSelectionMenu.push_back({"Right stick", nullptr, nullptr,
+    stickSelectionMenu.push_back({"Right Joystick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
         std::bind(&BackStickMappingScreen::selectStickType, this), 1});
 
@@ -78,7 +78,7 @@ void BackStickMappingScreen::init() {
     currentMenu = &stickSelectionMenu;
     previousMenu = nullptr;
     gpMenu->setMenuData(currentMenu);
-    gpMenu->setMenuTitle("Back stick");
+    gpMenu->setMenuTitle("[Back stick]");
     gpMenu->setIndex(0);
     gpMenu->setVisibility(true);
 
@@ -202,7 +202,7 @@ void BackStickMappingScreen::enterMapping(bool isGPIO22) {
     currentMenu = isGPIO22 ? &gpio22MappingMenu : &gpio25MappingMenu;
     previousMenu = &stickSelectionMenu;
     gpMenu->setMenuData(currentMenu);
-    gpMenu->setMenuTitle(isGPIO22 ? "Left stick" : "Right stick");
+    gpMenu->setMenuTitle(isGPIO22 ? "Left Joystick" : "Right Joystick");
     gpMenu->setMenuSize(4, 4);
     gpMenu->setIndex(0);
 
@@ -229,7 +229,7 @@ void BackStickMappingScreen::selectGPIO22Mapping() {
     currentMenu = &stickSelectionMenu;
     previousMenu = nullptr;
     gpMenu->setMenuData(currentMenu);
-    gpMenu->setMenuTitle("Back stick");
+    gpMenu->setMenuTitle("[Back stick]");
     gpMenu->setMenuSize(18, menuLineSize);
     gpMenu->setIndex(0);
 
@@ -262,7 +262,7 @@ void BackStickMappingScreen::selectGPIO25Mapping() {
     currentMenu = &stickSelectionMenu;
     previousMenu = nullptr;
     gpMenu->setMenuData(currentMenu);
-    gpMenu->setMenuTitle("Back stick");
+    gpMenu->setMenuTitle("[Back stick]");
     gpMenu->setMenuSize(18, menuLineSize);
     gpMenu->setIndex(0);
 
@@ -379,40 +379,19 @@ void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
                 currentMenu = &stickSelectionMenu;
                 previousMenu = nullptr;
                 gpMenu->setMenuData(currentMenu);
-                gpMenu->setMenuTitle("Back stick");
+                gpMenu->setMenuTitle("[Back stick]");
                 gpMenu->setMenuSize(18, menuLineSize);
                 gpMenu->setIndex(0);
                 currentState = STATE_SELECT_STICK;
             } else {
-				exitToScreen = DisplayMode::MAIN_MENU;
-				isMenuReady = false;
+                // Return to HML Config menu instead of main menu
+                MainMenuScreen::flagOpenHMLConfigMenu();
+                exitToScreen = DisplayMode::MAIN_MENU;
+                isMenuReady = false;
             }
             break;
         default:
             break;
-    }
-}
-
-std::string BackStickMappingScreen::getGpioActionName(GpioAction action) {
-    switch (action) {
-        case GpioAction::NONE: return "NONE";
-        case GpioAction::BUTTON_PRESS_UP: return "UP";
-        case GpioAction::BUTTON_PRESS_DOWN: return "DOWN";
-        case GpioAction::BUTTON_PRESS_LEFT: return "LEFT";
-        case GpioAction::BUTTON_PRESS_RIGHT: return "RIGHT";
-        case GpioAction::BUTTON_PRESS_B1: return "B1";
-        case GpioAction::BUTTON_PRESS_B2: return "B2";
-        case GpioAction::BUTTON_PRESS_B3: return "B3";
-        case GpioAction::BUTTON_PRESS_B4: return "B4";
-        case GpioAction::BUTTON_PRESS_L1: return "L1";
-        case GpioAction::BUTTON_PRESS_R1: return "R1";
-        case GpioAction::BUTTON_PRESS_L2: return "L2";
-        case GpioAction::BUTTON_PRESS_R2: return "R2";
-        case GpioAction::BUTTON_PRESS_L3: return "L3";
-        case GpioAction::BUTTON_PRESS_R3: return "R3";
-        case GpioAction::BUTTON_PRESS_S1: return "S1";
-        case GpioAction::BUTTON_PRESS_S2: return "S2";
-        default: return "OTHER";
     }
 }
 

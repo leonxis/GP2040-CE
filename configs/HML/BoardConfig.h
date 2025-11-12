@@ -113,9 +113,15 @@
 // mini led
 #define MINI_MENU_GAMEPAD_INPUT 1 
 #define HAS_I2C_DISPLAY 1
+#ifndef I2C0_ENABLED
 #define I2C0_ENABLED 1
+#endif
+#ifndef I2C0_PIN_SDA
 #define I2C0_PIN_SDA 20
+#endif
+#ifndef I2C0_PIN_SCL
 #define I2C0_PIN_SCL 21
+#endif
 #define SPLASH_MODE SPLASH_MODE_STATIC
 #define SPLASH_DURATION 2000
 
