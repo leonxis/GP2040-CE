@@ -9,7 +9,6 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 
 extern uint32_t getMillis();
 
@@ -91,7 +90,7 @@ int8_t APMTestScreen::update() {
     uint8_t dpadState = getGamepad()->state.dpad;
 
     // Handle B1 (Reset) and B2 (Cancel) - check for button press (not release)
-    if (prevButtonState != buttonState) {
+    if (prevButtonState != buttonState && mapMenuSelect && mapMenuBack) {
         uint16_t pressedButtons = buttonState & ~prevButtonState; // Newly pressed buttons
         if (pressedButtons & mapMenuSelect->buttonMask) {
             resetTest();
@@ -113,7 +112,7 @@ int8_t APMTestScreen::update() {
     }
 
     // Handle GPIO button presses for B1/B2
-    if (prevValues != values) {
+    if (prevValues != values && mapMenuSelect && mapMenuBack) {
         Mask_t pressedPins = values & ~prevValues; // Newly pressed pins
         if (pressedPins & mapMenuSelect->pinMask) {
             resetTest();
@@ -134,24 +133,26 @@ int8_t APMTestScreen::update() {
     }
 
     // Handle button presses for counting (all buttons except B1/B2)
-    if (gamepadOptions.miniMenuGamepadInput) {
-        // Check for D-pad presses
-        if (prevDpadState != dpadState && dpadState != 0) {
-            handleButtonPress();
-        }
-        // Check for button presses (except B1/B2)
-        if (prevButtonState != buttonState) {
-            uint16_t pressedButtons = buttonState & ~prevButtonState;
-            if (pressedButtons & ~mapMenuSelect->buttonMask & ~mapMenuBack->buttonMask) {
+    if (mapMenuSelect && mapMenuBack) {
+        if (gamepadOptions.miniMenuGamepadInput) {
+            // Check for D-pad presses
+            if (prevDpadState != dpadState && dpadState != 0) {
                 handleButtonPress();
             }
-        }
-    } else {
-        // GPIO input mode - check for any button press (except B1/B2)
-        if (prevValues != values) {
-            Mask_t pressedPins = values & ~prevValues;
-            if (pressedPins & ~mapMenuSelect->pinMask & ~mapMenuBack->pinMask) {
-                handleButtonPress();
+            // Check for button presses (except B1/B2)
+            if (prevButtonState != buttonState) {
+                uint16_t pressedButtons = buttonState & ~prevButtonState;
+                if (pressedButtons & ~mapMenuSelect->buttonMask & ~mapMenuBack->buttonMask) {
+                    handleButtonPress();
+                }
+            }
+        } else {
+            // GPIO input mode - check for any button press (except B1/B2)
+            if (prevValues != values) {
+                Mask_t pressedPins = values & ~prevValues;
+                if (pressedPins & ~mapMenuSelect->pinMask & ~mapMenuBack->pinMask) {
+                    handleButtonPress();
+                }
             }
         }
     }
@@ -197,7 +198,7 @@ void APMTestScreen::drawScreen() {
 
     // Your Score Is: XXXX - left aligned on line 3
     char scoreStr[32];
-    snprintf(scoreStr, sizeof(scoreStr), "Your Score Is: %lu", buttonCount);
+    snprintf(scoreStr, sizeof(scoreStr), "Your Score Is: %u", (unsigned int)buttonCount);
     getRenderer()->drawText(0, 3, scoreStr);
 
     // B1: Reset - left aligned on second to last line (line 6)

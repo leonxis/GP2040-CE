@@ -23,7 +23,6 @@ protected:
 
 private:
     void resetInputState();
-    void updateNavigation(GpioAction action);
     void resetTest();
     void handleButtonPress();
 
