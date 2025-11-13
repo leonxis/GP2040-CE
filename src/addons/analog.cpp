@@ -29,9 +29,9 @@ void AnalogInput::setup() {
     adc_pairs[0].analog_dpad = analogOptions.analogAdc1Mode;
     adc_pairs[0].ema_option = analogOptions.analog_smoothing;
     adc_pairs[0].ema_smoothing = analogOptions.smoothing_factor / 100.0f;
-    // 动态防抖参数：默认值 delta_max=0.2%, alpha_max=95%
+    // 动态防抖参数：默认值 delta_max=1.5%, alpha_max=95%
     adc_pairs[0].smoothing_delta_max = (analogOptions.smoothing_delta_max > 0.0f) ? 
-        (analogOptions.smoothing_delta_max / 100.0f) : 0.002f;  // 默认0.2% = 0.002
+        (analogOptions.smoothing_delta_max / 100.0f) : 0.015f;  // 默认1.5% = 0.015
     adc_pairs[0].smoothing_alpha_max = (analogOptions.smoothing_alpha_max > 0.0f) ? 
         (analogOptions.smoothing_alpha_max / 100.0f) : 0.95f;   // 默认95% = 0.95
     adc_pairs[0].error_rate = analogOptions.analog_error / 1000.0f;
@@ -48,9 +48,9 @@ void AnalogInput::setup() {
     adc_pairs[1].analog_dpad = analogOptions.analogAdc2Mode;
     adc_pairs[1].ema_option = analogOptions.analog_smoothing2;
     adc_pairs[1].ema_smoothing = analogOptions.smoothing_factor2 / 100.0f;
-    // 动态防抖参数：默认值 delta_max=0.2%, alpha_max=95%
+    // 动态防抖参数：默认值 delta_max=1.5%, alpha_max=95%
     adc_pairs[1].smoothing_delta_max = (analogOptions.smoothing_delta_max2 > 0.0f) ? 
-        (analogOptions.smoothing_delta_max2 / 100.0f) : 0.002f;  // 默认0.2% = 0.002
+        (analogOptions.smoothing_delta_max2 / 100.0f) : 0.015f;  // 默认1.5% = 0.015
     adc_pairs[1].smoothing_alpha_max = (analogOptions.smoothing_alpha_max2 > 0.0f) ? 
         (analogOptions.smoothing_alpha_max2 / 100.0f) : 0.95f;   // 默认95% = 0.95
     adc_pairs[1].error_rate = analogOptions.analog_error2 / 1000.0f;
