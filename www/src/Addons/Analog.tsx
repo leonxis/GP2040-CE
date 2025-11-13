@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FormCheck, Row, Tab, Tabs } from 'react-bootstrap';
+import { FormCheck, Row, Tab, Tabs, Form } from 'react-bootstrap';
 import * as yup from 'yup';
 
 import Section from '../Components/Section';
@@ -133,6 +133,22 @@ export const analogScheme = {
 		.number()
 		.label('Smoothing Factor 2')
 		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+	smoothing_alpha_max: yup
+		.number()
+		.label('Dynamic Smoothing Alpha Max')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+	smoothing_delta_max: yup
+		.number()
+		.label('Dynamic Smoothing Delta Max')
+		.validateRangeWhenValue('AnalogInputEnabled', 0.1, 1),
+	smoothing_alpha_max2: yup
+		.number()
+		.label('Dynamic Smoothing Alpha Max 2')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+	smoothing_delta_max2: yup
+		.number()
+		.label('Dynamic Smoothing Delta Max 2')
+		.validateRangeWhenValue('AnalogInputEnabled', 0.1, 1),
 	analog_error: yup
 		.number()
 		.label('Error Rate')
@@ -185,10 +201,26 @@ export const analogState = {
 	joystickCenterY2: 0,
 	analog_smoothing: 0,
 	analog_smoothing2: 0,
-	smoothing_factor: 5,
-	smoothing_factor2: 5,
+	smoothing_factor: 50,
+	smoothing_factor2: 50,
+	smoothing_alpha_max: 95,
+	smoothing_delta_max: 0.2,
+	smoothing_alpha_max2: 95,
+	smoothing_delta_max2: 0.2,
 	analog_error: 1,
 	analog_error2: 1,
+};
+
+// Helper function to convert error rate value to percentage (0-15)
+const errorRateToPercent = (value: number): number => {
+	const index = ANALOG_ERROR_RATES.findIndex(rate => rate.value === value);
+	return index >= 0 ? index : 0;
+};
+
+// Helper function to convert percentage (0-15) to error rate value
+const percentToErrorRate = (percent: number): number => {
+	const index = Math.round(Math.max(0, Math.min(15, percent)));
+	return ANALOG_ERROR_RATES[index]?.value || ANALOG_ERROR_RATES[0].value;
 };
 
 const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }: AddonPropTypes) => {
@@ -254,43 +286,44 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 								>
 									<AnalogPinOptions />
 								</FormSelect>
-								<Row className="mb-3">
-									<FormSelect
-										label={t('AddonsConfig:analog-adc-1-mode-label')}
-										name="analogAdc1Mode"
-										className="form-select-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.analogAdc1Mode}
-										error={errors.analogAdc1Mode}
-										isInvalid={Boolean(errors.analogAdc1Mode)}
-										onChange={handleChange}
-									>
-										{ANALOG_STICK_MODES.map((o, i) => (
-											<option key={`button-analogAdc1Mode-option-${i}`} value={o.value}>
-												{o.label}
-											</option>
-										))}
-									</FormSelect>
-									<FormSelect
-										label={t('AddonsConfig:analog-adc-1-invert-label')}
-										name="analogAdc1Invert"
-										className="form-select-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.analogAdc1Invert}
-										error={errors.analogAdc1Invert}
-										isInvalid={Boolean(errors.analogAdc1Invert)}
-										onChange={handleChange}
-									>
-										{INVERT_MODES.map((o, i) => (
-											<option
-												key={`button-analogAdc1Invert-option-${i}`}
-												value={o.value}
-											>
-												{o.label}
-											</option>
-										))}
-									</FormSelect>
-								</Row>
+							</Row>
+							<Row className="mb-3">
+								<FormSelect
+									label={t('AddonsConfig:analog-adc-1-mode-label')}
+									name="analogAdc1Mode"
+									className="form-select-sm"
+									groupClassName="col-sm-3 mb-3"
+									value={values.analogAdc1Mode}
+									error={errors.analogAdc1Mode}
+									isInvalid={Boolean(errors.analogAdc1Mode)}
+									onChange={handleChange}
+								>
+									{ANALOG_STICK_MODES.map((o, i) => (
+										<option key={`button-analogAdc1Mode-option-${i}`} value={o.value}>
+											{o.label}
+										</option>
+									))}
+								</FormSelect>
+								<FormSelect
+									label={t('AddonsConfig:analog-adc-1-invert-label')}
+									name="analogAdc1Invert"
+									className="form-select-sm"
+									groupClassName="col-sm-3 mb-3"
+									value={values.analogAdc1Invert}
+									error={errors.analogAdc1Invert}
+									isInvalid={Boolean(errors.analogAdc1Invert)}
+									onChange={handleChange}
+								>
+									{INVERT_MODES.map((o, i) => (
+										<option
+											key={`button-analogAdc1Invert-option-${i}`}
+											value={o.value}
+										>
+											{o.label}
+										</option>
+									))}
+								</FormSelect>
+							</Row>
 								<Row className="mb-3">
 									<FormControl
 										type="number"
@@ -345,20 +378,59 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											handleChange(e);
 										}}
 									/>
-									<FormControl
-										hidden={!values.analog_smoothing}
-										type="number"
-										label={t('AddonsConfig:smoothing-factor')}
-										name="smoothing_factor"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.smoothing_factor}
-										error={errors.smoothing_factor}
-										isInvalid={Boolean(errors.smoothing_factor)}
-										onChange={handleChange}
-										min={0}
-										max={100}
-									/>
+								</Row>
+								<Row className="mb-3" hidden={!values.analog_smoothing}>
+									<div className="col-sm-12 mb-2">
+										<div className="d-flex justify-content-between align-items-center mb-1">
+											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-delta-max')}: {values.smoothing_delta_max}%</Form.Label>
+											<span className="text-muted small">{t('AddonsConfig:smoothing-delta-max-desc')}</span>
+										</div>
+										<Form.Range
+											name="smoothing_delta_max"
+											min={0.1}
+											max={1}
+											step={0.1}
+											value={values.smoothing_delta_max}
+											onChange={handleChange}
+										/>
+									</div>
+								</Row>
+								<Row className="mb-3" hidden={!values.analog_smoothing}>
+									<div className="col-sm-12 mb-2">
+										<div className="d-flex justify-content-between align-items-center mb-1">
+											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-factor')}: {values.smoothing_factor}</Form.Label>
+											<span className="text-muted small">{t('AddonsConfig:smoothing-factor-desc')}</span>
+										</div>
+										<Form.Range
+											name="smoothing_factor"
+											min={0}
+											max={100}
+											step={1}
+											value={values.smoothing_factor}
+											onChange={handleChange}
+										/>
+									</div>
+								</Row>
+								<Row className="mb-3" hidden={!values.analog_smoothing}>
+									<div className="col-sm-12 mb-2">
+										<div className="d-flex justify-content-between align-items-center mb-1">
+											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-alpha-max')}: {values.smoothing_alpha_max}</Form.Label>
+											<span className="text-muted small">{t('AddonsConfig:smoothing-alpha-max-desc')}</span>
+										</div>
+										<Form.Range
+											name="smoothing_alpha_max"
+											min={0}
+											max={100}
+											step={1}
+											value={values.smoothing_alpha_max}
+											onChange={handleChange}
+										/>
+									</div>
+								</Row>
+								<Row className="mb-3" hidden={!values.analog_smoothing}>
+									<div className="col-sm-12">
+										<p className="text-muted small mb-0">{t('AddonsConfig:smoothing-dynamic-desc')}</p>
+									</div>
 								</Row>
 								<Row className="mb-3">
 									<FormCheck
@@ -373,25 +445,26 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											handleChange(e);
 										}}
 									/>
-									<FormSelect
-										hidden={!values.forced_circularity}
-										label={t('AddonsConfig:analog-error-label')}
-										name="analog_error"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.analog_error}
-										onChange={handleChange}
-									>
-										{ANALOG_ERROR_RATES.map((o, i) => (
-											<option key={`analog_error-option-${i}`} value={o.value}>
-												{o.label}
-											</option>
-										))}
-									</FormSelect>
+									<div className="col-sm-9 mb-3" hidden={!values.forced_circularity}>
+										<div className="d-flex justify-content-between align-items-center mb-1">
+											<Form.Label className="mb-0">{t('AddonsConfig:analog-error-label')}: {errorRateToPercent(values.analog_error)}%</Form.Label>
+										</div>
+										<Form.Range
+											name="analog_error"
+											min={0}
+											max={15}
+											step={1}
+											value={errorRateToPercent(values.analog_error)}
+											onChange={(e) => {
+												const percent = parseInt((e.target as HTMLInputElement).value);
+												setFieldValue('analog_error', percentToErrorRate(percent));
+											}}
+										/>
+									</div>
 								</Row>
-								<div className="d-flex align-items-center">
+								<Row className="mb-3">
 									<FormCheck
-										label={t('AddonsConfig:analog-auto-calibrate')}
+										label={Boolean(values.auto_calibrate) ? t('AddonsConfig:analog-auto-calibrate') : t('AddonsConfig:analog-manual-calibrate')}
 										type="switch"
 										id="Auto_calibrate"
 										className="col-sm-3 ms-3"
@@ -402,11 +475,12 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											handleChange(e);
 										}}
 									/>
-									<button
-										type="button"
-										className="btn btn-sm btn-outline-secondary ms-2"
-										disabled={Boolean(values.auto_calibrate)}
-										onClick={async () => {
+									<div className="col-sm-9 d-flex align-items-center">
+										<button
+											type="button"
+											className="btn btn-sm btn-outline-secondary"
+											hidden={Boolean(values.auto_calibrate)}
+											onClick={async () => {
 											try {
 												// Multi-step calibration process
 												const steps = [
@@ -498,10 +572,11 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									>
 										{t('AddonsConfig:analog-calibrate-stick-1-button')}
 									</button>
-									<div className="ms-3 small text-muted">
+									<div className="ms-3 small text-muted" hidden={Boolean(values.auto_calibrate)}>
 										{`Center: X=${values.joystickCenterX}, Y=${values.joystickCenterY}`}
 									</div>
-								</div>
+									</div>
+								</Row>
 								{Boolean(values.auto_calibrate) && (
 									<div className="alert alert-info mt-2 mb-3">
 										<small>
@@ -520,7 +595,6 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										</small>
 									</div>
 								)}
-							</Row>
 						</Tab>
 						<Tab
 							key="analog2Config"
@@ -552,43 +626,44 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 								>
 									<AnalogPinOptions />
 								</FormSelect>
-								<Row className="mb-3">
-									<FormSelect
-										label={t('AddonsConfig:analog-adc-2-mode-label')}
-										name="analogAdc2Mode"
-										className="form-select-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.analogAdc2Mode}
-										error={errors.analogAdc2Mode}
-										isInvalid={Boolean(errors.analogAdc2Mode)}
-										onChange={handleChange}
-									>
-										{ANALOG_STICK_MODES.map((o, i) => (
-											<option key={`button-analogAdc2Mode-option-${i}`} value={o.value}>
-												{o.label}
-											</option>
-										))}
-									</FormSelect>
-									<FormSelect
-										label={t('AddonsConfig:analog-adc-2-invert-label')}
-										name="analogAdc2Invert"
-										className="form-select-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.analogAdc2Invert}
-										error={errors.analogAdc2Invert}
-										isInvalid={Boolean(errors.analogAdc2Invert)}
-										onChange={handleChange}
-									>
-										{INVERT_MODES.map((o, i) => (
-											<option
-												key={`button-analogAdc2Invert-option-${i}`}
-												value={o.value}
-											>
-												{o.label}
-											</option>
-										))}
-									</FormSelect>
-								</Row>
+							</Row>
+							<Row className="mb-3">
+								<FormSelect
+									label={t('AddonsConfig:analog-adc-2-mode-label')}
+									name="analogAdc2Mode"
+									className="form-select-sm"
+									groupClassName="col-sm-3 mb-3"
+									value={values.analogAdc2Mode}
+									error={errors.analogAdc2Mode}
+									isInvalid={Boolean(errors.analogAdc2Mode)}
+									onChange={handleChange}
+								>
+									{ANALOG_STICK_MODES.map((o, i) => (
+										<option key={`button-analogAdc2Mode-option-${i}`} value={o.value}>
+											{o.label}
+										</option>
+									))}
+								</FormSelect>
+								<FormSelect
+									label={t('AddonsConfig:analog-adc-2-invert-label')}
+									name="analogAdc2Invert"
+									className="form-select-sm"
+									groupClassName="col-sm-3 mb-3"
+									value={values.analogAdc2Invert}
+									error={errors.analogAdc2Invert}
+									isInvalid={Boolean(errors.analogAdc2Invert)}
+									onChange={handleChange}
+								>
+									{INVERT_MODES.map((o, i) => (
+										<option
+											key={`button-analogAdc2Invert-option-${i}`}
+											value={o.value}
+										>
+											{o.label}
+										</option>
+									))}
+								</FormSelect>
+							</Row>
 								<Row className="mb-3">
 									<FormControl
 										type="number"
@@ -643,20 +718,59 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											handleChange(e);
 										}}
 									/>
-									<FormControl
-										hidden={!values.analog_smoothing2}
-										type="number"
-										label={t('AddonsConfig:smoothing-factor')}
-										name="smoothing_factor2"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.smoothing_factor2}
-										error={errors.smoothing_factor2}
-										isInvalid={Boolean(errors.smoothing_factor2)}
-										onChange={handleChange}
-										min={0}
-										max={100}
-									/>
+								</Row>
+								<Row className="mb-3" hidden={!values.analog_smoothing2}>
+									<div className="col-sm-12 mb-2">
+										<div className="d-flex justify-content-between align-items-center mb-1">
+											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-delta-max')}: {values.smoothing_delta_max2}%</Form.Label>
+											<span className="text-muted small">{t('AddonsConfig:smoothing-delta-max-desc')}</span>
+										</div>
+										<Form.Range
+											name="smoothing_delta_max2"
+											min={0.1}
+											max={1}
+											step={0.1}
+											value={values.smoothing_delta_max2}
+											onChange={handleChange}
+										/>
+									</div>
+								</Row>
+								<Row className="mb-3" hidden={!values.analog_smoothing2}>
+									<div className="col-sm-12 mb-2">
+										<div className="d-flex justify-content-between align-items-center mb-1">
+											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-factor')}: {values.smoothing_factor2}</Form.Label>
+											<span className="text-muted small">{t('AddonsConfig:smoothing-factor-desc')}</span>
+										</div>
+										<Form.Range
+											name="smoothing_factor2"
+											min={0}
+											max={100}
+											step={1}
+											value={values.smoothing_factor2}
+											onChange={handleChange}
+										/>
+									</div>
+								</Row>
+								<Row className="mb-3" hidden={!values.analog_smoothing2}>
+									<div className="col-sm-12 mb-2">
+										<div className="d-flex justify-content-between align-items-center mb-1">
+											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-alpha-max')}: {values.smoothing_alpha_max2}</Form.Label>
+											<span className="text-muted small">{t('AddonsConfig:smoothing-alpha-max-desc')}</span>
+										</div>
+										<Form.Range
+											name="smoothing_alpha_max2"
+											min={0}
+											max={100}
+											step={1}
+											value={values.smoothing_alpha_max2}
+											onChange={handleChange}
+										/>
+									</div>
+								</Row>
+								<Row className="mb-3" hidden={!values.analog_smoothing2}>
+									<div className="col-sm-12">
+										<p className="text-muted small mb-0">{t('AddonsConfig:smoothing-dynamic-desc')}</p>
+									</div>
 								</Row>
 								<Row className="mb-3">
 									<FormCheck
@@ -671,40 +785,42 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											handleChange(e);
 										}}
 									/>
-									<FormSelect
-										hidden={!values.forced_circularity2}
-										label={t('AddonsConfig:analog-error-label')}
-										name="analog_error2"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.analog_error2}
-										onChange={handleChange}
-									>
-										{ANALOG_ERROR_RATES.map((o, i) => (
-											<option key={`analog_error-option-${i}`} value={o.value}>
-												{o.label}
-											</option>
-										))}
-									</FormSelect>
+									<div className="col-sm-9 mb-3" hidden={!values.forced_circularity2}>
+										<div className="d-flex justify-content-between align-items-center mb-1">
+											<Form.Label className="mb-0">{t('AddonsConfig:analog-error-label')}: {errorRateToPercent(values.analog_error2)}%</Form.Label>
+										</div>
+										<Form.Range
+											name="analog_error2"
+											min={0}
+											max={15}
+											step={1}
+											value={errorRateToPercent(values.analog_error2)}
+											onChange={(e) => {
+												const percent = parseInt((e.target as HTMLInputElement).value);
+												setFieldValue('analog_error2', percentToErrorRate(percent));
+											}}
+										/>
+									</div>
 								</Row>
-								<div className="d-flex align-items-center">
-								<FormCheck
-									label={t('AddonsConfig:analog-auto-calibrate')}
-									type="switch"
-									id="Auto_calibrate2"
-									className="col-sm-3 ms-3"
-									isInvalid={false}
-									checked={Boolean(values.auto_calibrate2)}
-									onChange={(e) => {
-										handleCheckbox('auto_calibrate2');
-										handleChange(e);
-									}}
-								/>
-									<button
-										type="button"
-										className="btn btn-sm btn-outline-secondary ms-2"
-										disabled={Boolean(values.auto_calibrate2)}
-										onClick={async () => {
+								<Row className="mb-3">
+									<FormCheck
+										label={Boolean(values.auto_calibrate2) ? t('AddonsConfig:analog-auto-calibrate') : t('AddonsConfig:analog-manual-calibrate')}
+										type="switch"
+										id="Auto_calibrate2"
+										className="col-sm-3 ms-3"
+										isInvalid={false}
+										checked={Boolean(values.auto_calibrate2)}
+										onChange={(e) => {
+											handleCheckbox('auto_calibrate2');
+											handleChange(e);
+										}}
+									/>
+									<div className="col-sm-9 d-flex align-items-center">
+										<button
+											type="button"
+											className="btn btn-sm btn-outline-secondary"
+											hidden={Boolean(values.auto_calibrate2)}
+											onClick={async () => {
 											try {
 												// Multi-step calibration process
 												const steps = [
@@ -796,10 +912,11 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									>
 										{t('AddonsConfig:analog-calibrate-stick-2-button')}
 									</button>
-									<div className="ms-3 small text-muted">
+									<div className="ms-3 small text-muted" hidden={Boolean(values.auto_calibrate2)}>
 										{`Center: X=${values.joystickCenterX2}, Y=${values.joystickCenterY2}`}
 									</div>
-								</div>
+									</div>
+								</Row>
 								{Boolean(values.auto_calibrate2) && (
 									<div className="alert alert-info mt-2 mb-3">
 										<small>
@@ -818,7 +935,6 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										</small>
 									</div>
 								)}
-							</Row>
 						</Tab>
 					</Tabs>
 			</div>

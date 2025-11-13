@@ -1697,6 +1697,10 @@ std::string setAddonOptions()
     docToValue(analogOptions.analog_smoothing2, doc, "analog_smoothing2");
     docToValue(analogOptions.smoothing_factor, doc, "smoothing_factor");
     docToValue(analogOptions.smoothing_factor2, doc, "smoothing_factor2");
+    docToValue(analogOptions.smoothing_alpha_max, doc, "smoothing_alpha_max");
+    docToValue(analogOptions.smoothing_delta_max, doc, "smoothing_delta_max");
+    docToValue(analogOptions.smoothing_alpha_max2, doc, "smoothing_alpha_max2");
+    docToValue(analogOptions.smoothing_delta_max2, doc, "smoothing_delta_max2");
     docToValue(analogOptions.analog_error, doc, "analog_error");
     docToValue(analogOptions.analog_error2, doc, "analog_error2");
     docToValue(analogOptions.enabled, doc, "AnalogInputEnabled");
@@ -2157,6 +2161,10 @@ std::string getAddonOptions()
     writeDoc(doc, "analog_smoothing2", analogOptions.analog_smoothing2);
     writeDoc(doc, "smoothing_factor", analogOptions.smoothing_factor);
     writeDoc(doc, "smoothing_factor2", analogOptions.smoothing_factor2);
+    writeDoc(doc, "smoothing_alpha_max", analogOptions.smoothing_alpha_max);
+    writeDoc(doc, "smoothing_delta_max", analogOptions.smoothing_delta_max);
+    writeDoc(doc, "smoothing_alpha_max2", analogOptions.smoothing_alpha_max2);
+    writeDoc(doc, "smoothing_delta_max2", analogOptions.smoothing_delta_max2);
     writeDoc(doc, "analog_error", analogOptions.analog_error);
     writeDoc(doc, "analog_error2", analogOptions.analog_error2);
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);

@@ -29,6 +29,11 @@ void AnalogInput::setup() {
     adc_pairs[0].analog_dpad = analogOptions.analogAdc1Mode;
     adc_pairs[0].ema_option = analogOptions.analog_smoothing;
     adc_pairs[0].ema_smoothing = analogOptions.smoothing_factor / 100.0f;
+    // 动态防抖参数：默认值 delta_max=0.2%, alpha_max=95%
+    adc_pairs[0].smoothing_delta_max = (analogOptions.smoothing_delta_max > 0.0f) ? 
+        (analogOptions.smoothing_delta_max / 100.0f) : 0.002f;  // 默认0.2% = 0.002
+    adc_pairs[0].smoothing_alpha_max = (analogOptions.smoothing_alpha_max > 0.0f) ? 
+        (analogOptions.smoothing_alpha_max / 100.0f) : 0.95f;   // 默认95% = 0.95
     adc_pairs[0].error_rate = analogOptions.analog_error / 1000.0f;
     adc_pairs[0].in_deadzone = analogOptions.inner_deadzone / 100.0f;
     adc_pairs[0].out_deadzone = analogOptions.outer_deadzone / 100.0f;
@@ -43,6 +48,11 @@ void AnalogInput::setup() {
     adc_pairs[1].analog_dpad = analogOptions.analogAdc2Mode;
     adc_pairs[1].ema_option = analogOptions.analog_smoothing2;
     adc_pairs[1].ema_smoothing = analogOptions.smoothing_factor2 / 100.0f;
+    // 动态防抖参数：默认值 delta_max=0.2%, alpha_max=95%
+    adc_pairs[1].smoothing_delta_max = (analogOptions.smoothing_delta_max2 > 0.0f) ? 
+        (analogOptions.smoothing_delta_max2 / 100.0f) : 0.002f;  // 默认0.2% = 0.002
+    adc_pairs[1].smoothing_alpha_max = (analogOptions.smoothing_alpha_max2 > 0.0f) ? 
+        (analogOptions.smoothing_alpha_max2 / 100.0f) : 0.95f;   // 默认95% = 0.95
     adc_pairs[1].error_rate = analogOptions.analog_error2 / 1000.0f;
     adc_pairs[1].in_deadzone = analogOptions.inner_deadzone2 / 100.0f;
     adc_pairs[1].out_deadzone = analogOptions.outer_deadzone2 / 100.0f;
@@ -167,19 +177,30 @@ float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t center) {
 }
 
 float AnalogInput::emaCalculation(int stick_num, float ema_value, float ema_previous) {
-    float alpha_base = adc_pairs[stick_num].ema_smoothing;   // 基准 α（来自 WebConfig）
-
-    float delta = fabsf(ema_value - ema_previous);           // 当前变化幅度（估计速度）
-
-    float delta_max = 0.4f;                                  // 判定"快速移动"的阈值
-
-    float alpha_max = 0.9f;                                  // 最大 α（几乎无延迟）
-
-    // 动态计算 α
-    float speed_factor = fminf(delta / delta_max, 1.0f);     // 映射到 0–1
+    float alpha_base = adc_pairs[stick_num].ema_smoothing;        // 基准 α（来自 WebConfig）
+    float delta_max = adc_pairs[stick_num].smoothing_delta_max;   // 快速移动阈值（可配置）
+    float alpha_max = adc_pairs[stick_num].smoothing_alpha_max;   // 最大 α（可配置）
+    
+    // 计算当前变化幅度（速度估计）
+    float delta = std::abs(ema_value - ema_previous);
+    
+    // 防止除零错误：如果 delta_max 为 0 或非常小，使用默认值或直接使用基准 alpha
+    if (delta_max <= 0.0001f) {  // 使用一个很小的阈值来避免除零
+        // 如果 delta_max 无效，直接使用基准 alpha（不进行动态调整）
+        float alpha_dynamic = std::clamp(alpha_base, 0.01f, 0.99f);
+        return (alpha_dynamic * ema_value) + ((1.0f - alpha_dynamic) * ema_previous);
+    }
+    
+    // 计算速度因子（0-1之间）
+    float speed_factor = std::fmin(delta / delta_max, 1.0f);
+    
+    // 动态计算 α（立即响应，不进行平滑）
     float alpha_dynamic = alpha_base + (alpha_max - alpha_base) * speed_factor;
-
-    // 计算 EMA
+    
+    // 边界保护
+    alpha_dynamic = std::clamp(alpha_dynamic, 0.01f, 0.99f);
+    
+    // 计算 EMA（对摇杆值进行平滑，而不是对alpha）
     return (alpha_dynamic * ema_value) + ((1.0f - alpha_dynamic) * ema_previous);
 }
 

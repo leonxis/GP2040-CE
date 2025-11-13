@@ -612,10 +612,14 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone, DEFAULT_ANTI_DEADZONE);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, auto_calibrate, !!AUTO_CALIBRATE_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing, !!ANALOG_SMOOTHING_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_factor, !!SMOOTHING_FACTOR);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_factor, 50.0f);  // 默认50%
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_alpha_max, 95.0f);  // 默认95%
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_delta_max, 0.2f);  // 默认0.2%
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_error, ANALOG_ERROR);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing2, !!ANALOG_SMOOTHING2_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_factor2, !!SMOOTHING_FACTOR2);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_factor2, 50.0f);  // 默认50%
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_alpha_max2, 95.0f);  // 默认95%
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_delta_max2, 0.2f);  // 默认0.2%
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_error2, ANALOG_ERROR2);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone2, DEFAULT_INNER_DEADZONE2);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, outer_deadzone2, DEFAULT_OUTER_DEADZONE2);
