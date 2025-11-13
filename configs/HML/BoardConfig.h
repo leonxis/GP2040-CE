@@ -88,8 +88,8 @@
 #define AUTO_CALIBRATE2_ENABLED     0
 #define ANALOG_ERROR 958
 #define ANALOG_ERROR2 958
-//#define ANALOG_ADC_1_INVERT        INVERT_Y
-//#define ANALOG_ADC_2_INVERT        INVERT_Y
+#define ANALOG_ADC_1_INVERT        INVERT_X
+#define ANALOG_ADC_2_INVERT        INVERT_X
 
 // USB Passthrough
 //#define USB_PERIPHERAL_ENABLED 1
