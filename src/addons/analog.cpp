@@ -167,7 +167,20 @@ float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t center) {
 }
 
 float AnalogInput::emaCalculation(int stick_num, float ema_value, float ema_previous) {
-    return (adc_pairs[stick_num].ema_smoothing * ema_value) + ((1.0f - adc_pairs[stick_num].ema_smoothing) * ema_previous);
+    float alpha_base = adc_pairs[stick_num].ema_smoothing;   // 基准 α（来自 WebConfig）
+
+    float delta = fabsf(ema_value - ema_previous);           // 当前变化幅度（估计速度）
+
+    float delta_max = 0.4f;                                  // 判定"快速移动"的阈值
+
+    float alpha_max = 0.9f;                                  // 最大 α（几乎无延迟）
+
+    // 动态计算 α
+    float speed_factor = fminf(delta / delta_max, 1.0f);     // 映射到 0–1
+    float alpha_dynamic = alpha_base + (alpha_max - alpha_base) * speed_factor;
+
+    // 计算 EMA
+    return (alpha_dynamic * ema_value) + ((1.0f - alpha_dynamic) * ema_previous);
 }
 
 uint16_t AnalogInput::map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max) {
