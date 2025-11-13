@@ -140,7 +140,7 @@ export const analogScheme = {
 	smoothing_delta_max: yup
 		.number()
 		.label('Dynamic Smoothing Delta Max')
-		.validateRangeWhenValue('AnalogInputEnabled', 0.1, 1),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 5),
 	smoothing_alpha_max2: yup
 		.number()
 		.label('Dynamic Smoothing Alpha Max 2')
@@ -148,7 +148,7 @@ export const analogScheme = {
 	smoothing_delta_max2: yup
 		.number()
 		.label('Dynamic Smoothing Delta Max 2')
-		.validateRangeWhenValue('AnalogInputEnabled', 0.1, 1),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 5),
 	analog_error: yup
 		.number()
 		.label('Error Rate')
@@ -387,8 +387,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										</div>
 										<Form.Range
 											name="smoothing_delta_max"
-											min={0.1}
-											max={1}
+											min={0}
+											max={5}
 											step={0.1}
 											value={values.smoothing_delta_max}
 											onChange={handleChange}
@@ -727,8 +727,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										</div>
 										<Form.Range
 											name="smoothing_delta_max2"
-											min={0.1}
-											max={1}
+											min={0}
+											max={5}
 											step={0.1}
 											value={values.smoothing_delta_max2}
 											onChange={handleChange}
