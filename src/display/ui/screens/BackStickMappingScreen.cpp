@@ -67,26 +67,26 @@ void BackStickMappingScreen::init() {
     bool usbPeripheralEnabled = isUSBPeripheralEnabled();
     
     // Menu order: Left backstick, Right backstick first, then Plus variants
-    // Row 1: Left backstick (GPIO22)
-    stickSelectionMenu.push_back({"Left backstick", nullptr, nullptr,
+    // Row 1: GPIO22: Left backstick
+    stickSelectionMenu.push_back({"GPIO22: Left backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
         std::bind(&BackStickMappingScreen::selectStickType, this), 1});
-    // Row 2: Right backstick (GPIO25)
-    stickSelectionMenu.push_back({"Right backstick", nullptr, nullptr,
+    // Row 2: GPIO25: Right backstick
+    stickSelectionMenu.push_back({"GPIO25: Right backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
         std::bind(&BackStickMappingScreen::selectStickType, this), 3});
     
     // GPIO15 and GPIO14 are only available when USB peripheral is disabled
     // (USB peripheral uses these pins, so they conflict)
-    // Row 3: Left Plus backstick (GPIO15)
+    // Row 3: GPIO15: Left Plus backstick
     if (!usbPeripheralEnabled) {
-        stickSelectionMenu.push_back({"Left Plus backstick", nullptr, nullptr,
+        stickSelectionMenu.push_back({"GPIO15: Left Plus backstick", nullptr, nullptr,
             std::bind(&BackStickMappingScreen::currentStickType, this),
             std::bind(&BackStickMappingScreen::selectStickType, this), 0});
     }
-    // Row 4: Right Plus backstick (GPIO14)
+    // Row 4: GPIO14: Right Plus backstick
     if (!usbPeripheralEnabled) {
-        stickSelectionMenu.push_back({"Right Plus backstick", nullptr, nullptr,
+        stickSelectionMenu.push_back({"GPIO14: Right Plus backstick", nullptr, nullptr,
             std::bind(&BackStickMappingScreen::currentStickType, this),
             std::bind(&BackStickMappingScreen::selectStickType, this), 2});
     }
@@ -260,22 +260,22 @@ void BackStickMappingScreen::enterMapping(int stickIndex) {
     switch (actualIndex) {
         case 0: // GPIO15: Left Plus backstick
             currentMenu = &gpio15MappingMenu;
-            gpMenu->setMenuTitle("Left Plus backstick");
+            gpMenu->setMenuTitle("GPIO15: Left Plus backstick");
             currentState = STATE_MAPPING_GPIO15;
             break;
         case 1: // GPIO22: Left backstick
             currentMenu = &gpio22MappingMenu;
-            gpMenu->setMenuTitle("Left backstick");
+            gpMenu->setMenuTitle("GPIO22: Left backstick");
             currentState = STATE_MAPPING_GPIO22;
             break;
         case 2: // GPIO14: Right Plus backstick
             currentMenu = &gpio14MappingMenu;
-            gpMenu->setMenuTitle("Right Plus backstick");
+            gpMenu->setMenuTitle("GPIO14: Right Plus backstick");
             currentState = STATE_MAPPING_GPIO14;
             break;
         case 3: // GPIO25: Right backstick
             currentMenu = &gpio25MappingMenu;
-            gpMenu->setMenuTitle("Right backstick");
+            gpMenu->setMenuTitle("GPIO25: Right backstick");
             currentState = STATE_MAPPING_GPIO25;
             break;
         default:
