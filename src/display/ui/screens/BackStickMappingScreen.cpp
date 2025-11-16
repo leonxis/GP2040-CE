@@ -66,22 +66,24 @@ void BackStickMappingScreen::init() {
     stickSelectionMenu.clear();
     bool usbPeripheralEnabled = isUSBPeripheralEnabled();
     
-    if (usbPeripheralEnabled) {
+    // GPIO15 and GPIO14 are only available when USB peripheral is disabled
+    // (USB peripheral uses these pins, so they conflict)
+    if (!usbPeripheralEnabled) {
         stickSelectionMenu.push_back({"Left Plus backstick", nullptr, nullptr,
             std::bind(&BackStickMappingScreen::currentStickType, this),
             std::bind(&BackStickMappingScreen::selectStickType, this), 0});
     }
     stickSelectionMenu.push_back({"Left backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
-        std::bind(&BackStickMappingScreen::selectStickType, this), usbPeripheralEnabled ? 1 : 0});
-    if (usbPeripheralEnabled) {
+        std::bind(&BackStickMappingScreen::selectStickType, this), usbPeripheralEnabled ? 0 : 1});
+    if (!usbPeripheralEnabled) {
         stickSelectionMenu.push_back({"Right Plus backstick", nullptr, nullptr,
             std::bind(&BackStickMappingScreen::currentStickType, this),
             std::bind(&BackStickMappingScreen::selectStickType, this), 2});
     }
     stickSelectionMenu.push_back({"Right backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
-        std::bind(&BackStickMappingScreen::selectStickType, this), usbPeripheralEnabled ? 3 : 1});
+        std::bind(&BackStickMappingScreen::selectStickType, this), usbPeripheralEnabled ? 1 : 3});
 
     buildButtonMappingMenu(&gpio15MappingMenu,
         std::bind(&BackStickMappingScreen::currentGPIO15Mapping, this),
@@ -226,12 +228,19 @@ void BackStickMappingScreen::enterMapping(int stickIndex) {
 
     bool usbPeripheralEnabled = isUSBPeripheralEnabled();
     int actualIndex = stickIndex;
-    if (!usbPeripheralEnabled) {
-        // When USB peripheral is disabled, adjust indices:
-        // 0 -> GPIO22 (Left), 1 -> GPIO25 (Right)
+    
+    // Map menu index to GPIO index based on USB peripheral state
+    // When USB peripheral is disabled: 0->GPIO15, 1->GPIO22, 2->GPIO14, 3->GPIO25
+    // When USB peripheral is enabled: 0->GPIO22, 1->GPIO25
+    if (usbPeripheralEnabled) {
+        // When USB peripheral is enabled, GPIO15 and GPIO14 are hidden
+        // Menu index 0 -> GPIO22 (actualIndex 1)
+        // Menu index 1 -> GPIO25 (actualIndex 3)
         if (stickIndex == 0) actualIndex = 1; // GPIO22
         else if (stickIndex == 1) actualIndex = 3; // GPIO25
     }
+    // When USB peripheral is disabled, stickIndex directly maps to actualIndex
+    // 0->GPIO15(0), 1->GPIO22(1), 2->GPIO14(2), 3->GPIO25(3)
 
     switch (actualIndex) {
         case 0: // GPIO15: Left Plus backstick
