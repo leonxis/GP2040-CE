@@ -235,26 +235,24 @@ void BackStickMappingScreen::enterMapping(int stickIndex) {
     bool usbPeripheralEnabled = isUSBPeripheralEnabled();
     int actualIndex = stickIndex;
     
-    // Map menu index to GPIO index based on USB peripheral state
-    // Menu order: Left backstick(1), Right backstick(3), Left Plus(0), Right Plus(2)
-    // When USB peripheral is disabled: menu indices 0->GPIO22(1), 1->GPIO25(3), 2->GPIO15(0), 3->GPIO14(2)
-    // When USB peripheral is enabled: menu indices 0->GPIO22(1), 1->GPIO25(3)
+    // Map optionValue (stickIndex) to GPIO index based on USB peripheral state
+    // Menu items and their optionValues:
+    // - "Left backstick" -> optionValue=1 -> GPIO22 (actualIndex=1)
+    // - "Right backstick" -> optionValue=3 -> GPIO25 (actualIndex=3)
+    // - "Left Plus backstick" -> optionValue=0 -> GPIO15 (actualIndex=0)
+    // - "Right Plus backstick" -> optionValue=2 -> GPIO14 (actualIndex=2)
     if (usbPeripheralEnabled) {
         // When USB peripheral is enabled, GPIO15 and GPIO14 are hidden
-        // Menu index 0 -> GPIO22 (actualIndex 1)
-        // Menu index 1 -> GPIO25 (actualIndex 3)
-        if (stickIndex == 0) actualIndex = 1; // GPIO22
-        else if (stickIndex == 1) actualIndex = 3; // GPIO25
+        // Only optionValue 1 (GPIO22) and 3 (GPIO25) are available
+        if (stickIndex == 1) actualIndex = 1; // GPIO22: Left backstick
+        else if (stickIndex == 3) actualIndex = 3; // GPIO25: Right backstick
     } else {
-        // When USB peripheral is disabled, map menu indices to GPIO indices
-        // Menu index 0 -> GPIO22 (actualIndex 1)
-        // Menu index 1 -> GPIO25 (actualIndex 3)
-        // Menu index 2 -> GPIO15 (actualIndex 0)
-        // Menu index 3 -> GPIO14 (actualIndex 2)
-        if (stickIndex == 0) actualIndex = 1; // GPIO22
-        else if (stickIndex == 1) actualIndex = 3; // GPIO25
-        else if (stickIndex == 2) actualIndex = 0; // GPIO15
-        else if (stickIndex == 3) actualIndex = 2; // GPIO14
+        // When USB peripheral is disabled, all four options are available
+        // Map optionValue directly to GPIO index
+        if (stickIndex == 0) actualIndex = 0; // GPIO15: Left Plus backstick
+        else if (stickIndex == 1) actualIndex = 1; // GPIO22: Left backstick
+        else if (stickIndex == 2) actualIndex = 2; // GPIO14: Right Plus backstick
+        else if (stickIndex == 3) actualIndex = 3; // GPIO25: Right backstick
     }
 
     switch (actualIndex) {
