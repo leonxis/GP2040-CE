@@ -1,13 +1,11 @@
 #include "system.h"
 
 #include "usbhostmanager.h"
-#include "tusb.h"
 
 #include <hardware/flash.h>
 #include <hardware/sync.h>
 #include <hardware/watchdog.h>
 #include <pico/multicore.h>
-#include <pico/time.h>
 
 #include <malloc.h>
 
@@ -63,14 +61,6 @@ uint32_t System::getUsedHeap() {
 void System::reboot(BootMode bootMode) {
     // Halt all running USB instances
     USBHostManager::getInstance().shutdown();
-
-    // Disconnect USB Device to ensure host detects device disconnect/reconnect
-    // This ensures proper hardware reset detection by the host computer
-    if (tud_inited()) {
-        tud_disconnect();  // Disconnect USB device from host
-        sleep_ms(10);      // Wait for disconnect to complete
-        tud_deinit(TUD_OPT_RHPORT);  // Deinitialize USB device
-    }
 
     // Make sure that the other core is halted
     // We do not want it to be talking to devices (e.g. OLED display) while we reboot
