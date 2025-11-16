@@ -67,19 +67,19 @@ void BackStickMappingScreen::init() {
     bool usbPeripheralEnabled = isUSBPeripheralEnabled();
     
     if (usbPeripheralEnabled) {
-        stickSelectionMenu.push_back({"GPIO15: Left Plus backstick", nullptr, nullptr,
+        stickSelectionMenu.push_back({"Left Plus backstick", nullptr, nullptr,
             std::bind(&BackStickMappingScreen::currentStickType, this),
             std::bind(&BackStickMappingScreen::selectStickType, this), 0});
     }
-    stickSelectionMenu.push_back({"GPIO22: Left backstick", nullptr, nullptr,
+    stickSelectionMenu.push_back({"Left backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
         std::bind(&BackStickMappingScreen::selectStickType, this), usbPeripheralEnabled ? 1 : 0});
     if (usbPeripheralEnabled) {
-        stickSelectionMenu.push_back({"GPIO14: Right Plus backstick", nullptr, nullptr,
+        stickSelectionMenu.push_back({"Right Plus backstick", nullptr, nullptr,
             std::bind(&BackStickMappingScreen::currentStickType, this),
             std::bind(&BackStickMappingScreen::selectStickType, this), 2});
     }
-    stickSelectionMenu.push_back({"GPIO25: Right backstick", nullptr, nullptr,
+    stickSelectionMenu.push_back({"Right backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
         std::bind(&BackStickMappingScreen::selectStickType, this), usbPeripheralEnabled ? 3 : 1});
 
@@ -236,22 +236,22 @@ void BackStickMappingScreen::enterMapping(int stickIndex) {
     switch (actualIndex) {
         case 0: // GPIO15: Left Plus backstick
             currentMenu = &gpio15MappingMenu;
-            gpMenu->setMenuTitle("GPIO15: Left Plus");
+            gpMenu->setMenuTitle("Left Plus backstick");
             currentState = STATE_MAPPING_GPIO15;
             break;
         case 1: // GPIO22: Left backstick
             currentMenu = &gpio22MappingMenu;
-            gpMenu->setMenuTitle("GPIO22: Left");
+            gpMenu->setMenuTitle("Left backstick");
             currentState = STATE_MAPPING_GPIO22;
             break;
         case 2: // GPIO14: Right Plus backstick
             currentMenu = &gpio14MappingMenu;
-            gpMenu->setMenuTitle("GPIO14: Right Plus");
+            gpMenu->setMenuTitle("Right Plus backstick");
             currentState = STATE_MAPPING_GPIO14;
             break;
         case 3: // GPIO25: Right backstick
             currentMenu = &gpio25MappingMenu;
-            gpMenu->setMenuTitle("GPIO25: Right");
+            gpMenu->setMenuTitle("Right backstick");
             currentState = STATE_MAPPING_GPIO25;
             break;
         default:
@@ -437,7 +437,8 @@ void BackStickMappingScreen::saveOptions() {
 }
 
 bool BackStickMappingScreen::isUSBPeripheralEnabled() {
-    // Always check Storage configuration, which reflects web UI settings
+    // Check USB peripheral enabled status from storage (web settings)
+    // This reflects the actual USB host switch state in the web UI
     return Storage::getInstance().getPeripheralOptions().blockUSB0.enabled;
 }
 
