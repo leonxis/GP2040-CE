@@ -5,6 +5,7 @@
 #include "system.h"
 #include "gamepad.h"
 #include "MainMenuScreen.h"
+#include "BoardConfig.h"
 
 void BackStickMappingScreen::init() {
     getRenderer()->clearScreen();
@@ -53,23 +54,47 @@ void BackStickMappingScreen::init() {
     }
 
     GpioMappings& gpioMappings = Storage::getInstance().getGpioMappings();
+    prevGPIO15Action = gpioMappings.pins[15].action;
+    updateGPIO15Action = gpioMappings.pins[15].action;
     prevGPIO22Action = gpioMappings.pins[22].action;
     updateGPIO22Action = gpioMappings.pins[22].action;
+    prevGPIO14Action = gpioMappings.pins[14].action;
+    updateGPIO14Action = gpioMappings.pins[14].action;
     prevGPIO25Action = gpioMappings.pins[25].action;
     updateGPIO25Action = gpioMappings.pins[25].action;
 
     stickSelectionMenu.clear();
-    stickSelectionMenu.push_back({"Left Joystick", nullptr, nullptr,
+    bool usbPeripheralEnabled = isUSBPeripheralEnabled();
+    
+    if (usbPeripheralEnabled) {
+        stickSelectionMenu.push_back({"GPIO15: Left Plus backstick", nullptr, nullptr,
+            std::bind(&BackStickMappingScreen::currentStickType, this),
+            std::bind(&BackStickMappingScreen::selectStickType, this), 0});
+    }
+    stickSelectionMenu.push_back({"GPIO22: Left backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
-        std::bind(&BackStickMappingScreen::selectStickType, this), 0});
-    stickSelectionMenu.push_back({"Right Joystick", nullptr, nullptr,
+        std::bind(&BackStickMappingScreen::selectStickType, this), usbPeripheralEnabled ? 1 : 0});
+    if (usbPeripheralEnabled) {
+        stickSelectionMenu.push_back({"GPIO14: Right Plus backstick", nullptr, nullptr,
+            std::bind(&BackStickMappingScreen::currentStickType, this),
+            std::bind(&BackStickMappingScreen::selectStickType, this), 2});
+    }
+    stickSelectionMenu.push_back({"GPIO25: Right backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
-        std::bind(&BackStickMappingScreen::selectStickType, this), 1});
+        std::bind(&BackStickMappingScreen::selectStickType, this), usbPeripheralEnabled ? 3 : 1});
 
+    buildButtonMappingMenu(&gpio15MappingMenu,
+        std::bind(&BackStickMappingScreen::currentGPIO15Mapping, this),
+        std::bind(&BackStickMappingScreen::selectGPIO15Mapping, this),
+        true);
     buildButtonMappingMenu(&gpio22MappingMenu,
         std::bind(&BackStickMappingScreen::currentGPIO22Mapping, this),
         std::bind(&BackStickMappingScreen::selectGPIO22Mapping, this),
         true);
+    buildButtonMappingMenu(&gpio14MappingMenu,
+        std::bind(&BackStickMappingScreen::currentGPIO14Mapping, this),
+        std::bind(&BackStickMappingScreen::selectGPIO14Mapping, this),
+        false);
     buildButtonMappingMenu(&gpio25MappingMenu,
         std::bind(&BackStickMappingScreen::currentGPIO25Mapping, this),
         std::bind(&BackStickMappingScreen::selectGPIO25Mapping, this),
@@ -188,25 +213,88 @@ void BackStickMappingScreen::selectStickType() {
     uint16_t menuIndex = gpMenu->getIndex();
     if (menuIndex >= currentMenu->size()) return;
 
-    bool isGPIO22 = (currentMenu->at(menuIndex).optionValue == 0);
-    enterMapping(isGPIO22);
+    int stickIndex = currentMenu->at(menuIndex).optionValue;
+    enterMapping(stickIndex);
 }
 
 int32_t BackStickMappingScreen::currentStickType() {
     return -1;
 }
 
-void BackStickMappingScreen::enterMapping(bool isGPIO22) {
+void BackStickMappingScreen::enterMapping(int stickIndex) {
     if (gpMenu == nullptr) return;
 
-    currentMenu = isGPIO22 ? &gpio22MappingMenu : &gpio25MappingMenu;
+    bool usbPeripheralEnabled = isUSBPeripheralEnabled();
+    int actualIndex = stickIndex;
+    if (!usbPeripheralEnabled) {
+        // When USB peripheral is disabled, adjust indices:
+        // 0 -> GPIO22 (Left), 1 -> GPIO25 (Right)
+        if (stickIndex == 0) actualIndex = 1; // GPIO22
+        else if (stickIndex == 1) actualIndex = 3; // GPIO25
+    }
+
+    switch (actualIndex) {
+        case 0: // GPIO15: Left Plus backstick
+            currentMenu = &gpio15MappingMenu;
+            gpMenu->setMenuTitle("GPIO15: Left Plus");
+            currentState = STATE_MAPPING_GPIO15;
+            break;
+        case 1: // GPIO22: Left backstick
+            currentMenu = &gpio22MappingMenu;
+            gpMenu->setMenuTitle("GPIO22: Left");
+            currentState = STATE_MAPPING_GPIO22;
+            break;
+        case 2: // GPIO14: Right Plus backstick
+            currentMenu = &gpio14MappingMenu;
+            gpMenu->setMenuTitle("GPIO14: Right Plus");
+            currentState = STATE_MAPPING_GPIO14;
+            break;
+        case 3: // GPIO25: Right backstick
+            currentMenu = &gpio25MappingMenu;
+            gpMenu->setMenuTitle("GPIO25: Right");
+            currentState = STATE_MAPPING_GPIO25;
+            break;
+        default:
+            return;
+    }
+    
     previousMenu = &stickSelectionMenu;
     gpMenu->setMenuData(currentMenu);
-    gpMenu->setMenuTitle(isGPIO22 ? "Left Joystick" : "Right Joystick");
     gpMenu->setMenuSize(4, 4);
     gpMenu->setIndex(0);
+}
 
-    currentState = isGPIO22 ? STATE_MAPPING_GPIO22 : STATE_MAPPING_GPIO25;
+void BackStickMappingScreen::selectGPIO15Mapping() {
+    if (currentMenu == nullptr || gpMenu == nullptr) return;
+
+    uint16_t menuIndex = gpMenu->getIndex();
+    if (menuIndex >= currentMenu->size()) return;
+
+    int32_t optionValue = currentMenu->at(menuIndex).optionValue;
+    if (optionValue == -1) return;
+
+    GpioAction valueToSave = static_cast<GpioAction>(optionValue);
+    updateGPIO15Action = valueToSave;
+
+    if (prevGPIO15Action != valueToSave) {
+        changesPending = true;
+    }
+
+    currentState = STATE_SELECT_STICK;
+    currentMenu = &stickSelectionMenu;
+    previousMenu = nullptr;
+    gpMenu->setMenuData(currentMenu);
+    gpMenu->setMenuTitle("[Back stick]");
+    gpMenu->setMenuSize(18, menuLineSize);
+    gpMenu->setIndex(0);
+
+    if (changesPending) {
+        saveOptions();
+    }
+}
+
+int32_t BackStickMappingScreen::currentGPIO15Mapping() {
+    return static_cast<int32_t>(updateGPIO15Action);
 }
 
 void BackStickMappingScreen::selectGPIO22Mapping() {
@@ -240,6 +328,39 @@ void BackStickMappingScreen::selectGPIO22Mapping() {
 
 int32_t BackStickMappingScreen::currentGPIO22Mapping() {
     return static_cast<int32_t>(updateGPIO22Action);
+}
+
+void BackStickMappingScreen::selectGPIO14Mapping() {
+    if (currentMenu == nullptr || gpMenu == nullptr) return;
+
+    uint16_t menuIndex = gpMenu->getIndex();
+    if (menuIndex >= currentMenu->size()) return;
+
+    int32_t optionValue = currentMenu->at(menuIndex).optionValue;
+    if (optionValue == -1) return;
+
+    GpioAction valueToSave = static_cast<GpioAction>(optionValue);
+    updateGPIO14Action = valueToSave;
+
+    if (prevGPIO14Action != valueToSave) {
+        changesPending = true;
+    }
+
+    currentState = STATE_SELECT_STICK;
+    currentMenu = &stickSelectionMenu;
+    previousMenu = nullptr;
+    gpMenu->setMenuData(currentMenu);
+    gpMenu->setMenuTitle("[Back stick]");
+    gpMenu->setMenuSize(18, menuLineSize);
+    gpMenu->setIndex(0);
+
+    if (changesPending) {
+        saveOptions();
+    }
+}
+
+int32_t BackStickMappingScreen::currentGPIO14Mapping() {
+    return static_cast<int32_t>(updateGPIO14Action);
 }
 
 void BackStickMappingScreen::selectGPIO25Mapping() {
@@ -283,9 +404,21 @@ void BackStickMappingScreen::saveOptions() {
     GpioMappings& gpioMappings = Storage::getInstance().getGpioMappings();
     bool saveHasChanged = false;
 
+    if (prevGPIO15Action != updateGPIO15Action) {
+        gpioMappings.pins[15].action = updateGPIO15Action;
+        prevGPIO15Action = updateGPIO15Action;
+        saveHasChanged = true;
+    }
+
     if (prevGPIO22Action != updateGPIO22Action) {
         gpioMappings.pins[22].action = updateGPIO22Action;
         prevGPIO22Action = updateGPIO22Action;
+        saveHasChanged = true;
+    }
+
+    if (prevGPIO14Action != updateGPIO14Action) {
+        gpioMappings.pins[14].action = updateGPIO14Action;
+        prevGPIO14Action = updateGPIO14Action;
         saveHasChanged = true;
     }
 
@@ -303,12 +436,21 @@ void BackStickMappingScreen::saveOptions() {
     changesPending = false;
 }
 
+bool BackStickMappingScreen::isUSBPeripheralEnabled() {
+    #ifdef USB_PERIPHERAL_ENABLED
+    return USB_PERIPHERAL_ENABLED == 1;
+    #else
+    return Storage::getInstance().getPeripheralOptions().blockUSB0.enabled;
+    #endif
+}
+
 void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
     if (!isMenuReady || gpMenu == nullptr) return;
 
     uint16_t menuIndex = gpMenu->getIndex();
     uint16_t menuSize = (currentMenu != nullptr) ? currentMenu->size() : 0;
-    bool isFourColumnMenu = (currentMenu == &gpio22MappingMenu || currentMenu == &gpio25MappingMenu);
+    bool isFourColumnMenu = (currentMenu == &gpio15MappingMenu || currentMenu == &gpio22MappingMenu || 
+                              currentMenu == &gpio14MappingMenu || currentMenu == &gpio25MappingMenu);
 
     switch (action) {
         case GpioAction::MENU_NAVIGATION_UP:

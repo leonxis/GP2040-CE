@@ -22,8 +22,10 @@ class BackStickMappingScreen : public GPScreen {
     private:
         enum MappingState {
             STATE_SELECT_STICK,      // Select Left stick or Right stick
-            STATE_MAPPING_GPIO22,     // Mapping GPIO22 (Left stick)
-            STATE_MAPPING_GPIO25,     // Mapping GPIO25 (Right stick)
+            STATE_MAPPING_GPIO15,     // Mapping GPIO15 (Left Plus backstick)
+            STATE_MAPPING_GPIO22,     // Mapping GPIO22 (Left backstick)
+            STATE_MAPPING_GPIO14,     // Mapping GPIO14 (Right Plus backstick)
+            STATE_MAPPING_GPIO25,     // Mapping GPIO25 (Right backstick)
             STATE_COMPLETE           // Show restart prompt
         };
         
@@ -33,7 +35,9 @@ class BackStickMappingScreen : public GPScreen {
         
         // Menu data
         std::vector<MenuEntry> stickSelectionMenu;
+        std::vector<MenuEntry> gpio15MappingMenu;
         std::vector<MenuEntry> gpio22MappingMenu;
+        std::vector<MenuEntry> gpio14MappingMenu;
         std::vector<MenuEntry> gpio25MappingMenu;
         
         // Current menu pointer
@@ -46,8 +50,12 @@ class BackStickMappingScreen : public GPScreen {
         bool isMenuReady = false;
         
         // GPIO mapping state
+        GpioAction prevGPIO15Action;
+        GpioAction updateGPIO15Action;
         GpioAction prevGPIO22Action;
         GpioAction updateGPIO22Action;
+        GpioAction prevGPIO14Action;
+        GpioAction updateGPIO14Action;
         GpioAction prevGPIO25Action;
         GpioAction updateGPIO25Action;
         bool changesPending = false;
@@ -65,13 +73,18 @@ class BackStickMappingScreen : public GPScreen {
         void buildButtonMappingMenu(std::vector<MenuEntry>* menu, std::function<int32_t()> currentValueFunc, std::function<void()> selectFunc, bool isGPIO22);
         void selectStickType();
         int32_t currentStickType();
-        void enterMapping(bool isGPIO22);
+        void enterMapping(int stickIndex);
+        void selectGPIO15Mapping();
+        int32_t currentGPIO15Mapping();
         void selectGPIO22Mapping();
         int32_t currentGPIO22Mapping();
+        void selectGPIO14Mapping();
+        int32_t currentGPIO14Mapping();
         void selectGPIO25Mapping();
         int32_t currentGPIO25Mapping();
         void saveOptions();
         void updateMenuNavigation(GpioAction action);
+        bool isUSBPeripheralEnabled();
 };
 
 #endif
