@@ -437,11 +437,8 @@ void BackStickMappingScreen::saveOptions() {
 }
 
 bool BackStickMappingScreen::isUSBPeripheralEnabled() {
-    #ifdef USB_PERIPHERAL_ENABLED
-    return USB_PERIPHERAL_ENABLED == 1;
-    #else
+    // Always check Storage configuration, which reflects web UI settings
     return Storage::getInstance().getPeripheralOptions().blockUSB0.enabled;
-    #endif
 }
 
 void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
