@@ -287,43 +287,43 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									<AnalogPinOptions />
 								</FormSelect>
 							</Row>
-							<Row className="mb-3">
-								<FormSelect
-									label={t('AddonsConfig:analog-adc-1-mode-label')}
-									name="analogAdc1Mode"
-									className="form-select-sm"
-									groupClassName="col-sm-3 mb-3"
-									value={values.analogAdc1Mode}
-									error={errors.analogAdc1Mode}
-									isInvalid={Boolean(errors.analogAdc1Mode)}
-									onChange={handleChange}
-								>
-									{ANALOG_STICK_MODES.map((o, i) => (
-										<option key={`button-analogAdc1Mode-option-${i}`} value={o.value}>
-											{o.label}
-										</option>
-									))}
-								</FormSelect>
-								<FormSelect
-									label={t('AddonsConfig:analog-adc-1-invert-label')}
-									name="analogAdc1Invert"
-									className="form-select-sm"
-									groupClassName="col-sm-3 mb-3"
-									value={values.analogAdc1Invert}
-									error={errors.analogAdc1Invert}
-									isInvalid={Boolean(errors.analogAdc1Invert)}
-									onChange={handleChange}
-								>
-									{INVERT_MODES.map((o, i) => (
-										<option
-											key={`button-analogAdc1Invert-option-${i}`}
-											value={o.value}
-										>
-											{o.label}
-										</option>
-									))}
-								</FormSelect>
-							</Row>
+								<Row className="mb-3">
+									<FormSelect
+										label={t('AddonsConfig:analog-adc-1-mode-label')}
+										name="analogAdc1Mode"
+										className="form-select-sm"
+										groupClassName="col-sm-3 mb-3"
+										value={values.analogAdc1Mode}
+										error={errors.analogAdc1Mode}
+										isInvalid={Boolean(errors.analogAdc1Mode)}
+										onChange={handleChange}
+									>
+										{ANALOG_STICK_MODES.map((o, i) => (
+											<option key={`button-analogAdc1Mode-option-${i}`} value={o.value}>
+												{o.label}
+											</option>
+										))}
+									</FormSelect>
+									<FormSelect
+										label={t('AddonsConfig:analog-adc-1-invert-label')}
+										name="analogAdc1Invert"
+										className="form-select-sm"
+										groupClassName="col-sm-3 mb-3"
+										value={values.analogAdc1Invert}
+										error={errors.analogAdc1Invert}
+										isInvalid={Boolean(errors.analogAdc1Invert)}
+										onChange={handleChange}
+									>
+										{INVERT_MODES.map((o, i) => (
+											<option
+												key={`button-analogAdc1Invert-option-${i}`}
+												value={o.value}
+											>
+												{o.label}
+											</option>
+										))}
+									</FormSelect>
+								</Row>
 								<Row className="mb-3">
 									<FormControl
 										type="number"
@@ -402,12 +402,12 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											<span className="text-muted small">{t('AddonsConfig:smoothing-factor-desc')}</span>
 										</div>
 										<Form.Range
-											name="smoothing_factor"
+										name="smoothing_factor"
 											min={0}
 											max={100}
 											step={1}
-											value={values.smoothing_factor}
-											onChange={handleChange}
+										value={values.smoothing_factor}
+										onChange={handleChange}
 										/>
 									</div>
 								</Row>
@@ -419,8 +419,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										</div>
 										<Form.Range
 											name="smoothing_alpha_max"
-											min={0}
-											max={100}
+										min={0}
+										max={100}
 											step={1}
 											value={values.smoothing_alpha_max}
 											onChange={handleChange}
@@ -450,7 +450,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											<Form.Label className="mb-0">{t('AddonsConfig:analog-error-label')}: {errorRateToPercent(values.analog_error)}%</Form.Label>
 										</div>
 										<Form.Range
-											name="analog_error"
+										name="analog_error"
 											min={0}
 											max={15}
 											step={1}
@@ -476,11 +476,11 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										}}
 									/>
 									<div className="col-sm-9 d-flex align-items-center">
-										<button
-											type="button"
+									<button
+										type="button"
 											className="btn btn-sm btn-outline-secondary"
 											hidden={Boolean(values.auto_calibrate)}
-											onClick={async () => {
+										onClick={async () => {
 											try {
 												// Multi-step calibration process
 												const steps = [
@@ -575,7 +575,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									<div className="ms-3 small text-muted" hidden={Boolean(values.auto_calibrate)}>
 										{`Center: X=${values.joystickCenterX}, Y=${values.joystickCenterY}`}
 									</div>
-									</div>
+								</div>
 								</Row>
 								{Boolean(values.auto_calibrate) && (
 									<div className="alert alert-info mt-2 mb-3">
@@ -627,43 +627,43 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									<AnalogPinOptions />
 								</FormSelect>
 							</Row>
-							<Row className="mb-3">
-								<FormSelect
-									label={t('AddonsConfig:analog-adc-2-mode-label')}
-									name="analogAdc2Mode"
-									className="form-select-sm"
-									groupClassName="col-sm-3 mb-3"
-									value={values.analogAdc2Mode}
-									error={errors.analogAdc2Mode}
-									isInvalid={Boolean(errors.analogAdc2Mode)}
-									onChange={handleChange}
-								>
-									{ANALOG_STICK_MODES.map((o, i) => (
-										<option key={`button-analogAdc2Mode-option-${i}`} value={o.value}>
-											{o.label}
-										</option>
-									))}
-								</FormSelect>
-								<FormSelect
-									label={t('AddonsConfig:analog-adc-2-invert-label')}
-									name="analogAdc2Invert"
-									className="form-select-sm"
-									groupClassName="col-sm-3 mb-3"
-									value={values.analogAdc2Invert}
-									error={errors.analogAdc2Invert}
-									isInvalid={Boolean(errors.analogAdc2Invert)}
-									onChange={handleChange}
-								>
-									{INVERT_MODES.map((o, i) => (
-										<option
-											key={`button-analogAdc2Invert-option-${i}`}
-											value={o.value}
-										>
-											{o.label}
-										</option>
-									))}
-								</FormSelect>
-							</Row>
+								<Row className="mb-3">
+									<FormSelect
+										label={t('AddonsConfig:analog-adc-2-mode-label')}
+										name="analogAdc2Mode"
+										className="form-select-sm"
+										groupClassName="col-sm-3 mb-3"
+										value={values.analogAdc2Mode}
+										error={errors.analogAdc2Mode}
+										isInvalid={Boolean(errors.analogAdc2Mode)}
+										onChange={handleChange}
+									>
+										{ANALOG_STICK_MODES.map((o, i) => (
+											<option key={`button-analogAdc2Mode-option-${i}`} value={o.value}>
+												{o.label}
+											</option>
+										))}
+									</FormSelect>
+									<FormSelect
+										label={t('AddonsConfig:analog-adc-2-invert-label')}
+										name="analogAdc2Invert"
+										className="form-select-sm"
+										groupClassName="col-sm-3 mb-3"
+										value={values.analogAdc2Invert}
+										error={errors.analogAdc2Invert}
+										isInvalid={Boolean(errors.analogAdc2Invert)}
+										onChange={handleChange}
+									>
+										{INVERT_MODES.map((o, i) => (
+											<option
+												key={`button-analogAdc2Invert-option-${i}`}
+												value={o.value}
+											>
+												{o.label}
+											</option>
+										))}
+									</FormSelect>
+								</Row>
 								<Row className="mb-3">
 									<FormControl
 										type="number"
@@ -742,12 +742,12 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											<span className="text-muted small">{t('AddonsConfig:smoothing-factor-desc')}</span>
 										</div>
 										<Form.Range
-											name="smoothing_factor2"
+										name="smoothing_factor2"
 											min={0}
 											max={100}
 											step={1}
-											value={values.smoothing_factor2}
-											onChange={handleChange}
+										value={values.smoothing_factor2}
+										onChange={handleChange}
 										/>
 									</div>
 								</Row>
@@ -759,8 +759,8 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										</div>
 										<Form.Range
 											name="smoothing_alpha_max2"
-											min={0}
-											max={100}
+										min={0}
+										max={100}
 											step={1}
 											value={values.smoothing_alpha_max2}
 											onChange={handleChange}
@@ -790,7 +790,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											<Form.Label className="mb-0">{t('AddonsConfig:analog-error-label')}: {errorRateToPercent(values.analog_error2)}%</Form.Label>
 										</div>
 										<Form.Range
-											name="analog_error2"
+										name="analog_error2"
 											min={0}
 											max={15}
 											step={1}
@@ -803,24 +803,24 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									</div>
 								</Row>
 								<Row className="mb-3">
-									<FormCheck
+								<FormCheck
 										label={Boolean(values.auto_calibrate2) ? t('AddonsConfig:analog-auto-calibrate') : t('AddonsConfig:analog-manual-calibrate')}
-										type="switch"
-										id="Auto_calibrate2"
-										className="col-sm-3 ms-3"
-										isInvalid={false}
-										checked={Boolean(values.auto_calibrate2)}
-										onChange={(e) => {
-											handleCheckbox('auto_calibrate2');
-											handleChange(e);
-										}}
-									/>
+									type="switch"
+									id="Auto_calibrate2"
+									className="col-sm-3 ms-3"
+									isInvalid={false}
+									checked={Boolean(values.auto_calibrate2)}
+									onChange={(e) => {
+										handleCheckbox('auto_calibrate2');
+										handleChange(e);
+									}}
+								/>
 									<div className="col-sm-9 d-flex align-items-center">
-										<button
-											type="button"
+									<button
+										type="button"
 											className="btn btn-sm btn-outline-secondary"
 											hidden={Boolean(values.auto_calibrate2)}
-											onClick={async () => {
+										onClick={async () => {
 											try {
 												// Multi-step calibration process
 												const steps = [
@@ -915,7 +915,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 									<div className="ms-3 small text-muted" hidden={Boolean(values.auto_calibrate2)}>
 										{`Center: X=${values.joystickCenterX2}, Y=${values.joystickCenterY2}`}
 									</div>
-									</div>
+								</div>
 								</Row>
 								{Boolean(values.auto_calibrate2) && (
 									<div className="alert alert-info mt-2 mb-3">

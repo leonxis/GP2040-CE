@@ -216,14 +216,14 @@ void AnalogDeadzoneScreen::updateMenuNavigation(GpioAction action) {
 			enterEdit(gpMenu->getIndex());
 			break;
 		case GpioAction::MENU_NAVIGATION_BACK:
-			if (restartPending) {
-				MainMenuScreen::flagHMLConfigRestartPending();
-				restartPending = false;
-			}
+		if (restartPending) {
+			MainMenuScreen::flagHMLConfigRestartPending();
+			restartPending = false;
+		}
 			// Return to HML Config menu instead of main menu
 			MainMenuScreen::flagOpenHMLConfigMenu();
-			exitToScreen = DisplayMode::MAIN_MENU;
-			isMenuReady = false;
+		exitToScreen = DisplayMode::MAIN_MENU;
+		isMenuReady = false;
 			break;
 		default:
 			break;

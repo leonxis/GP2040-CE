@@ -870,6 +870,8 @@ export default function DisplayConfigPage() {
 												isInvalid={errors.displaySaverTimeout}
 												onChange={handleChange}
 												min={0}
+												step={1}
+												placeholder="0=off, >=30=always on (minutes)"
 											/>
 										</Row>
 										<Row>

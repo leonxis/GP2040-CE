@@ -28,6 +28,11 @@ int8_t SplashScreen::update() {
     if (!configMode) {
         // still running
         if (splashDuration != 0 && (elapsedDuration >= splashDuration)) {
+            // Check if screen saver timeout is >= 1800000 (30 minutes, always show mode)
+            // If so, go directly to screen saver instead of buttons
+            if (getDisplayOptions().displaySaverTimeout >= 1800000) {
+                return DisplayMode::DISPLAY_SAVER;
+            }
             return DisplayMode::BUTTONS;
         }
     } else {

@@ -62,16 +62,18 @@ void DisplayAddon::setup() {
     // Setup GPGFX
     gpDisplay->init(gpOptions);
 
-    displaySaverTimer = options.displaySaverTimeout;
-    displaySaverTimeout = displaySaverTimer;
+    displaySaverTimeout = options.displaySaverTimeout;
+    displaySaverTimer = displaySaverTimeout;
     configMode = DriverManager::getInstance().isConfigMode();
     turnOffWhenSuspended = options.turnOffWhenSuspended;
     displaySaverMode = options.displaySaverMode;
+    prevMillis = getMillis();
 
     prevValues = Storage::getInstance().GetGamepad()->debouncedGpio;
 
     // set current display mode
     if (!configMode) {
+        // Always show splash first if enabled, then screen saver will activate after splash
         if (Storage::getInstance().getDisplayOptions().splashMode != static_cast<SplashMode>(SPLASH_MODE_NONE)) {
             currDisplayMode = DisplayMode::SPLASH;
         } else {
@@ -165,12 +167,35 @@ bool DisplayAddon::isDisplayPowerOff()
 
     if (!displaySaverTimeout) return false;
 
+    // Special case: >= 1800000 (30 minutes) means always show screen saver (ignore button presses)
+    // But allow menu navigation keys to exit screen saver
+    if (displaySaverTimeout >= 1800000) {
+        // Don't force screen saver if user is in menu or splash screen
+        // Allow all menu-related modes: MAIN_MENU, STICK_CALIBRATION, BACK_STICK_MAPPING, 
+        // ANALOG_DEADZONE, APM_TEST, PIN_VIEWER, STATS, CONFIG_INSTRUCTION, SPLASH
+        if (currDisplayMode != DISPLAY_SAVER && 
+            currDisplayMode != MAIN_MENU &&
+            currDisplayMode != STICK_CALIBRATION &&
+            currDisplayMode != BACK_STICK_MAPPING &&
+            currDisplayMode != ANALOG_DEADZONE &&
+            currDisplayMode != APM_TEST &&
+            currDisplayMode != PIN_VIEWER &&
+            currDisplayMode != STATS &&
+            currDisplayMode != CONFIG_INSTRUCTION &&
+            currDisplayMode != SPLASH) {
+            currDisplayMode = DISPLAY_SAVER;
+            updateDisplayScreen();
+        }
+        return false; // Don't turn off display power
+    }
+
     float diffTime = getMillis() - prevMillis;
     displaySaverTimer -= diffTime;
-    if (!!displaySaverTimeout && (gamepad->state.buttons || gamepad->state.dpad)) {
+    // Don't reset timer on button press if timeout is >= 1800000 (always show mode)
+    if (displaySaverTimeout > 0 && displaySaverTimeout < 1800000 && (gamepad->state.buttons || gamepad->state.dpad)) {
         displaySaverTimer = displaySaverTimeout;
         setDisplayPower(1);
-    } else if (!!displaySaverTimeout && displaySaverTimer <= 0) {
+    } else if (displaySaverTimeout > 0 && displaySaverTimer <= 0) {
         if (displaySaverMode == DisplaySaverMode::DISPLAY_SAVER_DISPLAY_OFF) {
             setDisplayPower(0);
         } else {
@@ -183,7 +208,7 @@ bool DisplayAddon::isDisplayPowerOff()
 
     prevMillis = getMillis();
 
-    return ((!!displaySaverTimeout && displaySaverTimer <= 0) && (displaySaverMode == DisplaySaverMode::DISPLAY_SAVER_DISPLAY_OFF));
+    return ((displaySaverTimeout > 0 && displaySaverTimer <= 0) && (displaySaverMode == DisplaySaverMode::DISPLAY_SAVER_DISPLAY_OFF));
 }
 
 void DisplayAddon::setDisplayPower(uint8_t status)
@@ -224,6 +249,7 @@ void DisplayAddon::process() {
     int8_t screenReturn = gpScreen->update();
     gpScreen->draw();
 
+    // Check menu navigation keys first, even in always-on screen saver mode
     if (!configMode && screenReturn < 0) {
         Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
         if (prevValues != values) {

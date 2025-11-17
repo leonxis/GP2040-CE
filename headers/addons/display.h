@@ -207,7 +207,7 @@ private:
     const DisplayOptions& getDisplayOptions();
     bool isDisplayPowerOff();
     void setDisplayPower(uint8_t status);
-    uint32_t displaySaverTimeout = 0;
+    int32_t displaySaverTimeout = 0;
     int32_t displaySaverTimer;
     uint8_t displayIsPowerOn = 1;
     uint32_t prevMillis;

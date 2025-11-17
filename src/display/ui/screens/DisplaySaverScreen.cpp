@@ -51,6 +51,14 @@ void DisplaySaverScreen::drawScreen() {
 }
 
 int8_t DisplaySaverScreen::update() {
+    // Check if screen saver timeout is >= 1800000 (30 minutes, always show, ignore button presses)
+    const DisplayOptions& options = Storage::getInstance().getDisplayOptions();
+    if (options.displaySaverTimeout >= 1800000) {
+        // Always show screen saver, ignore button presses (but menu navigation still works)
+        // Menu navigation is handled in DisplayAddon::process(), so we return -1 here
+        return -1; // -1 means no change in screen state
+    }
+
     if (!DriverManager::getInstance().isConfigMode()) {
         uint16_t buttonState = getGamepad()->state.buttons;
         if (prevButtonState && !buttonState) {

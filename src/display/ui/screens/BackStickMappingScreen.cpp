@@ -548,8 +548,8 @@ void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
             } else {
                 // Return to HML Config menu instead of main menu
                 MainMenuScreen::flagOpenHMLConfigMenu();
-                exitToScreen = DisplayMode::MAIN_MENU;
-                isMenuReady = false;
+				exitToScreen = DisplayMode::MAIN_MENU;
+				isMenuReady = false;
             }
             break;
         default:
