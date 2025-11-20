@@ -247,6 +247,10 @@ message DisplayOptions
     optional SplashChoice splashChoice = 11;
     optional int32 splashDuration = 12;
     optional bytes splashImage = 13 [(nanopb).max_size = 1024];
+    optional int32 splashAnimationDuration = 31;
+    optional bytes splashImage2 = 32 [(nanopb).max_size = 1024];
+    optional bytes splashImage3 = 33 [(nanopb).max_size = 1024];
+    optional bytes splashImage4 = 34 [(nanopb).max_size = 1024];
 
     optional int32 size = 14;
     optional int32 flip = 15;

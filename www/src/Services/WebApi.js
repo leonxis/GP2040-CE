@@ -260,12 +260,32 @@ async function getSplashImage() {
 	}
 }
 
-async function setSplashImage({ splashImage }) {
-	return Http.post(`${baseUrl}/api/setSplashImage`, {
-		splashImage: btoa(
+async function setSplashImage({ splashImage, splashImage2, splashImage3, splashImage4 }) {
+	const payload = {};
+	
+	// Only send images that are not null (i.e., user modified them)
+	if (splashImage !== null) {
+		payload.splashImage = btoa(
 			String.fromCharCode.apply(null, new Uint8Array(splashImage)),
-		),
-	})
+		);
+	}
+	if (splashImage2 !== null) {
+		payload.splashImage2 = btoa(
+			String.fromCharCode.apply(null, new Uint8Array(splashImage2)),
+		);
+	}
+	if (splashImage3 !== null) {
+		payload.splashImage3 = btoa(
+			String.fromCharCode.apply(null, new Uint8Array(splashImage3)),
+		);
+	}
+	if (splashImage4 !== null) {
+		payload.splashImage4 = btoa(
+			String.fromCharCode.apply(null, new Uint8Array(splashImage4)),
+		);
+	}
+	
+	return Http.post(`${baseUrl}/api/setSplashImage`, payload)
 		.then((response) => {
 			return response.data;
 		})

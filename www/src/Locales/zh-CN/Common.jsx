@@ -2,6 +2,8 @@ export default {
 	'brand-text': 'GP2040-CE',
 	'button-clear-all-label': '全部清除',
 	'button-delete-color-label': '删除颜色',
+	'button-delete-label': '删除图片',
+	'button-select-image-label': '选择图片',
 	'button-dismiss-label': '关闭',
 	'button-load-label': '加载',
 	'button-reset-settings-label': '重置设置',

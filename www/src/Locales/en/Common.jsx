@@ -2,6 +2,8 @@ export default {
 	'brand-text': 'GP2040-CE',
 	'button-clear-all-label': 'Clear All',
 	'button-delete-color-label': 'Delete Color',
+	'button-delete-label': 'Delete Image',
+	'button-select-image-label': 'Select Image',
 	'button-dismiss-label': 'Dismiss',
 	'button-load-label': 'Load',
 	'button-reset-settings-label': 'Reset Settings',

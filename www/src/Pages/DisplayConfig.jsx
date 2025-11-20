@@ -53,6 +53,10 @@ const defaultValues = {
 	splashDuration: 0,
 	splashMode: 3,
 	splashImage: Array(16 * 64).fill(0), // 128 columns represented by bytes so 16 and 64 rows
+	splashImage2: Array(16 * 64).fill(0),
+	splashImage3: Array(16 * 64).fill(0),
+	splashImage4: Array(16 * 64).fill(0),
+	splashAnimationDuration: 500,
 	buttonLayoutCustomOptions: {
 		params: {
 			layout: 0,
@@ -152,6 +156,7 @@ const schema = yup.object().shape({
 		}),
 	}),
 	splashDuration: yup.number().required().min(0).label('Splash Duration'),
+	splashAnimationDuration: yup.number().required().min(0).label('Splash Animation Duration'),
 	displaySaverTimeout: yup
 		.number()
 		.required()
@@ -197,11 +202,25 @@ export default function DisplayConfigPage() {
 
 	const { t } = useTranslation('');
 
+	// Track which images have been modified by user
+	const [modifiedImages, setModifiedImages] = useState({
+		splashImage: false,
+		splashImage2: false,
+		splashImage3: false,
+		splashImage4: false,
+	});
+
 	useEffect(() => {
 		async function fetchData() {
 			const data = await WebApi.getDisplayOptions();
-			const splashImageResponse = await WebApi.getSplashImage();
-			data.splashImage = splashImageResponse.splashImage;
+			// Don't load image data to avoid performance issues
+			// Use placeholder that indicates "not modified"
+			data.splashImage = Array(16 * 64).fill(0);
+			data.splashImage2 = Array(16 * 64).fill(0);
+			data.splashImage3 = Array(16 * 64).fill(0);
+			data.splashImage4 = Array(16 * 64).fill(0);
+			// Merge with default values to ensure new fields have defaults
+			data.splashAnimationDuration = data.splashAnimationDuration ?? defaultValues.splashAnimationDuration;
 			buttonLayoutDefinitions = await WebApi.getButtonLayoutDefs();
 			buttonLayoutSchema = buttonLayoutSchema.oneOf(
 				Object.values(buttonLayoutDefinitions.buttonLayout),
@@ -217,8 +236,16 @@ export default function DisplayConfigPage() {
 	}, []);
 
 	const onSuccess = async (values) => {
+		// Only send images that user has modified
+		const imagesToSave = {
+			splashImage: modifiedImages.splashImage ? values.splashImage : null,
+			splashImage2: modifiedImages.splashImage2 ? values.splashImage2 : null,
+			splashImage3: modifiedImages.splashImage3 ? values.splashImage3 : null,
+			splashImage4: modifiedImages.splashImage4 ? values.splashImage4 : null,
+		};
+
 		const success = await WebApi.setDisplayOptions(values, false).then(() =>
-			WebApi.setSplashImage(values),
+			WebApi.setSplashImage(imagesToSave),
 		);
 
 		if (success) await updateUsedPins();
@@ -231,6 +258,11 @@ export default function DisplayConfigPage() {
 	};
 
 	const onChangeCanvas = (base64, form, field) => {
+		// Mark this image as modified
+		setModifiedImages(prev => ({
+			...prev,
+			[field.name]: true
+		}));
 		return form.setFieldValue(field.name, base64);
 	};
 
@@ -824,19 +856,31 @@ export default function DisplayConfigPage() {
 													</option>
 												))}
 											</FormSelect>
-											<FormControl
-												type="number"
-												label={t('DisplayConfig:form.splash-duration-label')}
-												name="splashDuration"
-												className="form-select-sm"
-												groupClassName="col-sm-3 mb-3"
-												value={values.splashDuration}
-												error={errors.splashDuration}
-												isInvalid={errors.splashDuration}
-												onChange={handleChange}
-												min={0}
-											/>
-										</Row>
+										<FormControl
+											type="number"
+											label={t('DisplayConfig:form.splash-duration-label')}
+											name="splashDuration"
+											className="form-select-sm"
+											groupClassName="col-sm-3 mb-3"
+											value={values.splashDuration}
+											error={errors.splashDuration}
+											isInvalid={errors.splashDuration}
+											onChange={handleChange}
+											min={0}
+										/>
+										<FormControl
+											type="number"
+											label={t('DisplayConfig:form.splash-animation-duration-label')}
+											name="splashAnimationDuration"
+											className="form-select-sm"
+											groupClassName="col-sm-3 mb-3"
+											value={values.splashAnimationDuration}
+											error={errors.splashAnimationDuration}
+											isInvalid={errors.splashAnimationDuration}
+											onChange={handleChange}
+											min={0}
+										/>
+									</Row>
 										<Row className="mb-3">
 											<FormSelect
 												label={t('DisplayConfig:form.screen-saver-mode-label')}
@@ -873,21 +917,82 @@ export default function DisplayConfigPage() {
 											/>
 										</Row>
 										<Row>
-											<Field name="splashImage">
-												{({
-													field, // { name, value, onChange, onBlur }
-													form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
-												}) => (
-													<div className="mt-3">
-														<Canvas
-															onChange={(base64) =>
-																onChangeCanvas(base64, form, field)
-															}
-															value={field.value}
-														/>
-													</div>
-												)}
-											</Field>
+											<Col md={3}>
+												<h6 className="mb-3">{t('DisplayConfig:form.splash-image1-label')}</h6>
+												<Field name="splashImage">
+													{({
+														field, // { name, value, onChange, onBlur }
+														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
+													}) => (
+														<div className="mt-3">
+															<Canvas
+																onChange={(base64) =>
+																	onChangeCanvas(base64, form, field)
+																}
+																value={field.value}
+																fieldName={field.name}
+															/>
+														</div>
+													)}
+												</Field>
+											</Col>
+											<Col md={3}>
+												<h6 className="mb-3">{t('DisplayConfig:form.splash-image2-label')}</h6>
+												<Field name="splashImage2">
+													{({
+														field, // { name, value, onChange, onBlur }
+														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
+													}) => (
+														<div className="mt-3">
+															<Canvas
+																onChange={(base64) =>
+																	onChangeCanvas(base64, form, field)
+																}
+																value={field.value}
+																fieldName={field.name}
+															/>
+														</div>
+													)}
+												</Field>
+											</Col>
+											<Col md={3}>
+												<h6 className="mb-3">{t('DisplayConfig:form.splash-image3-label')}</h6>
+												<Field name="splashImage3">
+													{({
+														field, // { name, value, onChange, onBlur }
+														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
+													}) => (
+														<div className="mt-3">
+															<Canvas
+																onChange={(base64) =>
+																	onChangeCanvas(base64, form, field)
+																}
+																value={field.value}
+																fieldName={field.name}
+															/>
+														</div>
+													)}
+												</Field>
+											</Col>
+											<Col md={3}>
+												<h6 className="mb-3">{t('DisplayConfig:form.splash-image4-label')}</h6>
+												<Field name="splashImage4">
+													{({
+														field, // { name, value, onChange, onBlur }
+														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
+													}) => (
+														<div className="mt-3">
+															<Canvas
+																onChange={(base64) =>
+																	onChangeCanvas(base64, form, field)
+																}
+																value={field.value}
+																fieldName={field.name}
+															/>
+														</div>
+													)}
+												</Field>
+											</Col>
 										</Row>
 									</Tab>
 								</Tabs>
@@ -919,11 +1024,12 @@ export default function DisplayConfigPage() {
 	);
 }
 
-const Canvas = ({ value: bitsArray, onChange }) => {
+const Canvas = ({ value: bitsArray, onChange, fieldName }) => {
 	const [image, setImage] = useState(null);
 	const [canvasContext, setCanvasContext] = useState(null);
 	const [inverted, setInverted] = useState(false);
 	const canvasRef = useRef();
+	const inputId = `image-input-${fieldName}`;
 
 	const { t } = useTranslation('');
 
@@ -986,9 +1092,10 @@ const Canvas = ({ value: bitsArray, onChange }) => {
 		onChange(bitsArray.map((a) => (inverted ? 255 - a : a)));
 	}, [image, canvasContext]);
 
-	// binary to RGBA
+	// binary to RGBA - only render when user uploads a new image, not on initial load
 	useEffect(() => {
-		if (canvasContext == null) return;
+		// Only render preview if user has uploaded an image
+		if (canvasContext == null || image == null) return;
 
 		const w = canvasContext.canvas.width;
 		const h = canvasContext.canvas.height;
@@ -1012,7 +1119,7 @@ const Canvas = ({ value: bitsArray, onChange }) => {
 		});
 		const imageDataCopy = new ImageData(new Uint8ClampedArray(rgbToRgba), w, h);
 		canvasContext.putImageData(imageDataCopy, 0, 0, 0, 0, w, h);
-	}, [bitsArray, canvasContext]);
+	}, [bitsArray, canvasContext, image]);
 
 	const onImageAdd = (ev) => {
 		var file = ev.target.files[0];
@@ -1032,6 +1139,25 @@ const Canvas = ({ value: bitsArray, onChange }) => {
 		setInverted(!inverted);
 	};
 
+	const clearImage = () => {
+		// Reset to empty array
+		onChange(Array(16 * 64).fill(0));
+		setImage(null);
+		setInverted(false);
+		// Clear file input
+		const fileInput = document.getElementById(inputId);
+		if (fileInput) {
+			fileInput.value = '';
+		}
+	};
+
+	const triggerFileInput = () => {
+		const fileInput = document.getElementById(inputId);
+		if (fileInput) {
+			fileInput.click();
+		}
+	};
+
 	return (
 		<div style={{ display: 'flex', alignItems: 'center' }}>
 			<canvas
@@ -1043,10 +1169,38 @@ const Canvas = ({ value: bitsArray, onChange }) => {
 			<div style={{ marginLeft: '11px' }}>
 				<input
 					type="file"
-					id="image-input"
+					id={inputId}
 					accept="image/jpeg, image/png, image/jpg"
 					onChange={onImageAdd}
+					style={{ display: 'none' }}
 				/>
+				<Button
+					size="sm"
+					variant="success"
+					onClick={triggerFileInput}
+					style={{ 
+						width: '90px',
+						padding: '1px 6px',
+						fontSize: '12px'
+					}}
+				>
+					{t('Common:button-select-image-label')}
+				</Button>
+				<br />
+				<Button
+					size="sm"
+					variant="danger"
+					onClick={clearImage}
+					style={{ 
+						marginTop: '5px', 
+						marginBottom: '5px',
+						width: '90px',
+						padding: '1px 6px',
+						fontSize: '12px'
+					}}
+				>
+					{t('Common:button-delete-label')}
+				</Button>
 				<br />
 				<input
 					type="checkbox"
