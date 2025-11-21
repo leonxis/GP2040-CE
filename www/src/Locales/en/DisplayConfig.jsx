@@ -38,7 +38,7 @@ export default {
 		'button-layout-custom-button-radius-label': 'Button Radius',
 		'button-layout-custom-button-padding-label': 'Button Padding',
 		'splash-mode-label': 'Splash Mode',
-		'splash-duration-label': 'Splash Duration (seconds, 0 for Always On)',
+		'splash-duration-label': 'Animation Loop Count (0 for Always On)',
 		'splash-animation-duration-label': 'Animation Duration (milliseconds)',
 		'splash-image1-label': 'Splash Image 1',
 		'splash-image2-label': 'Splash Image 2',

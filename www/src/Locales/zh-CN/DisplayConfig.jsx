@@ -35,7 +35,7 @@ export default {
 		'button-layout-custom-button-radius-label': '按钮半径',
 		'button-layout-custom-button-padding-label': '按钮间距',
 		'splash-mode-label': '启动画面模式',
-		'splash-duration-label': '启动画面持续时间（秒，0 = 常亮）',
+		'splash-duration-label': '启动动画循环次数（0 = 常亮）',
 		'splash-animation-duration-label': '动画播放时长（毫秒）',
 		'splash-image1-label': '启动图片1',
 		'splash-image2-label': '启动图片2',
