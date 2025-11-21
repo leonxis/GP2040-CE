@@ -599,6 +599,33 @@ std::string setSplashImage()
         }
     }
 
+    if (doc.containsKey("splashImage3")) {
+        decoded.clear();
+        std::string base64String3 = doc["splashImage3"];
+        Base64::Decode(base64String3, decoded);
+        length = std::min(decoded.length(), sizeof(displayOptions.splashImage3.bytes));
+        
+        // Check if image is all zeros (user deleted it)
+        bool allZeros = true;
+        for (size_t i = 0; i < length; i++) {
+            if (decoded.data()[i] != 0) {
+                allZeros = false;
+                break;
+            }
+        }
+        
+        if (allZeros && length > 0) {
+            // User deleted the image, clear the has flag
+            displayOptions.has_splashImage3 = false;
+            displayOptions.splashImage3.size = 0;
+            memset(displayOptions.splashImage3.bytes, 0, sizeof(displayOptions.splashImage3.bytes));
+        } else {
+            memcpy(displayOptions.splashImage3.bytes, decoded.data(), length);
+            displayOptions.splashImage3.size = length;
+            displayOptions.has_splashImage3 = true;
+        }
+    }
+
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
     return serialize_json(doc);

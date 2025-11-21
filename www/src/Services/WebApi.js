@@ -260,7 +260,7 @@ async function getSplashImage() {
 	}
 }
 
-async function setSplashImage({ splashImage, splashImage2 }) {
+async function setSplashImage({ splashImage, splashImage2, splashImage3 }) {
 	const payload = {};
 	
 	// Only send images that are not null (i.e., user modified them)
@@ -272,6 +272,11 @@ async function setSplashImage({ splashImage, splashImage2 }) {
 	if (splashImage2 !== null) {
 		payload.splashImage2 = btoa(
 			String.fromCharCode.apply(null, new Uint8Array(splashImage2)),
+		);
+	}
+	if (splashImage3 !== null) {
+		payload.splashImage3 = btoa(
+			String.fromCharCode.apply(null, new Uint8Array(splashImage3)),
 		);
 	}
 	

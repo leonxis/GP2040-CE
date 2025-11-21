@@ -42,6 +42,7 @@ export default {
 		'splash-animation-duration-label': 'Animation Duration (milliseconds)',
 		'splash-image1-label': 'Splash Image 1',
 		'splash-image2-label': 'Splash Image 2',
+		'splash-image3-label': 'Splash Image 3',
 		'display-saver-timeout-label': 'Display Saver Timeout (minutes, 0 for Off)',
 		'screen-saver-mode-label': 'Display Saver Mode',
 		'inverted-label': 'Inverted',

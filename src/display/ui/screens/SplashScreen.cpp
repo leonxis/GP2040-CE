@@ -17,6 +17,9 @@ void SplashScreen::init() {
     if (getDisplayOptions().has_splashImage2) {
         totalValidImages++;
     }
+    if (getDisplayOptions().has_splashImage3) {
+        totalValidImages++;
+    }
 }
 
 void SplashScreen::shutdown() {
@@ -43,6 +46,14 @@ void SplashScreen::drawScreen() {
         if (imageData == nullptr && getDisplayOptions().has_splashImage2) {
             if (validCount == currentImageIndex) {
                 imageData = getDisplayOptions().splashImage2.bytes;
+            }
+            validCount++;
+        }
+        
+        // splashImage3 is only available if has_splashImage3 is true
+        if (imageData == nullptr && getDisplayOptions().has_splashImage3) {
+            if (validCount == currentImageIndex) {
+                imageData = getDisplayOptions().splashImage3.bytes;
             }
             validCount++;
         }

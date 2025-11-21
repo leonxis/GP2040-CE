@@ -54,6 +54,7 @@ const defaultValues = {
 	splashMode: 3,
 	splashImage: Array(16 * 64).fill(0), // 128 columns represented by bytes so 16 and 64 rows
 	splashImage2: Array(16 * 64).fill(0),
+	splashImage3: Array(16 * 64).fill(0),
 	splashAnimationDuration: 500,
 	buttonLayoutCustomOptions: {
 		params: {
@@ -204,6 +205,7 @@ export default function DisplayConfigPage() {
 	const [modifiedImages, setModifiedImages] = useState({
 		splashImage: false,
 		splashImage2: false,
+		splashImage3: false,
 	});
 
 	useEffect(() => {
@@ -213,6 +215,7 @@ export default function DisplayConfigPage() {
 			// Use placeholder that indicates "not modified"
 			data.splashImage = Array(16 * 64).fill(0);
 			data.splashImage2 = Array(16 * 64).fill(0);
+			data.splashImage3 = Array(16 * 64).fill(0);
 			// Merge with default values to ensure new fields have defaults
 			data.splashAnimationDuration = data.splashAnimationDuration ?? defaultValues.splashAnimationDuration;
 			buttonLayoutDefinitions = await WebApi.getButtonLayoutDefs();
@@ -234,6 +237,7 @@ export default function DisplayConfigPage() {
 		const imagesToSave = {
 			splashImage: modifiedImages.splashImage ? values.splashImage : null,
 			splashImage2: modifiedImages.splashImage2 ? values.splashImage2 : null,
+			splashImage3: modifiedImages.splashImage3 ? values.splashImage3 : null,
 		};
 
 		const success = await WebApi.setDisplayOptions(values, false).then(() =>
@@ -931,6 +935,25 @@ export default function DisplayConfigPage() {
 											<Col md={3}>
 												<h6 className="mb-3">{t('DisplayConfig:form.splash-image2-label')}</h6>
 												<Field name="splashImage2">
+													{({
+														field, // { name, value, onChange, onBlur }
+														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
+													}) => (
+														<div className="mt-3">
+															<Canvas
+																onChange={(base64) =>
+																	onChangeCanvas(base64, form, field)
+																}
+																value={field.value}
+																fieldName={field.name}
+															/>
+														</div>
+													)}
+												</Field>
+											</Col>
+											<Col md={3}>
+												<h6 className="mb-3">{t('DisplayConfig:form.splash-image3-label')}</h6>
+												<Field name="splashImage3">
 													{({
 														field, // { name, value, onChange, onBlur }
 														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
