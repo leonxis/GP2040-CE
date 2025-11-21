@@ -521,11 +521,9 @@ std::string getDisplayOptions() // Manually set Document Attributes for the disp
 std::string getSplashImage()
 {
     const DisplayOptions& displayOptions = Storage::getInstance().getDisplayOptions();
-    const size_t capacity = JSON_OBJECT_SIZE(4) + 
+    const size_t capacity = JSON_OBJECT_SIZE(2) + 
                            JSON_ARRAY_SIZE(displayOptions.splashImage.size) +
-                           JSON_ARRAY_SIZE(displayOptions.splashImage2.size) +
-                           JSON_ARRAY_SIZE(displayOptions.splashImage3.size) +
-                           JSON_ARRAY_SIZE(displayOptions.splashImage4.size);
+                           JSON_ARRAY_SIZE(displayOptions.splashImage2.size);
     DynamicJsonDocument doc(capacity);
     
     JsonArray splashImageArray = doc.createNestedArray("splashImage");
@@ -533,12 +531,6 @@ std::string getSplashImage()
     
     JsonArray splashImage2Array = doc.createNestedArray("splashImage2");
     copyArray(displayOptions.splashImage2.bytes, displayOptions.splashImage2.size, splashImage2Array);
-    
-    JsonArray splashImage3Array = doc.createNestedArray("splashImage3");
-    copyArray(displayOptions.splashImage3.bytes, displayOptions.splashImage3.size, splashImage3Array);
-    
-    JsonArray splashImage4Array = doc.createNestedArray("splashImage4");
-    copyArray(displayOptions.splashImage4.bytes, displayOptions.splashImage4.size, splashImage4Array);
     
     return serialize_json(doc);
 }
@@ -569,24 +561,6 @@ std::string setSplashImage()
         length = std::min(decoded.length(), sizeof(displayOptions.splashImage2.bytes));
         memcpy(displayOptions.splashImage2.bytes, decoded.data(), length);
         displayOptions.splashImage2.size = length;
-    }
-
-    if (doc.containsKey("splashImage3")) {
-        decoded.clear();
-        std::string base64String3 = doc["splashImage3"];
-        Base64::Decode(base64String3, decoded);
-        length = std::min(decoded.length(), sizeof(displayOptions.splashImage3.bytes));
-        memcpy(displayOptions.splashImage3.bytes, decoded.data(), length);
-        displayOptions.splashImage3.size = length;
-    }
-
-    if (doc.containsKey("splashImage4")) {
-        decoded.clear();
-        std::string base64String4 = doc["splashImage4"];
-        Base64::Decode(base64String4, decoded);
-        length = std::min(decoded.length(), sizeof(displayOptions.splashImage4.bytes));
-        memcpy(displayOptions.splashImage4.bytes, decoded.data(), length);
-        displayOptions.splashImage4.size = length;
     }
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
