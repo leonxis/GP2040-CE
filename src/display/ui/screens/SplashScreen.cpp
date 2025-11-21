@@ -32,38 +32,47 @@ void SplashScreen::drawScreen() {
     } else {
         // Display image based on current index
         const uint8_t* imageData = nullptr;
+        size_t imageSize = 0;
         
         // Find the Nth valid image using has_ flags
+        // This logic must match the totalValidImages calculation in init()
         uint8_t validCount = 0;
         
-        // splashImage is always available (image 1)
+        // splashImage is always available (image 1) - always counts as valid
         if (validCount == currentImageIndex) {
             imageData = getDisplayOptions().splashImage.bytes;
+            imageSize = getDisplayOptions().splashImage.size;
         }
-        validCount++;
+        validCount++;  // splashImage is always valid, so always increment
         
         // splashImage2 is only available if has_splashImage2 is true
         if (imageData == nullptr && getDisplayOptions().has_splashImage2) {
             if (validCount == currentImageIndex) {
                 imageData = getDisplayOptions().splashImage2.bytes;
+                imageSize = getDisplayOptions().splashImage2.size;
             }
-            validCount++;
+            validCount++;  // Only increment if has_splashImage2 is true
         }
         
         // splashImage3 is only available if has_splashImage3 is true
         if (imageData == nullptr && getDisplayOptions().has_splashImage3) {
             if (validCount == currentImageIndex) {
                 imageData = getDisplayOptions().splashImage3.bytes;
+                imageSize = getDisplayOptions().splashImage3.size;
             }
-            validCount++;
+            validCount++;  // Only increment if has_splashImage3 is true
         }
         
-        // Fallback to first image if index is out of range
-        if (imageData == nullptr) {
+        // Fallback to first image if index is out of range or image data is invalid
+        if (imageData == nullptr || imageSize == 0) {
             imageData = getDisplayOptions().splashImage.bytes;
+            imageSize = getDisplayOptions().splashImage.size;
         }
         
-        getRenderer()->drawSprite((uint8_t*) imageData, 128, 64, 16, 0, 0, 1);
+        // Only draw if we have valid image data
+        if (imageData != nullptr && imageSize > 0) {
+            getRenderer()->drawSprite((uint8_t*) imageData, 128, 64, 16, 0, 0, 1);
+        }
 	}
 }
 
@@ -90,6 +99,18 @@ int8_t SplashScreen::update() {
             
             // Check if it's time to switch to next image
             if (imageElapsed >= animationDuration) {
+                // Recalculate totalValidImages to ensure it matches current state
+                // This handles the case where images are deleted after init()
+                uint8_t actualValidImages = 1; // splashImage is always valid
+                if (getDisplayOptions().has_splashImage2) actualValidImages++;
+                if (getDisplayOptions().has_splashImage3) actualValidImages++;
+                
+                // Update totalValidImages if it changed
+                if (actualValidImages != totalValidImages) {
+                    totalValidImages = actualValidImages;
+                }
+                
+                // Move to next image index
                 currentImageIndex++;
                 
                 // Check if we completed a full cycle

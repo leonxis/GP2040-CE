@@ -167,13 +167,13 @@ void MainMenuScreen::drawScreen() {
                 getRenderer()->drawText(0, 7, "B2: Cancel");
             } else {
                 // Standard prompt with Yes/No choice
-                getRenderer()->drawText(1, 1, "Reboot to");
-                getRenderer()->drawText(1, 2, "apply settings");
-                
-                if (promptChoice) getRenderer()->drawText(5, 4, CHAR_RIGHT);
-                getRenderer()->drawText(6, 4, "Yes");
-                if (!promptChoice) getRenderer()->drawText(11, 4, CHAR_RIGHT);
-                getRenderer()->drawText(12, 4, "No");
+            getRenderer()->drawText(1, 1, "Reboot to");
+            getRenderer()->drawText(1, 2, "apply settings");
+            
+            if (promptChoice) getRenderer()->drawText(5, 4, CHAR_RIGHT);
+            getRenderer()->drawText(6, 4, "Yes");
+            if (!promptChoice) getRenderer()->drawText(11, 4, CHAR_RIGHT);
+            getRenderer()->drawText(12, 4, "No");
             }
         } else {
             getRenderer()->drawText(1, 1, "Config has changed.");
@@ -285,7 +285,7 @@ void MainMenuScreen::updateMenuNavigation(GpioAction action) {
             case GpioAction::MENU_NAVIGATION_RIGHT:
                 if (!hmlConfigRebootPrompt) {
                     // Only toggle choice for standard prompt
-                    promptChoice = !promptChoice;
+                promptChoice = !promptChoice;
                 }
                 break;
             case GpioAction::MENU_NAVIGATION_SELECT:
@@ -297,13 +297,13 @@ void MainMenuScreen::updateMenuNavigation(GpioAction action) {
                     exitToScreenBeforePrompt = DisplayMode::BUTTONS;
                 } else {
                     // Standard prompt handling
-                    if (promptChoice) {
-                        saveOptions();
-                        EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
-                        exitToScreen = DisplayMode::BUTTONS;
-                        exitToScreenBeforePrompt = DisplayMode::BUTTONS;
-                    } else {
-                        screenIsPrompting = false;
+                if (promptChoice) {
+                    saveOptions();
+                    EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
+                    exitToScreen = DisplayMode::BUTTONS;
+                    exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                } else {
+                    screenIsPrompting = false;
                     }
                 }
                 break;
@@ -324,7 +324,7 @@ void MainMenuScreen::updateMenuNavigation(GpioAction action) {
                         gpMenu->setIndex(0);
                     }
                 } else {
-                    screenIsPrompting = false;
+                screenIsPrompting = false;
                 }
                 break;
             default:
