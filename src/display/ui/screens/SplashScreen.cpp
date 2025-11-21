@@ -27,8 +27,8 @@ void SplashScreen::shutdown() {
 }
 
 void SplashScreen::drawScreen() {
-	if (getDisplayOptions().splashMode == static_cast<SplashMode>(SPLASH_MODE_NONE)) {
-		getRenderer()->drawText(0, 4, " Splash NOT enabled.");
+    if (getDisplayOptions().splashMode == static_cast<SplashMode>(SPLASH_MODE_NONE)) {
+        getRenderer()->drawText(0, 4, " Splash NOT enabled.");
     } else {
         // Display image based on current index
         const uint8_t* imageData = nullptr;
@@ -73,7 +73,7 @@ void SplashScreen::drawScreen() {
         if (imageData != nullptr && imageSize > 0) {
             getRenderer()->drawSprite((uint8_t*) imageData, 128, 64, 16, 0, 0, 1);
         }
-	}
+    }
 }
 
 int8_t SplashScreen::update() {
