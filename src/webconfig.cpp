@@ -432,6 +432,7 @@ std::string setDisplayOptions(DisplayOptions& displayOptions)
     readDoc(displayOptions.splashMode, doc, "splashMode");
     readDoc(displayOptions.splashChoice, doc, "splashChoice");
     readDoc(displayOptions.splashDuration, doc, "splashDuration");
+    readDoc(displayOptions.splashAnimationDuration, doc, "splashAnimationDuration");
     readDoc(displayOptions.displaySaverTimeout, doc, "displaySaverTimeout");
     readDoc(displayOptions.displaySaverMode, doc, "displaySaverMode");
     readDoc(displayOptions.buttonLayoutOrientation, doc, "buttonLayoutOrientation");
@@ -488,6 +489,7 @@ std::string getDisplayOptions() // Manually set Document Attributes for the disp
     writeDoc(doc, "splashMode", displayOptions.splashMode);
     writeDoc(doc, "splashChoice", displayOptions.splashChoice);
     writeDoc(doc, "splashDuration", displayOptions.splashDuration);
+    writeDoc(doc, "splashAnimationDuration", displayOptions.splashAnimationDuration);
     writeDoc(doc, "displaySaverTimeout", displayOptions.displaySaverTimeout);
     writeDoc(doc, "displaySaverMode", displayOptions.displaySaverMode);
     writeDoc(doc, "buttonLayoutOrientation", displayOptions.buttonLayoutOrientation);
@@ -550,8 +552,24 @@ std::string setSplashImage()
         std::string base64String = doc["splashImage"];
         Base64::Decode(base64String, decoded);
         length = std::min(decoded.length(), sizeof(displayOptions.splashImage.bytes));
-        memcpy(displayOptions.splashImage.bytes, decoded.data(), length);
-        displayOptions.splashImage.size = length;
+        
+        // Check if image is all zeros (user deleted it)
+        bool allZeros = true;
+        for (size_t i = 0; i < length; i++) {
+            if (decoded.data()[i] != 0) {
+                allZeros = false;
+                break;
+            }
+        }
+        
+        if (allZeros && length > 0) {
+            // User deleted the image, but splashImage always has default, so just mark it
+            displayOptions.has_splashImage = true;
+        } else {
+            memcpy(displayOptions.splashImage.bytes, decoded.data(), length);
+            displayOptions.splashImage.size = length;
+            displayOptions.has_splashImage = true;
+        }
     }
 
     if (doc.containsKey("splashImage2")) {
@@ -559,8 +577,26 @@ std::string setSplashImage()
         std::string base64String2 = doc["splashImage2"];
         Base64::Decode(base64String2, decoded);
         length = std::min(decoded.length(), sizeof(displayOptions.splashImage2.bytes));
-        memcpy(displayOptions.splashImage2.bytes, decoded.data(), length);
-        displayOptions.splashImage2.size = length;
+        
+        // Check if image is all zeros (user deleted it)
+        bool allZeros = true;
+        for (size_t i = 0; i < length; i++) {
+            if (decoded.data()[i] != 0) {
+                allZeros = false;
+                break;
+            }
+        }
+        
+        if (allZeros && length > 0) {
+            // User deleted the image, clear the has flag
+            displayOptions.has_splashImage2 = false;
+            displayOptions.splashImage2.size = 0;
+            memset(displayOptions.splashImage2.bytes, 0, sizeof(displayOptions.splashImage2.bytes));
+        } else {
+            memcpy(displayOptions.splashImage2.bytes, decoded.data(), length);
+            displayOptions.splashImage2.size = length;
+            displayOptions.has_splashImage2 = true;
+        }
     }
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));

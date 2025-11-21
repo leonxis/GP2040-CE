@@ -205,7 +205,7 @@ async function getDisplayOptions() {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getDisplayOptions`);
 
-		response.data.splashDuration = response.data.splashDuration / 1000; // milliseconds to seconds
+		// splashDuration is loop count, no conversion needed
 		response.data.displaySaverTimeout =
 			response.data.displaySaverTimeout / 60000; // milliseconds to minutes
 
@@ -222,7 +222,7 @@ async function setDisplayOptions(options, isPreview) {
 	newOptions.buttonLayout = parseInt(options.buttonLayout);
 	newOptions.buttonLayoutRight = parseInt(options.buttonLayoutRight);
 	newOptions.splashMode = parseInt(options.splashMode);
-	newOptions.splashDuration = parseInt(options.splashDuration) * 1000; // seconds to milliseconds
+	newOptions.splashDuration = parseInt(options.splashDuration); // loop count, no conversion
 	newOptions.displaySaverTimeout =
 		parseInt(options.displaySaverTimeout) * 60000; // minutes to milliseconds
 	newOptions.splashChoice = parseInt(options.splashChoice);
