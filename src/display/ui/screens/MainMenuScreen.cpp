@@ -81,7 +81,7 @@ void MainMenuScreen::init() {
                 continue;
             }
         }
-        
+
         MenuEntry menuEntry = {menuLabel, NULL, nullptr, std::bind(&MainMenuScreen::currentProfile, this), std::bind(&MainMenuScreen::selectProfile, this), profileCtr+1};
         profilesMenu.push_back(menuEntry);
     }
@@ -104,24 +104,24 @@ void MainMenuScreen::init() {
     changeRequiresSave = false;
     prevInputMode = Storage::getInstance().GetGamepad()->getOptions().inputMode;
     updateInputMode = Storage::getInstance().GetGamepad()->getOptions().inputMode;
-    
+
     prevDpadMode = Storage::getInstance().GetGamepad()->getOptions().dpadMode;
     updateDpadMode = Storage::getInstance().GetGamepad()->getOptions().dpadMode;
-    
+
     prevSocdMode = Storage::getInstance().GetGamepad()->getOptions().socdMode;
     updateSocdMode = Storage::getInstance().GetGamepad()->getOptions().socdMode;
-    
+
     prevProfile = Storage::getInstance().GetGamepad()->getOptions().profileNumber;
     updateProfile = Storage::getInstance().GetGamepad()->getOptions().profileNumber;
-    
+
     prevFocus = Storage::getInstance().getAddonOptions().focusModeOptions.enabled;
     updateFocus = Storage::getInstance().getAddonOptions().focusModeOptions.enabled;
-    
+
     prevTurbo = Storage::getInstance().getAddonOptions().turboOptions.enabled;
     updateTurbo = Storage::getInstance().getAddonOptions().turboOptions.enabled;
 
     setMenuHome();
-    
+
     // If we should open HML Config menu (e.g., returning from Back stick or Dead Zone screens)
     if (hasOpenHMLConfigMenuFlag()) {
         clearOpenHMLConfigMenuFlag();
@@ -169,7 +169,7 @@ void MainMenuScreen::drawScreen() {
                 // Standard prompt with Yes/No choice
             getRenderer()->drawText(1, 1, "Reboot to");
             getRenderer()->drawText(1, 2, "apply settings");
-            
+
             if (promptChoice) getRenderer()->drawText(5, 4, CHAR_RIGHT);
             getRenderer()->drawText(6, 4, "Yes");
             if (!promptChoice) getRenderer()->drawText(11, 4, CHAR_RIGHT);
@@ -184,7 +184,7 @@ void MainMenuScreen::drawScreen() {
                 getRenderer()->drawText(3, 3, "Would you like");
                 getRenderer()->drawText(1, 4, "to save & restart?");
             }
-            
+
             if (promptChoice) getRenderer()->drawText(5, 6, CHAR_RIGHT);
             getRenderer()->drawText(6, 6, "Yes");
             if (!promptChoice) getRenderer()->drawText(11, 6, CHAR_RIGHT);
@@ -555,12 +555,12 @@ void MainMenuScreen::saveOptions() {
     }
 
     screenIsPrompting = false;
-    
+
     // Clear restart pending flag when saving (user confirmed reboot)
     if (hasHMLConfigRestartPending()) {
         clearHMLConfigRestartPending();
     }
-    
+
     hmlConfigRebootPrompt = false;
 
     if (exitToScreenBeforePrompt != -1) {

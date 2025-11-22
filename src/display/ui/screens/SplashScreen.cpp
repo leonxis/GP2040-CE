@@ -10,7 +10,7 @@ void SplashScreen::init() {
     currentImageIndex = 0;
     loopCount = 0;
     configMode = DriverManager::getInstance().isConfigMode();
-    
+
     // Count valid images using has_ flags
     // has_splashImage2 = true means user has uploaded a valid (non-deleted) image
     totalValidImages = 1; // splashImage is always valid (has default if not set)
@@ -33,18 +33,18 @@ void SplashScreen::drawScreen() {
         // Display image based on current index
         const uint8_t* imageData = nullptr;
         size_t imageSize = 0;
-        
+
         // Find the Nth valid image using has_ flags
         // This logic must match the totalValidImages calculation in init()
         uint8_t validCount = 0;
-        
+
         // splashImage is always available (image 1) - always counts as valid
         if (validCount == currentImageIndex) {
             imageData = getDisplayOptions().splashImage.bytes;
             imageSize = getDisplayOptions().splashImage.size;
         }
         validCount++;  // splashImage is always valid, so always increment
-        
+
         // splashImage2 is only available if has_splashImage2 is true
         if (imageData == nullptr && getDisplayOptions().has_splashImage2) {
             if (validCount == currentImageIndex) {
@@ -53,7 +53,7 @@ void SplashScreen::drawScreen() {
             }
             validCount++;  // Only increment if has_splashImage2 is true
         }
-        
+
         // splashImage3 is only available if has_splashImage3 is true
         if (imageData == nullptr && getDisplayOptions().has_splashImage3) {
             if (validCount == currentImageIndex) {
@@ -62,13 +62,13 @@ void SplashScreen::drawScreen() {
             }
             validCount++;  // Only increment if has_splashImage3 is true
         }
-        
+
         // Fallback to first image if index is out of range or image data is invalid
         if (imageData == nullptr || imageSize == 0) {
             imageData = getDisplayOptions().splashImage.bytes;
             imageSize = getDisplayOptions().splashImage.size;
         }
-        
+
         // Only draw if we have valid image data
         if (imageData != nullptr && imageSize > 0) {
             getRenderer()->drawSprite((uint8_t*) imageData, 128, 64, 16, 0, 0, 1);
@@ -80,23 +80,23 @@ int8_t SplashScreen::update() {
     uint32_t currentTime = getMillis();
     uint32_t splashDuration = getDisplayOptions().splashDuration;
     uint32_t animationDuration = getDisplayOptions().splashAnimationDuration;
-    
+
     if (!configMode) {
         // Priority 1: Check if splash mode is disabled
         if (getDisplayOptions().splashMode == static_cast<SplashMode>(SPLASH_MODE_NONE)) {
             return DisplayMode::BUTTONS;
         }
-        
+
         // Priority 2: Animation duration == 0 also means skip splash (same effect as disabled)
         if (animationDuration == 0) {
             return DisplayMode::BUTTONS;
         }
-        
+
         // Splash is enabled and animation duration > 0, proceed with animation logic
         if (totalValidImages > 1) {
             // Multi-image animation: cycle through images
             uint32_t imageElapsed = currentTime - imageStartTime;
-            
+
             // Check if it's time to switch to next image
             if (imageElapsed >= animationDuration) {
                 // Recalculate totalValidImages to ensure it matches current state
@@ -104,26 +104,26 @@ int8_t SplashScreen::update() {
                 uint8_t actualValidImages = 1; // splashImage is always valid
                 if (getDisplayOptions().has_splashImage2) actualValidImages++;
                 if (getDisplayOptions().has_splashImage3) actualValidImages++;
-                
+
                 // Update totalValidImages if it changed
                 if (actualValidImages != totalValidImages) {
                     totalValidImages = actualValidImages;
                 }
-                
+
                 // Move to next image index
                 currentImageIndex++;
-                
+
                 // Check if we completed a full cycle
                 if (currentImageIndex >= totalValidImages) {
                     currentImageIndex = 0;
                     loopCount++;
-                    
+
                     // Check if we should stop (splashDuration != 0 means finite loops)
                     if (splashDuration != 0 && loopCount >= splashDuration) {
                         return DisplayMode::BUTTONS;
                     }
                 }
-                
+
                 imageStartTime = currentTime;
                 // Trigger redraw by returning current mode (forces refresh)
                 return DisplayMode::SPLASH;

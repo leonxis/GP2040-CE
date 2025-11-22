@@ -65,7 +65,7 @@ void BackStickMappingScreen::init() {
 
     stickSelectionMenu.clear();
     bool usbPeripheralEnabled = isUSBPeripheralEnabled();
-    
+
     // Menu order: Left backstick, Right backstick first, then Plus variants
     // Row 1: Left backstick (GPIO22)
     stickSelectionMenu.push_back({"Left backstick", nullptr, nullptr,
@@ -75,7 +75,7 @@ void BackStickMappingScreen::init() {
     stickSelectionMenu.push_back({"Right backstick", nullptr, nullptr,
         std::bind(&BackStickMappingScreen::currentStickType, this),
         std::bind(&BackStickMappingScreen::selectStickType, this), 3});
-    
+
     // GPIO15 and GPIO14 are only available when USB peripheral is disabled
     // (USB peripheral uses these pins, so they conflict)
     // Row 3: Left Plus backstick (GPIO15)
@@ -234,7 +234,7 @@ void BackStickMappingScreen::enterMapping(int stickIndex) {
 
     bool usbPeripheralEnabled = isUSBPeripheralEnabled();
     int actualIndex = stickIndex;
-    
+
     // Map optionValue (stickIndex) to GPIO index based on USB peripheral state
     // Menu items and their optionValues:
     // - "Left backstick" -> optionValue=1 -> GPIO22 (actualIndex=1)
@@ -279,7 +279,7 @@ void BackStickMappingScreen::enterMapping(int stickIndex) {
         default:
             return;
     }
-    
+
     previousMenu = &stickSelectionMenu;
     gpMenu->setMenuData(currentMenu);
     gpMenu->setMenuSize(4, 4);
@@ -469,7 +469,7 @@ void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
 
     uint16_t menuIndex = gpMenu->getIndex();
     uint16_t menuSize = (currentMenu != nullptr) ? currentMenu->size() : 0;
-    bool isFourColumnMenu = (currentMenu == &gpio15MappingMenu || currentMenu == &gpio22MappingMenu || 
+    bool isFourColumnMenu = (currentMenu == &gpio15MappingMenu || currentMenu == &gpio22MappingMenu ||
                               currentMenu == &gpio14MappingMenu || currentMenu == &gpio25MappingMenu);
 
     switch (action) {
@@ -548,8 +548,8 @@ void BackStickMappingScreen::updateMenuNavigation(GpioAction action) {
             } else {
                 // Return to HML Config menu instead of main menu
                 MainMenuScreen::flagOpenHMLConfigMenu();
-				exitToScreen = DisplayMode::MAIN_MENU;
-				isMenuReady = false;
+                exitToScreen = DisplayMode::MAIN_MENU;
+                isMenuReady = false;
             }
             break;
         default:

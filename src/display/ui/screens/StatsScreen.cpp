@@ -22,7 +22,7 @@ void StatsScreen::init() {
     build = new GPLabel();
     build->setRenderer(getRenderer());
     build->setText("Build: " GP2040BUILD);
-    build->setPosition(0, 2); 
+    build->setPosition(0, 2);
     addElement(build);
 
     board = new GPLabel();
@@ -34,19 +34,19 @@ void StatsScreen::init() {
     boardType = new GPLabel();
     boardType->setRenderer(getRenderer());
     boardType->setText("Type: " GP2040CONFIG);
-    boardType->setPosition(0, 4); 
+    boardType->setPosition(0, 4);
     addElement(boardType);
 
     arch = new GPLabel();
     arch->setRenderer(getRenderer());
     arch->setText("Arch: " GP2040PLATFORM);
-    arch->setPosition(0, 5); 
+    arch->setPosition(0, 5);
     addElement(arch);
 
     exit = new GPLabel();
     exit->setRenderer(getRenderer());
     exit->setText("B2 to Return");
-    exit->setPosition(5, 7); 
+    exit->setPosition(5, 7);
     addElement(exit);
 }
 

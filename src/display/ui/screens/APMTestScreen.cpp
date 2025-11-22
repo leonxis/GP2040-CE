@@ -70,7 +70,7 @@ void APMTestScreen::handleButtonPress() {
         startTime = getMillis();
         lastUpdateTime = startTime;
     }
-    
+
     // Only count if timer is still running
     if (isRunning && timeRemaining > 0.0f) {
         buttonCount++;
