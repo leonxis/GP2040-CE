@@ -39,6 +39,7 @@ export default {
 		'splash-animation-duration-label': '动画播放时长（毫秒）',
 		'splash-image1-label': '启动图片1',
 		'splash-image2-label': '启动图片2',
+		'splash-image3-label': '启动图片3',
 		'display-saver-timeout-label': '屏幕保护超时（分钟，0 = 关闭）',
 		'screen-saver-mode-label': '屏幕保护模式',
 		'inverted-label': '反色',

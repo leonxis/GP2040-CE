@@ -506,28 +506,28 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													
 													if (!userConfirmed) {
 														alert(t('AddonsConfig:analog-calibration-cancelled'));
-														return;
+														break; // Exit loop instead of returning from function
 													}
 													
 													
 													// Read current center value
 													console.log(`Fetching joystick 1 center for step ${stepNumber}...`);
-												const res = await fetch('/api/getJoystickCenter');
-												console.log('Response status:', res.status);
+													const res = await fetch('/api/getJoystickCenter');
+													console.log('Response status:', res.status);
 													
 													if (!res.ok) {
 														throw new Error(`HTTP error! status: ${res.status}`);
 													}
 													
-												const data = await res.json();
-												console.log('Response data:', data);
-												
+													const data = await res.json();
+													console.log('Response data:', data);
+													
 													if (!data.success || data.error) {
 														alert(t('AddonsConfig:analog-calibration-failed', { error: data.error || 'Unknown error' }));
-													console.error('API Error:', data.error);
-													return;
-												}
-												
+														console.error('API Error:', data.error);
+														break; // Exit loop instead of returning from function
+													}
+													
 													calibrationValues.push({
 														step: stepNumber,
 														direction: step.direction,
@@ -538,10 +538,15 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													console.log(`Step ${stepNumber} completed:`, calibrationValues[i]);
 												}
 												
+												// Check if we got enough calibration values
+												if (calibrationValues.length < 4) {
+													alert(t('AddonsConfig:analog-calibration-failed', { error: `Calibration incomplete: only ${calibrationValues.length} of 4 steps completed` }));
+													return;
+												}
 
 												// Calculate center value from four points
-												const avgX = Math.round(calibrationValues.reduce((sum, val) => sum + val.x, 0) / 4);
-												const avgY = Math.round(calibrationValues.reduce((sum, val) => sum + val.y, 0) / 4);
+												const avgX = Math.round(calibrationValues.reduce((sum, val) => sum + val.x, 0) / calibrationValues.length);
+												const avgY = Math.round(calibrationValues.reduce((sum, val) => sum + val.y, 0) / calibrationValues.length);
 												
 												// Update joystick 1 center values
 												setFieldValue('joystickCenterX', avgX);
@@ -846,7 +851,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													
 													if (!userConfirmed) {
 														alert(t('AddonsConfig:analog-calibration-cancelled'));
-														return;
+														break; // Exit loop instead of returning from function
 													}
 													
 													
@@ -865,7 +870,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													if (!data.success || data.error) {
 														alert(t('AddonsConfig:analog-calibration-failed', { error: data.error || 'Unknown error' }));
 														console.error('API Error:', data.error);
-														return;
+														break; // Exit loop instead of returning from function
 													}
 													
 													calibrationValues.push({
@@ -878,10 +883,15 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 													console.log(`Step ${stepNumber} completed:`, calibrationValues[i]);
 												}
 												
+												// Check if we got enough calibration values
+												if (calibrationValues.length < 4) {
+													alert(t('AddonsConfig:analog-calibration-failed', { error: `Calibration incomplete: only ${calibrationValues.length} of 4 steps completed` }));
+													return;
+												}
 
 												// Calculate center value from four points
-												const avgX = Math.round(calibrationValues.reduce((sum, val) => sum + val.x, 0) / 4);
-												const avgY = Math.round(calibrationValues.reduce((sum, val) => sum + val.y, 0) / 4);
+												const avgX = Math.round(calibrationValues.reduce((sum, val) => sum + val.x, 0) / calibrationValues.length);
+												const avgY = Math.round(calibrationValues.reduce((sum, val) => sum + val.y, 0) / calibrationValues.length);
 												
 												// Update joystick 2 center values
 												setFieldValue('joystickCenterX2', avgX);
