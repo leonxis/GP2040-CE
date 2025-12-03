@@ -466,8 +466,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		inner_deadzone2: 5,
 		outer_deadzone: 95,
 		outer_deadzone2: 95,
-		auto_calibrate: 0,
-		auto_calibrate2: 0,
 		analog_smoothing: 0,
 		analog_smoothing2: 0,
 		smoothing_factor: 15,

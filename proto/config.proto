@@ -410,7 +410,6 @@ message AnalogOptions
     optional DpadMode analogAdc2Mode = 9;
     optional InvertMode analogAdc1Invert = 10;
     optional InvertMode analogAdc2Invert = 11;
-    optional bool auto_calibrate = 12;
     optional uint32 outer_deadzone = 13;
     optional bool analog_smoothing = 14;
     optional float smoothing_factor = 15;
@@ -420,7 +419,6 @@ message AnalogOptions
     optional uint32 analog_error2 = 19;
     optional uint32 inner_deadzone2 = 20;
     optional uint32 outer_deadzone2 = 21;
-    optional bool auto_calibrate2 = 22;
     optional bool forced_circularity2 = 23;
     optional uint32 joystick_center_x = 24;
     optional uint32 joystick_center_y = 25;

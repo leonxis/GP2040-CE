@@ -1771,8 +1771,7 @@ std::string setAddonOptions()
     docToValue(analogOptions.outer_deadzone2, doc, "outer_deadzone2");
     docToValue(analogOptions.anti_deadzone, doc, "anti_deadzone");
     docToValue(analogOptions.anti_deadzone2, doc, "anti_deadzone2");
-    docToValue(analogOptions.auto_calibrate, doc, "auto_calibrate");
-    docToValue(analogOptions.auto_calibrate2, doc, "auto_calibrate2");
+    // Auto calibration removed - deprecated fields ignored
     docToValue(analogOptions.joystick_center_x, doc, "joystickCenterX");
     docToValue(analogOptions.joystick_center_y, doc, "joystickCenterY");
     docToValue(analogOptions.joystick_center_x2, doc, "joystickCenterX2");
@@ -2235,8 +2234,7 @@ std::string getAddonOptions()
     writeDoc(doc, "outer_deadzone2", analogOptions.outer_deadzone2);
     writeDoc(doc, "anti_deadzone", analogOptions.anti_deadzone);
     writeDoc(doc, "anti_deadzone2", analogOptions.anti_deadzone2);
-    writeDoc(doc, "auto_calibrate", analogOptions.auto_calibrate);
-    writeDoc(doc, "auto_calibrate2", analogOptions.auto_calibrate2);
+    // Auto calibration removed - deprecated fields not written
     writeDoc(doc, "joystickCenterX", analogOptions.joystick_center_x);
     writeDoc(doc, "joystickCenterY", analogOptions.joystick_center_y);
     writeDoc(doc, "joystickCenterX2", analogOptions.joystick_center_x2);

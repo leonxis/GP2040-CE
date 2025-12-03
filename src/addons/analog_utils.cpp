@@ -62,9 +62,7 @@ void saveCalibrationValues(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2) {
     analogOptions.joystick_center_x2 = x2;
     analogOptions.joystick_center_y2 = y2;
     
-    // Disable auto calibration to use manual values
-    analogOptions.auto_calibrate = 0;
-    analogOptions.auto_calibrate2 = 0;
+    // Auto calibration removed - manual calibration values are always used
     
     // Save to flash
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));

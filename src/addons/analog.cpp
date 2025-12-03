@@ -38,7 +38,6 @@ void AnalogInput::setup() {
     adc_pairs[0].in_deadzone = analogOptions.inner_deadzone / 100.0f;
     adc_pairs[0].out_deadzone = analogOptions.outer_deadzone / 100.0f;
     adc_pairs[0].anti_deadzone = analogOptions.anti_deadzone / 100.0f;
-    adc_pairs[0].auto_calibration = analogOptions.auto_calibrate;
     adc_pairs[0].forced_circularity = analogOptions.forced_circularity;
     adc_pairs[0].joystick_center_x = analogOptions.joystick_center_x;
     adc_pairs[0].joystick_center_y = analogOptions.joystick_center_y;
@@ -57,7 +56,6 @@ void AnalogInput::setup() {
     adc_pairs[1].in_deadzone = analogOptions.inner_deadzone2 / 100.0f;
     adc_pairs[1].out_deadzone = analogOptions.outer_deadzone2 / 100.0f;
     adc_pairs[1].anti_deadzone = analogOptions.anti_deadzone2 / 100.0f;
-    adc_pairs[1].auto_calibration = analogOptions.auto_calibrate2;
     adc_pairs[1].forced_circularity = analogOptions.forced_circularity2;
     adc_pairs[1].joystick_center_x = analogOptions.joystick_center_x2;
     adc_pairs[1].joystick_center_y = analogOptions.joystick_center_y2;
@@ -76,27 +74,17 @@ void AnalogInput::setup() {
         adc_pairs[i].y_ema = 0.0f;
     }
 
-    // Intialize and auto center X/Y for each pair
+    // Initialize center X/Y for each pair using manual calibration values
     for (int i = 0; i < ADC_COUNT; i++) {
         if(isValidPin(adc_pairs[i].x_pin)) {
             adc_gpio_init(adc_pairs[i].x_pin);
-            if (adc_pairs[i].auto_calibration) {
-                adc_select_input(adc_pairs[i].x_pin - ADC_PIN_OFFSET);
-                adc_pairs[i].x_center = adc_read();
-            } else {
-                // if auto calibration is disabled, attempt to use stored manual calibration value
-                adc_pairs[i].x_center = adc_pairs[i].joystick_center_x;
-            }
+            // Always use stored manual calibration value
+            adc_pairs[i].x_center = adc_pairs[i].joystick_center_x;
         }
         if(isValidPin(adc_pairs[i].y_pin)) {
             adc_gpio_init(adc_pairs[i].y_pin);
-            if (adc_pairs[i].auto_calibration) {
-                adc_select_input(adc_pairs[i].y_pin - ADC_PIN_OFFSET);
-                adc_pairs[i].y_center = adc_read();
-            } else {
-                // if auto calibration is disabled, attempt to use stored manual calibration value
-                adc_pairs[i].y_center = adc_pairs[i].joystick_center_y;
-            }
+            // Always use stored manual calibration value
+            adc_pairs[i].y_center = adc_pairs[i].joystick_center_y;
         }
     }
 }
@@ -162,9 +150,8 @@ void AnalogInput::process() {
 float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t center) {
     adc_select_input(pin_adc);
     uint16_t adc_value = adc_read();
-    // Apply calibration only if auto calibration is enabled or manual calibration has been performed
-    // Manual calibration is considered performed if the center value is not 0 (default)
-    if (adc_pairs[stick_num].auto_calibration || center != 0) {
+    // Apply calibration if manual calibration has been performed (center value is not 0)
+    if (center != 0) {
         if (adc_value > center) {
             adc_value = map(adc_value, center, ADC_MAX, ADC_MAX / 2, ADC_MAX);
         } else if (adc_value == center) {

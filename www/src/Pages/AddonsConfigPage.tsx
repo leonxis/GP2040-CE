@@ -13,6 +13,7 @@ import { hexToInt } from '../Services/Utilities';
 
 import WebApi from '../Services/WebApi';
 import Analog, { analogScheme, analogState } from '../Addons/Analog';
+import JoystickCalibration from '../Addons/JoystickCalibration';
 import Analog1256, {
 	analog1256Scheme,
 	analog1256State,
@@ -122,6 +123,7 @@ const ADDONS = [
 	Bootsel,
 	OnBoardLed,
 	Analog,
+	JoystickCalibration,
 	Turbo,
 	Reverse,
 	I2CAnalog1219,
