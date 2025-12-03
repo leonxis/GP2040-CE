@@ -4,6 +4,7 @@ import { Row, Col, Button, FormCheck } from 'react-bootstrap';
 
 import Section from '../Components/Section';
 import StickCalibrationModal from '../Components/StickCalibrationModal';
+import RangeCalibrationModal from '../Components/RangeCalibrationModal';
 import { AddonPropTypes } from '../Pages/AddonsConfigPage';
 
 const CIRCULARITY_DATA_SIZE = 48; // Number of angular positions to sample
@@ -162,6 +163,8 @@ const JoystickCalibration = ({
 	const [rightStickData, setRightStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0 });
 	const [showLeftCalibrationModal, setShowLeftCalibrationModal] = useState(false);
 	const [showRightCalibrationModal, setShowRightCalibrationModal] = useState(false);
+	const [showLeftRangeModal, setShowLeftRangeModal] = useState(false);
+	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
 	const [leftCircularityEnabled, setLeftCircularityEnabled] = useState(false);
 	const [rightCircularityEnabled, setRightCircularityEnabled] = useState(false);
 	const [leftCircularityData, setLeftCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
@@ -365,10 +368,7 @@ const JoystickCalibration = ({
 								<Button
 									variant="primary"
 									size="sm"
-									onClick={() => {
-										// TODO: Implement left stick range calibration
-										alert(t('AddonsConfig:joystick-calibration-range-not-implemented'));
-									}}
+									onClick={() => setShowLeftRangeModal(true)}
 								>
 									{t('AddonsConfig:joystick-calibration-range-button')}
 								</Button>
@@ -417,10 +417,7 @@ const JoystickCalibration = ({
 								<Button
 									variant="primary"
 									size="sm"
-									onClick={() => {
-										// TODO: Implement right stick range calibration
-										alert(t('AddonsConfig:joystick-calibration-range-not-implemented'));
-									}}
+									onClick={() => setShowRightRangeModal(true)}
 								>
 									{t('AddonsConfig:joystick-calibration-range-button')}
 								</Button>
@@ -450,6 +447,30 @@ const JoystickCalibration = ({
 				}}
 				stickNumber={2}
 				stickLabel={t('AddonsConfig:joystick-calibration-right-stick')}
+			/>
+			
+			{/* Range Calibration Modals */}
+			<RangeCalibrationModal
+				show={showLeftRangeModal}
+				onHide={() => setShowLeftRangeModal(false)}
+				onComplete={(rangeData) => {
+					setFieldValue('joystickRangeData1', rangeData);
+				}}
+				stickNumber={1}
+				stickLabel={t('AddonsConfig:joystick-calibration-left-stick')}
+				centerX={values?.joystickCenterX}
+				centerY={values?.joystickCenterY}
+			/>
+			<RangeCalibrationModal
+				show={showRightRangeModal}
+				onHide={() => setShowRightRangeModal(false)}
+				onComplete={(rangeData) => {
+					setFieldValue('joystickRangeData2', rangeData);
+				}}
+				stickNumber={2}
+				stickLabel={t('AddonsConfig:joystick-calibration-right-stick')}
+				centerX={values?.joystickCenterX2}
+				centerY={values?.joystickCenterY2}
 			/>
 		</Section>
 	);

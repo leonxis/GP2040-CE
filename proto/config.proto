@@ -430,6 +430,8 @@ message AnalogOptions
     optional float smoothing_delta_max = 31;
     optional float smoothing_alpha_max2 = 32;
     optional float smoothing_delta_max2 = 33;
+    repeated float joystick_range_data_1 = 34 [(nanopb).max_count = 48];
+    repeated float joystick_range_data_2 = 35 [(nanopb).max_count = 48];
 }
 
 message TurboOptions

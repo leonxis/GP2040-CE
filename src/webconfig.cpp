@@ -1776,6 +1776,27 @@ std::string setAddonOptions()
     docToValue(analogOptions.joystick_center_y, doc, "joystickCenterY");
     docToValue(analogOptions.joystick_center_x2, doc, "joystickCenterX2");
     docToValue(analogOptions.joystick_center_y2, doc, "joystickCenterY2");
+    // Read range calibration data arrays
+    if (doc.containsKey("joystickRangeData1") && doc["joystickRangeData1"].is<JsonArray>()) {
+        JsonArray rangeData1 = doc["joystickRangeData1"];
+        analogOptions.joystick_range_data_1_count = 0;
+        for (size_t i = 0; i < rangeData1.size() && i < 48; i++) {
+            if (rangeData1[i].is<float>()) {
+                analogOptions.joystick_range_data_1[i] = rangeData1[i].as<float>();
+                analogOptions.joystick_range_data_1_count++;
+            }
+        }
+    }
+    if (doc.containsKey("joystickRangeData2") && doc["joystickRangeData2"].is<JsonArray>()) {
+        JsonArray rangeData2 = doc["joystickRangeData2"];
+        analogOptions.joystick_range_data_2_count = 0;
+        for (size_t i = 0; i < rangeData2.size() && i < 48; i++) {
+            if (rangeData2[i].is<float>()) {
+                analogOptions.joystick_range_data_2[i] = rangeData2[i].as<float>();
+                analogOptions.joystick_range_data_2_count++;
+            }
+        }
+    }
     docToValue(analogOptions.analog_smoothing, doc, "analog_smoothing");
     docToValue(analogOptions.analog_smoothing2, doc, "analog_smoothing2");
     docToValue(analogOptions.smoothing_factor, doc, "smoothing_factor");
@@ -2239,6 +2260,15 @@ std::string getAddonOptions()
     writeDoc(doc, "joystickCenterY", analogOptions.joystick_center_y);
     writeDoc(doc, "joystickCenterX2", analogOptions.joystick_center_x2);
     writeDoc(doc, "joystickCenterY2", analogOptions.joystick_center_y2);
+    // Write range calibration data arrays
+    JsonArray rangeData1 = doc.createNestedArray("joystickRangeData1");
+    for (pb_size_t i = 0; i < analogOptions.joystick_range_data_1_count && i < 48; i++) {
+        rangeData1.add(analogOptions.joystick_range_data_1[i]);
+    }
+    JsonArray rangeData2 = doc.createNestedArray("joystickRangeData2");
+    for (pb_size_t i = 0; i < analogOptions.joystick_range_data_2_count && i < 48; i++) {
+        rangeData2.add(analogOptions.joystick_range_data_2[i]);
+    }
     writeDoc(doc, "analog_smoothing", analogOptions.analog_smoothing);
     writeDoc(doc, "analog_smoothing2", analogOptions.analog_smoothing2);
     writeDoc(doc, "smoothing_factor", analogOptions.smoothing_factor);

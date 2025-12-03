@@ -132,6 +132,7 @@ typedef struct
     bool forced_circularity;
     uint32_t joystick_center_x;
     uint32_t joystick_center_y;
+    float range_data[48];  // Circularity data for 48 angular positions
 } adc_instance;
 
 class AnalogInput : public GPAddon {
@@ -149,6 +150,7 @@ private:
     uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
     float magnitudeCalculation(int stick_num, adc_instance & adc_inst);
     void radialDeadzone(int stick_num, adc_instance & adc_inst);
+    float getInterpolatedMaxRadius(int stick_num, float angle);
     adc_instance adc_pairs[ADC_COUNT];
 };
 

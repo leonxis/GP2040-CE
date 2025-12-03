@@ -9,6 +9,10 @@
 #include <algorithm>
 #include <cmath>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #define ADC_MAX ((1 << 12) - 1) // 4095
 #define ADC_PIN_OFFSET 26
 #define ANALOG_MAX 1.0f
@@ -41,6 +45,14 @@ void AnalogInput::setup() {
     adc_pairs[0].forced_circularity = analogOptions.forced_circularity;
     adc_pairs[0].joystick_center_x = analogOptions.joystick_center_x;
     adc_pairs[0].joystick_center_y = analogOptions.joystick_center_y;
+    // Initialize range calibration data (48 angular positions)
+    for (int i = 0; i < 48; i++) {
+        if (i < analogOptions.joystick_range_data_1_count && analogOptions.joystick_range_data_1[i] > 0.0f) {
+            adc_pairs[0].range_data[i] = analogOptions.joystick_range_data_1[i];
+        } else {
+            adc_pairs[0].range_data[i] = 0.0f;  // Default: no calibration data
+        }
+    }
     adc_pairs[1].x_pin = analogOptions.analogAdc2PinX;
     adc_pairs[1].y_pin = analogOptions.analogAdc2PinY;
     adc_pairs[1].analog_invert = analogOptions.analogAdc2Invert;
@@ -59,6 +71,14 @@ void AnalogInput::setup() {
     adc_pairs[1].forced_circularity = analogOptions.forced_circularity2;
     adc_pairs[1].joystick_center_x = analogOptions.joystick_center_x2;
     adc_pairs[1].joystick_center_y = analogOptions.joystick_center_y2;
+    // Initialize range calibration data (48 angular positions)
+    for (int i = 0; i < 48; i++) {
+        if (i < analogOptions.joystick_range_data_2_count && analogOptions.joystick_range_data_2[i] > 0.0f) {
+            adc_pairs[1].range_data[i] = analogOptions.joystick_range_data_2[i];
+        } else {
+            adc_pairs[1].range_data[i] = 0.0f;  // Default: no calibration data
+        }
+    }
     
 
     // Setup defaults and helpers
@@ -201,13 +221,65 @@ float AnalogInput::magnitudeCalculation(int stick_num, adc_instance & adc_inst) 
     return adc_pairs[stick_num].error_rate * std::sqrt((adc_inst.x_magnitude * adc_inst.x_magnitude) + (adc_inst.y_magnitude * adc_inst.y_magnitude));
 }
 
+/**
+ * Interpolate maximum radius for a given angle using range calibration data
+ * @param stick_num Stick number (0 or 1)
+ * @param angle Angle in radians (-PI to PI)
+ * @return Maximum radius (0.0 to 1.0), or 0.0 if no calibration data
+ */
+float AnalogInput::getInterpolatedMaxRadius(int stick_num, float angle) {
+    const float* range_data = adc_pairs[stick_num].range_data;
+    const int CIRCULARITY_DATA_SIZE = 48;
+    
+    // Check if we have any calibration data
+    bool hasData = false;
+    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+        if (range_data[i] > 0.0f) {
+            hasData = true;
+            break;
+        }
+    }
+    if (!hasData) {
+        return 0.0f;  // No calibration data, use default behavior
+    }
+    
+    // Convert angle from [-PI, PI] to [0, 2*PI] then to [0, CIRCULARITY_DATA_SIZE]
+    float normalizedAngle = (angle + M_PI) / (2.0f * M_PI);  // 0.0 to 1.0
+    float index = normalizedAngle * CIRCULARITY_DATA_SIZE;
+    
+    // Get the two adjacent indices for interpolation
+    int i0 = ((int)std::floor(index)) % CIRCULARITY_DATA_SIZE;
+    int i1 = (i0 + 1) % CIRCULARITY_DATA_SIZE;
+    float t = index - std::floor(index);  // Fractional part (0.0 to 1.0)
+    
+    // Linear interpolation
+    float r0 = range_data[i0] > 0.0f ? range_data[i0] : 0.0f;
+    float r1 = range_data[i1] > 0.0f ? range_data[i1] : 0.0f;
+    
+    return r0 * (1.0f - t) + r1 * t;
+}
+
 void AnalogInput::radialDeadzone(int stick_num, adc_instance & adc_inst) {
-    float scaling_factor = (adc_inst.xy_magnitude - adc_pairs[stick_num].in_deadzone) / (adc_pairs[stick_num].out_deadzone - adc_pairs[stick_num].in_deadzone);
+    // Calculate current distance from center
+    float current_distance = std::sqrt((adc_inst.x_magnitude * adc_inst.x_magnitude) + (adc_inst.y_magnitude * adc_inst.y_magnitude));
+    
+    // Check if range calibration data is available and apply angle-based limit
+    float max_radius = getInterpolatedMaxRadius(stick_num, std::atan2(adc_inst.y_magnitude, adc_inst.x_magnitude));
+    if (max_radius > 0.0f && current_distance > max_radius) {
+        // Scale down to fit within calibrated range
+        float scale = max_radius / current_distance;
+        adc_inst.x_magnitude *= scale;
+        adc_inst.y_magnitude *= scale;
+        current_distance = max_radius;
+    }
+    
+    // Apply standard deadzone scaling
+    float scaling_factor = (current_distance - adc_pairs[stick_num].in_deadzone) / (adc_pairs[stick_num].out_deadzone - adc_pairs[stick_num].in_deadzone);
     if (adc_pairs[stick_num].forced_circularity == true) {
         scaling_factor = std::fmin(scaling_factor, ANALOG_CENTER);
     }
-    adc_inst.x_value = ((adc_inst.x_magnitude / adc_inst.xy_magnitude) * scaling_factor) + ANALOG_CENTER;
-    adc_inst.y_value = ((adc_inst.y_magnitude / adc_inst.xy_magnitude) * scaling_factor) + ANALOG_CENTER;
+    adc_inst.x_value = ((adc_inst.x_magnitude / (current_distance > 0.0f ? current_distance : 1.0f)) * scaling_factor) + ANALOG_CENTER;
+    adc_inst.y_value = ((adc_inst.y_magnitude / (current_distance > 0.0f ? current_distance : 1.0f)) * scaling_factor) + ANALOG_CENTER;
     adc_inst.x_value = std::clamp(adc_inst.x_value, ANALOG_MINIMUM, ANALOG_MAX);
     adc_inst.y_value = std::clamp(adc_inst.y_value, ANALOG_MINIMUM, ANALOG_MAX);
     if (adc_pairs[stick_num].anti_deadzone > 0.0f) {

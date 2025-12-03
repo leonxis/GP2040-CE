@@ -2407,6 +2407,18 @@ static bool fromJsonBytes(JsonObjectConst jsonObject, const char* fieldname, uin
         ++configStruct.fieldname ## _count; \
     }
 
+#define FROM_JSON_REPEATED_FLOAT(fieldname, submessageType) \
+    configStruct.fieldname ## _count = 0; \
+    for (size_t index = 0; index < array.size(); ++index) \
+    { \
+        if (!array[index].is<float>() && !array[index].is<double>()) \
+        { \
+            return false; \
+        } \
+        configStruct.fieldname[index] = array[index].as<float>(); \
+        ++configStruct.fieldname ## _count; \
+    }
+
 #define FROM_JSON_REPEATED_STRING(fieldname, submessageType) \
     configStruct.fieldname ## _count = 0; \
     for (size_t index = 0; index < array.size(); ++index) \
