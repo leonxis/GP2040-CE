@@ -23,24 +23,7 @@ const INVERT_MODES = [
 	{ label: 'X/Y Axis', value: 3 },
 ];
 
-const ANALOG_ERROR_RATES = [
-	{ label: '0%', value: 1000 },
-	{ label: '1%', value: 990 },
-	{ label: '2%', value: 979 },
-	{ label: '3%', value: 969 },
-	{ label: '4%', value: 958 },
-	{ label: '5%', value: 946 },
-	{ label: '6%', value: 934 },
-	{ label: '7%', value: 922 },
-	{ label: '8%', value: 911 },
-	{ label: '9%', value: 900 },
-	{ label: '10%', value: 890 },
-	{ label: '11%', value: 876 },
-	{ label: '12%', value: 863 },
-	{ label: '13%', value: 848 },
-	{ label: '14%', value: 834 },
-	{ label: '15%', value: 821 },
-];
+// ANALOG_ERROR_RATES removed - no longer used after removing forced_circularity
 
 export const analogScheme = {
 	AnalogInputEnabled: yup.number().required().label('Analog Input Enabled'),
@@ -77,14 +60,7 @@ export const analogScheme = {
 		.label('Analog Stick 2 Invert')
 		.validateSelectionWhenValue('AnalogInputEnabled', INVERT_MODES),
 
-	forced_circularity: yup
-		.number()
-		.label('Force Circularity')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 1),
-	forced_circularity2: yup
-		.number()
-		.label('Force Circularity')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 1),
+	// forced_circularity and forced_circularity2 removed - replaced by range calibration
 	inner_deadzone: yup
 		.number()
 		.label('Inner Deadzone Size (%)')
@@ -101,15 +77,8 @@ export const analogScheme = {
 		.number()
 		.label('Inner Anti-Deadzone Size (%)')
 		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
-	outer_deadzone: yup
-		.number()
-		.label('Outer Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
-	outer_deadzone2: yup
-		.number()
-		.label('Outer Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
 	// Auto calibration removed - deprecated fields
+	// Outer deadzone removed - replaced by range calibration
 	analog_smoothing: yup
 		.number()
 		.label('Analog Smoothing')
@@ -142,14 +111,15 @@ export const analogScheme = {
 		.number()
 		.label('Dynamic Smoothing Delta Max 2')
 		.validateRangeWhenValue('AnalogInputEnabled', 0, 5),
+	// analog_error and analog_error2 validation simplified - no longer used for forced_circularity
 	analog_error: yup
 		.number()
 		.label('Error Rate')
-		.validateSelectionWhenValue('AnalogInputEnabled', ANALOG_ERROR_RATES),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 1000),
 	analog_error2: yup
 		.number()
 		.label('Error Rate 2')
-		.validateSelectionWhenValue('AnalogInputEnabled', ANALOG_ERROR_RATES),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 1000),
 	joystickCenterX: yup
 		.number()
 		.label('Joystick Center X')
@@ -178,15 +148,13 @@ export const analogState = {
 	analogAdc2PinY: -1,
 	analogAdc2Mode: 2,
 	analogAdc2Invert: 0,
-	forced_circularity: 0,
-	forced_circularity2: 0,
+	// forced_circularity and forced_circularity2 removed - replaced by range calibration
 	inner_deadzone: 5,
 	anti_deadzone: 0,
 	inner_deadzone2: 5,
 	anti_deadzone2: 0,
-	outer_deadzone: 95,
-	outer_deadzone2: 95,
 	// Auto calibration removed - deprecated fields
+	// Outer deadzone removed - replaced by range calibration
 	joystickCenterX: 0,
 	joystickCenterY: 0,
 	joystickCenterX2: 0,
@@ -203,17 +171,7 @@ export const analogState = {
 	analog_error2: 1,
 };
 
-// Helper function to convert error rate value to percentage (0-15)
-const errorRateToPercent = (value: number): number => {
-	const index = ANALOG_ERROR_RATES.findIndex(rate => rate.value === value);
-	return index >= 0 ? index : 0;
-};
-
-// Helper function to convert percentage (0-15) to error rate value
-const percentToErrorRate = (percent: number): number => {
-	const index = Math.round(Math.max(0, Math.min(15, percent)));
-	return ANALOG_ERROR_RATES[index]?.value || ANALOG_ERROR_RATES[0].value;
-};
+// errorRateToPercent and percentToErrorRate removed - no longer used after removing forced_circularity
 
 const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }: AddonPropTypes) => {
 	const { usedPins } = useContext(AppContext);
@@ -343,19 +301,6 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										min={0}
 										max={100}
 									/>
-									<FormControl
-										type="number"
-										label={t('AddonsConfig:outer-deadzone-size')}
-										name="outer_deadzone"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.outer_deadzone}
-										error={errors.outer_deadzone}
-										isInvalid={Boolean(errors.outer_deadzone)}
-										onChange={handleChange}
-										min={0}
-										max={100}
-									/>
 								</Row>
 								<Row className="mb-3">
 									<FormCheck
@@ -424,36 +369,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										<p className="text-muted small mb-0">{t('AddonsConfig:smoothing-dynamic-desc')}</p>
 									</div>
 								</Row>
-								<Row className="mb-3">
-									<FormCheck
-										label={t('AddonsConfig:analog-force-circularity')}
-										type="switch"
-										id="Forced_circularity"
-										className="col-sm-3 ms-3"
-										isInvalid={false}
-										checked={Boolean(values.forced_circularity)}
-										onChange={(e) => {
-											handleCheckbox('forced_circularity');
-											handleChange(e);
-										}}
-									/>
-									<div className="col-sm-9 mb-3" hidden={!values.forced_circularity}>
-										<div className="d-flex justify-content-between align-items-center mb-1">
-											<Form.Label className="mb-0">{t('AddonsConfig:analog-error-label')}: {errorRateToPercent(values.analog_error)}%</Form.Label>
-										</div>
-										<Form.Range
-										name="analog_error"
-											min={0}
-											max={15}
-											step={1}
-											value={errorRateToPercent(values.analog_error)}
-											onChange={(e) => {
-												const percent = parseInt((e.target as HTMLInputElement).value);
-												setFieldValue('analog_error', percentToErrorRate(percent));
-											}}
-										/>
-									</div>
-								</Row>
+								{/* forced_circularity and error_rate UI removed - replaced by range calibration */}
 						</Tab>
 						<Tab
 							key="analog2Config"
@@ -550,19 +466,6 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										min={0}
 										max={100}
 									/>
-									<FormControl
-										type="number"
-										label={t('AddonsConfig:outer-deadzone-size')}
-										name="outer_deadzone2"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.outer_deadzone2}
-										error={errors.outer_deadzone2}
-										isInvalid={Boolean(errors.outer_deadzone2)}
-										onChange={handleChange}
-										min={0}
-										max={100}
-									/>
 								</Row>
 								<Row className="mb-3">
 									<FormCheck
@@ -631,36 +534,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										<p className="text-muted small mb-0">{t('AddonsConfig:smoothing-dynamic-desc')}</p>
 									</div>
 								</Row>
-								<Row className="mb-3">
-									<FormCheck
-										label={t('AddonsConfig:analog-force-circularity')}
-										type="switch"
-										id="Forced_circularity2"
-										className="col-sm-3 ms-3"
-										isInvalid={false}
-										checked={Boolean(values.forced_circularity2)}
-										onChange={(e) => {
-											handleCheckbox('forced_circularity2');
-											handleChange(e);
-										}}
-									/>
-									<div className="col-sm-9 mb-3" hidden={!values.forced_circularity2}>
-										<div className="d-flex justify-content-between align-items-center mb-1">
-											<Form.Label className="mb-0">{t('AddonsConfig:analog-error-label')}: {errorRateToPercent(values.analog_error2)}%</Form.Label>
-										</div>
-										<Form.Range
-										name="analog_error2"
-											min={0}
-											max={15}
-											step={1}
-											value={errorRateToPercent(values.analog_error2)}
-											onChange={(e) => {
-												const percent = parseInt((e.target as HTMLInputElement).value);
-												setFieldValue('analog_error2', percentToErrorRate(percent));
-											}}
-										/>
-									</div>
-								</Row>
+								{/* forced_circularity2 and error_rate2 UI removed - replaced by range calibration */}
 						</Tab>
 					</Tabs>
 			</div>

@@ -14,7 +14,7 @@ interface RangeCalibrationModalProps {
 
 const CIRCULARITY_DATA_SIZE = 48;
 const REQUIRED_FULL_CYCLES = 4; // Number of full rotations required
-const JOYSTICK_EXTREME_THRESHOLD = 0.95; // Minimum distance to count as valid data (must be pushed to extreme)
+const JOYSTICK_EXTREME_THRESHOLD = 0.85; // Minimum distance to count as valid data (must be pushed to extreme)
 const CIRCLE_FILL_THRESHOLD = 0.95; // Percentage of angles that must have data to complete a cycle
 
 const RangeCalibrationModal = ({

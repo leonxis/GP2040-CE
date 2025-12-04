@@ -609,9 +609,9 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2PinY, ANALOG_ADC_2_VRY);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2Mode, ANALOG_ADC_2_MODE);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2Invert, ANALOG_ADC_2_INVERT);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, forced_circularity, !!FORCED_CIRCULARITY_ENABLED);
+    // forced_circularity removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone, DEFAULT_INNER_DEADZONE);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, outer_deadzone, DEFAULT_OUTER_DEADZONE);
+    // outer_deadzone removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone, DEFAULT_ANTI_DEADZONE);
     // Auto calibration removed - deprecated field ignored
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing, !!ANALOG_SMOOTHING_ENABLED);
@@ -625,10 +625,10 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_delta_max2, 1.5f);  // 默认1.5%
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_error2, ANALOG_ERROR2);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone2, DEFAULT_INNER_DEADZONE2);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, outer_deadzone2, DEFAULT_OUTER_DEADZONE2);
+    // outer_deadzone2 removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone2, DEFAULT_ANTI_DEADZONE2);
     // Auto calibration removed - deprecated field ignored
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, forced_circularity2, !!FORCED_CIRCULARITY2_ENABLED);
+    // forced_circularity2 removed - replaced by range calibration
 
     // addonOptions.turboOptions
     INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, enabled, !!TURBO_ENABLED);

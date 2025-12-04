@@ -1763,12 +1763,10 @@ std::string setAddonOptions()
     docToPin(analogOptions.analogAdc2PinY, doc, "analogAdc2PinY");
     docToValue(analogOptions.analogAdc2Mode, doc, "analogAdc2Mode");
     docToValue(analogOptions.analogAdc2Invert, doc, "analogAdc2Invert");
-    docToValue(analogOptions.forced_circularity, doc, "forced_circularity");
-    docToValue(analogOptions.forced_circularity2, doc, "forced_circularity2");
+    // forced_circularity and forced_circularity2 removed - replaced by range calibration
     docToValue(analogOptions.inner_deadzone, doc, "inner_deadzone");
     docToValue(analogOptions.inner_deadzone2, doc, "inner_deadzone2");
-    docToValue(analogOptions.outer_deadzone, doc, "outer_deadzone");
-    docToValue(analogOptions.outer_deadzone2, doc, "outer_deadzone2");
+    // outer_deadzone and outer_deadzone2 removed - replaced by range calibration
     docToValue(analogOptions.anti_deadzone, doc, "anti_deadzone");
     docToValue(analogOptions.anti_deadzone2, doc, "anti_deadzone2");
     // Auto calibration removed - deprecated fields ignored
@@ -2247,12 +2245,10 @@ std::string getAddonOptions()
     writeDoc(doc, "analogAdc2PinY", cleanPin(analogOptions.analogAdc2PinY));
     writeDoc(doc, "analogAdc2Mode", analogOptions.analogAdc2Mode);
     writeDoc(doc, "analogAdc2Invert", analogOptions.analogAdc2Invert);
-    writeDoc(doc, "forced_circularity", analogOptions.forced_circularity);
-    writeDoc(doc, "forced_circularity2", analogOptions.forced_circularity2);
+    // forced_circularity and forced_circularity2 removed - replaced by range calibration
     writeDoc(doc, "inner_deadzone", analogOptions.inner_deadzone);
     writeDoc(doc, "inner_deadzone2", analogOptions.inner_deadzone2);
-    writeDoc(doc, "outer_deadzone", analogOptions.outer_deadzone);
-    writeDoc(doc, "outer_deadzone2", analogOptions.outer_deadzone2);
+    // outer_deadzone and outer_deadzone2 removed - replaced by range calibration
     writeDoc(doc, "anti_deadzone", analogOptions.anti_deadzone);
     writeDoc(doc, "anti_deadzone2", analogOptions.anti_deadzone2);
     // Auto calibration removed - deprecated fields not written

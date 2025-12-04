@@ -127,9 +127,8 @@ typedef struct
     float smoothing_delta_max;
     float error_rate;
     float in_deadzone;
-    float out_deadzone;
+    // out_deadzone and forced_circularity removed - replaced by range calibration
     float anti_deadzone;
-    bool forced_circularity;
     uint32_t joystick_center_x;
     uint32_t joystick_center_y;
     float range_data[48];  // Circularity data for 48 angular positions
