@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Row, Col, Button, FormCheck } from 'react-bootstrap';
+import { Row, Col, Button, FormCheck, Modal, Table } from 'react-bootstrap';
 
 import Section from '../Components/Section';
 import StickCalibrationModal from '../Components/StickCalibrationModal';
@@ -169,6 +169,42 @@ const JoystickCalibration = ({
 	const [rightCircularityEnabled, setRightCircularityEnabled] = useState(false);
 	const [leftCircularityData, setLeftCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [rightCircularityData, setRightCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
+	const [showLeftRangeDataModal, setShowLeftRangeDataModal] = useState(false);
+	const [showRightRangeDataModal, setShowRightRangeDataModal] = useState(false);
+	const [leftRangeDataSnapshot, setLeftRangeDataSnapshot] = useState<number[]>([]);
+	const [rightRangeDataSnapshot, setRightRangeDataSnapshot] = useState<number[]>([]);
+	const [leftAngleIndexSnapshot, setLeftAngleIndexSnapshot] = useState(0);
+	const [rightAngleIndexSnapshot, setRightAngleIndexSnapshot] = useState(0);
+	
+	// Detailed data for display
+	const [leftStickDetailData, setLeftStickDetailData] = useState({
+		centerX: 0,
+		centerY: 0,
+		rawAdcX: 0,
+		rawAdcY: 0,
+		angleIndex: 0,
+		scale: 0,
+		offsetCenterX: 0,
+		offsetCenterY: 0,
+		scaledCenterX: 0,
+		scaledCenterY: 0,
+		normalizedX: 0,
+		normalizedY: 0,
+	});
+	const [rightStickDetailData, setRightStickDetailData] = useState({
+		centerX: 0,
+		centerY: 0,
+		rawAdcX: 0,
+		rawAdcY: 0,
+		angleIndex: 0,
+		scale: 0,
+		offsetCenterX: 0,
+		offsetCenterY: 0,
+		scaledCenterX: 0,
+		scaledCenterY: 0,
+		normalizedX: 0,
+		normalizedY: 0,
+	});
 
 	// Fetch joystick data periodically and update canvas
 	useEffect(() => {
@@ -184,16 +220,45 @@ const JoystickCalibration = ({
 					if (res1.ok) {
 						const data1 = await res1.json();
 						if (data1.success) {
-							// Convert raw ADC (0-4095) to normalized (-1 to 1)
 							const ADC_MAX = 4095;
-							const centerX = values.joystickCenterX || ADC_MAX / 2;
-							const centerY = values.joystickCenterY || ADC_MAX / 2;
+							const ADC_CENTER = ADC_MAX / 2;
+							const centerX = values.joystickCenterX || ADC_CENTER;
+							const centerY = values.joystickCenterY || ADC_CENTER;
 							
-							const normalizedX = ((data1.x - centerX) / (ADC_MAX / 2));
-							const normalizedY = ((data1.y - centerY) / (ADC_MAX / 2));
+							// Step 2: Coordinate translation (offset transformation)
+							const dX_value = centerX - ADC_CENTER;
+							const dY_value = centerY - ADC_CENTER;
+							const offset_x = data1.x - dX_value;
+							const offset_y = data1.y - dY_value;
 							
-							const stickX = Math.max(-1, Math.min(1, normalizedX));
-							const stickY = Math.max(-1, Math.min(1, normalizedY));
+							// Step 3: Move to adc_offset_center coordinate system
+							const offset_center_x = offset_x - ADC_CENTER;
+							const offset_center_y = offset_y - ADC_CENTER;
+							
+							// Calculate angle and get scale
+							const angle = Math.atan2(offset_center_y, offset_center_x);
+							const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
+							const rangeData = (values as any).joystickRangeData1 || [];
+							const scale = rangeData[angleIndex] > 0 ? rangeData[angleIndex] : 0;
+							
+							// Step 4: Apply scale
+							let scaled_center_x = 0;
+							let scaled_center_y = 0;
+							if (scale > 0 && (offset_center_x !== 0 || offset_center_y !== 0)) {
+								scaled_center_x = offset_center_x / scale;
+								scaled_center_y = offset_center_y / scale;
+							} else {
+								scaled_center_x = offset_center_x;
+								scaled_center_y = offset_center_y;
+							}
+							
+							// Step 6: Normalize
+							const normalizedX = scaled_center_x / ADC_MAX + 0.5;
+							const normalizedY = scaled_center_y / ADC_MAX + 0.5;
+							
+							// Convert to display format (-1 to 1)
+							const stickX = Math.max(-1, Math.min(1, (normalizedX - 0.5) * 2));
+							const stickY = Math.max(-1, Math.min(1, (normalizedY - 0.5) * 2));
 							
 							setLeftStickData({
 								x: stickX,
@@ -201,15 +266,31 @@ const JoystickCalibration = ({
 								rawX: data1.x,
 								rawY: data1.y,
 							});
+							
+							// Store detailed data
+							setLeftStickDetailData({
+								centerX: centerX,
+								centerY: centerY,
+								rawAdcX: data1.x,
+								rawAdcY: data1.y,
+								angleIndex: angleIndex,
+								scale: scale,
+								offsetCenterX: offset_center_x,
+								offsetCenterY: offset_center_y,
+								scaledCenterX: scaled_center_x,
+								scaledCenterY: scaled_center_y,
+								normalizedX: normalizedX,
+								normalizedY: normalizedY,
+							});
 
 							// Collect circularity data if enabled
 							if (leftCircularityEnabled) {
 								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-								const angleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
+								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
 								setLeftCircularityData(prev => {
 									const newData = [...prev];
-									const oldValue = newData[angleIndex] ?? 0;
-									newData[angleIndex] = Math.max(oldValue, distance);
+									const oldValue = newData[circAngleIndex] ?? 0;
+									newData[circAngleIndex] = Math.max(oldValue, distance);
 									return newData;
 								});
 							}
@@ -223,16 +304,45 @@ const JoystickCalibration = ({
 					if (res2.ok) {
 						const data2 = await res2.json();
 						if (data2.success) {
-							// Convert raw ADC (0-4095) to normalized (-1 to 1)
 							const ADC_MAX = 4095;
-							const centerX = values.joystickCenterX2 || ADC_MAX / 2;
-							const centerY = values.joystickCenterY2 || ADC_MAX / 2;
+							const ADC_CENTER = ADC_MAX / 2;
+							const centerX = values.joystickCenterX2 || ADC_CENTER;
+							const centerY = values.joystickCenterY2 || ADC_CENTER;
 							
-							const normalizedX = ((data2.x - centerX) / (ADC_MAX / 2));
-							const normalizedY = ((data2.y - centerY) / (ADC_MAX / 2));
+							// Step 2: Coordinate translation (offset transformation)
+							const dX_value = centerX - ADC_CENTER;
+							const dY_value = centerY - ADC_CENTER;
+							const offset_x = data2.x - dX_value;
+							const offset_y = data2.y - dY_value;
 							
-							const stickX = Math.max(-1, Math.min(1, normalizedX));
-							const stickY = Math.max(-1, Math.min(1, normalizedY));
+							// Step 3: Move to adc_offset_center coordinate system
+							const offset_center_x = offset_x - ADC_CENTER;
+							const offset_center_y = offset_y - ADC_CENTER;
+							
+							// Calculate angle and get scale
+							const angle = Math.atan2(offset_center_y, offset_center_x);
+							const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
+							const rangeData = (values as any).joystickRangeData2 || [];
+							const scale = rangeData[angleIndex] > 0 ? rangeData[angleIndex] : 0;
+							
+							// Step 4: Apply scale
+							let scaled_center_x = 0;
+							let scaled_center_y = 0;
+							if (scale > 0 && (offset_center_x !== 0 || offset_center_y !== 0)) {
+								scaled_center_x = offset_center_x / scale;
+								scaled_center_y = offset_center_y / scale;
+							} else {
+								scaled_center_x = offset_center_x;
+								scaled_center_y = offset_center_y;
+							}
+							
+							// Step 6: Normalize
+							const normalizedX = scaled_center_x / ADC_MAX + 0.5;
+							const normalizedY = scaled_center_y / ADC_MAX + 0.5;
+							
+							// Convert to display format (-1 to 1)
+							const stickX = Math.max(-1, Math.min(1, (normalizedX - 0.5) * 2));
+							const stickY = Math.max(-1, Math.min(1, (normalizedY - 0.5) * 2));
 							
 							setRightStickData({
 								x: stickX,
@@ -240,15 +350,31 @@ const JoystickCalibration = ({
 								rawX: data2.x,
 								rawY: data2.y,
 							});
+							
+							// Store detailed data
+							setRightStickDetailData({
+								centerX: centerX,
+								centerY: centerY,
+								rawAdcX: data2.x,
+								rawAdcY: data2.y,
+								angleIndex: angleIndex,
+								scale: scale,
+								offsetCenterX: offset_center_x,
+								offsetCenterY: offset_center_y,
+								scaledCenterX: scaled_center_x,
+								scaledCenterY: scaled_center_y,
+								normalizedX: normalizedX,
+								normalizedY: normalizedY,
+							});
 
 							// Collect circularity data if enabled
 							if (rightCircularityEnabled) {
 								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-								const angleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
+								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
 								setRightCircularityData(prev => {
 									const newData = [...prev];
-									const oldValue = newData[angleIndex] ?? 0;
-									newData[angleIndex] = Math.max(oldValue, distance);
+									const oldValue = newData[circAngleIndex] ?? 0;
+									newData[circAngleIndex] = Math.max(oldValue, distance);
 									return newData;
 								});
 							}
@@ -356,8 +482,17 @@ const JoystickCalibration = ({
 									Y: {leftStickData.rawY} ({leftStickData.y.toFixed(3)})
 								</div>
 							</div>
+							{/* Detailed data display */}
+							<div className="mt-2 small text-start" style={{ fontSize: '0.75rem', maxWidth: '200px', margin: '0 auto' }}>
+								<div>1. 原始中心: ({leftStickDetailData.centerX.toFixed(1)}, {leftStickDetailData.centerY.toFixed(1)})</div>
+								<div>2. 校准索引: {leftStickDetailData.angleIndex}, 缩放比: {leftStickDetailData.scale > 0 ? leftStickDetailData.scale.toFixed(4) : 'N/A'}</div>
+								<div>3. 原始ADC: ({leftStickDetailData.rawAdcX.toFixed(1)}, {leftStickDetailData.rawAdcY.toFixed(1)})</div>
+								<div>4. 平移后: ({leftStickDetailData.offsetCenterX.toFixed(1)}, {leftStickDetailData.offsetCenterY.toFixed(1)})</div>
+								<div>5. Scale后: ({leftStickDetailData.scaledCenterX.toFixed(1)}, {leftStickDetailData.scaledCenterY.toFixed(1)})</div>
+								<div>6. 归一化: ({leftStickDetailData.normalizedX.toFixed(4)}, {leftStickDetailData.normalizedY.toFixed(4)})</div>
+							</div>
 							{/* Left stick calibration buttons */}
-							<div className="mt-3 d-flex gap-2 justify-content-center">
+							<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="primary"
 									size="sm"
@@ -371,6 +506,19 @@ const JoystickCalibration = ({
 									onClick={() => setShowLeftRangeModal(true)}
 								>
 									{t('AddonsConfig:joystick-calibration-range-button')}
+								</Button>
+								<Button
+									variant="info"
+									size="sm"
+									onClick={() => {
+										const rangeData = (values as any)?.joystickRangeData1;
+										console.log('Left range data:', rangeData, 'Type:', typeof rangeData, 'IsArray:', Array.isArray(rangeData));
+										setLeftRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
+										setLeftAngleIndexSnapshot(leftStickDetailData.angleIndex);
+										setShowLeftRangeDataModal(true);
+									}}
+								>
+									查看校准数据
 								</Button>
 							</div>
 						</div>
@@ -405,8 +553,17 @@ const JoystickCalibration = ({
 									Y: {rightStickData.rawY} ({rightStickData.y.toFixed(3)})
 								</div>
 							</div>
+							{/* Detailed data display */}
+							<div className="mt-2 small text-start" style={{ fontSize: '0.75rem', maxWidth: '200px', margin: '0 auto' }}>
+								<div>1. 原始中心: ({rightStickDetailData.centerX.toFixed(1)}, {rightStickDetailData.centerY.toFixed(1)})</div>
+								<div>2. 校准索引: {rightStickDetailData.angleIndex}, 缩放比: {rightStickDetailData.scale > 0 ? rightStickDetailData.scale.toFixed(4) : 'N/A'}</div>
+								<div>3. 原始ADC: ({rightStickDetailData.rawAdcX.toFixed(1)}, {rightStickDetailData.rawAdcY.toFixed(1)})</div>
+								<div>4. 平移后: ({rightStickDetailData.offsetCenterX.toFixed(1)}, {rightStickDetailData.offsetCenterY.toFixed(1)})</div>
+								<div>5. Scale后: ({rightStickDetailData.scaledCenterX.toFixed(1)}, {rightStickDetailData.scaledCenterY.toFixed(1)})</div>
+								<div>6. 归一化: ({rightStickDetailData.normalizedX.toFixed(4)}, {rightStickDetailData.normalizedY.toFixed(4)})</div>
+							</div>
 							{/* Right stick calibration buttons */}
-							<div className="mt-3 d-flex gap-2 justify-content-center">
+							<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="primary"
 									size="sm"
@@ -420,6 +577,19 @@ const JoystickCalibration = ({
 									onClick={() => setShowRightRangeModal(true)}
 								>
 									{t('AddonsConfig:joystick-calibration-range-button')}
+								</Button>
+								<Button
+									variant="info"
+									size="sm"
+									onClick={() => {
+										const rangeData = (values as any)?.joystickRangeData2;
+										console.log('Right range data:', rangeData);
+										setRightRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
+										setRightAngleIndexSnapshot(rightStickDetailData.angleIndex);
+										setShowRightRangeDataModal(true);
+									}}
+								>
+									查看校准数据
 								</Button>
 							</div>
 						</div>
@@ -472,6 +642,91 @@ const JoystickCalibration = ({
 				centerX={values?.joystickCenterX2}
 				centerY={values?.joystickCenterY2}
 			/>
+			
+			{/* Range Data Detail Modals */}
+			<Modal show={showLeftRangeDataModal} onHide={() => setShowLeftRangeDataModal(false)} size="lg">
+				<Modal.Header closeButton>
+					<Modal.Title>左摇杆外圈校准数据</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<div className="mb-3">
+						<strong>摇杆中心数据:</strong> ({leftStickDetailData.centerX.toFixed(1)}, {leftStickDetailData.centerY.toFixed(1)})
+					</div>
+					<div className="mb-2 small text-muted">
+						数据条目数: {leftRangeDataSnapshot.length} / {CIRCULARITY_DATA_SIZE}
+					</div>
+					<Table striped bordered hover size="sm">
+						<thead>
+							<tr>
+								<th>序号</th>
+								<th>角度范围</th>
+								<th>缩放比</th>
+							</tr>
+						</thead>
+						<tbody>
+							{Array.from({ length: CIRCULARITY_DATA_SIZE }, (_, index) => {
+								const scale = leftRangeDataSnapshot[index];
+								const angleStart = ((index * 360 / CIRCULARITY_DATA_SIZE) - 180).toFixed(1);
+								const angleEnd = (((index + 1) * 360 / CIRCULARITY_DATA_SIZE) - 180).toFixed(1);
+								return (
+									<tr key={index} className={index === leftAngleIndexSnapshot ? 'table-primary' : ''}>
+										<td>{index}</td>
+										<td>{angleStart}° ~ {angleEnd}°</td>
+										<td>{scale !== undefined && scale !== null && scale > 0 ? scale.toFixed(4) : 'N/A'}</td>
+									</tr>
+								);
+							})}
+						</tbody>
+					</Table>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowLeftRangeDataModal(false)}>
+						关闭
+					</Button>
+				</Modal.Footer>
+			</Modal>
+			
+			<Modal show={showRightRangeDataModal} onHide={() => setShowRightRangeDataModal(false)} size="lg">
+				<Modal.Header closeButton>
+					<Modal.Title>右摇杆外圈校准数据</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<div className="mb-3">
+						<strong>摇杆中心数据:</strong> ({rightStickDetailData.centerX.toFixed(1)}, {rightStickDetailData.centerY.toFixed(1)})
+					</div>
+					<div className="mb-2 small text-muted">
+						数据条目数: {rightRangeDataSnapshot.length} / {CIRCULARITY_DATA_SIZE}
+					</div>
+					<Table striped bordered hover size="sm">
+						<thead>
+							<tr>
+								<th>序号</th>
+								<th>角度范围</th>
+								<th>缩放比</th>
+							</tr>
+						</thead>
+						<tbody>
+							{Array.from({ length: CIRCULARITY_DATA_SIZE }, (_, index) => {
+								const scale = rightRangeDataSnapshot[index];
+								const angleStart = ((index * 360 / CIRCULARITY_DATA_SIZE) - 180).toFixed(1);
+								const angleEnd = (((index + 1) * 360 / CIRCULARITY_DATA_SIZE) - 180).toFixed(1);
+								return (
+									<tr key={index} className={index === rightAngleIndexSnapshot ? 'table-primary' : ''}>
+										<td>{index}</td>
+										<td>{angleStart}° ~ {angleEnd}°</td>
+										<td>{scale !== undefined && scale !== null && scale > 0 ? scale.toFixed(4) : 'N/A'}</td>
+									</tr>
+								);
+							})}
+						</tbody>
+					</Table>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowRightRangeDataModal(false)}>
+						关闭
+					</Button>
+				</Modal.Footer>
+			</Modal>
 		</Section>
 	);
 };

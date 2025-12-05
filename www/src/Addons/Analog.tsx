@@ -136,6 +136,14 @@ export const analogScheme = {
 		.number()
 		.label('Joystick Center Y2')
 		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
+	joystickRangeData1: yup
+		.array()
+		.of(yup.number())
+		.label('Joystick Range Data 1'),
+	joystickRangeData2: yup
+		.array()
+		.of(yup.number())
+		.label('Joystick Range Data 2'),
 };
 
 export const analogState = {
@@ -159,6 +167,8 @@ export const analogState = {
 	joystickCenterY: 0,
 	joystickCenterX2: 0,
 	joystickCenterY2: 0,
+	joystickRangeData1: [],
+	joystickRangeData2: [],
 	analog_smoothing: 0,
 	analog_smoothing2: 0,
 	smoothing_factor: 15,

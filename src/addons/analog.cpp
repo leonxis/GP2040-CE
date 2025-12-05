@@ -117,43 +117,115 @@ void AnalogInput::process() {
         joystickMax = joystickMid * 2; // 0x8000 mid must be 0x10000 max, but we reduce by 1 if we're maxed out
     }
 
+    const float ADC_CENTER = ADC_MAX / 2.0f;  // 2047.5
+
     for(int i = 0; i < ADC_COUNT; i++) {
-        // Read X-Axis
+        // Step 1: Read raw ADC values (0-4095)
+        float adc_x = 0.0f;
+        float adc_y = 0.0f;
+        
         if (isValidPin(adc_pairs[i].x_pin)) {
-            adc_pairs[i].x_value = readPin(i, adc_pairs[i].x_pin_adc, adc_pairs[i].x_center);
-            if (adc_pairs[i].analog_invert == InvertMode::INVERT_X || 
-                adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
-                adc_pairs[i].x_value = ANALOG_MAX - adc_pairs[i].x_value;
-            }
-            if (adc_pairs[i].ema_option) {
-                adc_pairs[i].x_value = emaCalculation(i, adc_pairs[i].x_value, adc_pairs[i].x_ema);
-                adc_pairs[i].x_ema = adc_pairs[i].x_value;
-            }
+            adc_x = readPin(i, adc_pairs[i].x_pin_adc, adc_pairs[i].x_center);
         }
-        // Read Y-Axis
         if (isValidPin(adc_pairs[i].y_pin)) {
-            adc_pairs[i].y_value = readPin(i, adc_pairs[i].y_pin_adc, adc_pairs[i].y_center);
-            if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
-                adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
-                adc_pairs[i].y_value = ANALOG_MAX - adc_pairs[i].y_value;
-            }
-            if (adc_pairs[i].ema_option) {
-                adc_pairs[i].y_value = emaCalculation(i, adc_pairs[i].y_value, adc_pairs[i].y_ema);
-                adc_pairs[i].y_ema = adc_pairs[i].y_value;
-            }
-        }
-        // Look for dead-zones and circularity
-        adc_pairs[i].xy_magnitude = magnitudeCalculation(i, adc_pairs[i]);
-        if (adc_pairs[i].xy_magnitude < adc_pairs[i].in_deadzone) {
-            adc_pairs[i].x_value = ANALOG_CENTER;
-            adc_pairs[i].y_value = ANALOG_CENTER;
-        } else {
-            radialDeadzone(i, adc_pairs[i]);
+            adc_y = readPin(i, adc_pairs[i].y_pin_adc, adc_pairs[i].y_center);
         }
 
-        // If MID is 0x8000, clamp our max to 0xFFFF incase we are at 0x10000. 0x7FFF will max at 0xFFFE
-        uint16_t clampedX = (uint16_t)std::min((uint32_t)(joystickMax * std::min(adc_pairs[i].x_value, 1.0f)), (uint32_t)0xFFFF);
-        uint16_t clampedY = (uint16_t)std::min((uint32_t)(joystickMax * std::min(adc_pairs[i].y_value, 1.0f)), (uint32_t)0xFFFF);
+        // Step 2: Coordinate translation (offset transformation)
+        // Calculate center offset values
+        float dX_value = (float)adc_pairs[i].x_center - ADC_CENTER;
+        float dY_value = (float)adc_pairs[i].y_center - ADC_CENTER;
+        
+        // Apply offset transformation
+        float offset_x = adc_x - dX_value;  // adc_offset coordinate system
+        float offset_y = adc_y - dY_value;  // adc_offset coordinate system
+
+        // Step 3: Move to adc_offset_center coordinate system
+        float offset_center_x = offset_x - ADC_CENTER;
+        float offset_center_y = offset_y - ADC_CENTER;
+
+        // Step 4: Range calibration scaling (radial scaling)
+        float current_distance = std::sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
+        float angle = std::atan2(offset_center_y, offset_center_x);
+        float scale = getInterpolatedScale(i, angle);
+        
+        float scaled_center_x = 0.0f;
+        float scaled_center_y = 0.0f;
+        
+        if (scale > 0.0f && current_distance > 0.0f) {
+            // Apply radial scaling
+            scaled_center_x = offset_center_x / scale;
+            scaled_center_y = offset_center_y / scale;
+        } else {
+            // No calibration data, use raw data
+            scaled_center_x = offset_center_x;
+            scaled_center_y = offset_center_y;
+        }
+
+        // Step 5: Inverse transformation back to ADC coordinate system
+        float scaled_x = scaled_center_x + ADC_CENTER;
+        float scaled_y = scaled_center_y + ADC_CENTER;
+
+        // Step 6: Normalize to [0.0, 1.0] range
+        float x_value = scaled_center_x / ADC_MAX + ANALOG_CENTER;
+        float y_value = scaled_center_y / ADC_MAX + ANALOG_CENTER;
+
+        // Apply inversion if needed
+        if (adc_pairs[i].analog_invert == InvertMode::INVERT_X || 
+            adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
+            x_value = ANALOG_MAX - x_value;
+        }
+        if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
+            adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
+            y_value = ANALOG_MAX - y_value;
+        }
+
+        // Apply EMA smoothing if enabled
+        if (adc_pairs[i].ema_option) {
+            x_value = emaCalculation(i, x_value, adc_pairs[i].x_ema);
+            y_value = emaCalculation(i, y_value, adc_pairs[i].y_ema);
+            adc_pairs[i].x_ema = x_value;
+            adc_pairs[i].y_ema = y_value;
+        }
+
+        // Apply inner deadzone
+        float x_magnitude = x_value - ANALOG_CENTER;
+        float y_magnitude = y_value - ANALOG_CENTER;
+        float distance = std::sqrt(x_magnitude * x_magnitude + y_magnitude * y_magnitude);
+        
+        if (distance < adc_pairs[i].in_deadzone) {
+            x_value = ANALOG_CENTER;
+            y_value = ANALOG_CENTER;
+        } else {
+            // Apply anti-deadzone if needed
+            if (adc_pairs[i].anti_deadzone > 0.0f && distance > 0.0f) {
+                float normalized = std::min(distance / ANALOG_CENTER, 1.0f);
+                float baseline = std::clamp(adc_pairs[i].anti_deadzone, 0.0f, 1.0f);
+                if (normalized < baseline) {
+                    float targetLength = baseline * ANALOG_CENTER;
+                    float scale_factor = targetLength / distance;
+                    x_magnitude *= scale_factor;
+                    y_magnitude *= scale_factor;
+                    x_value = std::clamp(x_magnitude + ANALOG_CENTER, ANALOG_MINIMUM, ANALOG_MAX);
+                    y_value = std::clamp(y_magnitude + ANALOG_CENTER, ANALOG_MINIMUM, ANALOG_MAX);
+                }
+            }
+        }
+
+        // Clamp to valid range
+        x_value = std::clamp(x_value, ANALOG_MINIMUM, ANALOG_MAX);
+        y_value = std::clamp(y_value, ANALOG_MINIMUM, ANALOG_MAX);
+
+        // Store values for magnitude calculation
+        adc_pairs[i].x_value = x_value;
+        adc_pairs[i].y_value = y_value;
+        adc_pairs[i].x_magnitude = x_magnitude;
+        adc_pairs[i].y_magnitude = y_magnitude;
+        adc_pairs[i].xy_magnitude = distance;
+
+        // Convert to gamepad protocol format
+        uint16_t clampedX = (uint16_t)std::min((uint32_t)(joystickMax * std::min(x_value, 1.0f)), (uint32_t)0xFFFF);
+        uint16_t clampedY = (uint16_t)std::min((uint32_t)(joystickMax * std::min(y_value, 1.0f)), (uint32_t)0xFFFF);
 
         if (adc_pairs[i].analog_dpad == DpadMode::DPAD_MODE_LEFT_ANALOG) {
             gamepad->state.lx = clampedX;
@@ -168,17 +240,9 @@ void AnalogInput::process() {
 float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t center) {
     adc_select_input(pin_adc);
     uint16_t adc_value = adc_read();
-    // Apply calibration if manual calibration has been performed (center value is not 0)
-    if (center != 0) {
-        if (adc_value > center) {
-            adc_value = map(adc_value, center, ADC_MAX, ADC_MAX / 2, ADC_MAX);
-        } else if (adc_value == center) {
-            adc_value = ADC_MAX / 2;
-        } else {
-            adc_value = map(adc_value, 0, center, 0, ADC_MAX / 2);
-        }
-    }
-    return ((float)adc_value) / ADC_MAX;
+    // Return raw ADC value (0-4095) as float
+    // Coordinate transformation will be done in process() function
+    return (float)adc_value;
 }
 
 float AnalogInput::emaCalculation(int stick_num, float ema_value, float ema_previous) {
@@ -220,12 +284,12 @@ float AnalogInput::magnitudeCalculation(int stick_num, adc_instance & adc_inst) 
 }
 
 /**
- * Interpolate maximum radius for a given angle using range calibration data
+ * Get interpolated scale for a given angle using range calibration data
  * @param stick_num Stick number (0 or 1)
  * @param angle Angle in radians (-PI to PI)
- * @return Maximum radius (0.0 to 1.0), or 0.0 if no calibration data
+ * @return Scale value (ratio of actual outer radius to standard radius), or 0.0 if no calibration data
  */
-float AnalogInput::getInterpolatedMaxRadius(int stick_num, float angle) {
+float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
     const float* range_data = adc_pairs[stick_num].range_data;
     const int CIRCULARITY_DATA_SIZE = 48;
     
@@ -238,7 +302,7 @@ float AnalogInput::getInterpolatedMaxRadius(int stick_num, float angle) {
         }
     }
     if (!hasData) {
-        return 0.0f;  // No calibration data, use default behavior
+        return 0.0f;  // No calibration data
     }
     
     // Convert angle from [-PI, PI] to [0, 2*PI] then to [0, CIRCULARITY_DATA_SIZE]
@@ -257,50 +321,9 @@ float AnalogInput::getInterpolatedMaxRadius(int stick_num, float angle) {
     return r0 * (1.0f - t) + r1 * t;
 }
 
+// radialDeadzone function is no longer needed - coordinate transformation and scaling
+// are now handled directly in process() function
 void AnalogInput::radialDeadzone(int stick_num, adc_instance & adc_inst) {
-    // Calculate current distance from center
-    float current_distance = std::sqrt((adc_inst.x_magnitude * adc_inst.x_magnitude) + (adc_inst.y_magnitude * adc_inst.y_magnitude));
-    
-    // Check if range calibration data is available and apply angle-based limit
-    float max_radius = getInterpolatedMaxRadius(stick_num, std::atan2(adc_inst.y_magnitude, adc_inst.x_magnitude));
-    bool has_range_calibration = (max_radius > 0.0f);
-    
-    if (has_range_calibration) {
-        // With range calibration: apply angle-based limit only
-        if (current_distance > max_radius) {
-            // Scale down to fit within calibrated range
-            float scale = max_radius / current_distance;
-            adc_inst.x_magnitude *= scale;
-            adc_inst.y_magnitude *= scale;
-            current_distance = max_radius;
-        }
-        // Use calibrated distance directly (no additional scaling or error_rate)
-        // Convert magnitude back to normalized value
-        adc_inst.x_value = adc_inst.x_magnitude + ANALOG_CENTER;
-        adc_inst.y_value = adc_inst.y_magnitude + ANALOG_CENTER;
-    } else {
-        // Without range calibration: use raw data directly, no scaling
-        // Simply convert magnitude back to value
-        adc_inst.x_value = adc_inst.x_magnitude + ANALOG_CENTER;
-        adc_inst.y_value = adc_inst.y_magnitude + ANALOG_CENTER;
-    }
-    adc_inst.x_value = std::clamp(adc_inst.x_value, ANALOG_MINIMUM, ANALOG_MAX);
-    adc_inst.y_value = std::clamp(adc_inst.y_value, ANALOG_MINIMUM, ANALOG_MAX);
-    if (adc_pairs[stick_num].anti_deadzone > 0.0f) {
-        float x_component = adc_inst.x_value - ANALOG_CENTER;
-        float y_component = adc_inst.y_value - ANALOG_CENTER;
-        float length = std::sqrt((x_component * x_component) + (y_component * y_component));
-        if (length > 0.0f) {
-            float normalized = std::min(length / ANALOG_CENTER, 1.0f);
-            float baseline = std::clamp(adc_pairs[stick_num].anti_deadzone, 0.0f, 1.0f);
-            if (normalized < baseline) {
-                float targetLength = baseline * ANALOG_CENTER;
-                float scale = targetLength / length;
-                x_component *= scale;
-                y_component *= scale;
-                adc_inst.x_value = std::clamp(x_component + ANALOG_CENTER, ANALOG_MINIMUM, ANALOG_MAX);
-                adc_inst.y_value = std::clamp(y_component + ANALOG_CENTER, ANALOG_MINIMUM, ANALOG_MAX);
-            }
-        }
-    }
+    // This function is kept for compatibility but is no longer used
+    // All coordinate transformation and scaling logic is now in process()
 }

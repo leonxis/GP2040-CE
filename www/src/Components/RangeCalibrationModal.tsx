@@ -14,7 +14,7 @@ interface RangeCalibrationModalProps {
 
 const CIRCULARITY_DATA_SIZE = 48;
 const REQUIRED_FULL_CYCLES = 4; // Number of full rotations required
-const JOYSTICK_EXTREME_THRESHOLD = 0.85; // Minimum distance to count as valid data (must be pushed to extreme)
+const JOYSTICK_EXTREME_THRESHOLD = 0.85; // Minimum scale to count as valid data (must be pushed to extreme)
 const CIRCLE_FILL_THRESHOLD = 0.95; // Percentage of angles that must have data to complete a cycle
 
 const RangeCalibrationModal = ({
@@ -95,35 +95,49 @@ const RangeCalibrationModal = ({
 
 			// Get center values from props or use default
 			const ADC_MAX = 4095;
-			const centerXValue = centerX !== undefined ? centerX : ADC_MAX / 2;
-			const centerYValue = centerY !== undefined ? centerY : ADC_MAX / 2;
+			const ADC_CENTER = ADC_MAX / 2;  // 2047.5
+			const centerXValue = centerX !== undefined ? centerX : ADC_CENTER;
+			const centerYValue = centerY !== undefined ? centerY : ADC_CENTER;
 			
-			// Convert raw ADC to normalized (-1 to 1)
-			const stickX = ((data.x - centerXValue) / (ADC_MAX / 2));
-			const stickY = ((data.y - centerYValue) / (ADC_MAX / 2));
+			// Step 2: Coordinate translation (offset transformation)
+			// Calculate center offset values
+			const dX_value = centerXValue - ADC_CENTER;
+			const dY_value = centerYValue - ADC_CENTER;
 			
-			// Calculate distance and angle
-			const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-			const angle = Math.atan2(stickY, stickX);
+			// Apply offset transformation
+			const offset_x = data.x - dX_value;  // adc_offset coordinate system
+			const offset_y = data.y - dY_value;  // adc_offset coordinate system
+			
+			// Step 3: Move to adc_offset_center coordinate system
+			const offset_center_x = offset_x - ADC_CENTER;
+			const offset_center_y = offset_y - ADC_CENTER;
+			
+			// Calculate distance and angle in adc_offset_center coordinate system
+			const distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
+			const angle = Math.atan2(offset_center_y, offset_center_x);
+			
+			// Calculate scale: distance / standard_outer_radius (ADC_CENTER = 2047.5)
+			const scale = distance / ADC_CENTER;
 			
 			// Only collect data if stick is pushed to extreme (near maximum range)
-			if (distance > JOYSTICK_EXTREME_THRESHOLD) {
+			// Check if scale is above threshold (scale = distance / ADC_CENTER)
+			if (scale > JOYSTICK_EXTREME_THRESHOLD) {
 				// Calculate angle index (0 to CIRCULARITY_DATA_SIZE-1)
 				const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
 				
-				// Update current cycle data (keep maximum distance for each angle in this cycle)
+				// Update current cycle data (keep maximum scale for each angle in this cycle)
 				const oldCycleValue = cycleDataRef.current[angleIndex] || 0;
-				if (distance > oldCycleValue) {
-					cycleDataRef.current[angleIndex] = distance;
+				if (scale > oldCycleValue) {
+					cycleDataRef.current[angleIndex] = scale;
 					// Also update accumulated max values
 					const oldMaxValue = rangeDataRef.current[angleIndex] || 0;
-					if (distance > oldMaxValue) {
-						rangeDataRef.current[angleIndex] = distance;
+					if (scale > oldMaxValue) {
+						rangeDataRef.current[angleIndex] = scale;
 					}
 				}
 			}
 			
-			// Check progress: count how many angles have data above threshold in current cycle
+			// Check progress: count how many angles have scale above threshold in current cycle
 			const currentNonZeroCount = cycleDataRef.current.filter(v => v > JOYSTICK_EXTREME_THRESHOLD).length;
 			const fillRatio = currentNonZeroCount / CIRCULARITY_DATA_SIZE;
 			

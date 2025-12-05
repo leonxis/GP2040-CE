@@ -170,6 +170,10 @@ const sanitizeData = (values) => {
 	for (const prop in Object.keys(values).filter(
 		(key) => !!!key.includes('keyboardHostMap'),
 	)) {
+		// Skip arrays - don't convert them to integers
+		if (Array.isArray(values[prop])) {
+			continue;
+		}
 		if (!!values[prop]) values[prop] = parseInt(values[prop]);
 	}
 };
@@ -180,7 +184,10 @@ function flattenObject(object) {
 	for (var i in object) {
 		if (!object.hasOwnProperty(i)) continue;
 
-		if (typeof object[i] == 'object' && object[i] !== null) {
+		// Handle arrays - keep them as arrays, don't flatten
+		if (Array.isArray(object[i])) {
+			toReturn[i] = object[i];
+		} else if (typeof object[i] == 'object' && object[i] !== null) {
 			var flatObject = flattenObject(object[i]);
 			for (var x in flatObject) {
 				if (!flatObject.hasOwnProperty(x)) continue;
@@ -220,8 +227,22 @@ export default function AddonsConfigPage() {
 		Object.entries(flattened)?.map((entry) => {
 			const [key, oldVal] = entry;
 			const newVal = get(valuesSchema, key);
-			if (newVal !== oldVal) {
+			// For arrays, use deep comparison
+			if (Array.isArray(newVal) && Array.isArray(oldVal)) {
+				if (JSON.stringify(newVal) !== JSON.stringify(oldVal)) {
+					set(resultObject, key, newVal);
+				}
+			} else if (newVal !== oldVal) {
 				set(resultObject, key, newVal);
+			}
+		});
+		// Also check for array fields that might not be in flattened (if they were empty before)
+		const arrayFields = ['joystickRangeData1', 'joystickRangeData2'];
+		arrayFields.forEach(field => {
+			const newVal = get(valuesSchema, field);
+			const oldVal = get(flattened, field);
+			if (Array.isArray(newVal) && (!Array.isArray(oldVal) || JSON.stringify(newVal) !== JSON.stringify(oldVal))) {
+				set(resultObject, field, newVal);
 			}
 		});
 		sanitizeData(resultObject);

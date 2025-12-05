@@ -149,7 +149,7 @@ private:
     uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
     float magnitudeCalculation(int stick_num, adc_instance & adc_inst);
     void radialDeadzone(int stick_num, adc_instance & adc_inst);
-    float getInterpolatedMaxRadius(int stick_num, float angle);
+    float getInterpolatedScale(int stick_num, float angle);
     adc_instance adc_pairs[ADC_COUNT];
 };
 
