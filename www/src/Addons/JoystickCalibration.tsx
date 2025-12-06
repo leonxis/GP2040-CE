@@ -46,7 +46,12 @@ const drawStickPosition = (
 	rawX: number, // Raw ADC value
 	rawY: number, // Raw ADC value
 	circularityData?: number[] | null,
+	zoom10x: boolean = false, // If true, display range is -0.1 to 0.1
 ) => {
+	// Apply zoom if enabled
+	const displayStickX = zoom10x ? stickX * 10 : stickX;
+	const displayStickY = zoom10x ? stickY * 10 : stickY;
+	const displayRadius = zoom10x ? radius * 0.1 : radius;
 	// Fill entire canvas with white background
 	ctx.fillStyle = '#ffffff';
 	ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -73,15 +78,25 @@ const drawStickPosition = (
 			const ka = i * Math.PI * 2 / MAX_N;
 			const ka1 = ((i + 1) % MAX_N) * 2 * Math.PI / MAX_N;
 
-			const kx = Math.cos(ka) * kd;
-			const ky = Math.sin(ka) * kd;
-			const kx1 = Math.cos(ka1) * kd1;
-			const ky1 = Math.sin(ka1) * kd1;
+			// Apply zoom if enabled - circularity data is normalized distance (0-1)
+			// In zoom mode, we scale the distance to fit the -0.1 to 0.1 range
+			let displayKd = kd;
+			let displayKd1 = kd1;
+			if (zoom10x) {
+				// Scale distance from 0-1 range to 0-0.1 range for zoom display
+				displayKd = kd * 0.1;
+				displayKd1 = kd1 * 0.1;
+			}
+
+			const kx = Math.cos(ka) * displayKd;
+			const ky = Math.sin(ka) * displayKd;
+			const kx1 = Math.cos(ka1) * displayKd1;
+			const ky1 = Math.sin(ka1) * displayKd1;
 
 			ctx.beginPath();
 			ctx.moveTo(centerX, centerY);
-			ctx.lineTo(centerX + kx * radius, centerY + ky * radius);
-			ctx.lineTo(centerX + kx1 * radius, centerY + ky1 * radius);
+			ctx.lineTo(centerX + kx * displayRadius, centerY + ky * displayRadius);
+			ctx.lineTo(centerX + kx1 * displayRadius, centerY + ky1 * displayRadius);
 			ctx.lineTo(centerX, centerY);
 			ctx.closePath();
 
@@ -112,20 +127,31 @@ const drawStickPosition = (
 	ctx.lineWidth = 2;
 	ctx.beginPath();
 	ctx.moveTo(centerX, centerY);
-	ctx.lineTo(centerX + stickX * radius, centerY + stickY * radius);
+	ctx.lineTo(centerX + displayStickX * displayRadius, centerY + displayStickY * displayRadius);
 	ctx.stroke();
 
 	// Draw filled circle at stick position
 	ctx.beginPath();
 	ctx.arc(
-		centerX + stickX * radius,
-		centerY + stickY * radius,
+		centerX + displayStickX * displayRadius,
+		centerY + displayStickY * displayRadius,
 		4,
 		0,
 		2 * Math.PI,
 	);
 	ctx.fillStyle = '#030b84ff';
 	ctx.fill();
+	
+	// Draw zoom indicator circle if zoom is enabled
+	if (zoom10x) {
+		ctx.strokeStyle = '#ff0000';
+		ctx.lineWidth = 1;
+		ctx.setLineDash([5, 5]);
+		ctx.beginPath();
+		ctx.arc(centerX, centerY, displayRadius, 0, 2 * Math.PI);
+		ctx.stroke();
+		ctx.setLineDash([]);
+	}
 
 	// Draw center point
 	ctx.beginPath();
@@ -159,14 +185,20 @@ const JoystickCalibration = ({
 	const { t } = useTranslation();
 	const leftStickCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightStickCanvasRef = useRef<HTMLCanvasElement>(null);
-	const [leftStickData, setLeftStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0 });
-	const [rightStickData, setRightStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0 });
+	const [leftStickData, setLeftStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0, normalizedX: 0, normalizedY: 0 });
+	const [rightStickData, setRightStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0, normalizedX: 0, normalizedY: 0 });
 	const [showLeftCalibrationModal, setShowLeftCalibrationModal] = useState(false);
 	const [showRightCalibrationModal, setShowRightCalibrationModal] = useState(false);
 	const [showLeftRangeModal, setShowLeftRangeModal] = useState(false);
 	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
+	const [showLeftFinetuneCenterModal, setShowLeftFinetuneCenterModal] = useState(false);
+	const [showRightFinetuneCenterModal, setShowRightFinetuneCenterModal] = useState(false);
+	const [showLeftFinetuneShapeModal, setShowLeftFinetuneShapeModal] = useState(false);
+	const [showRightFinetuneShapeModal, setShowRightFinetuneShapeModal] = useState(false);
 	const [leftCircularityEnabled, setLeftCircularityEnabled] = useState(false);
 	const [rightCircularityEnabled, setRightCircularityEnabled] = useState(false);
+	const [leftZoom10x, setLeftZoom10x] = useState(false);
+	const [rightZoom10x, setRightZoom10x] = useState(false);
 	const [leftCircularityData, setLeftCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [rightCircularityData, setRightCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [showLeftRangeDataModal, setShowLeftRangeDataModal] = useState(false);
@@ -265,6 +297,8 @@ const JoystickCalibration = ({
 								y: stickY,
 								rawX: data1.x,
 								rawY: data1.y,
+								normalizedX: normalizedX,
+								normalizedY: normalizedY,
 							});
 							
 							// Store detailed data
@@ -349,6 +383,8 @@ const JoystickCalibration = ({
 								y: stickY,
 								rawX: data2.x,
 								rawY: data2.y,
+								normalizedX: normalizedX,
+								normalizedY: normalizedY,
 							});
 							
 							// Store detailed data
@@ -416,6 +452,7 @@ const JoystickCalibration = ({
 						leftStickData.rawX,
 						leftStickData.rawY,
 						leftCircularityEnabled ? leftCircularityData : null,
+						leftZoom10x,
 					);
 				}
 			}
@@ -439,13 +476,14 @@ const JoystickCalibration = ({
 						rightStickData.rawX,
 						rightStickData.rawY,
 						rightCircularityEnabled ? rightCircularityData : null,
+						rightZoom10x,
 					);
 				}
 			}
 		};
 
 		updateCanvas();
-	}, [leftStickData, rightStickData, leftCircularityData, rightCircularityData, leftCircularityEnabled, rightCircularityEnabled]);
+	}, [leftStickData, rightStickData, leftCircularityData, rightCircularityData, leftCircularityEnabled, rightCircularityEnabled, leftZoom10x, rightZoom10x]);
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
@@ -467,32 +505,30 @@ const JoystickCalibration = ({
 										}
 									}}
 								/>
+								<FormCheck
+									type="switch"
+									id="leftZoom10xToggle"
+									label={t('AddonsConfig:joystick-calibration-zoom-10x')}
+									checked={leftZoom10x}
+									onChange={(e) => setLeftZoom10x(e.target.checked)}
+								/>
 							</div>
 							<canvas
 								ref={leftStickCanvasRef}
-								width={200}
-								height={200}
+								width={300}
+								height={300}
 								style={{ border: '1px solid #ccc', borderRadius: '4px' }}
 							/>
 							<div className="mt-2 small">
 								<div>
-									X: {leftStickData.rawX} ({leftStickData.x.toFixed(3)})
+									X: {leftStickData.rawX} (DS4: {Math.max(1, Math.min(255, Math.round(leftStickData.normalizedX * 254) + 1))})
 								</div>
 								<div>
-									Y: {leftStickData.rawY} ({leftStickData.y.toFixed(3)})
+									Y: {leftStickData.rawY} (DS4: {Math.max(1, Math.min(255, Math.round(leftStickData.normalizedY * 254) + 1))})
 								</div>
 							</div>
-							{/* Detailed data display */}
-							<div className="mt-2 small text-start" style={{ fontSize: '0.75rem', maxWidth: '200px', margin: '0 auto' }}>
-								<div>1. 原始中心: ({leftStickDetailData.centerX.toFixed(1)}, {leftStickDetailData.centerY.toFixed(1)})</div>
-								<div>2. 校准索引: {leftStickDetailData.angleIndex}, 缩放比: {leftStickDetailData.scale > 0 ? leftStickDetailData.scale.toFixed(4) : 'N/A'}</div>
-								<div>3. 原始ADC: ({leftStickDetailData.rawAdcX.toFixed(1)}, {leftStickDetailData.rawAdcY.toFixed(1)})</div>
-								<div>4. 平移后: ({leftStickDetailData.offsetCenterX.toFixed(1)}, {leftStickDetailData.offsetCenterY.toFixed(1)})</div>
-								<div>5. Scale后: ({leftStickDetailData.scaledCenterX.toFixed(1)}, {leftStickDetailData.scaledCenterY.toFixed(1)})</div>
-								<div>6. 归一化: ({leftStickDetailData.normalizedX.toFixed(4)}, {leftStickDetailData.normalizedY.toFixed(4)})</div>
-							</div>
 							{/* Left stick calibration buttons */}
-							<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
+							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="primary"
 									size="sm"
@@ -507,6 +543,35 @@ const JoystickCalibration = ({
 								>
 									{t('AddonsConfig:joystick-calibration-range-button')}
 								</Button>
+							</div>
+							{/* Finetune buttons - yellow color */}
+							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+								<Button
+									variant="warning"
+									size="sm"
+									onClick={() => setShowLeftFinetuneCenterModal(true)}
+								>
+									{t('AddonsConfig:joystick-calibration-finetune-center-button')}
+								</Button>
+								<Button
+									variant="warning"
+									size="sm"
+									onClick={() => setShowLeftFinetuneShapeModal(true)}
+								>
+									{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
+								</Button>
+							</div>
+							{/* Detailed data display */}
+							<div className="mt-2 small text-start" style={{ fontSize: '0.75rem', maxWidth: '300px', margin: '0 auto' }}>
+								<div>1. 原始中心: ({leftStickDetailData.centerX.toFixed(1)}, {leftStickDetailData.centerY.toFixed(1)})</div>
+								<div>2. 校准索引: {leftStickDetailData.angleIndex}, 缩放比: {leftStickDetailData.scale > 0 ? leftStickDetailData.scale.toFixed(4) : 'N/A'}</div>
+								<div>3. 原始ADC: ({leftStickDetailData.rawAdcX.toFixed(1)}, {leftStickDetailData.rawAdcY.toFixed(1)})</div>
+								<div>4. 平移后: ({leftStickDetailData.offsetCenterX.toFixed(1)}, {leftStickDetailData.offsetCenterY.toFixed(1)})</div>
+								<div>5. Scale后: ({leftStickDetailData.scaledCenterX.toFixed(1)}, {leftStickDetailData.scaledCenterY.toFixed(1)})</div>
+								<div>6. 归一化: ({leftStickDetailData.normalizedX.toFixed(4)}, {leftStickDetailData.normalizedY.toFixed(4)})</div>
+							</div>
+							{/* View calibration data button */}
+							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="info"
 									size="sm"
@@ -538,32 +603,30 @@ const JoystickCalibration = ({
 										}
 									}}
 								/>
+								<FormCheck
+									type="switch"
+									id="rightZoom10xToggle"
+									label={t('AddonsConfig:joystick-calibration-zoom-10x')}
+									checked={rightZoom10x}
+									onChange={(e) => setRightZoom10x(e.target.checked)}
+								/>
 							</div>
 							<canvas
 								ref={rightStickCanvasRef}
-								width={200}
-								height={200}
+								width={300}
+								height={300}
 								style={{ border: '1px solid #ccc', borderRadius: '4px' }}
 							/>
 							<div className="mt-2 small">
 								<div>
-									X: {rightStickData.rawX} ({rightStickData.x.toFixed(3)})
+									X: {rightStickData.rawX} (DS4: {Math.max(1, Math.min(255, Math.round(rightStickData.normalizedX * 254) + 1))})
 								</div>
 								<div>
-									Y: {rightStickData.rawY} ({rightStickData.y.toFixed(3)})
+									Y: {rightStickData.rawY} (DS4: {Math.max(1, Math.min(255, Math.round(rightStickData.normalizedY * 254) + 1))})
 								</div>
 							</div>
-							{/* Detailed data display */}
-							<div className="mt-2 small text-start" style={{ fontSize: '0.75rem', maxWidth: '200px', margin: '0 auto' }}>
-								<div>1. 原始中心: ({rightStickDetailData.centerX.toFixed(1)}, {rightStickDetailData.centerY.toFixed(1)})</div>
-								<div>2. 校准索引: {rightStickDetailData.angleIndex}, 缩放比: {rightStickDetailData.scale > 0 ? rightStickDetailData.scale.toFixed(4) : 'N/A'}</div>
-								<div>3. 原始ADC: ({rightStickDetailData.rawAdcX.toFixed(1)}, {rightStickDetailData.rawAdcY.toFixed(1)})</div>
-								<div>4. 平移后: ({rightStickDetailData.offsetCenterX.toFixed(1)}, {rightStickDetailData.offsetCenterY.toFixed(1)})</div>
-								<div>5. Scale后: ({rightStickDetailData.scaledCenterX.toFixed(1)}, {rightStickDetailData.scaledCenterY.toFixed(1)})</div>
-								<div>6. 归一化: ({rightStickDetailData.normalizedX.toFixed(4)}, {rightStickDetailData.normalizedY.toFixed(4)})</div>
-							</div>
 							{/* Right stick calibration buttons */}
-							<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
+							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="primary"
 									size="sm"
@@ -578,6 +641,35 @@ const JoystickCalibration = ({
 								>
 									{t('AddonsConfig:joystick-calibration-range-button')}
 								</Button>
+							</div>
+							{/* Finetune buttons - yellow color */}
+							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+								<Button
+									variant="warning"
+									size="sm"
+									onClick={() => setShowRightFinetuneCenterModal(true)}
+								>
+									{t('AddonsConfig:joystick-calibration-finetune-center-button')}
+								</Button>
+								<Button
+									variant="warning"
+									size="sm"
+									onClick={() => setShowRightFinetuneShapeModal(true)}
+								>
+									{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
+								</Button>
+							</div>
+							{/* Detailed data display */}
+							<div className="mt-2 small text-start" style={{ fontSize: '0.75rem', maxWidth: '300px', margin: '0 auto' }}>
+								<div>1. 原始中心: ({rightStickDetailData.centerX.toFixed(1)}, {rightStickDetailData.centerY.toFixed(1)})</div>
+								<div>2. 校准索引: {rightStickDetailData.angleIndex}, 缩放比: {rightStickDetailData.scale > 0 ? rightStickDetailData.scale.toFixed(4) : 'N/A'}</div>
+								<div>3. 原始ADC: ({rightStickDetailData.rawAdcX.toFixed(1)}, {rightStickDetailData.rawAdcY.toFixed(1)})</div>
+								<div>4. 平移后: ({rightStickDetailData.offsetCenterX.toFixed(1)}, {rightStickDetailData.offsetCenterY.toFixed(1)})</div>
+								<div>5. Scale后: ({rightStickDetailData.scaledCenterX.toFixed(1)}, {rightStickDetailData.scaledCenterY.toFixed(1)})</div>
+								<div>6. 归一化: ({rightStickDetailData.normalizedX.toFixed(4)}, {rightStickDetailData.normalizedY.toFixed(4)})</div>
+							</div>
+							{/* View calibration data button */}
+							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="info"
 									size="sm"
@@ -642,6 +734,78 @@ const JoystickCalibration = ({
 				centerX={values?.joystickCenterX2}
 				centerY={values?.joystickCenterY2}
 			/>
+			
+			{/* Finetune Center Modals */}
+			<Modal
+				show={showLeftFinetuneCenterModal}
+				onHide={() => setShowLeftFinetuneCenterModal(false)}
+				size="lg"
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>{t('AddonsConfig:joystick-calibration-finetune-center-button')} - {t('AddonsConfig:joystick-calibration-left-stick')}</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p>微调摇杆中心功能待实现</p>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowLeftFinetuneCenterModal(false)}>
+						关闭
+					</Button>
+				</Modal.Footer>
+			</Modal>
+			<Modal
+				show={showRightFinetuneCenterModal}
+				onHide={() => setShowRightFinetuneCenterModal(false)}
+				size="lg"
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>{t('AddonsConfig:joystick-calibration-finetune-center-button')} - {t('AddonsConfig:joystick-calibration-right-stick')}</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p>微调摇杆中心功能待实现</p>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowRightFinetuneCenterModal(false)}>
+						关闭
+					</Button>
+				</Modal.Footer>
+			</Modal>
+			
+			{/* Finetune Shape Modals */}
+			<Modal
+				show={showLeftFinetuneShapeModal}
+				onHide={() => setShowLeftFinetuneShapeModal(false)}
+				size="lg"
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>{t('AddonsConfig:joystick-calibration-finetune-shape-button')} - {t('AddonsConfig:joystick-calibration-left-stick')}</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p>调整外圈形状功能待实现</p>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowLeftFinetuneShapeModal(false)}>
+						关闭
+					</Button>
+				</Modal.Footer>
+			</Modal>
+			<Modal
+				show={showRightFinetuneShapeModal}
+				onHide={() => setShowRightFinetuneShapeModal(false)}
+				size="lg"
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>{t('AddonsConfig:joystick-calibration-finetune-shape-button')} - {t('AddonsConfig:joystick-calibration-right-stick')}</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p>调整外圈形状功能待实现</p>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowRightFinetuneShapeModal(false)}>
+						关闭
+					</Button>
+				</Modal.Footer>
+			</Modal>
 			
 			{/* Range Data Detail Modals */}
 			<Modal show={showLeftRangeDataModal} onHide={() => setShowLeftRangeDataModal(false)} size="lg">
