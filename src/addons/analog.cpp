@@ -97,12 +97,12 @@ void AnalogInput::setup() {
         if(isValidPin(adc_pairs[i].x_pin)) {
             adc_gpio_init(adc_pairs[i].x_pin);
             // Always use stored manual calibration value
-            adc_pairs[i].x_center = adc_pairs[i].joystick_center_x;
+                adc_pairs[i].x_center = adc_pairs[i].joystick_center_x;
         }
         if(isValidPin(adc_pairs[i].y_pin)) {
             adc_gpio_init(adc_pairs[i].y_pin);
             // Always use stored manual calibration value
-            adc_pairs[i].y_center = adc_pairs[i].joystick_center_y;
+                adc_pairs[i].y_center = adc_pairs[i].joystick_center_y;
         }
     }
 }
@@ -175,18 +175,18 @@ void AnalogInput::process() {
             adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
             x_value = ANALOG_MAX - x_value;
         }
-        if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
-            adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
+            if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
+                adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
             y_value = ANALOG_MAX - y_value;
-        }
+            }
 
         // Apply EMA smoothing if enabled
-        if (adc_pairs[i].ema_option) {
+            if (adc_pairs[i].ema_option) {
             x_value = emaCalculation(i, x_value, adc_pairs[i].x_ema);
             y_value = emaCalculation(i, y_value, adc_pairs[i].y_ema);
             adc_pairs[i].x_ema = x_value;
             adc_pairs[i].y_ema = y_value;
-        }
+            }
 
         // Apply inner deadzone
         float x_magnitude = x_value - ANALOG_CENTER;

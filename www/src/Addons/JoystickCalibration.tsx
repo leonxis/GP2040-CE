@@ -8,6 +8,8 @@ import RangeCalibrationModal from '../Components/RangeCalibrationModal';
 import { AddonPropTypes } from '../Pages/AddonsConfigPage';
 
 const CIRCULARITY_DATA_SIZE = 48; // Number of angular positions to sample
+const ADC_MAX = 4095;
+const ADC_CENTER = ADC_MAX / 2;
 
 /**
  * Calculates circularity error for stick movement data.
@@ -22,6 +24,91 @@ const calculateCircularityError = (data: number[]): number => {
 	// Calculate RMS deviation as percentage
 	const validDataCount = data.filter(val => val > 0.2).length;
 	return validDataCount > 0 ? Math.sqrt(sumSquaredDeviations / validDataCount) * 100 : 0;
+};
+
+/**
+ * Converts stick value (-1 to 1) to DS4 normalized value with 255-level quantization
+ * @param stickValue - Stick value in range -1 to 1
+ * @returns DS4 normalized value in range -1 to 1 with 255-level resolution
+ */
+const convertToDS4Normalized = (stickValue: number): string => {
+	// Convert from -1 to 1 range to 0 to 1 range
+	const normalized = (stickValue + 1) / 2;
+	// Quantize to DS4 255 levels (1-255)
+	const ds4Value = Math.max(1, Math.min(255, Math.round(normalized * 254) + 1));
+	// Convert back to -1 to 1 range with DS4 resolution (center at 0)
+	const ds4Normalized = (ds4Value / 255) * 2 - 1;
+	return ds4Normalized.toFixed(5);
+};
+
+/**
+ * Processes joystick data through coordinate transformation pipeline
+ * @param rawX - Raw ADC X value
+ * @param rawY - Raw ADC Y value
+ * @param centerX - Calibrated center X value
+ * @param centerY - Calibrated center Y value
+ * @param rangeData - Range calibration data array
+ * @returns Processed stick data and detail information
+ */
+const processJoystickData = (
+	rawX: number,
+	rawY: number,
+	centerX: number,
+	centerY: number,
+	rangeData: number[]
+) => {
+	// Step 2: Coordinate translation (offset transformation)
+	const dX_value = centerX - ADC_CENTER;
+	const dY_value = centerY - ADC_CENTER;
+	const offset_x = rawX - dX_value;
+	const offset_y = rawY - dY_value;
+	
+	// Step 3: Move to adc_offset_center coordinate system
+	const offset_center_x = offset_x - ADC_CENTER;
+	const offset_center_y = offset_y - ADC_CENTER;
+	
+	// Calculate angle and get scale
+	const angle = Math.atan2(offset_center_y, offset_center_x);
+	const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
+	const scale = rangeData[angleIndex] > 0 ? rangeData[angleIndex] : 0;
+	
+	// Step 4: Apply scale
+	let scaled_center_x = 0;
+	let scaled_center_y = 0;
+	if (scale > 0 && (offset_center_x !== 0 || offset_center_y !== 0)) {
+		scaled_center_x = offset_center_x / scale;
+		scaled_center_y = offset_center_y / scale;
+	} else {
+		scaled_center_x = offset_center_x;
+		scaled_center_y = offset_center_y;
+	}
+	
+	// Step 6: Normalize
+	const normalizedX = scaled_center_x / ADC_MAX + 0.5;
+	const normalizedY = scaled_center_y / ADC_MAX + 0.5;
+	
+	// Convert to display format (-1 to 1)
+	const stickX = Math.max(-1, Math.min(1, (normalizedX - 0.5) * 2));
+	const stickY = Math.max(-1, Math.min(1, (normalizedY - 0.5) * 2));
+	
+	return {
+		stickX,
+		stickY,
+		detailData: {
+			centerX,
+			centerY,
+			rawAdcX: rawX,
+			rawAdcY: rawY,
+			angleIndex,
+			scale,
+			offsetCenterX: offset_center_x,
+			offsetCenterY: offset_center_y,
+			scaledCenterX: scaled_center_x,
+			scaledCenterY: scaled_center_y,
+			normalizedX,
+			normalizedY,
+		}
+	};
 };
 
 /**
@@ -43,15 +130,8 @@ const drawStickPosition = (
 	radius: number,
 	stickX: number, // -1 to 1
 	stickY: number, // -1 to 1
-	rawX: number, // Raw ADC value
-	rawY: number, // Raw ADC value
 	circularityData?: number[] | null,
-	zoom10x: boolean = false, // If true, display range is -0.1 to 0.1
 ) => {
-	// Apply zoom if enabled
-	const displayStickX = zoom10x ? stickX * 10 : stickX;
-	const displayStickY = zoom10x ? stickY * 10 : stickY;
-	const displayRadius = zoom10x ? radius * 0.1 : radius;
 	// Fill entire canvas with white background
 	ctx.fillStyle = '#ffffff';
 	ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -78,25 +158,15 @@ const drawStickPosition = (
 			const ka = i * Math.PI * 2 / MAX_N;
 			const ka1 = ((i + 1) % MAX_N) * 2 * Math.PI / MAX_N;
 
-			// Apply zoom if enabled - circularity data is normalized distance (0-1)
-			// In zoom mode, we scale the distance to fit the -0.1 to 0.1 range
-			let displayKd = kd;
-			let displayKd1 = kd1;
-			if (zoom10x) {
-				// Scale distance from 0-1 range to 0-0.1 range for zoom display
-				displayKd = kd * 0.1;
-				displayKd1 = kd1 * 0.1;
-			}
-
-			const kx = Math.cos(ka) * displayKd;
-			const ky = Math.sin(ka) * displayKd;
-			const kx1 = Math.cos(ka1) * displayKd1;
-			const ky1 = Math.sin(ka1) * displayKd1;
+			const kx = Math.cos(ka) * kd;
+			const ky = Math.sin(ka) * kd;
+			const kx1 = Math.cos(ka1) * kd1;
+			const ky1 = Math.sin(ka1) * kd1;
 
 			ctx.beginPath();
 			ctx.moveTo(centerX, centerY);
-			ctx.lineTo(centerX + kx * displayRadius, centerY + ky * displayRadius);
-			ctx.lineTo(centerX + kx1 * displayRadius, centerY + ky1 * displayRadius);
+			ctx.lineTo(centerX + kx * radius, centerY + ky * radius);
+			ctx.lineTo(centerX + kx1 * radius, centerY + ky1 * radius);
 			ctx.lineTo(centerX, centerY);
 			ctx.closePath();
 
@@ -127,31 +197,20 @@ const drawStickPosition = (
 	ctx.lineWidth = 2;
 	ctx.beginPath();
 	ctx.moveTo(centerX, centerY);
-	ctx.lineTo(centerX + displayStickX * displayRadius, centerY + displayStickY * displayRadius);
+	ctx.lineTo(centerX + stickX * radius, centerY + stickY * radius);
 	ctx.stroke();
 
 	// Draw filled circle at stick position
 	ctx.beginPath();
 	ctx.arc(
-		centerX + displayStickX * displayRadius,
-		centerY + displayStickY * displayRadius,
+		centerX + stickX * radius,
+		centerY + stickY * radius,
 		4,
 		0,
 		2 * Math.PI,
 	);
 	ctx.fillStyle = '#030b84ff';
 	ctx.fill();
-	
-	// Draw zoom indicator circle if zoom is enabled
-	if (zoom10x) {
-		ctx.strokeStyle = '#ff0000';
-		ctx.lineWidth = 1;
-		ctx.setLineDash([5, 5]);
-		ctx.beginPath();
-		ctx.arc(centerX, centerY, displayRadius, 0, 2 * Math.PI);
-		ctx.stroke();
-		ctx.setLineDash([]);
-	}
 
 	// Draw center point
 	ctx.beginPath();
@@ -185,8 +244,8 @@ const JoystickCalibration = ({
 	const { t } = useTranslation();
 	const leftStickCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightStickCanvasRef = useRef<HTMLCanvasElement>(null);
-	const [leftStickData, setLeftStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0, normalizedX: 0, normalizedY: 0 });
-	const [rightStickData, setRightStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0, normalizedX: 0, normalizedY: 0 });
+	const [leftStickData, setLeftStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0 });
+	const [rightStickData, setRightStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0 });
 	const [showLeftCalibrationModal, setShowLeftCalibrationModal] = useState(false);
 	const [showRightCalibrationModal, setShowRightCalibrationModal] = useState(false);
 	const [showLeftRangeModal, setShowLeftRangeModal] = useState(false);
@@ -197,8 +256,6 @@ const JoystickCalibration = ({
 	const [showRightFinetuneShapeModal, setShowRightFinetuneShapeModal] = useState(false);
 	const [leftCircularityEnabled, setLeftCircularityEnabled] = useState(false);
 	const [rightCircularityEnabled, setRightCircularityEnabled] = useState(false);
-	const [leftZoom10x, setLeftZoom10x] = useState(false);
-	const [rightZoom10x, setRightZoom10x] = useState(false);
 	const [leftCircularityData, setLeftCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [rightCircularityData, setRightCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [showLeftRangeDataModal, setShowLeftRangeDataModal] = useState(false);
@@ -252,70 +309,26 @@ const JoystickCalibration = ({
 					if (res1.ok) {
 						const data1 = await res1.json();
 						if (data1.success) {
-							const ADC_MAX = 4095;
-							const ADC_CENTER = ADC_MAX / 2;
 							const centerX = values.joystickCenterX || ADC_CENTER;
 							const centerY = values.joystickCenterY || ADC_CENTER;
-							
-							// Step 2: Coordinate translation (offset transformation)
-							const dX_value = centerX - ADC_CENTER;
-							const dY_value = centerY - ADC_CENTER;
-							const offset_x = data1.x - dX_value;
-							const offset_y = data1.y - dY_value;
-							
-							// Step 3: Move to adc_offset_center coordinate system
-							const offset_center_x = offset_x - ADC_CENTER;
-							const offset_center_y = offset_y - ADC_CENTER;
-							
-							// Calculate angle and get scale
-							const angle = Math.atan2(offset_center_y, offset_center_x);
-							const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
 							const rangeData = (values as any).joystickRangeData1 || [];
-							const scale = rangeData[angleIndex] > 0 ? rangeData[angleIndex] : 0;
 							
-							// Step 4: Apply scale
-							let scaled_center_x = 0;
-							let scaled_center_y = 0;
-							if (scale > 0 && (offset_center_x !== 0 || offset_center_y !== 0)) {
-								scaled_center_x = offset_center_x / scale;
-								scaled_center_y = offset_center_y / scale;
-							} else {
-								scaled_center_x = offset_center_x;
-								scaled_center_y = offset_center_y;
-							}
-							
-							// Step 6: Normalize
-							const normalizedX = scaled_center_x / ADC_MAX + 0.5;
-							const normalizedY = scaled_center_y / ADC_MAX + 0.5;
-							
-							// Convert to display format (-1 to 1)
-							const stickX = Math.max(-1, Math.min(1, (normalizedX - 0.5) * 2));
-							const stickY = Math.max(-1, Math.min(1, (normalizedY - 0.5) * 2));
+							const { stickX, stickY, detailData } = processJoystickData(
+								data1.x,
+								data1.y,
+								centerX,
+								centerY,
+								rangeData
+							);
 							
 							setLeftStickData({
 								x: stickX,
 								y: stickY,
 								rawX: data1.x,
 								rawY: data1.y,
-								normalizedX: normalizedX,
-								normalizedY: normalizedY,
 							});
 							
-							// Store detailed data
-							setLeftStickDetailData({
-								centerX: centerX,
-								centerY: centerY,
-								rawAdcX: data1.x,
-								rawAdcY: data1.y,
-								angleIndex: angleIndex,
-								scale: scale,
-								offsetCenterX: offset_center_x,
-								offsetCenterY: offset_center_y,
-								scaledCenterX: scaled_center_x,
-								scaledCenterY: scaled_center_y,
-								normalizedX: normalizedX,
-								normalizedY: normalizedY,
-							});
+							setLeftStickDetailData(detailData);
 
 							// Collect circularity data if enabled
 							if (leftCircularityEnabled) {
@@ -338,70 +351,26 @@ const JoystickCalibration = ({
 					if (res2.ok) {
 						const data2 = await res2.json();
 						if (data2.success) {
-							const ADC_MAX = 4095;
-							const ADC_CENTER = ADC_MAX / 2;
 							const centerX = values.joystickCenterX2 || ADC_CENTER;
 							const centerY = values.joystickCenterY2 || ADC_CENTER;
-							
-							// Step 2: Coordinate translation (offset transformation)
-							const dX_value = centerX - ADC_CENTER;
-							const dY_value = centerY - ADC_CENTER;
-							const offset_x = data2.x - dX_value;
-							const offset_y = data2.y - dY_value;
-							
-							// Step 3: Move to adc_offset_center coordinate system
-							const offset_center_x = offset_x - ADC_CENTER;
-							const offset_center_y = offset_y - ADC_CENTER;
-							
-							// Calculate angle and get scale
-							const angle = Math.atan2(offset_center_y, offset_center_x);
-							const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
 							const rangeData = (values as any).joystickRangeData2 || [];
-							const scale = rangeData[angleIndex] > 0 ? rangeData[angleIndex] : 0;
 							
-							// Step 4: Apply scale
-							let scaled_center_x = 0;
-							let scaled_center_y = 0;
-							if (scale > 0 && (offset_center_x !== 0 || offset_center_y !== 0)) {
-								scaled_center_x = offset_center_x / scale;
-								scaled_center_y = offset_center_y / scale;
-							} else {
-								scaled_center_x = offset_center_x;
-								scaled_center_y = offset_center_y;
-							}
-							
-							// Step 6: Normalize
-							const normalizedX = scaled_center_x / ADC_MAX + 0.5;
-							const normalizedY = scaled_center_y / ADC_MAX + 0.5;
-							
-							// Convert to display format (-1 to 1)
-							const stickX = Math.max(-1, Math.min(1, (normalizedX - 0.5) * 2));
-							const stickY = Math.max(-1, Math.min(1, (normalizedY - 0.5) * 2));
+							const { stickX, stickY, detailData } = processJoystickData(
+								data2.x,
+								data2.y,
+								centerX,
+								centerY,
+								rangeData
+							);
 							
 							setRightStickData({
 								x: stickX,
 								y: stickY,
 								rawX: data2.x,
 								rawY: data2.y,
-								normalizedX: normalizedX,
-								normalizedY: normalizedY,
 							});
 							
-							// Store detailed data
-							setRightStickDetailData({
-								centerX: centerX,
-								centerY: centerY,
-								rawAdcX: data2.x,
-								rawAdcY: data2.y,
-								angleIndex: angleIndex,
-								scale: scale,
-								offsetCenterX: offset_center_x,
-								offsetCenterY: offset_center_y,
-								scaledCenterX: scaled_center_x,
-								scaledCenterY: scaled_center_y,
-								normalizedX: normalizedX,
-								normalizedY: normalizedY,
-							});
+							setRightStickDetailData(detailData);
 
 							// Collect circularity data if enabled
 							if (rightCircularityEnabled) {
@@ -428,7 +397,7 @@ const JoystickCalibration = ({
 		return () => {
 			clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, leftCircularityEnabled, rightCircularityEnabled]);
+	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, leftCircularityEnabled, rightCircularityEnabled]);
 
 	// Update canvas when stick data changes
 	useEffect(() => {
@@ -449,10 +418,7 @@ const JoystickCalibration = ({
 						radius,
 						leftStickData.x,
 						leftStickData.y,
-						leftStickData.rawX,
-						leftStickData.rawY,
 						leftCircularityEnabled ? leftCircularityData : null,
-						leftZoom10x,
 					);
 				}
 			}
@@ -473,17 +439,14 @@ const JoystickCalibration = ({
 						radius,
 						rightStickData.x,
 						rightStickData.y,
-						rightStickData.rawX,
-						rightStickData.rawY,
 						rightCircularityEnabled ? rightCircularityData : null,
-						rightZoom10x,
 					);
 				}
 			}
 		};
 
 		updateCanvas();
-	}, [leftStickData, rightStickData, leftCircularityData, rightCircularityData, leftCircularityEnabled, rightCircularityEnabled, leftZoom10x, rightZoom10x]);
+	}, [leftStickData, rightStickData, leftCircularityData, rightCircularityData, leftCircularityEnabled, rightCircularityEnabled]);
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
@@ -505,13 +468,6 @@ const JoystickCalibration = ({
 										}
 									}}
 								/>
-								<FormCheck
-									type="switch"
-									id="leftZoom10xToggle"
-									label={t('AddonsConfig:joystick-calibration-zoom-10x')}
-									checked={leftZoom10x}
-									onChange={(e) => setLeftZoom10x(e.target.checked)}
-								/>
 							</div>
 							<canvas
 								ref={leftStickCanvasRef}
@@ -521,14 +477,14 @@ const JoystickCalibration = ({
 							/>
 							<div className="mt-2 small">
 								<div>
-									X: {leftStickData.rawX} (DS4: {Math.max(1, Math.min(255, Math.round(leftStickData.normalizedX * 254) + 1))})
+									X: {leftStickData.rawX} ({convertToDS4Normalized(leftStickData.x)})
 								</div>
 								<div>
-									Y: {leftStickData.rawY} (DS4: {Math.max(1, Math.min(255, Math.round(leftStickData.normalizedY * 254) + 1))})
+									Y: {leftStickData.rawY} ({convertToDS4Normalized(leftStickData.y)})
 								</div>
 							</div>
-							{/* Left stick calibration buttons */}
-							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							{/* Left stick calibration buttons - First row */}
+							<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="primary"
 									size="sm"
@@ -544,7 +500,7 @@ const JoystickCalibration = ({
 									{t('AddonsConfig:joystick-calibration-range-button')}
 								</Button>
 							</div>
-							{/* Finetune buttons - yellow color */}
+							{/* Left stick finetune buttons - Second row */}
 							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="warning"
@@ -577,7 +533,6 @@ const JoystickCalibration = ({
 									size="sm"
 									onClick={() => {
 										const rangeData = (values as any)?.joystickRangeData1;
-										console.log('Left range data:', rangeData, 'Type:', typeof rangeData, 'IsArray:', Array.isArray(rangeData));
 										setLeftRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
 										setLeftAngleIndexSnapshot(leftStickDetailData.angleIndex);
 										setShowLeftRangeDataModal(true);
@@ -603,13 +558,6 @@ const JoystickCalibration = ({
 										}
 									}}
 								/>
-								<FormCheck
-									type="switch"
-									id="rightZoom10xToggle"
-									label={t('AddonsConfig:joystick-calibration-zoom-10x')}
-									checked={rightZoom10x}
-									onChange={(e) => setRightZoom10x(e.target.checked)}
-								/>
 							</div>
 							<canvas
 								ref={rightStickCanvasRef}
@@ -619,14 +567,14 @@ const JoystickCalibration = ({
 							/>
 							<div className="mt-2 small">
 								<div>
-									X: {rightStickData.rawX} (DS4: {Math.max(1, Math.min(255, Math.round(rightStickData.normalizedX * 254) + 1))})
+									X: {rightStickData.rawX} ({convertToDS4Normalized(rightStickData.x)})
 								</div>
 								<div>
-									Y: {rightStickData.rawY} (DS4: {Math.max(1, Math.min(255, Math.round(rightStickData.normalizedY * 254) + 1))})
+									Y: {rightStickData.rawY} ({convertToDS4Normalized(rightStickData.y)})
 								</div>
 							</div>
-							{/* Right stick calibration buttons */}
-							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							{/* Right stick calibration buttons - First row */}
+							<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="primary"
 									size="sm"
@@ -642,7 +590,7 @@ const JoystickCalibration = ({
 									{t('AddonsConfig:joystick-calibration-range-button')}
 								</Button>
 							</div>
-							{/* Finetune buttons - yellow color */}
+							{/* Right stick finetune buttons - Second row */}
 							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
 								<Button
 									variant="warning"
@@ -675,7 +623,6 @@ const JoystickCalibration = ({
 									size="sm"
 									onClick={() => {
 										const rangeData = (values as any)?.joystickRangeData2;
-										console.log('Right range data:', rangeData);
 										setRightRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
 										setRightAngleIndexSnapshot(rightStickDetailData.angleIndex);
 										setShowRightRangeDataModal(true);
@@ -896,3 +843,5 @@ const JoystickCalibration = ({
 };
 
 export default JoystickCalibration;
+
+
