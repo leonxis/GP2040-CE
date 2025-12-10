@@ -162,11 +162,7 @@ void AnalogInput::process() {
             scaled_center_y = offset_center_y;
         }
 
-        // Step 5: Inverse transformation back to ADC coordinate system
-        float scaled_x = scaled_center_x + ADC_CENTER;
-        float scaled_y = scaled_center_y + ADC_CENTER;
-
-        // Step 6: Normalize to [0.0, 1.0] range
+        // Step 5: Normalize to [0.0, 1.0] range
         float x_value = scaled_center_x / ADC_MAX + ANALOG_CENTER;
         float y_value = scaled_center_y / ADC_MAX + ANALOG_CENTER;
 
@@ -175,18 +171,18 @@ void AnalogInput::process() {
             adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
             x_value = ANALOG_MAX - x_value;
         }
-            if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
-                adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
+        if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
+            adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
             y_value = ANALOG_MAX - y_value;
-            }
+        }
 
         // Apply EMA smoothing if enabled
-            if (adc_pairs[i].ema_option) {
+        if (adc_pairs[i].ema_option) {
             x_value = emaCalculation(i, x_value, adc_pairs[i].x_ema);
             y_value = emaCalculation(i, y_value, adc_pairs[i].y_ema);
             adc_pairs[i].x_ema = x_value;
             adc_pairs[i].y_ema = y_value;
-            }
+        }
 
         // Apply inner deadzone
         float x_magnitude = x_value - ANALOG_CENTER;
@@ -273,16 +269,6 @@ float AnalogInput::emaCalculation(int stick_num, float ema_value, float ema_prev
     return (alpha_dynamic * ema_value) + ((1.0f - alpha_dynamic) * ema_previous);
 }
 
-uint16_t AnalogInput::map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max) {
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-float AnalogInput::magnitudeCalculation(int stick_num, adc_instance & adc_inst) {
-    adc_inst.x_magnitude = adc_inst.x_value - ANALOG_CENTER;
-    adc_inst.y_magnitude = adc_inst.y_value - ANALOG_CENTER;
-    return adc_pairs[stick_num].error_rate * std::sqrt((adc_inst.x_magnitude * adc_inst.x_magnitude) + (adc_inst.y_magnitude * adc_inst.y_magnitude));
-}
-
 /**
  * Get interpolated scale for a given angle using range calibration data
  * @param stick_num Stick number (0 or 1)
@@ -321,9 +307,3 @@ float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
     return r0 * (1.0f - t) + r1 * t;
 }
 
-// radialDeadzone function is no longer needed - coordinate transformation and scaling
-// are now handled directly in process() function
-void AnalogInput::radialDeadzone(int stick_num, adc_instance & adc_inst) {
-    // This function is kept for compatibility but is no longer used
-    // All coordinate transformation and scaling logic is now in process()
-}

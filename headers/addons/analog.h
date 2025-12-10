@@ -146,9 +146,6 @@ public:
 private:
     float readPin(int stick_num, Pin_t pin, uint16_t center);
     float emaCalculation(int stick_num, float ema_value, float ema_previous);
-    uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
-    float magnitudeCalculation(int stick_num, adc_instance & adc_inst);
-    void radialDeadzone(int stick_num, adc_instance & adc_inst);
     float getInterpolatedScale(int stick_num, float angle);
     adc_instance adc_pairs[ADC_COUNT];
 };

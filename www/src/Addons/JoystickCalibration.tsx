@@ -42,6 +42,22 @@ const convertToDS4Normalized = (stickValue: number): string => {
 };
 
 /**
+ * Common button style for finetune center adjustment buttons
+ */
+const finetuneButtonStyle: React.CSSProperties = {
+	width: '18px',
+	height: '18px',
+	padding: 0,
+	fontSize: '12px',
+	lineHeight: '1',
+	display: 'flex',
+	alignItems: 'center',
+	justifyContent: 'center',
+	color: '#666',
+	borderColor: '#ccc'
+};
+
+/**
  * Processes joystick data through coordinate transformation pipeline
  * @param rawX - Raw ADC X value
  * @param rawY - Raw ADC Y value
@@ -131,20 +147,43 @@ const drawStickPosition = (
 	stickX: number, // -1 to 1
 	stickY: number, // -1 to 1
 	circularityData?: number[] | null,
+	zoom10x?: boolean, // If true, zoom to -0.1 to 0.1 range
 ) => {
 	// Fill entire canvas with white background
 	ctx.fillStyle = '#ffffff';
 	ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-	// Draw base circle (outer boundary)
+	// Calculate effective radius and scale based on zoom mode
+	let effectiveRadius = radius;
+	let scale = 1.0;
+	if (zoom10x) {
+		// In zoom mode, map -0.1 to 0.1 range to full canvas
+		scale = 0.1; // Scale factor: 0.1 range maps to full radius
+		effectiveRadius = radius; // Keep full radius for drawing
+	}
+
+	// Draw base circle (outer boundary) - scaled for zoom mode
 	ctx.lineWidth = 2;
 	ctx.fillStyle = '#ffffff';
 	ctx.strokeStyle = '#000000';
 	ctx.beginPath();
-	ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+	ctx.arc(centerX, centerY, effectiveRadius, 0, 2 * Math.PI);
 	ctx.closePath();
 	ctx.fill();
 	ctx.stroke();
+
+	// Draw red dashed circle at 0.03528 radius in zoom mode
+	if (zoom10x) {
+		const redCircleRadius = (0.03528 / scale) * effectiveRadius;
+		ctx.strokeStyle = '#ff0000';
+		ctx.lineWidth = 1;
+		ctx.setLineDash([5, 5]);
+		ctx.beginPath();
+		ctx.arc(centerX, centerY, redCircleRadius, 0, 2 * Math.PI);
+		ctx.closePath();
+		ctx.stroke();
+		ctx.setLineDash([]);
+	}
 
 	// Draw circularity visualization if data provided (draw before stick position)
 	if (circularityData && circularityData.length > 0) {
@@ -192,19 +231,21 @@ const drawStickPosition = (
 	ctx.closePath();
 	ctx.stroke();
 
-	// Draw stick line from center to position
+	// Draw stick line from center to position (scaled for zoom mode)
+	const scaledStickX = zoom10x ? stickX / scale : stickX;
+	const scaledStickY = zoom10x ? stickY / scale : stickY;
 	ctx.strokeStyle = '#000000';
 	ctx.lineWidth = 2;
 	ctx.beginPath();
 	ctx.moveTo(centerX, centerY);
-	ctx.lineTo(centerX + stickX * radius, centerY + stickY * radius);
+	ctx.lineTo(centerX + scaledStickX * effectiveRadius, centerY + scaledStickY * effectiveRadius);
 	ctx.stroke();
 
 	// Draw filled circle at stick position
 	ctx.beginPath();
 	ctx.arc(
-		centerX + stickX * radius,
-		centerY + stickY * radius,
+		centerX + scaledStickX * effectiveRadius,
+		centerY + scaledStickY * effectiveRadius,
 		4,
 		0,
 		2 * Math.PI,
@@ -250,8 +291,6 @@ const JoystickCalibration = ({
 	const [showRightCalibrationModal, setShowRightCalibrationModal] = useState(false);
 	const [showLeftRangeModal, setShowLeftRangeModal] = useState(false);
 	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
-	const [showLeftFinetuneCenterModal, setShowLeftFinetuneCenterModal] = useState(false);
-	const [showRightFinetuneCenterModal, setShowRightFinetuneCenterModal] = useState(false);
 	const [showLeftFinetuneShapeModal, setShowLeftFinetuneShapeModal] = useState(false);
 	const [showRightFinetuneShapeModal, setShowRightFinetuneShapeModal] = useState(false);
 	const [leftCircularityEnabled, setLeftCircularityEnabled] = useState(false);
@@ -264,6 +303,8 @@ const JoystickCalibration = ({
 	const [rightRangeDataSnapshot, setRightRangeDataSnapshot] = useState<number[]>([]);
 	const [leftAngleIndexSnapshot, setLeftAngleIndexSnapshot] = useState(0);
 	const [rightAngleIndexSnapshot, setRightAngleIndexSnapshot] = useState(0);
+	const [leftFinetuneCenterActive, setLeftFinetuneCenterActive] = useState(false);
+	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
 	
 	// Detailed data for display
 	const [leftStickDetailData, setLeftStickDetailData] = useState({
@@ -419,6 +460,7 @@ const JoystickCalibration = ({
 						leftStickData.x,
 						leftStickData.y,
 						leftCircularityEnabled ? leftCircularityData : null,
+						leftFinetuneCenterActive,
 					);
 				}
 			}
@@ -440,13 +482,14 @@ const JoystickCalibration = ({
 						rightStickData.x,
 						rightStickData.y,
 						rightCircularityEnabled ? rightCircularityData : null,
+						rightFinetuneCenterActive,
 					);
 				}
 			}
 		};
 
 		updateCanvas();
-	}, [leftStickData, rightStickData, leftCircularityData, rightCircularityData, leftCircularityEnabled, rightCircularityEnabled]);
+	}, [leftStickData, rightStickData, leftCircularityData, rightCircularityData, leftCircularityEnabled, rightCircularityEnabled, leftFinetuneCenterActive, rightFinetuneCenterActive]);
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
@@ -476,11 +519,75 @@ const JoystickCalibration = ({
 								style={{ border: '1px solid #ccc', borderRadius: '4px' }}
 							/>
 							<div className="mt-2 small">
-								<div>
-									X: {leftStickData.rawX} ({convertToDS4Normalized(leftStickData.x)})
+								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+									<span>X:</span>
+									{leftFinetuneCenterActive && (
+										<Button
+											variant="light"
+											size="sm"
+											style={finetuneButtonStyle}
+											onClick={() => {
+												const currentCenterX = values?.joystickCenterX || ADC_CENTER;
+												setFieldValue('joystickCenterX', currentCenterX + 2);
+											}}
+										>
+											+
+										</Button>
+									)}
+									<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
+										{leftStickData.rawX}
+									</span>
+									{leftFinetuneCenterActive && (
+										<Button
+											variant="light"
+											size="sm"
+											style={finetuneButtonStyle}
+											onClick={() => {
+												const currentCenterX = values?.joystickCenterX || ADC_CENTER;
+												setFieldValue('joystickCenterX', currentCenterX - 2);
+											}}
+										>
+											−
+										</Button>
+									)}
+									<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
+										({convertToDS4Normalized(leftStickData.x)})
+									</span>
 								</div>
-								<div>
-									Y: {leftStickData.rawY} ({convertToDS4Normalized(leftStickData.y)})
+								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+									<span>Y:</span>
+									{leftFinetuneCenterActive && (
+										<Button
+											variant="light"
+											size="sm"
+											style={finetuneButtonStyle}
+											onClick={() => {
+												const currentCenterY = values?.joystickCenterY || ADC_CENTER;
+												setFieldValue('joystickCenterY', currentCenterY + 2);
+											}}
+										>
+											+
+										</Button>
+									)}
+									<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
+										{leftStickData.rawY}
+									</span>
+									{leftFinetuneCenterActive && (
+										<Button
+											variant="light"
+											size="sm"
+											style={finetuneButtonStyle}
+											onClick={() => {
+												const currentCenterY = values?.joystickCenterY || ADC_CENTER;
+												setFieldValue('joystickCenterY', currentCenterY - 2);
+											}}
+										>
+											−
+										</Button>
+									)}
+									<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
+										({convertToDS4Normalized(leftStickData.y)})
+									</span>
 								</div>
 							</div>
 							{/* Left stick calibration buttons - First row */}
@@ -505,7 +612,7 @@ const JoystickCalibration = ({
 								<Button
 									variant="warning"
 									size="sm"
-									onClick={() => setShowLeftFinetuneCenterModal(true)}
+									onClick={() => setLeftFinetuneCenterActive(!leftFinetuneCenterActive)}
 								>
 									{t('AddonsConfig:joystick-calibration-finetune-center-button')}
 								</Button>
@@ -566,11 +673,75 @@ const JoystickCalibration = ({
 								style={{ border: '1px solid #ccc', borderRadius: '4px' }}
 							/>
 							<div className="mt-2 small">
-								<div>
-									X: {rightStickData.rawX} ({convertToDS4Normalized(rightStickData.x)})
+								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+									<span>X:</span>
+									{rightFinetuneCenterActive && (
+										<Button
+											variant="light"
+											size="sm"
+											style={finetuneButtonStyle}
+											onClick={() => {
+												const currentCenterX = values?.joystickCenterX2 || ADC_CENTER;
+												setFieldValue('joystickCenterX2', currentCenterX + 2);
+											}}
+										>
+											+
+										</Button>
+									)}
+									<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
+										{rightStickData.rawX}
+									</span>
+									{rightFinetuneCenterActive && (
+										<Button
+											variant="light"
+											size="sm"
+											style={finetuneButtonStyle}
+											onClick={() => {
+												const currentCenterX = values?.joystickCenterX2 || ADC_CENTER;
+												setFieldValue('joystickCenterX2', currentCenterX - 2);
+											}}
+										>
+											−
+										</Button>
+									)}
+									<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
+										({convertToDS4Normalized(rightStickData.x)})
+									</span>
 								</div>
-								<div>
-									Y: {rightStickData.rawY} ({convertToDS4Normalized(rightStickData.y)})
+								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+									<span>Y:</span>
+									{rightFinetuneCenterActive && (
+										<Button
+											variant="light"
+											size="sm"
+											style={finetuneButtonStyle}
+											onClick={() => {
+												const currentCenterY = values?.joystickCenterY2 || ADC_CENTER;
+												setFieldValue('joystickCenterY2', currentCenterY + 2);
+											}}
+										>
+											+
+										</Button>
+									)}
+									<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
+										{rightStickData.rawY}
+									</span>
+									{rightFinetuneCenterActive && (
+										<Button
+											variant="light"
+											size="sm"
+											style={finetuneButtonStyle}
+											onClick={() => {
+												const currentCenterY = values?.joystickCenterY2 || ADC_CENTER;
+												setFieldValue('joystickCenterY2', currentCenterY - 2);
+											}}
+										>
+											−
+										</Button>
+									)}
+									<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
+										({convertToDS4Normalized(rightStickData.y)})
+									</span>
 								</div>
 							</div>
 							{/* Right stick calibration buttons - First row */}
@@ -595,7 +766,7 @@ const JoystickCalibration = ({
 								<Button
 									variant="warning"
 									size="sm"
-									onClick={() => setShowRightFinetuneCenterModal(true)}
+									onClick={() => setRightFinetuneCenterActive(!rightFinetuneCenterActive)}
 								>
 									{t('AddonsConfig:joystick-calibration-finetune-center-button')}
 								</Button>
@@ -681,42 +852,6 @@ const JoystickCalibration = ({
 				centerX={values?.joystickCenterX2}
 				centerY={values?.joystickCenterY2}
 			/>
-			
-			{/* Finetune Center Modals */}
-			<Modal
-				show={showLeftFinetuneCenterModal}
-				onHide={() => setShowLeftFinetuneCenterModal(false)}
-				size="lg"
-			>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('AddonsConfig:joystick-calibration-finetune-center-button')} - {t('AddonsConfig:joystick-calibration-left-stick')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<p>微调摇杆中心功能待实现</p>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowLeftFinetuneCenterModal(false)}>
-						关闭
-					</Button>
-				</Modal.Footer>
-			</Modal>
-			<Modal
-				show={showRightFinetuneCenterModal}
-				onHide={() => setShowRightFinetuneCenterModal(false)}
-				size="lg"
-			>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('AddonsConfig:joystick-calibration-finetune-center-button')} - {t('AddonsConfig:joystick-calibration-right-stick')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<p>微调摇杆中心功能待实现</p>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowRightFinetuneCenterModal(false)}>
-						关闭
-					</Button>
-				</Modal.Footer>
-			</Modal>
 			
 			{/* Finetune Shape Modals */}
 			<Modal
