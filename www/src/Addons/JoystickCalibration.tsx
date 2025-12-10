@@ -307,12 +307,16 @@ const JoystickCalibration = ({
 	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
 	
 	// Finetune shape modal state
-	const [leftFinetuneShapeXPercent, setLeftFinetuneShapeXPercent] = useState(100.0);
-	const [leftFinetuneShapeYPercent, setLeftFinetuneShapeYPercent] = useState(100.0);
+	const [leftFinetuneShapeXTopPercent, setLeftFinetuneShapeXTopPercent] = useState(100.0);
+	const [leftFinetuneShapeXBottomPercent, setLeftFinetuneShapeXBottomPercent] = useState(100.0);
+	const [leftFinetuneShapeYLeftPercent, setLeftFinetuneShapeYLeftPercent] = useState(100.0);
+	const [leftFinetuneShapeYRightPercent, setLeftFinetuneShapeYRightPercent] = useState(100.0);
 	const [leftFinetuneShapeForceCircular, setLeftFinetuneShapeForceCircular] = useState(false);
 	const [leftFinetuneShapeAmplify, setLeftFinetuneShapeAmplify] = useState(0.0);
-	const [rightFinetuneShapeXPercent, setRightFinetuneShapeXPercent] = useState(100.0);
-	const [rightFinetuneShapeYPercent, setRightFinetuneShapeYPercent] = useState(100.0);
+	const [rightFinetuneShapeXTopPercent, setRightFinetuneShapeXTopPercent] = useState(100.0);
+	const [rightFinetuneShapeXBottomPercent, setRightFinetuneShapeXBottomPercent] = useState(100.0);
+	const [rightFinetuneShapeYLeftPercent, setRightFinetuneShapeYLeftPercent] = useState(100.0);
+	const [rightFinetuneShapeYRightPercent, setRightFinetuneShapeYRightPercent] = useState(100.0);
 	const [rightFinetuneShapeForceCircular, setRightFinetuneShapeForceCircular] = useState(false);
 	const [rightFinetuneShapeAmplify, setRightFinetuneShapeAmplify] = useState(0.0);
 	const leftFinetuneShapeCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -1026,8 +1030,10 @@ const JoystickCalibration = ({
 				onHide={() => {
 					setShowLeftFinetuneShapeModal(false);
 					// Reset to original values on cancel
-					setLeftFinetuneShapeXPercent(100.0);
-					setLeftFinetuneShapeYPercent(100.0);
+					setLeftFinetuneShapeXTopPercent(100.0);
+					setLeftFinetuneShapeXBottomPercent(100.0);
+					setLeftFinetuneShapeYLeftPercent(100.0);
+					setLeftFinetuneShapeYRightPercent(100.0);
 					setLeftFinetuneShapeForceCircular(false);
 					setLeftFinetuneShapeAmplify(0.0);
 				}}
@@ -1047,48 +1053,48 @@ const JoystickCalibration = ({
 									height={250}
 									style={{ border: '1px solid #ccc', borderRadius: '4px', display: 'block' }}
 								/>
-								{/* X-axis controls (top) - horizontal layout: - on left, value in middle, + on right */}
+								{/* X-axis controls (top) - horizontal layout: + on left, value in middle, - on right */}
 								<div style={{ position: 'absolute', left: '50%', top: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXPercent(prev => Math.max(0, prev - 0.2))}
+										onClick={() => setLeftFinetuneShapeXTopPercent(prev => prev + 0.2)}
 									>
-										−
+										+
 									</Button>
 									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeXPercent.toFixed(1)}%
+										{leftFinetuneShapeXTopPercent.toFixed(1)}%
 									</span>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXPercent(prev => prev + 0.2)}
+										onClick={() => setLeftFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
 									>
-										+
+										−
 									</Button>
 								</div>
-								{/* X-axis controls (bottom) - horizontal layout: - on left, value in middle, + on right */}
+								{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
 								<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXPercent(prev => Math.max(0, prev - 0.2))}
+										onClick={() => setLeftFinetuneShapeXBottomPercent(prev => prev + 0.2)}
 									>
-										−
+										+
 									</Button>
 									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeXPercent.toFixed(1)}%
+										{leftFinetuneShapeXBottomPercent.toFixed(1)}%
 									</span>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXPercent(prev => prev + 0.2)}
+										onClick={() => setLeftFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
 									>
-										+
+										−
 									</Button>
 								</div>
 								{/* Y-axis controls (left) - vertical layout: + on top, value in middle, - on bottom */}
@@ -1097,18 +1103,18 @@ const JoystickCalibration = ({
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeYPercent(prev => prev + 0.2)}
+										onClick={() => setLeftFinetuneShapeYLeftPercent(prev => prev + 0.2)}
 									>
 										+
 									</Button>
 									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeYPercent.toFixed(1)}%
+										{leftFinetuneShapeYLeftPercent.toFixed(1)}%
 									</span>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeYPercent(prev => Math.max(0, prev - 0.2))}
+										onClick={() => setLeftFinetuneShapeYLeftPercent(prev => Math.max(0, prev - 0.2))}
 									>
 										−
 									</Button>
@@ -1119,18 +1125,18 @@ const JoystickCalibration = ({
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeYPercent(prev => prev + 0.2)}
+										onClick={() => setLeftFinetuneShapeYRightPercent(prev => prev + 0.2)}
 									>
 										+
 									</Button>
 									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeYPercent.toFixed(1)}%
+										{leftFinetuneShapeYRightPercent.toFixed(1)}%
 									</span>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeYPercent(prev => Math.max(0, prev - 0.2))}
+										onClick={() => setLeftFinetuneShapeYRightPercent(prev => Math.max(0, prev - 0.2))}
 									>
 										−
 									</Button>
@@ -1175,8 +1181,10 @@ const JoystickCalibration = ({
 					<Button variant="secondary" onClick={() => {
 						setShowLeftFinetuneShapeModal(false);
 						// Reset to original values on cancel
-						setLeftFinetuneShapeXPercent(100.0);
-						setLeftFinetuneShapeYPercent(100.0);
+						setLeftFinetuneShapeXTopPercent(100.0);
+						setLeftFinetuneShapeXBottomPercent(100.0);
+						setLeftFinetuneShapeYLeftPercent(100.0);
+						setLeftFinetuneShapeYRightPercent(100.0);
 						setLeftFinetuneShapeForceCircular(false);
 						setLeftFinetuneShapeAmplify(0.0);
 					}}>
@@ -1192,20 +1200,20 @@ const JoystickCalibration = ({
 							const angle = (index * 2 * Math.PI / CIRCULARITY_DATA_SIZE) - Math.PI;
 							const angleDeg = (angle * 180 / Math.PI + 360) % 360;
 							
-							// Determine which axis adjustment to apply
+							// Determine which axis adjustment to apply based on angle
 							let scaleFactor = 1.0;
 							if (Math.abs(angleDeg - 0) < 22.5 || Math.abs(angleDeg - 360) < 22.5) {
-								// Right (0°)
-								scaleFactor = leftFinetuneShapeXPercent / 100.0;
+								// Right (0°) - Y轴右侧
+								scaleFactor = leftFinetuneShapeYRightPercent / 100.0;
 							} else if (Math.abs(angleDeg - 180) < 22.5) {
-								// Left (180°)
-								scaleFactor = leftFinetuneShapeXPercent / 100.0;
+								// Left (180°) - Y轴左侧
+								scaleFactor = leftFinetuneShapeYLeftPercent / 100.0;
 							} else if (Math.abs(angleDeg - 90) < 22.5) {
-								// Top (90°)
-								scaleFactor = leftFinetuneShapeYPercent / 100.0;
+								// Top (90°) - X轴顶部
+								scaleFactor = leftFinetuneShapeXTopPercent / 100.0;
 							} else if (Math.abs(angleDeg - 270) < 22.5) {
-								// Bottom (270°)
-								scaleFactor = leftFinetuneShapeYPercent / 100.0;
+								// Bottom (270°) - X轴底部
+								scaleFactor = leftFinetuneShapeXBottomPercent / 100.0;
 							}
 							
 							// Apply amplify factor if force circular is enabled
@@ -1228,8 +1236,10 @@ const JoystickCalibration = ({
 				onHide={() => {
 					setShowRightFinetuneShapeModal(false);
 					// Reset to original values on cancel
-					setRightFinetuneShapeXPercent(100.0);
-					setRightFinetuneShapeYPercent(100.0);
+					setRightFinetuneShapeXTopPercent(100.0);
+					setRightFinetuneShapeXBottomPercent(100.0);
+					setRightFinetuneShapeYLeftPercent(100.0);
+					setRightFinetuneShapeYRightPercent(100.0);
 					setRightFinetuneShapeForceCircular(false);
 					setRightFinetuneShapeAmplify(0.0);
 				}}
@@ -1249,48 +1259,48 @@ const JoystickCalibration = ({
 									height={250}
 									style={{ border: '1px solid #ccc', borderRadius: '4px', display: 'block' }}
 								/>
-								{/* X-axis controls (top) - horizontal layout: - on left, value in middle, + on right */}
+								{/* X-axis controls (top) - horizontal layout: + on left, value in middle, - on right */}
 								<div style={{ position: 'absolute', left: '50%', top: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXPercent(prev => Math.max(0, prev - 0.2))}
+										onClick={() => setRightFinetuneShapeXTopPercent(prev => prev + 0.2)}
 									>
-										−
+										+
 									</Button>
 									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeXPercent.toFixed(1)}%
+										{rightFinetuneShapeXTopPercent.toFixed(1)}%
 									</span>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXPercent(prev => prev + 0.2)}
+										onClick={() => setRightFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
 									>
-										+
+										−
 									</Button>
 								</div>
-								{/* X-axis controls (bottom) - horizontal layout: - on left, value in middle, + on right */}
+								{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
 								<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXPercent(prev => Math.max(0, prev - 0.2))}
+										onClick={() => setRightFinetuneShapeXBottomPercent(prev => prev + 0.2)}
 									>
-										−
+										+
 									</Button>
 									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeXPercent.toFixed(1)}%
+										{rightFinetuneShapeXBottomPercent.toFixed(1)}%
 									</span>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXPercent(prev => prev + 0.2)}
+										onClick={() => setRightFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
 									>
-										+
+										−
 									</Button>
 								</div>
 								{/* Y-axis controls (left) - vertical layout: + on top, value in middle, - on bottom */}
@@ -1299,18 +1309,18 @@ const JoystickCalibration = ({
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeYPercent(prev => prev + 0.2)}
+										onClick={() => setRightFinetuneShapeYLeftPercent(prev => prev + 0.2)}
 									>
 										+
 									</Button>
 									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeYPercent.toFixed(1)}%
+										{rightFinetuneShapeYLeftPercent.toFixed(1)}%
 									</span>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeYPercent(prev => Math.max(0, prev - 0.2))}
+										onClick={() => setRightFinetuneShapeYLeftPercent(prev => Math.max(0, prev - 0.2))}
 									>
 										−
 									</Button>
@@ -1321,18 +1331,18 @@ const JoystickCalibration = ({
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeYPercent(prev => prev + 0.2)}
+										onClick={() => setRightFinetuneShapeYRightPercent(prev => prev + 0.2)}
 									>
 										+
 									</Button>
 									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeYPercent.toFixed(1)}%
+										{rightFinetuneShapeYRightPercent.toFixed(1)}%
 									</span>
 									<Button
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeYPercent(prev => Math.max(0, prev - 0.2))}
+										onClick={() => setRightFinetuneShapeYRightPercent(prev => Math.max(0, prev - 0.2))}
 									>
 										−
 									</Button>
@@ -1377,8 +1387,10 @@ const JoystickCalibration = ({
 					<Button variant="secondary" onClick={() => {
 						setShowRightFinetuneShapeModal(false);
 						// Reset to original values on cancel
-						setRightFinetuneShapeXPercent(100.0);
-						setRightFinetuneShapeYPercent(100.0);
+						setRightFinetuneShapeXTopPercent(100.0);
+						setRightFinetuneShapeXBottomPercent(100.0);
+						setRightFinetuneShapeYLeftPercent(100.0);
+						setRightFinetuneShapeYRightPercent(100.0);
 						setRightFinetuneShapeForceCircular(false);
 						setRightFinetuneShapeAmplify(0.0);
 					}}>
@@ -1394,20 +1406,20 @@ const JoystickCalibration = ({
 							const angle = (index * 2 * Math.PI / CIRCULARITY_DATA_SIZE) - Math.PI;
 							const angleDeg = (angle * 180 / Math.PI + 360) % 360;
 							
-							// Determine which axis adjustment to apply
+							// Determine which axis adjustment to apply based on angle
 							let scaleFactor = 1.0;
 							if (Math.abs(angleDeg - 0) < 22.5 || Math.abs(angleDeg - 360) < 22.5) {
-								// Right (0°)
-								scaleFactor = rightFinetuneShapeXPercent / 100.0;
+								// Right (0°) - Y轴右侧
+								scaleFactor = rightFinetuneShapeYRightPercent / 100.0;
 							} else if (Math.abs(angleDeg - 180) < 22.5) {
-								// Left (180°)
-								scaleFactor = rightFinetuneShapeXPercent / 100.0;
+								// Left (180°) - Y轴左侧
+								scaleFactor = rightFinetuneShapeYLeftPercent / 100.0;
 							} else if (Math.abs(angleDeg - 90) < 22.5) {
-								// Top (90°)
-								scaleFactor = rightFinetuneShapeYPercent / 100.0;
+								// Top (90°) - X轴顶部
+								scaleFactor = rightFinetuneShapeXTopPercent / 100.0;
 							} else if (Math.abs(angleDeg - 270) < 22.5) {
-								// Bottom (270°)
-								scaleFactor = rightFinetuneShapeYPercent / 100.0;
+								// Bottom (270°) - X轴底部
+								scaleFactor = rightFinetuneShapeXBottomPercent / 100.0;
 							}
 							
 							// Apply amplify factor if force circular is enabled
