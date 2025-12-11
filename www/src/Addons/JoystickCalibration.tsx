@@ -58,6 +58,115 @@ const finetuneButtonStyle: React.CSSProperties = {
 };
 
 /**
+ * Applies finetune shape percentage adjustments to range data with angle interpolation
+ * @param rangeData - Original range calibration data array
+ * @param xTopPercent - X axis top percentage (default 100.0)
+ * @param xBottomPercent - X axis bottom percentage (default 100.0)
+ * @param yLeftPercent - Y axis left percentage (default 100.0)
+ * @param yRightPercent - Y axis right percentage (default 100.0)
+ * @param forceCircular - Force circular flag
+ * @param amplify - Amplify factor (default 0.0)
+ * @returns Adjusted range data array
+ */
+const applyFinetuneShapeAdjustments = (
+	rangeData: number[],
+	xTopPercent: number,
+	xBottomPercent: number,
+	yLeftPercent: number,
+	yRightPercent: number,
+	forceCircular: boolean,
+	amplify: number
+): number[] => {
+	// Index mapping: angle = (index * 2π / 48) - π
+	// 0° (right): index = 24
+	// 90° (top): index = 36  
+	// 180° (left): index = 0
+	// 270° (bottom): index = 12
+	const cardinalIndices = [
+		{ index: 24, scale: yRightPercent / 100.0, angle: 0 },    // Right (0°)
+		{ index: 36, scale: xTopPercent / 100.0, angle: 90 },   // Top (90°)
+		{ index: 0, scale: yLeftPercent / 100.0, angle: 180 },  // Left (180°)
+		{ index: 12, scale: xBottomPercent / 100.0, angle: 270 } // Bottom (270°)
+	];
+	
+	// Helper function to get scale factor for a given index with interpolation
+	const getScaleFactor = (index: number): number => {
+		// Check if this is exactly a cardinal direction
+		const cardinal = cardinalIndices.find(c => c.index === index);
+		if (cardinal) {
+			return cardinal.scale;
+		}
+		
+		// Find the two nearest cardinal directions for interpolation
+		// Calculate angle for this index
+		const angle = (index * 2 * Math.PI / CIRCULARITY_DATA_SIZE) - Math.PI;
+		const angleDeg = (angle * 180 / Math.PI + 360) % 360;
+		
+		// Find the two adjacent cardinal directions
+		let prevCardinal = cardinalIndices[cardinalIndices.length - 1];
+		let nextCardinal = cardinalIndices[0];
+		
+		for (let i = 0; i < cardinalIndices.length; i++) {
+			const curr = cardinalIndices[i];
+			const next = cardinalIndices[(i + 1) % cardinalIndices.length];
+			
+			// Calculate angle ranges, handling wrap-around
+			let currAngle = curr.angle;
+			let nextAngle = next.angle;
+			if (nextAngle < currAngle) nextAngle += 360;
+			
+			// Check if current angle is between curr and next
+			let angleInRange = false;
+			if (angleDeg >= currAngle && angleDeg <= nextAngle) {
+				angleInRange = true;
+			} else if (currAngle > 270 && angleDeg < 90) {
+				// Handle wrap-around: angleDeg is near 0, currAngle is near 360
+				angleInRange = true;
+			}
+			
+			if (angleInRange) {
+				prevCardinal = curr;
+				nextCardinal = next;
+				break;
+			}
+		}
+		
+		// Calculate interpolation factor based on angle
+		let prevAngle = prevCardinal.angle;
+		let nextAngle = nextCardinal.angle;
+		if (nextAngle < prevAngle) nextAngle += 360;
+		
+		let t = 0;
+		if (prevAngle <= angleDeg && angleDeg <= nextAngle) {
+			t = (angleDeg - prevAngle) / (nextAngle - prevAngle);
+		} else if (prevAngle > 270 && angleDeg < 90) {
+			// Handle wrap-around
+			const dist = (angleDeg + 360 - prevAngle) % 360;
+			const total = (nextAngle + 360 - prevAngle) % 360;
+			t = dist / total;
+		}
+		
+		// Linear interpolation between the two cardinal scales
+		return prevCardinal.scale * (1 - t) + nextCardinal.scale * t;
+	};
+	
+	return rangeData.map((value: number, index: number) => {
+		if (value <= 0) return value;
+		
+		// Get scale factor with interpolation
+		let scaleFactor = getScaleFactor(index);
+		
+		// Apply amplify factor if force circular is enabled
+		if (forceCircular && amplify > 0) {
+			scaleFactor *= (1.0 + amplify / 100.0);
+		}
+		
+		// Apply the scale factor to the original calibration value
+		return value * scaleFactor;
+	});
+};
+
+/**
  * Processes joystick data through coordinate transformation pipeline
  * @param rawX - Raw ADC X value
  * @param rawY - Raw ADC Y value
@@ -306,19 +415,45 @@ const JoystickCalibration = ({
 	const [leftFinetuneCenterActive, setLeftFinetuneCenterActive] = useState(false);
 	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
 	
-	// Finetune shape modal state
-	const [leftFinetuneShapeXTopPercent, setLeftFinetuneShapeXTopPercent] = useState(100.0);
-	const [leftFinetuneShapeXBottomPercent, setLeftFinetuneShapeXBottomPercent] = useState(100.0);
-	const [leftFinetuneShapeYLeftPercent, setLeftFinetuneShapeYLeftPercent] = useState(100.0);
-	const [leftFinetuneShapeYRightPercent, setLeftFinetuneShapeYRightPercent] = useState(100.0);
-	const [leftFinetuneShapeForceCircular, setLeftFinetuneShapeForceCircular] = useState(false);
-	const [leftFinetuneShapeAmplify, setLeftFinetuneShapeAmplify] = useState(0.0);
-	const [rightFinetuneShapeXTopPercent, setRightFinetuneShapeXTopPercent] = useState(100.0);
-	const [rightFinetuneShapeXBottomPercent, setRightFinetuneShapeXBottomPercent] = useState(100.0);
-	const [rightFinetuneShapeYLeftPercent, setRightFinetuneShapeYLeftPercent] = useState(100.0);
-	const [rightFinetuneShapeYRightPercent, setRightFinetuneShapeYRightPercent] = useState(100.0);
-	const [rightFinetuneShapeForceCircular, setRightFinetuneShapeForceCircular] = useState(false);
-	const [rightFinetuneShapeAmplify, setRightFinetuneShapeAmplify] = useState(0.0);
+	// Finetune shape modal state - initialize from values
+	const getPercentValue = (val: any, defaultVal: number) => {
+		if (val === undefined || val === null) return defaultVal;
+		const numVal = typeof val === 'number' ? val : parseFloat(val);
+		return isNaN(numVal) || numVal === 0 ? defaultVal : numVal;
+	};
+	
+	const [leftFinetuneShapeXTopPercent, setLeftFinetuneShapeXTopPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent1, 100.0));
+	const [leftFinetuneShapeXBottomPercent, setLeftFinetuneShapeXBottomPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent1, 100.0));
+	const [leftFinetuneShapeYLeftPercent, setLeftFinetuneShapeYLeftPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent1, 100.0));
+	const [leftFinetuneShapeYRightPercent, setLeftFinetuneShapeYRightPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent1, 100.0));
+	const [leftFinetuneShapeForceCircular, setLeftFinetuneShapeForceCircular] = useState((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
+	const [leftFinetuneShapeAmplify, setLeftFinetuneShapeAmplify] = useState((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
+	const [rightFinetuneShapeXTopPercent, setRightFinetuneShapeXTopPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent2, 100.0));
+	const [rightFinetuneShapeXBottomPercent, setRightFinetuneShapeXBottomPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent2, 100.0));
+	const [rightFinetuneShapeYLeftPercent, setRightFinetuneShapeYLeftPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent2, 100.0));
+	const [rightFinetuneShapeYRightPercent, setRightFinetuneShapeYRightPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent2, 100.0));
+	const [rightFinetuneShapeForceCircular, setRightFinetuneShapeForceCircular] = useState((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
+	const [rightFinetuneShapeAmplify, setRightFinetuneShapeAmplify] = useState((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
+	
+	// Update state when modal opens (load saved values from server)
+	useEffect(() => {
+		if (showLeftFinetuneShapeModal) {
+			setLeftFinetuneShapeXTopPercent(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent1, 100.0));
+			setLeftFinetuneShapeXBottomPercent(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent1, 100.0));
+			setLeftFinetuneShapeYLeftPercent(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent1, 100.0));
+			setLeftFinetuneShapeYRightPercent(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent1, 100.0));
+			setLeftFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
+			setLeftFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
+		}
+		if (showRightFinetuneShapeModal) {
+			setRightFinetuneShapeXTopPercent(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent2, 100.0));
+			setRightFinetuneShapeXBottomPercent(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent2, 100.0));
+			setRightFinetuneShapeYLeftPercent(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent2, 100.0));
+			setRightFinetuneShapeYRightPercent(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent2, 100.0));
+			setRightFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
+			setRightFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
+		}
+	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal, (values as any)?.joystickFinetuneShapeXTopPercent1, (values as any)?.joystickFinetuneShapeXBottomPercent1, (values as any)?.joystickFinetuneShapeYLeftPercent1, (values as any)?.joystickFinetuneShapeYRightPercent1, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeXTopPercent2, (values as any)?.joystickFinetuneShapeXBottomPercent2, (values as any)?.joystickFinetuneShapeYLeftPercent2, (values as any)?.joystickFinetuneShapeYRightPercent2, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
 	const leftFinetuneShapeCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightFinetuneShapeCanvasRef = useRef<HTMLCanvasElement>(null);
 	const [leftFinetuneShapeStickData, setLeftFinetuneShapeStickData] = useState({ x: 0, y: 0 });
@@ -372,14 +507,32 @@ const JoystickCalibration = ({
 						if (data1.success) {
 							const centerX = values.joystickCenterX || ADC_CENTER;
 							const centerY = values.joystickCenterY || ADC_CENTER;
-							const rangeData = (values as any).joystickRangeData1 || [];
+							const originalRangeData = (values as any).joystickRangeData1 || [];
+							
+							// Apply finetune shape adjustments from saved values
+							const xTopPercent = getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent1, 100.0);
+							const xBottomPercent = getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent1, 100.0);
+							const yLeftPercent = getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent1, 100.0);
+							const yRightPercent = getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent1, 100.0);
+							const forceCircular = (values as any)?.joystickFinetuneShapeForceCircular1 ?? false;
+							const amplify = (values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0;
+							
+							const adjustedRangeData = applyFinetuneShapeAdjustments(
+								originalRangeData,
+								xTopPercent,
+								xBottomPercent,
+								yLeftPercent,
+								yRightPercent,
+								forceCircular,
+								amplify
+							);
 							
 							const { stickX, stickY, detailData } = processJoystickData(
 								data1.x,
 								data1.y,
 								centerX,
 								centerY,
-								rangeData
+								adjustedRangeData
 							);
 							
 							setLeftStickData({
@@ -414,14 +567,32 @@ const JoystickCalibration = ({
 						if (data2.success) {
 							const centerX = values.joystickCenterX2 || ADC_CENTER;
 							const centerY = values.joystickCenterY2 || ADC_CENTER;
-							const rangeData = (values as any).joystickRangeData2 || [];
+							const originalRangeData = (values as any).joystickRangeData2 || [];
+							
+							// Apply finetune shape adjustments from saved values
+							const xTopPercent = getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent2, 100.0);
+							const xBottomPercent = getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent2, 100.0);
+							const yLeftPercent = getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent2, 100.0);
+							const yRightPercent = getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent2, 100.0);
+							const forceCircular = (values as any)?.joystickFinetuneShapeForceCircular2 ?? false;
+							const amplify = (values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0;
+							
+							const adjustedRangeData = applyFinetuneShapeAdjustments(
+								originalRangeData,
+								xTopPercent,
+								xBottomPercent,
+								yLeftPercent,
+								yRightPercent,
+								forceCircular,
+								amplify
+							);
 							
 							const { stickX, stickY, detailData } = processJoystickData(
 								data2.x,
 								data2.y,
 								centerX,
 								centerY,
-								rangeData
+								adjustedRangeData
 							);
 							
 							setRightStickData({
@@ -458,7 +629,7 @@ const JoystickCalibration = ({
 		return () => {
 			clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, leftCircularityEnabled, rightCircularityEnabled]);
+	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, leftCircularityEnabled, rightCircularityEnabled, (values as any)?.joystickFinetuneShapeXTopPercent1, (values as any)?.joystickFinetuneShapeXBottomPercent1, (values as any)?.joystickFinetuneShapeYLeftPercent1, (values as any)?.joystickFinetuneShapeYRightPercent1, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeXTopPercent2, (values as any)?.joystickFinetuneShapeXBottomPercent2, (values as any)?.joystickFinetuneShapeYLeftPercent2, (values as any)?.joystickFinetuneShapeYRightPercent2, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
 
 	// Update canvas when stick data changes
 	useEffect(() => {
@@ -521,6 +692,60 @@ const JoystickCalibration = ({
 		}
 	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal]);
 
+	// Reset circularity data when percentage values change (to reflect new coverage)
+	useEffect(() => {
+		if (showLeftFinetuneShapeModal) {
+			setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
+		}
+	}, [showLeftFinetuneShapeModal, leftFinetuneShapeXTopPercent, leftFinetuneShapeXBottomPercent, leftFinetuneShapeYLeftPercent, leftFinetuneShapeYRightPercent, leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify]);
+
+	useEffect(() => {
+		if (showRightFinetuneShapeModal) {
+			setRightFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
+		}
+	}, [showRightFinetuneShapeModal, rightFinetuneShapeXTopPercent, rightFinetuneShapeXBottomPercent, rightFinetuneShapeYLeftPercent, rightFinetuneShapeYRightPercent, rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
+
+	// Use refs to store latest percentage values for real-time updates
+	const leftFinetuneShapePercentRef = useRef({
+		xTop: leftFinetuneShapeXTopPercent,
+		xBottom: leftFinetuneShapeXBottomPercent,
+		yLeft: leftFinetuneShapeYLeftPercent,
+		yRight: leftFinetuneShapeYRightPercent,
+		forceCircular: leftFinetuneShapeForceCircular,
+		amplify: leftFinetuneShapeAmplify
+	});
+	const rightFinetuneShapePercentRef = useRef({
+		xTop: rightFinetuneShapeXTopPercent,
+		xBottom: rightFinetuneShapeXBottomPercent,
+		yLeft: rightFinetuneShapeYLeftPercent,
+		yRight: rightFinetuneShapeYRightPercent,
+		forceCircular: rightFinetuneShapeForceCircular,
+		amplify: rightFinetuneShapeAmplify
+	});
+
+	// Update refs when percentage values change
+	useEffect(() => {
+		leftFinetuneShapePercentRef.current = {
+			xTop: leftFinetuneShapeXTopPercent,
+			xBottom: leftFinetuneShapeXBottomPercent,
+			yLeft: leftFinetuneShapeYLeftPercent,
+			yRight: leftFinetuneShapeYRightPercent,
+			forceCircular: leftFinetuneShapeForceCircular,
+			amplify: leftFinetuneShapeAmplify
+		};
+	}, [leftFinetuneShapeXTopPercent, leftFinetuneShapeXBottomPercent, leftFinetuneShapeYLeftPercent, leftFinetuneShapeYRightPercent, leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify]);
+
+	useEffect(() => {
+		rightFinetuneShapePercentRef.current = {
+			xTop: rightFinetuneShapeXTopPercent,
+			xBottom: rightFinetuneShapeXBottomPercent,
+			yLeft: rightFinetuneShapeYLeftPercent,
+			yRight: rightFinetuneShapeYRightPercent,
+			forceCircular: rightFinetuneShapeForceCircular,
+			amplify: rightFinetuneShapeAmplify
+		};
+	}, [rightFinetuneShapeXTopPercent, rightFinetuneShapeXBottomPercent, rightFinetuneShapeYLeftPercent, rightFinetuneShapeYRightPercent, rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
+
 	// Fetch joystick data for finetune shape modals
 	useEffect(() => {
 		if (!values || !values.AnalogInputEnabled) {
@@ -536,19 +761,31 @@ const JoystickCalibration = ({
 						if (data.success) {
 							const centerX = values.joystickCenterX || ADC_CENTER;
 							const centerY = values.joystickCenterY || ADC_CENTER;
-							const rangeData = (values as any).joystickRangeData1 || [];
+							const originalRangeData = (values as any).joystickRangeData1 || [];
+							
+							// Use ref to get latest percentage values for real-time updates
+							const percentRef = leftFinetuneShapePercentRef.current;
+							const adjustedRangeData = applyFinetuneShapeAdjustments(
+								originalRangeData,
+								percentRef.xTop,
+								percentRef.xBottom,
+								percentRef.yLeft,
+								percentRef.yRight,
+								percentRef.forceCircular,
+								percentRef.amplify
+							);
 							
 							const { stickX, stickY, detailData } = processJoystickData(
 								data.x,
 								data.y,
 								centerX,
 								centerY,
-								rangeData
+								adjustedRangeData
 							);
 							
 							setLeftFinetuneShapeStickData({ x: stickX, y: stickY });
 
-							// Collect circularity data
+							// Collect circularity data (always enabled in finetune shape modal)
 							const distance = Math.sqrt(stickX * stickX + stickY * stickY);
 							const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
 							setLeftFinetuneShapeCircularityData(prev => {
@@ -573,19 +810,31 @@ const JoystickCalibration = ({
 						if (data.success) {
 							const centerX = values.joystickCenterX2 || ADC_CENTER;
 							const centerY = values.joystickCenterY2 || ADC_CENTER;
-							const rangeData = (values as any).joystickRangeData2 || [];
+							const originalRangeData = (values as any).joystickRangeData2 || [];
+							
+							// Use ref to get latest percentage values for real-time updates
+							const percentRef = rightFinetuneShapePercentRef.current;
+							const adjustedRangeData = applyFinetuneShapeAdjustments(
+								originalRangeData,
+								percentRef.xTop,
+								percentRef.xBottom,
+								percentRef.yLeft,
+								percentRef.yRight,
+								percentRef.forceCircular,
+								percentRef.amplify
+							);
 							
 							const { stickX, stickY, detailData } = processJoystickData(
 								data.x,
 								data.y,
 								centerX,
 								centerY,
-								rangeData
+								adjustedRangeData
 							);
 							
 							setRightFinetuneShapeStickData({ x: stickX, y: stickY });
 
-							// Collect circularity data
+							// Collect circularity data (always enabled in finetune shape modal)
 							const distance = Math.sqrt(stickX * stickX + stickY * stickY);
 							const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
 							setRightFinetuneShapeCircularityData(prev => {
@@ -623,6 +872,7 @@ const JoystickCalibration = ({
 					const centerY = canvas.height / 2;
 					const radius = Math.min(centerX, centerY) - 10;
 					
+					// Always show circularity data in finetune shape modal
 					drawStickPosition(
 						ctx,
 						centerX,
@@ -630,7 +880,7 @@ const JoystickCalibration = ({
 						radius,
 						leftFinetuneShapeStickData.x,
 						leftFinetuneShapeStickData.y,
-						leftFinetuneShapeCircularityData,
+						leftFinetuneShapeCircularityData, // Always show coverage and error rate
 						false,
 					);
 				}
@@ -645,6 +895,7 @@ const JoystickCalibration = ({
 					const centerY = canvas.height / 2;
 					const radius = Math.min(centerX, centerY) - 10;
 					
+					// Always show circularity data in finetune shape modal
 					drawStickPosition(
 						ctx,
 						centerX,
@@ -652,7 +903,7 @@ const JoystickCalibration = ({
 						radius,
 						rightFinetuneShapeStickData.x,
 						rightFinetuneShapeStickData.y,
-						rightFinetuneShapeCircularityData,
+						rightFinetuneShapeCircularityData, // Always show coverage and error rate
 						false,
 					);
 				}
@@ -660,7 +911,7 @@ const JoystickCalibration = ({
 		};
 
 		updateCanvas();
-	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal, leftFinetuneShapeStickData, rightFinetuneShapeStickData, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData]);
+	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal, leftFinetuneShapeStickData, rightFinetuneShapeStickData, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData, leftFinetuneShapeXTopPercent, leftFinetuneShapeXBottomPercent, leftFinetuneShapeYLeftPercent, leftFinetuneShapeYRightPercent, leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify, rightFinetuneShapeXTopPercent, rightFinetuneShapeXBottomPercent, rightFinetuneShapeYLeftPercent, rightFinetuneShapeYRightPercent, rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
@@ -1029,13 +1280,13 @@ const JoystickCalibration = ({
 				show={showLeftFinetuneShapeModal}
 				onHide={() => {
 					setShowLeftFinetuneShapeModal(false);
-					// Reset to original values on cancel
-					setLeftFinetuneShapeXTopPercent(100.0);
-					setLeftFinetuneShapeXBottomPercent(100.0);
-					setLeftFinetuneShapeYLeftPercent(100.0);
-					setLeftFinetuneShapeYRightPercent(100.0);
-					setLeftFinetuneShapeForceCircular(false);
-					setLeftFinetuneShapeAmplify(0.0);
+					// Reset to saved values on cancel
+					setLeftFinetuneShapeXTopPercent(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent1, 100.0));
+					setLeftFinetuneShapeXBottomPercent(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent1, 100.0));
+					setLeftFinetuneShapeYLeftPercent(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent1, 100.0));
+					setLeftFinetuneShapeYRightPercent(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent1, 100.0));
+					setLeftFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
+					setLeftFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
 				}}
 				size="lg"
 			>
@@ -1059,28 +1310,6 @@ const JoystickCalibration = ({
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXTopPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeXTopPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
-								{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
-								<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
 										onClick={() => setLeftFinetuneShapeXBottomPercent(prev => prev + 0.2)}
 									>
 										+
@@ -1093,6 +1322,28 @@ const JoystickCalibration = ({
 										size="sm"
 										style={finetuneButtonStyle}
 										onClick={() => setLeftFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
+									>
+										−
+									</Button>
+								</div>
+								{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
+								<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => setLeftFinetuneShapeXTopPercent(prev => prev + 0.2)}
+									>
+										+
+									</Button>
+									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+										{leftFinetuneShapeXTopPercent.toFixed(1)}%
+									</span>
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => setLeftFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
 									>
 										−
 									</Button>
@@ -1191,40 +1442,14 @@ const JoystickCalibration = ({
 						取消
 					</Button>
 					<Button variant="primary" onClick={() => {
-						// Apply adjustments to range calibration data
-						const currentRangeData = (values as any).joystickRangeData1 || [];
-						const adjustedRangeData = currentRangeData.map((value: number, index: number) => {
-							if (value <= 0) return value;
-							
-							// Calculate angle for this index
-							const angle = (index * 2 * Math.PI / CIRCULARITY_DATA_SIZE) - Math.PI;
-							const angleDeg = (angle * 180 / Math.PI + 360) % 360;
-							
-							// Determine which axis adjustment to apply based on angle
-							let scaleFactor = 1.0;
-							if (Math.abs(angleDeg - 0) < 22.5 || Math.abs(angleDeg - 360) < 22.5) {
-								// Right (0°) - Y轴右侧
-								scaleFactor = leftFinetuneShapeYRightPercent / 100.0;
-							} else if (Math.abs(angleDeg - 180) < 22.5) {
-								// Left (180°) - Y轴左侧
-								scaleFactor = leftFinetuneShapeYLeftPercent / 100.0;
-							} else if (Math.abs(angleDeg - 90) < 22.5) {
-								// Top (90°) - X轴顶部
-								scaleFactor = leftFinetuneShapeXTopPercent / 100.0;
-							} else if (Math.abs(angleDeg - 270) < 22.5) {
-								// Bottom (270°) - X轴底部
-								scaleFactor = leftFinetuneShapeXBottomPercent / 100.0;
-							}
-							
-							// Apply amplify factor if force circular is enabled
-							if (leftFinetuneShapeForceCircular && leftFinetuneShapeAmplify > 0) {
-								scaleFactor *= (1.0 + leftFinetuneShapeAmplify / 100.0);
-							}
-							
-							return value * scaleFactor;
-						});
-						
-						setFieldValue('joystickRangeData1', adjustedRangeData);
+						// Save percentage values only (do not modify original calibration data)
+						// Backend will apply these adjustments at runtime
+						setFieldValue('joystickFinetuneShapeXTopPercent1', leftFinetuneShapeXTopPercent);
+						setFieldValue('joystickFinetuneShapeXBottomPercent1', leftFinetuneShapeXBottomPercent);
+						setFieldValue('joystickFinetuneShapeYLeftPercent1', leftFinetuneShapeYLeftPercent);
+						setFieldValue('joystickFinetuneShapeYRightPercent1', leftFinetuneShapeYRightPercent);
+						setFieldValue('joystickFinetuneShapeForceCircular1', leftFinetuneShapeForceCircular);
+						setFieldValue('joystickFinetuneShapeAmplify1', leftFinetuneShapeAmplify);
 						setShowLeftFinetuneShapeModal(false);
 					}}>
 						确定
@@ -1235,13 +1460,13 @@ const JoystickCalibration = ({
 				show={showRightFinetuneShapeModal}
 				onHide={() => {
 					setShowRightFinetuneShapeModal(false);
-					// Reset to original values on cancel
-					setRightFinetuneShapeXTopPercent(100.0);
-					setRightFinetuneShapeXBottomPercent(100.0);
-					setRightFinetuneShapeYLeftPercent(100.0);
-					setRightFinetuneShapeYRightPercent(100.0);
-					setRightFinetuneShapeForceCircular(false);
-					setRightFinetuneShapeAmplify(0.0);
+					// Reset to saved values on cancel
+					setRightFinetuneShapeXTopPercent(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent2, 100.0));
+					setRightFinetuneShapeXBottomPercent(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent2, 100.0));
+					setRightFinetuneShapeYLeftPercent(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent2, 100.0));
+					setRightFinetuneShapeYRightPercent(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent2, 100.0));
+					setRightFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
+					setRightFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
 				}}
 				size="lg"
 			>
@@ -1265,28 +1490,6 @@ const JoystickCalibration = ({
 										variant="light"
 										size="sm"
 										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXTopPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeXTopPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
-								{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
-								<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
 										onClick={() => setRightFinetuneShapeXBottomPercent(prev => prev + 0.2)}
 									>
 										+
@@ -1299,6 +1502,28 @@ const JoystickCalibration = ({
 										size="sm"
 										style={finetuneButtonStyle}
 										onClick={() => setRightFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
+									>
+										−
+									</Button>
+								</div>
+								{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
+								<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => setRightFinetuneShapeXTopPercent(prev => prev + 0.2)}
+									>
+										+
+									</Button>
+									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+										{rightFinetuneShapeXTopPercent.toFixed(1)}%
+									</span>
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => setRightFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
 									>
 										−
 									</Button>
@@ -1397,40 +1622,14 @@ const JoystickCalibration = ({
 						取消
 					</Button>
 					<Button variant="primary" onClick={() => {
-						// Apply adjustments to range calibration data
-						const currentRangeData = (values as any).joystickRangeData2 || [];
-						const adjustedRangeData = currentRangeData.map((value: number, index: number) => {
-							if (value <= 0) return value;
-							
-							// Calculate angle for this index
-							const angle = (index * 2 * Math.PI / CIRCULARITY_DATA_SIZE) - Math.PI;
-							const angleDeg = (angle * 180 / Math.PI + 360) % 360;
-							
-							// Determine which axis adjustment to apply based on angle
-							let scaleFactor = 1.0;
-							if (Math.abs(angleDeg - 0) < 22.5 || Math.abs(angleDeg - 360) < 22.5) {
-								// Right (0°) - Y轴右侧
-								scaleFactor = rightFinetuneShapeYRightPercent / 100.0;
-							} else if (Math.abs(angleDeg - 180) < 22.5) {
-								// Left (180°) - Y轴左侧
-								scaleFactor = rightFinetuneShapeYLeftPercent / 100.0;
-							} else if (Math.abs(angleDeg - 90) < 22.5) {
-								// Top (90°) - X轴顶部
-								scaleFactor = rightFinetuneShapeXTopPercent / 100.0;
-							} else if (Math.abs(angleDeg - 270) < 22.5) {
-								// Bottom (270°) - X轴底部
-								scaleFactor = rightFinetuneShapeXBottomPercent / 100.0;
-							}
-							
-							// Apply amplify factor if force circular is enabled
-							if (rightFinetuneShapeForceCircular && rightFinetuneShapeAmplify > 0) {
-								scaleFactor *= (1.0 + rightFinetuneShapeAmplify / 100.0);
-							}
-							
-							return value * scaleFactor;
-						});
-						
-						setFieldValue('joystickRangeData2', adjustedRangeData);
+						// Save percentage values only (do not modify original calibration data)
+						// Backend will apply these adjustments at runtime
+						setFieldValue('joystickFinetuneShapeXTopPercent2', rightFinetuneShapeXTopPercent);
+						setFieldValue('joystickFinetuneShapeXBottomPercent2', rightFinetuneShapeXBottomPercent);
+						setFieldValue('joystickFinetuneShapeYLeftPercent2', rightFinetuneShapeYLeftPercent);
+						setFieldValue('joystickFinetuneShapeYRightPercent2', rightFinetuneShapeYRightPercent);
+						setFieldValue('joystickFinetuneShapeForceCircular2', rightFinetuneShapeForceCircular);
+						setFieldValue('joystickFinetuneShapeAmplify2', rightFinetuneShapeAmplify);
 						setShowRightFinetuneShapeModal(false);
 					}}>
 						确定

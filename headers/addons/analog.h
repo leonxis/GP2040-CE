@@ -132,6 +132,13 @@ typedef struct
     uint32_t joystick_center_x;
     uint32_t joystick_center_y;
     float range_data[48];  // Circularity data for 48 angular positions
+    // Finetune shape adjustment percentages (independent from calibration data)
+    float finetune_shape_x_top_percent;
+    float finetune_shape_x_bottom_percent;
+    float finetune_shape_y_left_percent;
+    float finetune_shape_y_right_percent;
+    bool finetune_shape_force_circular;
+    float finetune_shape_amplify;
 } adc_instance;
 
 class AnalogInput : public GPAddon {

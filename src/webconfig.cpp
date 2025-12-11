@@ -1795,6 +1795,19 @@ std::string setAddonOptions()
             }
         }
     }
+    // Read finetune shape adjustment percentages
+    docToValue(analogOptions.joystick_finetune_shape_x_top_percent_1, doc, "joystickFinetuneShapeXTopPercent1");
+    docToValue(analogOptions.joystick_finetune_shape_x_bottom_percent_1, doc, "joystickFinetuneShapeXBottomPercent1");
+    docToValue(analogOptions.joystick_finetune_shape_y_left_percent_1, doc, "joystickFinetuneShapeYLeftPercent1");
+    docToValue(analogOptions.joystick_finetune_shape_y_right_percent_1, doc, "joystickFinetuneShapeYRightPercent1");
+    docToValue(analogOptions.joystick_finetune_shape_force_circular_1, doc, "joystickFinetuneShapeForceCircular1");
+    docToValue(analogOptions.joystick_finetune_shape_amplify_1, doc, "joystickFinetuneShapeAmplify1");
+    docToValue(analogOptions.joystick_finetune_shape_x_top_percent_2, doc, "joystickFinetuneShapeXTopPercent2");
+    docToValue(analogOptions.joystick_finetune_shape_x_bottom_percent_2, doc, "joystickFinetuneShapeXBottomPercent2");
+    docToValue(analogOptions.joystick_finetune_shape_y_left_percent_2, doc, "joystickFinetuneShapeYLeftPercent2");
+    docToValue(analogOptions.joystick_finetune_shape_y_right_percent_2, doc, "joystickFinetuneShapeYRightPercent2");
+    docToValue(analogOptions.joystick_finetune_shape_force_circular_2, doc, "joystickFinetuneShapeForceCircular2");
+    docToValue(analogOptions.joystick_finetune_shape_amplify_2, doc, "joystickFinetuneShapeAmplify2");
     docToValue(analogOptions.analog_smoothing, doc, "analog_smoothing");
     docToValue(analogOptions.analog_smoothing2, doc, "analog_smoothing2");
     docToValue(analogOptions.smoothing_factor, doc, "smoothing_factor");
@@ -2265,6 +2278,19 @@ std::string getAddonOptions()
     for (pb_size_t i = 0; i < analogOptions.joystick_range_data_2_count && i < 48; i++) {
         rangeData2.add(analogOptions.joystick_range_data_2[i]);
     }
+    // Write finetune shape adjustment percentages (always write, use defaults if not set)
+    writeDoc(doc, "joystickFinetuneShapeXTopPercent1", analogOptions.has_joystick_finetune_shape_x_top_percent_1 ? analogOptions.joystick_finetune_shape_x_top_percent_1 : 100.0f);
+    writeDoc(doc, "joystickFinetuneShapeXBottomPercent1", analogOptions.has_joystick_finetune_shape_x_bottom_percent_1 ? analogOptions.joystick_finetune_shape_x_bottom_percent_1 : 100.0f);
+    writeDoc(doc, "joystickFinetuneShapeYLeftPercent1", analogOptions.has_joystick_finetune_shape_y_left_percent_1 ? analogOptions.joystick_finetune_shape_y_left_percent_1 : 100.0f);
+    writeDoc(doc, "joystickFinetuneShapeYRightPercent1", analogOptions.has_joystick_finetune_shape_y_right_percent_1 ? analogOptions.joystick_finetune_shape_y_right_percent_1 : 100.0f);
+    writeDoc(doc, "joystickFinetuneShapeForceCircular1", analogOptions.has_joystick_finetune_shape_force_circular_1 ? analogOptions.joystick_finetune_shape_force_circular_1 : false);
+    writeDoc(doc, "joystickFinetuneShapeAmplify1", analogOptions.has_joystick_finetune_shape_amplify_1 ? analogOptions.joystick_finetune_shape_amplify_1 : 0.0f);
+    writeDoc(doc, "joystickFinetuneShapeXTopPercent2", analogOptions.has_joystick_finetune_shape_x_top_percent_2 ? analogOptions.joystick_finetune_shape_x_top_percent_2 : 100.0f);
+    writeDoc(doc, "joystickFinetuneShapeXBottomPercent2", analogOptions.has_joystick_finetune_shape_x_bottom_percent_2 ? analogOptions.joystick_finetune_shape_x_bottom_percent_2 : 100.0f);
+    writeDoc(doc, "joystickFinetuneShapeYLeftPercent2", analogOptions.has_joystick_finetune_shape_y_left_percent_2 ? analogOptions.joystick_finetune_shape_y_left_percent_2 : 100.0f);
+    writeDoc(doc, "joystickFinetuneShapeYRightPercent2", analogOptions.has_joystick_finetune_shape_y_right_percent_2 ? analogOptions.joystick_finetune_shape_y_right_percent_2 : 100.0f);
+    writeDoc(doc, "joystickFinetuneShapeForceCircular2", analogOptions.has_joystick_finetune_shape_force_circular_2 ? analogOptions.joystick_finetune_shape_force_circular_2 : false);
+    writeDoc(doc, "joystickFinetuneShapeAmplify2", analogOptions.has_joystick_finetune_shape_amplify_2 ? analogOptions.joystick_finetune_shape_amplify_2 : 0.0f);
     writeDoc(doc, "analog_smoothing", analogOptions.analog_smoothing);
     writeDoc(doc, "analog_smoothing2", analogOptions.analog_smoothing2);
     writeDoc(doc, "smoothing_factor", analogOptions.smoothing_factor);

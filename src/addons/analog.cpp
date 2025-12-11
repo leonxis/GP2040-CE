@@ -52,6 +52,19 @@ void AnalogInput::setup() {
             adc_pairs[0].range_data[i] = 0.0f;  // Default: no calibration data
         }
     }
+    // Initialize finetune shape adjustment percentages (default 100% = no adjustment)
+    adc_pairs[0].finetune_shape_x_top_percent = analogOptions.has_joystick_finetune_shape_x_top_percent_1 ? 
+        analogOptions.joystick_finetune_shape_x_top_percent_1 : 100.0f;
+    adc_pairs[0].finetune_shape_x_bottom_percent = analogOptions.has_joystick_finetune_shape_x_bottom_percent_1 ? 
+        analogOptions.joystick_finetune_shape_x_bottom_percent_1 : 100.0f;
+    adc_pairs[0].finetune_shape_y_left_percent = analogOptions.has_joystick_finetune_shape_y_left_percent_1 ? 
+        analogOptions.joystick_finetune_shape_y_left_percent_1 : 100.0f;
+    adc_pairs[0].finetune_shape_y_right_percent = analogOptions.has_joystick_finetune_shape_y_right_percent_1 ? 
+        analogOptions.joystick_finetune_shape_y_right_percent_1 : 100.0f;
+    adc_pairs[0].finetune_shape_force_circular = analogOptions.has_joystick_finetune_shape_force_circular_1 ? 
+        analogOptions.joystick_finetune_shape_force_circular_1 : false;
+    adc_pairs[0].finetune_shape_amplify = analogOptions.has_joystick_finetune_shape_amplify_1 ? 
+        analogOptions.joystick_finetune_shape_amplify_1 : 0.0f;
     adc_pairs[1].x_pin = analogOptions.analogAdc2PinX;
     adc_pairs[1].y_pin = analogOptions.analogAdc2PinY;
     adc_pairs[1].analog_invert = analogOptions.analogAdc2Invert;
@@ -77,6 +90,19 @@ void AnalogInput::setup() {
             adc_pairs[1].range_data[i] = 0.0f;  // Default: no calibration data
         }
     }
+    // Initialize finetune shape adjustment percentages (default 100% = no adjustment)
+    adc_pairs[1].finetune_shape_x_top_percent = analogOptions.has_joystick_finetune_shape_x_top_percent_2 ? 
+        analogOptions.joystick_finetune_shape_x_top_percent_2 : 100.0f;
+    adc_pairs[1].finetune_shape_x_bottom_percent = analogOptions.has_joystick_finetune_shape_x_bottom_percent_2 ? 
+        analogOptions.joystick_finetune_shape_x_bottom_percent_2 : 100.0f;
+    adc_pairs[1].finetune_shape_y_left_percent = analogOptions.has_joystick_finetune_shape_y_left_percent_2 ? 
+        analogOptions.joystick_finetune_shape_y_left_percent_2 : 100.0f;
+    adc_pairs[1].finetune_shape_y_right_percent = analogOptions.has_joystick_finetune_shape_y_right_percent_2 ? 
+        analogOptions.joystick_finetune_shape_y_right_percent_2 : 100.0f;
+    adc_pairs[1].finetune_shape_force_circular = analogOptions.has_joystick_finetune_shape_force_circular_2 ? 
+        analogOptions.joystick_finetune_shape_force_circular_2 : false;
+    adc_pairs[1].finetune_shape_amplify = analogOptions.has_joystick_finetune_shape_amplify_2 ? 
+        analogOptions.joystick_finetune_shape_amplify_2 : 0.0f;
     
 
     // Setup defaults and helpers
@@ -271,6 +297,7 @@ float AnalogInput::emaCalculation(int stick_num, float ema_value, float ema_prev
 
 /**
  * Get interpolated scale for a given angle using range calibration data
+ * Applies finetune shape percentage adjustments at runtime
  * @param stick_num Stick number (0 or 1)
  * @param angle Angle in radians (-PI to PI)
  * @return Scale value (ratio of actual outer radius to standard radius), or 0.0 if no calibration data
@@ -300,10 +327,124 @@ float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
     int i1 = (i0 + 1) % CIRCULARITY_DATA_SIZE;
     float t = index - std::floor(index);  // Fractional part (0.0 to 1.0)
     
-    // Linear interpolation
+    // Linear interpolation of base calibration data
     float r0 = range_data[i0] > 0.0f ? range_data[i0] : 0.0f;
     float r1 = range_data[i1] > 0.0f ? range_data[i1] : 0.0f;
+    float baseScale = r0 * (1.0f - t) + r1 * t;
     
-    return r0 * (1.0f - t) + r1 * t;
+    if (baseScale <= 0.0f) {
+        return 0.0f;  // No valid calibration data
+    }
+    
+    // Apply finetune shape percentage adjustments
+    // Index mapping: angle = (index * 2π / 48) - π
+    // 0° (right): index = 24
+    // 90° (top): index = 36  
+    // 180° (left): index = 0
+    // 270° (bottom): index = 12
+    const int cardinalIndices[4] = {24, 36, 0, 12};  // Right, Top, Left, Bottom
+    const float cardinalScales[4] = {
+        adc_pairs[stick_num].finetune_shape_y_right_percent / 100.0f,    // Right (0°)
+        adc_pairs[stick_num].finetune_shape_x_top_percent / 100.0f,      // Top (90°)
+        adc_pairs[stick_num].finetune_shape_y_left_percent / 100.0f,     // Left (180°)
+        adc_pairs[stick_num].finetune_shape_x_bottom_percent / 100.0f    // Bottom (270°)
+    };
+    
+    // Calculate angle in degrees for interpolation
+    float angleDeg = (angle * 180.0f / M_PI + 360.0f);
+    while (angleDeg >= 360.0f) angleDeg -= 360.0f;
+    
+    // Find scale factor with interpolation between cardinal directions
+    float scaleFactor = 1.0f;
+    
+    // Check if this is exactly a cardinal direction
+    bool isCardinal = false;
+    for (int i = 0; i < 4; i++) {
+        int cardIndex = cardinalIndices[i];
+        float cardAngle = (cardIndex * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
+        float cardAngleDeg = (cardAngle * 180.0f / M_PI + 360.0f);
+        while (cardAngleDeg >= 360.0f) cardAngleDeg -= 360.0f;
+        
+        // Check if current angle matches cardinal direction (within 3.75 degrees, half of 7.5 degree range)
+        float angleDiff = std::abs(angleDeg - cardAngleDeg);
+        if (angleDiff > 180.0f) angleDiff = 360.0f - angleDiff;
+        if (angleDiff < 3.75f) {
+            scaleFactor = cardinalScales[i];
+            isCardinal = true;
+            break;
+        }
+    }
+    
+    // If not a cardinal direction, interpolate between adjacent cardinals
+    if (!isCardinal) {
+        // Find the two adjacent cardinal directions
+        int prevCardinalIdx = 3;  // Start with last (Bottom/270°)
+        int nextCardinalIdx = 0;  // Then first (Right/0°)
+        
+        for (int i = 0; i < 4; i++) {
+            int currIdx = i;
+            int nextIdx = (i + 1) % 4;
+            
+            float currAngle = (cardinalIndices[currIdx] * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
+            float nextAngle = (cardinalIndices[nextIdx] * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
+            
+            float currAngleDeg = (currAngle * 180.0f / M_PI + 360.0f);
+            while (currAngleDeg >= 360.0f) currAngleDeg -= 360.0f;
+            float nextAngleDeg = (nextAngle * 180.0f / M_PI + 360.0f);
+            while (nextAngleDeg >= 360.0f) nextAngleDeg -= 360.0f;
+            
+            // Handle wrap-around
+            if (nextAngleDeg < currAngleDeg) nextAngleDeg += 360.0f;
+            
+            // Check if current angle is between curr and next
+            bool angleInRange = false;
+            if (angleDeg >= currAngleDeg && angleDeg <= nextAngleDeg) {
+                angleInRange = true;
+            } else if (currAngleDeg > 270.0f && angleDeg < 90.0f) {
+                // Handle wrap-around: angleDeg is near 0, currAngleDeg is near 360
+                angleInRange = true;
+            }
+            
+            if (angleInRange) {
+                prevCardinalIdx = currIdx;
+                nextCardinalIdx = nextIdx;
+                break;
+            }
+        }
+        
+        // Calculate interpolation factor
+        float prevAngle = (cardinalIndices[prevCardinalIdx] * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
+        float nextAngle = (cardinalIndices[nextCardinalIdx] * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
+        
+        float prevAngleDeg = (prevAngle * 180.0f / M_PI + 360.0f);
+        while (prevAngleDeg >= 360.0f) prevAngleDeg -= 360.0f;
+        float nextAngleDeg = (nextAngle * 180.0f / M_PI + 360.0f);
+        while (nextAngleDeg >= 360.0f) nextAngleDeg -= 360.0f;
+        
+        if (nextAngleDeg < prevAngleDeg) nextAngleDeg += 360.0f;
+        
+        float t_interp = 0.0f;
+        if (prevAngleDeg <= angleDeg && angleDeg <= nextAngleDeg) {
+            t_interp = (angleDeg - prevAngleDeg) / (nextAngleDeg - prevAngleDeg);
+        } else if (prevAngleDeg > 270.0f && angleDeg < 90.0f) {
+            // Handle wrap-around
+            float dist = (angleDeg + 360.0f - prevAngleDeg);
+            while (dist >= 360.0f) dist -= 360.0f;
+            float total = (nextAngleDeg + 360.0f - prevAngleDeg);
+            while (total >= 360.0f) total -= 360.0f;
+            t_interp = dist / total;
+        }
+        
+        // Linear interpolation between the two cardinal scales
+        scaleFactor = cardinalScales[prevCardinalIdx] * (1.0f - t_interp) + cardinalScales[nextCardinalIdx] * t_interp;
+    }
+    
+    // Apply amplify factor if force circular is enabled
+    if (adc_pairs[stick_num].finetune_shape_force_circular && adc_pairs[stick_num].finetune_shape_amplify > 0.0f) {
+        scaleFactor *= (1.0f + adc_pairs[stick_num].finetune_shape_amplify / 100.0f);
+    }
+    
+    // Apply the scale factor to the base calibration value
+    return baseScale * scaleFactor;
 }
 

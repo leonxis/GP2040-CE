@@ -144,6 +144,19 @@ export const analogScheme = {
 		.array()
 		.of(yup.number())
 		.label('Joystick Range Data 2'),
+	// Finetune shape adjustment percentages
+	joystickFinetuneShapeXTopPercent1: yup.number().label('Joystick Finetune Shape X Top Percent 1'),
+	joystickFinetuneShapeXBottomPercent1: yup.number().label('Joystick Finetune Shape X Bottom Percent 1'),
+	joystickFinetuneShapeYLeftPercent1: yup.number().label('Joystick Finetune Shape Y Left Percent 1'),
+	joystickFinetuneShapeYRightPercent1: yup.number().label('Joystick Finetune Shape Y Right Percent 1'),
+	joystickFinetuneShapeForceCircular1: yup.boolean().label('Joystick Finetune Shape Force Circular 1'),
+	joystickFinetuneShapeAmplify1: yup.number().label('Joystick Finetune Shape Amplify 1'),
+	joystickFinetuneShapeXTopPercent2: yup.number().label('Joystick Finetune Shape X Top Percent 2'),
+	joystickFinetuneShapeXBottomPercent2: yup.number().label('Joystick Finetune Shape X Bottom Percent 2'),
+	joystickFinetuneShapeYLeftPercent2: yup.number().label('Joystick Finetune Shape Y Left Percent 2'),
+	joystickFinetuneShapeYRightPercent2: yup.number().label('Joystick Finetune Shape Y Right Percent 2'),
+	joystickFinetuneShapeForceCircular2: yup.boolean().label('Joystick Finetune Shape Force Circular 2'),
+	joystickFinetuneShapeAmplify2: yup.number().label('Joystick Finetune Shape Amplify 2'),
 };
 
 export const analogState = {
@@ -167,6 +180,19 @@ export const analogState = {
 	joystickCenterY: 0,
 	joystickCenterX2: 0,
 	joystickCenterY2: 0,
+	// Finetune shape adjustment percentages (default 100% = no adjustment)
+	joystickFinetuneShapeXTopPercent1: 100.0,
+	joystickFinetuneShapeXBottomPercent1: 100.0,
+	joystickFinetuneShapeYLeftPercent1: 100.0,
+	joystickFinetuneShapeYRightPercent1: 100.0,
+	joystickFinetuneShapeForceCircular1: false,
+	joystickFinetuneShapeAmplify1: 0.0,
+	joystickFinetuneShapeXTopPercent2: 100.0,
+	joystickFinetuneShapeXBottomPercent2: 100.0,
+	joystickFinetuneShapeYLeftPercent2: 100.0,
+	joystickFinetuneShapeYRightPercent2: 100.0,
+	joystickFinetuneShapeForceCircular2: false,
+	joystickFinetuneShapeAmplify2: 0.0,
 	joystickRangeData1: [],
 	joystickRangeData2: [],
 	analog_smoothing: 0,
