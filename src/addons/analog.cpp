@@ -94,7 +94,7 @@ void AnalogInput::setup() {
     // Apply finetune shape adjustments to range_data for both sticks
     applyFinetuneShapeAdjustments(0);
     applyFinetuneShapeAdjustments(1);
-    
+
     // Setup defaults and helpers
     for (int i = 0; i < ADC_COUNT; i++) {
         adc_pairs[i].x_pin_adc = adc_pairs[i].x_pin - ADC_PIN_OFFSET;
@@ -183,10 +183,10 @@ void AnalogInput::process() {
             adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
             x_value = ANALOG_MAX - x_value;
         }
-        if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
-            adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
+            if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
+                adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
             y_value = ANALOG_MAX - y_value;
-        }
+            }
 
         // Apply inner deadzone
         float x_magnitude = x_value - ANALOG_CENTER;
@@ -361,5 +361,5 @@ void AnalogInput::trimToSquare(float x, float y, float& outX, float& outY) {
     // Trim to -1,-1 to 1,1 square
     outX = std::max(-1.0f, std::min(1.0f, x));
     outY = std::max(-1.0f, std::min(1.0f, y));
-}
+            }
 

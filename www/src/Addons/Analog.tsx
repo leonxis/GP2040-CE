@@ -640,19 +640,19 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											<span className="text-muted small">{t('AddonsConfig:smoothing-factor-desc')}</span>
 										</div>
 										<Form.Range
-											name="smoothing_factor"
+										name="smoothing_factor"
 											min={0}
 											max={100}
 											step={1}
-											value={values.smoothing_factor}
+										value={values.smoothing_factor}
 											onChange={handleChange}
 										/>
 									</div>
 								</Row>
 								<Row className="mb-3" hidden={!values.analog_smoothing}>
 									<div className="col-sm-12">
-										<button
-											type="button"
+									<button
+										type="button"
 											className="btn btn-primary me-2"
 											disabled={stick1Sampling}
 											onClick={handleStartSampling1}
@@ -660,7 +660,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											{stick1Sampling 
 												? `${t('AddonsConfig:ema-sampling')} (${stick1Samples.length}/200)` 
 												: t('AddonsConfig:ema-start-sampling')}
-										</button>
+									</button>
 										<button
 											type="button"
 											className="btn btn-secondary"
@@ -669,7 +669,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										>
 											{t('AddonsConfig:ema-calculate-jitter-step')}
 										</button>
-									</div>
+								</div>
 								</Row>
 								{/* forced_circularity and error_rate UI removed - replaced by range calibration */}
 						</Tab>
@@ -790,19 +790,19 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											<span className="text-muted small">{t('AddonsConfig:smoothing-factor-desc')}</span>
 										</div>
 										<Form.Range
-											name="smoothing_factor2"
+										name="smoothing_factor2"
 											min={0}
 											max={100}
 											step={1}
-											value={values.smoothing_factor2}
+										value={values.smoothing_factor2}
 											onChange={handleChange}
 										/>
 									</div>
 								</Row>
 								<Row className="mb-3" hidden={!values.analog_smoothing2}>
 									<div className="col-sm-12">
-										<button
-											type="button"
+									<button
+										type="button"
 											className="btn btn-primary me-2"
 											disabled={stick2Sampling}
 											onClick={handleStartSampling2}
@@ -810,7 +810,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 											{stick2Sampling 
 												? `${t('AddonsConfig:ema-sampling')} (${stick2Samples.length}/200)` 
 												: t('AddonsConfig:ema-start-sampling')}
-										</button>
+									</button>
 										<button
 											type="button"
 											className="btn btn-secondary"
@@ -819,7 +819,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										>
 											{t('AddonsConfig:ema-calculate-jitter-step')}
 										</button>
-									</div>
+								</div>
 								</Row>
 								{/* forced_circularity2 and error_rate2 UI removed - replaced by range calibration */}
 						</Tab>
