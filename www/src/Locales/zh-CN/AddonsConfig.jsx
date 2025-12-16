@@ -94,6 +94,7 @@ export default {
 	'joystick-range-calibration-modal-welcome-instruction': '按"开始"按钮开始校准。',
 	'joystick-range-calibration-modal-collecting-title': '正在校准外圈',
 	'joystick-range-calibration-modal-collecting-text': '请将{{stick}}旋转多圈。进度：已完成 {{cycles}}/{{required}} 圈。',
+	'joystick-range-calibration-data-progress': '已采样数据',
 	'joystick-range-calibration-modal-countdown': '正在采集数据... 完成按钮将在 {{seconds}} 秒后解锁。',
 	'joystick-range-calibration-modal-progress-hint': '继续旋转摇杆，推到最大范围，直到进度条达到100%。',
 	'joystick-range-calibration-modal-keep-rotating': '继续旋转摇杆到所有方向的最大范围！',

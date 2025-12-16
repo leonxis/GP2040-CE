@@ -1305,93 +1305,97 @@ const JoystickCalibration = ({
 									style={{ border: '1px solid #ccc', borderRadius: '4px', display: 'block' }}
 								/>
 								{/* X-axis controls (top) - horizontal layout: + on left, value in middle, - on right */}
-								<div style={{ position: 'absolute', left: '50%', top: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXBottomPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeXBottomPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
-								{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
-								<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXTopPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeXTopPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
-								{/* Y-axis controls (left) - vertical layout: + on top, value in middle, - on bottom */}
-								<div style={{ position: 'absolute', left: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeYLeftPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeYLeftPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeYLeftPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
-								{/* Y-axis controls (right) - vertical layout: + on top, value in middle, - on bottom */}
-								<div style={{ position: 'absolute', right: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeYRightPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{leftFinetuneShapeYRightPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setLeftFinetuneShapeYRightPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
+								{!leftFinetuneShapeForceCircular && (
+									<>
+										<div style={{ position: 'absolute', left: '50%', top: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setLeftFinetuneShapeXBottomPercent(prev => prev + 0.2)}
+											>
+												+
+											</Button>
+											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+												{leftFinetuneShapeXBottomPercent.toFixed(1)}%
+											</span>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setLeftFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
+											>
+												−
+											</Button>
+										</div>
+										{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
+										<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setLeftFinetuneShapeXTopPercent(prev => prev + 0.2)}
+											>
+												+
+											</Button>
+											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+												{leftFinetuneShapeXTopPercent.toFixed(1)}%
+											</span>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setLeftFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
+											>
+												−
+											</Button>
+										</div>
+										{/* Y-axis controls (left) - vertical layout: + on top, value in middle, - on bottom */}
+										<div style={{ position: 'absolute', left: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setLeftFinetuneShapeYLeftPercent(prev => prev + 0.2)}
+											>
+												+
+											</Button>
+											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+												{leftFinetuneShapeYLeftPercent.toFixed(1)}%
+											</span>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setLeftFinetuneShapeYLeftPercent(prev => Math.max(0, prev - 0.2))}
+											>
+												−
+											</Button>
+										</div>
+										{/* Y-axis controls (right) - vertical layout: + on top, value in middle, - on bottom */}
+										<div style={{ position: 'absolute', right: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setLeftFinetuneShapeYRightPercent(prev => prev + 0.2)}
+											>
+												+
+											</Button>
+											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+												{leftFinetuneShapeYRightPercent.toFixed(1)}%
+											</span>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setLeftFinetuneShapeYRightPercent(prev => Math.max(0, prev - 0.2))}
+											>
+												−
+											</Button>
+										</div>
+									</>
+								)}
 							</div>
 						</Col>
 						{/* Right side: Controls */}
@@ -1485,93 +1489,97 @@ const JoystickCalibration = ({
 									style={{ border: '1px solid #ccc', borderRadius: '4px', display: 'block' }}
 								/>
 								{/* X-axis controls (top) - horizontal layout: + on left, value in middle, - on right */}
-								<div style={{ position: 'absolute', left: '50%', top: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXBottomPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeXBottomPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
-								{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
-								<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXTopPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeXTopPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
-								{/* Y-axis controls (left) - vertical layout: + on top, value in middle, - on bottom */}
-								<div style={{ position: 'absolute', left: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeYLeftPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeYLeftPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeYLeftPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
-								{/* Y-axis controls (right) - vertical layout: + on top, value in middle, - on bottom */}
-								<div style={{ position: 'absolute', right: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeYRightPercent(prev => prev + 0.2)}
-									>
-										+
-									</Button>
-									<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-										{rightFinetuneShapeYRightPercent.toFixed(1)}%
-									</span>
-									<Button
-										variant="light"
-										size="sm"
-										style={finetuneButtonStyle}
-										onClick={() => setRightFinetuneShapeYRightPercent(prev => Math.max(0, prev - 0.2))}
-									>
-										−
-									</Button>
-								</div>
+								{!rightFinetuneShapeForceCircular && (
+									<>
+										<div style={{ position: 'absolute', left: '50%', top: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setRightFinetuneShapeXBottomPercent(prev => prev + 0.2)}
+											>
+												+
+											</Button>
+											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+												{rightFinetuneShapeXBottomPercent.toFixed(1)}%
+											</span>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setRightFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
+											>
+												−
+											</Button>
+										</div>
+										{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
+										<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setRightFinetuneShapeXTopPercent(prev => prev + 0.2)}
+											>
+												+
+											</Button>
+											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+												{rightFinetuneShapeXTopPercent.toFixed(1)}%
+											</span>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setRightFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
+											>
+												−
+											</Button>
+										</div>
+										{/* Y-axis controls (left) - vertical layout: + on top, value in middle, - on bottom */}
+										<div style={{ position: 'absolute', left: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setRightFinetuneShapeYLeftPercent(prev => prev + 0.2)}
+											>
+												+
+											</Button>
+											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+												{rightFinetuneShapeYLeftPercent.toFixed(1)}%
+											</span>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setRightFinetuneShapeYLeftPercent(prev => Math.max(0, prev - 0.2))}
+											>
+												−
+											</Button>
+										</div>
+										{/* Y-axis controls (right) - vertical layout: + on top, value in middle, - on bottom */}
+										<div style={{ position: 'absolute', right: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setRightFinetuneShapeYRightPercent(prev => prev + 0.2)}
+											>
+												+
+											</Button>
+											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
+												{rightFinetuneShapeYRightPercent.toFixed(1)}%
+											</span>
+											<Button
+												variant="light"
+												size="sm"
+												style={finetuneButtonStyle}
+												onClick={() => setRightFinetuneShapeYRightPercent(prev => Math.max(0, prev - 0.2))}
+											>
+												−
+											</Button>
+										</div>
+									</>
+								)}
 							</div>
 						</Col>
 						{/* Right side: Controls */}

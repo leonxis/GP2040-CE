@@ -45,6 +45,7 @@ void AnalogInput::setup() {
     adc_pairs[0].joystick_center_x = analogOptions.joystick_center_x;
     adc_pairs[0].joystick_center_y = analogOptions.joystick_center_y;
     // Initialize range calibration data (48 angular positions)
+    adc_pairs[0].has_range_calibration = (analogOptions.joystick_range_data_1_count > 0);
     for (int i = 0; i < 48; i++) {
         if (i < analogOptions.joystick_range_data_1_count && analogOptions.joystick_range_data_1[i] > 0.0f) {
             adc_pairs[0].range_data[i] = analogOptions.joystick_range_data_1[i];
@@ -83,6 +84,7 @@ void AnalogInput::setup() {
     adc_pairs[1].joystick_center_x = analogOptions.joystick_center_x2;
     adc_pairs[1].joystick_center_y = analogOptions.joystick_center_y2;
     // Initialize range calibration data (48 angular positions)
+    adc_pairs[1].has_range_calibration = (analogOptions.joystick_range_data_2_count > 0);
     for (int i = 0; i < 48; i++) {
         if (i < analogOptions.joystick_range_data_2_count && analogOptions.joystick_range_data_2[i] > 0.0f) {
             adc_pairs[1].range_data[i] = analogOptions.joystick_range_data_2[i];
@@ -104,16 +106,17 @@ void AnalogInput::setup() {
     adc_pairs[1].finetune_shape_amplify = analogOptions.has_joystick_finetune_shape_amplify_2 ? 
         analogOptions.joystick_finetune_shape_amplify_2 : 0.0f;
     
-
+    // Apply finetune shape adjustments to range_data for both sticks
+    applyFinetuneShapeAdjustments(0);
+    applyFinetuneShapeAdjustments(1);
+    
     // Setup defaults and helpers
     for (int i = 0; i < ADC_COUNT; i++) {
         adc_pairs[i].x_pin_adc = adc_pairs[i].x_pin - ADC_PIN_OFFSET;
         adc_pairs[i].y_pin_adc = adc_pairs[i].y_pin - ADC_PIN_OFFSET;
         adc_pairs[i].x_value = ANALOG_CENTER;
         adc_pairs[i].y_value = ANALOG_CENTER;
-        adc_pairs[i].xy_magnitude = 0.0f;
-        adc_pairs[i].x_magnitude = 0.0f;
-        adc_pairs[i].y_magnitude = 0.0f;
+        // Note: has_range_calibration is set during range data initialization above
         adc_pairs[i].x_ema = 0.0f;
         adc_pairs[i].y_ema = 0.0f;
     }
@@ -228,22 +231,30 @@ void AnalogInput::process() {
                     float scale_factor = targetLength / distance;
                     x_magnitude *= scale_factor;
                     y_magnitude *= scale_factor;
-                    x_value = std::clamp(x_magnitude + ANALOG_CENTER, ANALOG_MINIMUM, ANALOG_MAX);
-                    y_value = std::clamp(y_magnitude + ANALOG_CENTER, ANALOG_MINIMUM, ANALOG_MAX);
+                    x_value = x_magnitude + ANALOG_CENTER;
+                    y_value = y_magnitude + ANALOG_CENTER;
                 }
             }
         }
 
-        // Clamp to valid range
-        x_value = std::clamp(x_value, ANALOG_MINIMUM, ANALOG_MAX);
-        y_value = std::clamp(y_value, ANALOG_MINIMUM, ANALOG_MAX);
+        // Apply square trimming to prevent output values > 1.0 (DS4-style)
+        // Convert from [0.0, 1.0] range (center 0.5) to [-1, 1] range (center 0) for trimming
+        float x_normalized = (x_value - ANALOG_CENTER) * 2.0f;  // [0.0, 1.0] -> [-1, 1]
+        float y_normalized = (y_value - ANALOG_CENTER) * 2.0f;  // [0.0, 1.0] -> [-1, 1]
+        
+        // Trim to square [-1, 1] boundary
+        float trimmedX, trimmedY;
+        trimToSquare(x_normalized, y_normalized, trimmedX, trimmedY);
+        
+        // Convert back to [0.0, 1.0] range
+        // Note: Since trimmedX/Y are guaranteed to be in [-1, 1] by trimToSquare,
+        // the converted values are guaranteed to be in [0.0, 1.0], no clamp needed
+        x_value = trimmedX * 0.5f + ANALOG_CENTER;
+        y_value = trimmedY * 0.5f + ANALOG_CENTER;
 
-        // Store values for magnitude calculation
+        // Store values
         adc_pairs[i].x_value = x_value;
         adc_pairs[i].y_value = y_value;
-        adc_pairs[i].x_magnitude = x_magnitude;
-        adc_pairs[i].y_magnitude = y_magnitude;
-        adc_pairs[i].xy_magnitude = distance;
 
         // Convert to gamepad protocol format
         uint16_t clampedX = (uint16_t)std::min((uint32_t)(joystickMax * std::min(x_value, 1.0f)), (uint32_t)0xFFFF);
@@ -297,24 +308,16 @@ float AnalogInput::emaCalculation(int stick_num, float ema_value, float ema_prev
 
 /**
  * Get interpolated scale for a given angle using range calibration data
- * Applies finetune shape percentage adjustments at runtime
+ * Note: range_data has already been adjusted by applyFinetuneShapeAdjustments() during initialization
  * @param stick_num Stick number (0 or 1)
  * @param angle Angle in radians (-PI to PI)
  * @return Scale value (ratio of actual outer radius to standard radius), or 0.0 if no calibration data
  */
 float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
-    const float* range_data = adc_pairs[stick_num].range_data;
     const int CIRCULARITY_DATA_SIZE = 48;
     
-    // Check if we have any calibration data
-    bool hasData = false;
-    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
-        if (range_data[i] > 0.0f) {
-            hasData = true;
-            break;
-        }
-    }
-    if (!hasData) {
+    // Check if we have calibration data (use flag set during setup to avoid checking all 48 indices)
+    if (!adc_pairs[stick_num].has_range_calibration) {
         return 0.0f;  // No calibration data
     }
     
@@ -327,124 +330,76 @@ float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
     int i1 = (i0 + 1) % CIRCULARITY_DATA_SIZE;
     float t = index - std::floor(index);  // Fractional part (0.0 to 1.0)
     
-    // Linear interpolation of base calibration data
-    float r0 = range_data[i0] > 0.0f ? range_data[i0] : 0.0f;
-    float r1 = range_data[i1] > 0.0f ? range_data[i1] : 0.0f;
-    float baseScale = r0 * (1.0f - t) + r1 * t;
-    
-    if (baseScale <= 0.0f) {
-        return 0.0f;  // No valid calibration data
+    // Linear interpolation of adjusted calibration data
+    // Note: range_data has already been adjusted by applyFinetuneShapeAdjustments() during initialization
+    // and square trimming has been applied, so we can directly interpolate
+    float r0 = adc_pairs[stick_num].range_data[i0];
+    float r1 = adc_pairs[stick_num].range_data[i1];
+    return r0 * (1.0f - t) + r1 * t;
+}
+
+/**
+ * Apply finetune shape adjustments to range_data during initialization
+ * Modifies range_data array based on force circular and percentage/amplify settings
+ * @param stick_num Stick number (0 or 1)
+ */
+void AnalogInput::applyFinetuneShapeAdjustments(int stick_num) {
+    if (!adc_pairs[stick_num].has_range_calibration) {
+        return;  // No calibration data to adjust
     }
     
-    // Apply finetune shape percentage adjustments
+    const int CIRCULARITY_DATA_SIZE = 48;
     // Index mapping: angle = (index * 2π / 48) - π
     // 0° (right): index = 24
     // 90° (top): index = 36  
     // 180° (left): index = 0
     // 270° (bottom): index = 12
     const int cardinalIndices[4] = {24, 36, 0, 12};  // Right, Top, Left, Bottom
-    const float cardinalScales[4] = {
-        adc_pairs[stick_num].finetune_shape_y_right_percent / 100.0f,    // Right (0°)
-        adc_pairs[stick_num].finetune_shape_x_top_percent / 100.0f,      // Top (90°)
-        adc_pairs[stick_num].finetune_shape_y_left_percent / 100.0f,     // Left (180°)
-        adc_pairs[stick_num].finetune_shape_x_bottom_percent / 100.0f    // Bottom (270°)
-    };
     
-    // Calculate angle in degrees for interpolation
-    float angleDeg = (angle * 180.0f / M_PI + 360.0f);
-    while (angleDeg >= 360.0f) angleDeg -= 360.0f;
-    
-    // Find scale factor with interpolation between cardinal directions
-    float scaleFactor = 1.0f;
-    
-    // Check if this is exactly a cardinal direction
-    bool isCardinal = false;
-    for (int i = 0; i < 4; i++) {
-        int cardIndex = cardinalIndices[i];
-        float cardAngle = (cardIndex * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
-        float cardAngleDeg = (cardAngle * 180.0f / M_PI + 360.0f);
-        while (cardAngleDeg >= 360.0f) cardAngleDeg -= 360.0f;
-        
-        // Check if current angle matches cardinal direction (within 3.75 degrees, half of 7.5 degree range)
-        float angleDiff = std::abs(angleDeg - cardAngleDeg);
-        if (angleDiff > 180.0f) angleDiff = 360.0f - angleDiff;
-        if (angleDiff < 3.75f) {
-            scaleFactor = cardinalScales[i];
-            isCardinal = true;
-            break;
+    if (adc_pairs[stick_num].finetune_shape_force_circular) {
+        // Case 2: Force circular enabled - apply amplify factor to all indices
+        // All scaling ratios = calibration_value / (1 + amplify%)
+        float amplifyFactor = 1.0f + adc_pairs[stick_num].finetune_shape_amplify / 100.0f;
+        if (amplifyFactor > 0.0f) {
+            for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+                adc_pairs[stick_num].range_data[i] /= amplifyFactor;
+            }
         }
-    }
-    
-    // If not a cardinal direction, interpolate between adjacent cardinals
-    if (!isCardinal) {
-        // Find the two adjacent cardinal directions
-        int prevCardinalIdx = 3;  // Start with last (Bottom/270°)
-        int nextCardinalIdx = 0;  // Then first (Right/0°)
+    } else {
+        // Case 1: Force circular disabled - apply percentage adjustments to cardinal indices only
+        // Cardinal indices: calibration_value / (percent / 100)
+        // Other indices: keep original calibration values (interpolation will be done by getInterpolatedScale)
+        const float cardinalPercentFactors[4] = {
+            adc_pairs[stick_num].finetune_shape_y_right_percent / 100.0f,    // Right (0°, index 24)
+            adc_pairs[stick_num].finetune_shape_x_top_percent / 100.0f,      // Top (90°, index 36)
+            adc_pairs[stick_num].finetune_shape_y_left_percent / 100.0f,      // Left (180°, index 0)
+            adc_pairs[stick_num].finetune_shape_x_bottom_percent / 100.0f     // Bottom (270°, index 12)
+        };
         
+        // Apply percentage adjustments to cardinal indices (divide by percentage factor, same as amplify)
         for (int i = 0; i < 4; i++) {
-            int currIdx = i;
-            int nextIdx = (i + 1) % 4;
-            
-            float currAngle = (cardinalIndices[currIdx] * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
-            float nextAngle = (cardinalIndices[nextIdx] * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
-            
-            float currAngleDeg = (currAngle * 180.0f / M_PI + 360.0f);
-            while (currAngleDeg >= 360.0f) currAngleDeg -= 360.0f;
-            float nextAngleDeg = (nextAngle * 180.0f / M_PI + 360.0f);
-            while (nextAngleDeg >= 360.0f) nextAngleDeg -= 360.0f;
-            
-            // Handle wrap-around
-            if (nextAngleDeg < currAngleDeg) nextAngleDeg += 360.0f;
-            
-            // Check if current angle is between curr and next
-            bool angleInRange = false;
-            if (angleDeg >= currAngleDeg && angleDeg <= nextAngleDeg) {
-                angleInRange = true;
-            } else if (currAngleDeg > 270.0f && angleDeg < 90.0f) {
-                // Handle wrap-around: angleDeg is near 0, currAngleDeg is near 360
-                angleInRange = true;
-            }
-            
-            if (angleInRange) {
-                prevCardinalIdx = currIdx;
-                nextCardinalIdx = nextIdx;
-                break;
+            int cardIndex = cardinalIndices[i];
+            if (cardinalPercentFactors[i] > 0.0f) {
+                adc_pairs[stick_num].range_data[cardIndex] /= cardinalPercentFactors[i];
             }
         }
-        
-        // Calculate interpolation factor
-        float prevAngle = (cardinalIndices[prevCardinalIdx] * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
-        float nextAngle = (cardinalIndices[nextCardinalIdx] * 2.0f * M_PI / CIRCULARITY_DATA_SIZE) - M_PI;
-        
-        float prevAngleDeg = (prevAngle * 180.0f / M_PI + 360.0f);
-        while (prevAngleDeg >= 360.0f) prevAngleDeg -= 360.0f;
-        float nextAngleDeg = (nextAngle * 180.0f / M_PI + 360.0f);
-        while (nextAngleDeg >= 360.0f) nextAngleDeg -= 360.0f;
-        
-        if (nextAngleDeg < prevAngleDeg) nextAngleDeg += 360.0f;
-        
-        float t_interp = 0.0f;
-        if (prevAngleDeg <= angleDeg && angleDeg <= nextAngleDeg) {
-            t_interp = (angleDeg - prevAngleDeg) / (nextAngleDeg - prevAngleDeg);
-        } else if (prevAngleDeg > 270.0f && angleDeg < 90.0f) {
-            // Handle wrap-around
-            float dist = (angleDeg + 360.0f - prevAngleDeg);
-            while (dist >= 360.0f) dist -= 360.0f;
-            float total = (nextAngleDeg + 360.0f - prevAngleDeg);
-            while (total >= 360.0f) total -= 360.0f;
-            t_interp = dist / total;
-        }
-        
-        // Linear interpolation between the two cardinal scales
-        scaleFactor = cardinalScales[prevCardinalIdx] * (1.0f - t_interp) + cardinalScales[nextCardinalIdx] * t_interp;
+        // Non-cardinal indices keep their original calibration values
+        // Interpolation between indices will be handled by getInterpolatedScale() at runtime
     }
-    
-    // Apply amplify factor if force circular is enabled
-    if (adc_pairs[stick_num].finetune_shape_force_circular && adc_pairs[stick_num].finetune_shape_amplify > 0.0f) {
-        scaleFactor *= (1.0f + adc_pairs[stick_num].finetune_shape_amplify / 100.0f);
-    }
-    
-    // Apply the scale factor to the base calibration value
-    return baseScale * scaleFactor;
+    // Note: Square trimming is applied in process() function to the final output coordinates,
+    // not to the scale ratios in range_data
+}
+
+/**
+ * Trim cartesian coordinates to square [-1, 1] boundary (DS4-style square trimming)
+ * @param x Input X coordinate
+ * @param y Input Y coordinate
+ * @param outX Output trimmed X coordinate
+ * @param outY Output trimmed Y coordinate
+ */
+void AnalogInput::trimToSquare(float x, float y, float& outX, float& outY) {
+    // Trim to -1,-1 to 1,1 square
+    outX = std::max(-1.0f, std::min(1.0f, x));
+    outY = std::max(-1.0f, std::min(1.0f, y));
 }
 

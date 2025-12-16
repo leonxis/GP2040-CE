@@ -97,6 +97,7 @@ export default {
 	'joystick-range-calibration-modal-welcome-instruction': 'Press Start to begin calibration.',
 	'joystick-range-calibration-modal-collecting-title': 'Calibrating Range',
 	'joystick-range-calibration-modal-collecting-text': 'Please rotate the {{stick}} in full circles. Progress: {{cycles}}/{{required}} cycles completed.',
+	'joystick-range-calibration-data-progress': 'Data collected',
 	'joystick-range-calibration-modal-countdown': 'Collecting data... Done button will unlock in {{seconds}} seconds.',
 	'joystick-range-calibration-modal-progress-hint': 'Keep rotating the stick in full circles, pushing to maximum range, until the progress bar reaches 100%.',
 	'joystick-range-calibration-modal-keep-rotating': 'Keep rotating the stick to maximum range in all directions!',

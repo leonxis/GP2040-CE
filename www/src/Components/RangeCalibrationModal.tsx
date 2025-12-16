@@ -30,12 +30,11 @@ const RangeCalibrationModal = ({
 	const [isCollecting, setIsCollecting] = useState(false);
 	const [progress, setProgress] = useState(0);
 	const [buttonText, setButtonText] = useState('');
-	const [countdown, setCountdown] = useState(0);
+	const [dataProgress, setDataProgress] = useState(0); // Track number of indices with data
 	const rangeDataRef = useRef<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0)); // Accumulated max values across all cycles
 	const cycleDataRef = useRef<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0)); // Current cycle data
 	const nonZeroCountRef = useRef(0);
 	const fullCyclesRef = useRef(0);
-	const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 	const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
 	// Reset state when modal opens/closes
@@ -43,7 +42,7 @@ const RangeCalibrationModal = ({
 		if (show) {
 			setIsCollecting(false);
 			setProgress(0);
-			setCountdown(0);
+			setDataProgress(0);
 			setButtonText(t('AddonsConfig:joystick-range-calibration-modal-start'));
 			rangeDataRef.current = new Array(CIRCULARITY_DATA_SIZE).fill(0);
 			cycleDataRef.current = new Array(CIRCULARITY_DATA_SIZE).fill(0);
@@ -51,10 +50,6 @@ const RangeCalibrationModal = ({
 			fullCyclesRef.current = 0;
 		} else {
 			// Cleanup intervals
-			if (countdownIntervalRef.current) {
-				clearInterval(countdownIntervalRef.current);
-				countdownIntervalRef.current = null;
-			}
 			if (progressIntervalRef.current) {
 				clearInterval(progressIntervalRef.current);
 				progressIntervalRef.current = null;
@@ -62,21 +57,6 @@ const RangeCalibrationModal = ({
 		}
 	}, [show, t]);
 
-	const startCountdown = () => {
-		setCountdown(15); // 15 seconds countdown to unlock Done button
-		countdownIntervalRef.current = setInterval(() => {
-			setCountdown(prev => {
-				if (prev <= 1) {
-					if (countdownIntervalRef.current) {
-						clearInterval(countdownIntervalRef.current);
-						countdownIntervalRef.current = null;
-					}
-					return 0;
-				}
-				return prev - 1;
-			});
-		}, 1000);
-	};
 
 	const checkDataProgress = async () => {
 		try {
@@ -158,6 +138,10 @@ const RangeCalibrationModal = ({
 			const cycleProgress = (fullCyclesRef.current / REQUIRED_FULL_CYCLES) * 100;
 			const currentCycleProgress = (currentNonZeroCount / CIRCULARITY_DATA_SIZE) * (100 / REQUIRED_FULL_CYCLES);
 			setProgress(Math.min(100, cycleProgress + currentCycleProgress));
+			
+			// Update data progress (number of indices with non-zero data)
+			const collectedIndices = rangeDataRef.current.filter(v => v > 0.0).length;
+			setDataProgress(collectedIndices);
 		} catch (error) {
 			console.error('Failed to fetch joystick data:', error);
 		}
@@ -165,68 +149,78 @@ const RangeCalibrationModal = ({
 
 	const startCalibration = () => {
 		setIsCollecting(true);
-		setButtonText(t('AddonsConfig:joystick-range-calibration-modal-collecting'));
-		startCountdown();
+		setButtonText(t('AddonsConfig:joystick-range-calibration-modal-collecting') || '采样中');
 		
 		// Start collecting data
 		progressIntervalRef.current = setInterval(checkDataProgress, 100); // Check every 100ms
 	};
 
 	const handleComplete = () => {
-		// Stop intervals
-		if (countdownIntervalRef.current) {
-			clearInterval(countdownIntervalRef.current);
-			countdownIntervalRef.current = null;
+		// Get the final range data (use accumulated max values from all cycles)
+		const finalData = [...rangeDataRef.current];
+		
+		// Check if all 48 indices have non-zero data
+		const nonZeroIndices = finalData.filter(v => v > 0.0).length;
+		
+		// This should not happen if button is only enabled when all data is collected
+		// But keep as safety check
+		if (nonZeroIndices < CIRCULARITY_DATA_SIZE) {
+			return;
 		}
+		
+		// All indices have data, stop intervals and complete calibration
 		if (progressIntervalRef.current) {
 			clearInterval(progressIntervalRef.current);
 			progressIntervalRef.current = null;
 		}
 		
-		// Check if we have at least one complete cycle (minimum requirement)
-		const currentNonZeroCount = cycleDataRef.current.filter(v => v > JOYSTICK_EXTREME_THRESHOLD).length;
-		const hasMinimumData = fullCyclesRef.current >= 1 || 
-			(currentNonZeroCount / CIRCULARITY_DATA_SIZE) >= CIRCLE_FILL_THRESHOLD;
-		
-		if (!hasMinimumData) {
-			// If we don't have at least one complete cycle, treat as cancel
-			onHide();
-			return;
-		}
-		
-		// Get the final range data (use accumulated max values from all cycles)
-		const finalData = [...rangeDataRef.current];
-		
-		// Complete the calibration with available data
+		// Complete calibration
 		onComplete(finalData);
 		onHide();
 	};
 
 	const handleCancel = () => {
-		// Stop intervals
-		if (countdownIntervalRef.current) {
-			clearInterval(countdownIntervalRef.current);
-			countdownIntervalRef.current = null;
-		}
+		// Stop intervals and discard current sampling data
 		if (progressIntervalRef.current) {
 			clearInterval(progressIntervalRef.current);
 			progressIntervalRef.current = null;
 		}
+		// Close modal and discard sampling data (don't call onComplete)
 		onHide();
 	};
 
-	// Button is enabled after countdown reaches 0 (15 seconds)
-	const canComplete = countdown === 0;
+	// Check if all 48 indices have non-zero data to enable complete button
+	const checkAllDataCollected = () => {
+		const nonZeroIndices = rangeDataRef.current.filter(v => v > 0.0).length;
+		return nonZeroIndices >= CIRCULARITY_DATA_SIZE;
+	};
 
+	// Update button text based on data collection status
 	useEffect(() => {
 		if (isCollecting) {
-			if (countdown === 0) {
-				setButtonText(t('AddonsConfig:joystick-range-calibration-modal-done'));
+			if (checkAllDataCollected()) {
+				setButtonText(t('AddonsConfig:joystick-range-calibration-modal-done') || '完成');
 			} else {
-				setButtonText(t('AddonsConfig:joystick-range-calibration-modal-collecting'));
+				setButtonText(t('AddonsConfig:joystick-range-calibration-modal-collecting') || '采样中');
 			}
 		}
-	}, [countdown, isCollecting, t]);
+	}, [isCollecting, t]);
+
+	// Update button text when data changes
+	useEffect(() => {
+		if (isCollecting && progressIntervalRef.current) {
+			// Check periodically if all data is collected
+			const checkInterval = setInterval(() => {
+				if (checkAllDataCollected()) {
+					setButtonText(t('AddonsConfig:joystick-range-calibration-modal-done') || '完成');
+				} else {
+					setButtonText(t('AddonsConfig:joystick-range-calibration-modal-collecting') || '采样中');
+				}
+			}, 500); // Check every 500ms
+			
+			return () => clearInterval(checkInterval);
+		}
+	}, [isCollecting, t]);
 
 	return (
 		<Modal
@@ -253,26 +247,17 @@ const RangeCalibrationModal = ({
 				) : (
 					<div>
 						<h4>{t('AddonsConfig:joystick-range-calibration-modal-collecting-title')}</h4>
-						<p>{t('AddonsConfig:joystick-range-calibration-modal-collecting-text', { 
-							stick: stickLabel,
-							cycles: fullCyclesRef.current,
-							required: REQUIRED_FULL_CYCLES
-						})}</p>
-						
-						{countdown > 0 && (
-							<div className="alert alert-info">
-								{t('AddonsConfig:joystick-range-calibration-modal-countdown', { seconds: countdown })}
-							</div>
-						)}
-						
-						{countdown === 0 && fullCyclesRef.current < REQUIRED_FULL_CYCLES && (
-							<div className="alert alert-info mt-2">
-								{t('AddonsConfig:joystick-range-calibration-modal-can-complete', {
-									cycles: fullCyclesRef.current,
-									required: REQUIRED_FULL_CYCLES
-								})}
-							</div>
-						)}
+						<p>
+							{t('AddonsConfig:joystick-range-calibration-modal-collecting-text', { 
+								stick: stickLabel,
+								cycles: fullCyclesRef.current,
+								required: REQUIRED_FULL_CYCLES
+							})}
+							{' '}
+							{t('AddonsConfig:joystick-range-calibration-data-progress') || '已采样数据'}
+							{' '}
+							{dataProgress}/{CIRCULARITY_DATA_SIZE}
+						</p>
 						
 						<ProgressBar 
 							now={progress} 
@@ -304,23 +289,9 @@ const RangeCalibrationModal = ({
 						<Button 
 							variant="primary" 
 							onClick={handleComplete}
-							disabled={!canComplete}
+							disabled={!checkAllDataCollected()}
 						>
-							{canComplete ? (
-								buttonText
-							) : (
-								<>
-									<Spinner
-										as="span"
-										animation="border"
-										size="sm"
-										role="status"
-										aria-hidden="true"
-										className="me-2"
-									/>
-									{t('AddonsConfig:joystick-range-calibration-modal-waiting', { seconds: countdown })}
-								</>
-							)}
+							{buttonText}
 						</Button>
 					</>
 				)}
@@ -330,4 +301,5 @@ const RangeCalibrationModal = ({
 };
 
 export default RangeCalibrationModal;
+
 

@@ -114,9 +114,6 @@ typedef struct
     float y_value;
     uint16_t x_center;
     uint16_t y_center;
-    float xy_magnitude;
-    float x_magnitude;
-    float y_magnitude;
     InvertMode analog_invert;
     DpadMode analog_dpad;
     float x_ema;
@@ -132,6 +129,7 @@ typedef struct
     uint32_t joystick_center_x;
     uint32_t joystick_center_y;
     float range_data[48];  // Circularity data for 48 angular positions
+    bool has_range_calibration;  // Flag to indicate if range calibration data exists
     // Finetune shape adjustment percentages (independent from calibration data)
     float finetune_shape_x_top_percent;
     float finetune_shape_x_bottom_percent;
@@ -154,6 +152,8 @@ private:
     float readPin(int stick_num, Pin_t pin, uint16_t center);
     float emaCalculation(int stick_num, float ema_value, float ema_previous);
     float getInterpolatedScale(int stick_num, float angle);
+    void applyFinetuneShapeAdjustments(int stick_num);
+    void trimToSquare(float x, float y, float& outX, float& outY);
     adc_instance adc_pairs[ADC_COUNT];
 };
 
