@@ -40,13 +40,6 @@ private:
 	void adjustCurrentValue(int delta);
 	void applyChanges();
 
-	int convertAnalogErrorToDisplay(uint32_t value) const;
-	uint32_t convertDisplayToAnalogError(int value) const;
-
-	static constexpr std::array<uint16_t, 11> errorLookup = {
-		1000, 990, 979, 969, 958, 946, 934, 922, 911, 900, 890,
-	};
-
 	State currentState = State::SELECT_STICK;
 
 	GPMenu* gpMenu = nullptr;
@@ -74,7 +67,6 @@ private:
 	int selectedRow = 0;
 	int innerDeadzoneValue = 0;
 	int antiDeadzoneValue = 0;
-	int errorValue = 0;
 };
 
 #endif

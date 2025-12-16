@@ -26,7 +26,33 @@ void StickCalibrationScreen::shutdown() {
 
 void StickCalibrationScreen::readJoystickCenter(uint8_t stickNum, uint16_t& x, uint16_t& y) {
     // Use unified ADC reading function from analog_utils
-    readJoystickADC(stickNum, x, y);
+    // To match the web calibration behavior (multiple samples averaged per step),
+    // take several ADC samples in a row and average them to reduce jitter.
+    const int sampleCount = 8;
+    uint32_t sumX = 0;
+    uint32_t sumY = 0;
+    int validSamples = 0;
+
+    for (int i = 0; i < sampleCount; i++) {
+        uint16_t sx = 0;
+        uint16_t sy = 0;
+        if (!readJoystickADC(stickNum, sx, sy)) {
+            // If analog input is not enabled or pins are invalid, stop sampling
+            break;
+        }
+        sumX += sx;
+        sumY += sy;
+        validSamples++;
+    }
+
+    if (validSamples > 0) {
+        x = static_cast<uint16_t>(sumX / validSamples);
+        y = static_cast<uint16_t>(sumY / validSamples);
+    } else {
+        // Fallback: return 0 if no valid samples (should not normally happen)
+        x = 0;
+        y = 0;
+    }
 }
 
 void StickCalibrationScreen::getStateInfo(const char*& stickLabel, const char*& direction) {

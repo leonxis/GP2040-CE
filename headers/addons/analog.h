@@ -43,14 +43,6 @@
 #define ANALOG_ADC_2_INVERT INVERT_NONE
 #endif
 
-#ifndef FORCED_CIRCULARITY_ENABLED
-#define FORCED_CIRCULARITY_ENABLED 0
-#endif
-
-#ifndef FORCED_CIRCULARITY2_ENABLED
-#define FORCED_CIRCULARITY2_ENABLED 0
-#endif
-
 #ifndef DEFAULT_INNER_DEADZONE
 #define DEFAULT_INNER_DEADZONE 5
 #endif
@@ -59,44 +51,12 @@
 #define DEFAULT_INNER_DEADZONE2 5
 #endif
 
-#ifndef DEFAULT_OUTER_DEADZONE
-#define DEFAULT_OUTER_DEADZONE 95
-#endif
-
-#ifndef DEFAULT_OUTER_DEADZONE2
-#define DEFAULT_OUTER_DEADZONE2 95
-#endif
-
 #ifndef DEFAULT_ANTI_DEADZONE
 #define DEFAULT_ANTI_DEADZONE 0
 #endif
 
 #ifndef DEFAULT_ANTI_DEADZONE2
 #define DEFAULT_ANTI_DEADZONE2 0
-#endif
-
-#ifndef ANALOG_SMOOTHING_ENABLED
-#define ANALOG_SMOOTHING_ENABLED 0
-#endif
-
-#ifndef ANALOG_SMOOTHING2_ENABLED
-#define ANALOG_SMOOTHING2_ENABLED 0
-#endif
-
-#ifndef SMOOTHING_FACTOR
-#define SMOOTHING_FACTOR 5
-#endif
-
-#ifndef SMOOTHING_FACTOR2
-#define SMOOTHING_FACTOR2 5
-#endif
-
-#ifndef ANALOG_ERROR
-#define ANALOG_ERROR 1000
-#endif
-
-#ifndef ANALOG_ERROR2
-#define ANALOG_ERROR2 1000
 #endif
 
 // Analog Module Name
@@ -116,7 +76,6 @@ typedef struct
     uint16_t y_center;
     InvertMode analog_invert;
     DpadMode analog_dpad;
-    float error_rate;
     float in_deadzone;
     // out_deadzone and forced_circularity removed - replaced by range calibration
     float anti_deadzone;

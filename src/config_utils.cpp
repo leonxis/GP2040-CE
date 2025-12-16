@@ -614,16 +614,11 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     // outer_deadzone removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone, DEFAULT_ANTI_DEADZONE);
     // Auto calibration removed - deprecated field ignored
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing, !!ANALOG_SMOOTHING_ENABLED);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_factor, 15.0f);  // 默认15%
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_alpha_max, 95.0f);  // 默认95%
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_delta_max, 1.5f);  // 默认1.5%
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_error, ANALOG_ERROR);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing2, !!ANALOG_SMOOTHING2_ENABLED);
+    // Dynamic smoothing and error rate options removed
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing2, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_factor2, 15.0f);  // 默认15%
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_alpha_max2, 95.0f);  // 默认95%
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_delta_max2, 1.5f);  // 默认1.5%
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_error2, ANALOG_ERROR2);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone2, DEFAULT_INNER_DEADZONE2);
     // outer_deadzone2 removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone2, DEFAULT_ANTI_DEADZONE2);

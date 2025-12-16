@@ -32,7 +32,6 @@ void AnalogInput::setup() {
     adc_pairs[0].y_pin = analogOptions.analogAdc1PinY;
     adc_pairs[0].analog_invert = analogOptions.analogAdc1Invert;
     adc_pairs[0].analog_dpad = analogOptions.analogAdc1Mode;
-    adc_pairs[0].error_rate = analogOptions.analog_error / 1000.0f;
     adc_pairs[0].in_deadzone = analogOptions.inner_deadzone / 100.0f;
     // Outer deadzone and forced_circularity removed - replaced by range calibration
     adc_pairs[0].anti_deadzone = analogOptions.anti_deadzone / 100.0f;
@@ -64,7 +63,6 @@ void AnalogInput::setup() {
     adc_pairs[1].y_pin = analogOptions.analogAdc2PinY;
     adc_pairs[1].analog_invert = analogOptions.analogAdc2Invert;
     adc_pairs[1].analog_dpad = analogOptions.analogAdc2Mode;
-    adc_pairs[1].error_rate = analogOptions.analog_error2 / 1000.0f;
     adc_pairs[1].in_deadzone = analogOptions.inner_deadzone2 / 100.0f;
     // Outer deadzone and forced_circularity removed - replaced by range calibration
     adc_pairs[1].anti_deadzone = analogOptions.anti_deadzone2 / 100.0f;

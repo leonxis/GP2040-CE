@@ -171,13 +171,12 @@ void AnalogDeadzoneScreen::drawScreen() {
         int value;
     };
 
-    RowInfo rows[3] = {
+    RowInfo rows[2] = {
         {"Inner", innerDeadzoneValue},
         {"Anti", antiDeadzoneValue},
-        {"Error", errorValue},
     };
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         int y = 3 + (i * 2);
         getRenderer()->drawText(2, y, rows[i].label);
 
@@ -233,10 +232,10 @@ void AnalogDeadzoneScreen::updateMenuNavigation(GpioAction action) {
 void AnalogDeadzoneScreen::updateEditNavigation(GpioAction action) {
     switch (action) {
         case GpioAction::MENU_NAVIGATION_UP:
-            selectedRow = (selectedRow + 2) % 3;
+            selectedRow = (selectedRow + 1) % 2;
             break;
         case GpioAction::MENU_NAVIGATION_DOWN:
-            selectedRow = (selectedRow + 1) % 3;
+            selectedRow = (selectedRow + 1) % 2;
             break;
         case GpioAction::MENU_NAVIGATION_LEFT:
             adjustCurrentValue(-1);
@@ -264,11 +263,9 @@ void AnalogDeadzoneScreen::enterEdit(int stickIndex) {
     if (editingStick == 0) {
         innerDeadzoneValue = std::clamp<int>(analogOptions.inner_deadzone, 0, 10);
         antiDeadzoneValue = std::clamp<int>(analogOptions.anti_deadzone, 0, 10);
-        errorValue = convertAnalogErrorToDisplay(analogOptions.analog_error);
     } else {
         innerDeadzoneValue = std::clamp<int>(analogOptions.inner_deadzone2, 0, 10);
         antiDeadzoneValue = std::clamp<int>(analogOptions.anti_deadzone2, 0, 10);
-        errorValue = convertAnalogErrorToDisplay(analogOptions.analog_error2);
     }
 
     resetInputState();
@@ -296,7 +293,6 @@ void AnalogDeadzoneScreen::adjustCurrentValue(int delta) {
     switch (selectedRow) {
         case 0: target = &innerDeadzoneValue; break;
         case 1: target = &antiDeadzoneValue; break;
-        case 2: target = &errorValue; break;
         default: break;
     }
     if (target == nullptr) return;
@@ -315,11 +311,9 @@ void AnalogDeadzoneScreen::applyChanges() {
     if (editingStick == 0) {
         analogOptions.inner_deadzone = static_cast<uint32_t>(innerDeadzoneValue);
         analogOptions.anti_deadzone = static_cast<uint32_t>(antiDeadzoneValue);
-        analogOptions.analog_error = convertDisplayToAnalogError(errorValue);
     } else {
         analogOptions.inner_deadzone2 = static_cast<uint32_t>(innerDeadzoneValue);
         analogOptions.anti_deadzone2 = static_cast<uint32_t>(antiDeadzoneValue);
-        analogOptions.analog_error2 = convertDisplayToAnalogError(errorValue);
     }
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
@@ -328,21 +322,4 @@ void AnalogDeadzoneScreen::applyChanges() {
     resetInputState();
 }
 
-int AnalogDeadzoneScreen::convertAnalogErrorToDisplay(uint32_t value) const {
-    int bestIndex = 0;
-    uint32_t bestDiff = std::abs(static_cast<int32_t>(value) - static_cast<int32_t>(errorLookup[0]));
-    for (size_t i = 1; i < errorLookup.size(); i++) {
-        uint32_t diff = std::abs(static_cast<int32_t>(value) - static_cast<int32_t>(errorLookup[i]));
-        if (diff < bestDiff) {
-            bestDiff = diff;
-            bestIndex = static_cast<int>(i);
-        }
-    }
-    return bestIndex;
-}
-
-uint32_t AnalogDeadzoneScreen::convertDisplayToAnalogError(int value) const {
-    value = std::clamp(value, 0, static_cast<int>(errorLookup.size() - 1));
-    return errorLookup[static_cast<size_t>(value)];
-}
 
