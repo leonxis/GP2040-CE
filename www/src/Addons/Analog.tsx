@@ -355,54 +355,41 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 								<Row className="mb-3" hidden={!values.analog_smoothing}>
 									<div className="col-sm-12 mb-2">
 										<div className="d-flex justify-content-between align-items-center mb-1">
-											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-delta-max')}: {values.smoothing_delta_max}%</Form.Label>
-											<span className="text-muted small">{t('AddonsConfig:smoothing-delta-max-desc')}</span>
-										</div>
-										<Form.Range
-											name="smoothing_delta_max"
-											min={0}
-											max={5}
-											step={0.1}
-											value={values.smoothing_delta_max}
-											onChange={handleChange}
-										/>
-									</div>
-								</Row>
-								<Row className="mb-3" hidden={!values.analog_smoothing}>
-									<div className="col-sm-12 mb-2">
-										<div className="d-flex justify-content-between align-items-center mb-1">
 											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-factor')}: {values.smoothing_factor}</Form.Label>
 											<span className="text-muted small">{t('AddonsConfig:smoothing-factor-desc')}</span>
 										</div>
 										<Form.Range
-										name="smoothing_factor"
+											name="smoothing_factor"
 											min={0}
 											max={100}
 											step={1}
-										value={values.smoothing_factor}
-										onChange={handleChange}
-										/>
-									</div>
-								</Row>
-								<Row className="mb-3" hidden={!values.analog_smoothing}>
-									<div className="col-sm-12 mb-2">
-										<div className="d-flex justify-content-between align-items-center mb-1">
-											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-alpha-max')}: {values.smoothing_alpha_max}</Form.Label>
-											<span className="text-muted small">{t('AddonsConfig:smoothing-alpha-max-desc')}</span>
-										</div>
-										<Form.Range
-											name="smoothing_alpha_max"
-										min={0}
-										max={100}
-											step={1}
-											value={values.smoothing_alpha_max}
+											value={values.smoothing_factor}
 											onChange={handleChange}
 										/>
 									</div>
 								</Row>
 								<Row className="mb-3" hidden={!values.analog_smoothing}>
 									<div className="col-sm-12">
-										<p className="text-muted small mb-0">{t('AddonsConfig:smoothing-dynamic-desc')}</p>
+										<button
+											type="button"
+											className="btn btn-primary me-2"
+											onClick={() => {
+												// TODO: Implement start sampling
+												console.log('Start sampling');
+											}}
+										>
+											{t('AddonsConfig:ema-start-sampling')}
+										</button>
+										<button
+											type="button"
+											className="btn btn-secondary"
+											onClick={() => {
+												// TODO: Implement calculate jitter step
+												console.log('Calculate jitter step');
+											}}
+										>
+											{t('AddonsConfig:ema-calculate-jitter-step')}
+										</button>
 									</div>
 								</Row>
 								{/* forced_circularity and error_rate UI removed - replaced by range calibration */}
@@ -520,54 +507,41 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 								<Row className="mb-3" hidden={!values.analog_smoothing2}>
 									<div className="col-sm-12 mb-2">
 										<div className="d-flex justify-content-between align-items-center mb-1">
-											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-delta-max')}: {values.smoothing_delta_max2}%</Form.Label>
-											<span className="text-muted small">{t('AddonsConfig:smoothing-delta-max-desc')}</span>
-										</div>
-										<Form.Range
-											name="smoothing_delta_max2"
-											min={0}
-											max={5}
-											step={0.1}
-											value={values.smoothing_delta_max2}
-											onChange={handleChange}
-										/>
-									</div>
-								</Row>
-								<Row className="mb-3" hidden={!values.analog_smoothing2}>
-									<div className="col-sm-12 mb-2">
-										<div className="d-flex justify-content-between align-items-center mb-1">
 											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-factor')}: {values.smoothing_factor2}</Form.Label>
 											<span className="text-muted small">{t('AddonsConfig:smoothing-factor-desc')}</span>
 										</div>
 										<Form.Range
-										name="smoothing_factor2"
+											name="smoothing_factor2"
 											min={0}
 											max={100}
 											step={1}
-										value={values.smoothing_factor2}
-										onChange={handleChange}
-										/>
-									</div>
-								</Row>
-								<Row className="mb-3" hidden={!values.analog_smoothing2}>
-									<div className="col-sm-12 mb-2">
-										<div className="d-flex justify-content-between align-items-center mb-1">
-											<Form.Label className="mb-0">{t('AddonsConfig:smoothing-alpha-max')}: {values.smoothing_alpha_max2}</Form.Label>
-											<span className="text-muted small">{t('AddonsConfig:smoothing-alpha-max-desc')}</span>
-										</div>
-										<Form.Range
-											name="smoothing_alpha_max2"
-										min={0}
-										max={100}
-											step={1}
-											value={values.smoothing_alpha_max2}
+											value={values.smoothing_factor2}
 											onChange={handleChange}
 										/>
 									</div>
 								</Row>
 								<Row className="mb-3" hidden={!values.analog_smoothing2}>
 									<div className="col-sm-12">
-										<p className="text-muted small mb-0">{t('AddonsConfig:smoothing-dynamic-desc')}</p>
+										<button
+											type="button"
+											className="btn btn-primary me-2"
+											onClick={() => {
+												// TODO: Implement start sampling
+												console.log('Start sampling');
+											}}
+										>
+											{t('AddonsConfig:ema-start-sampling')}
+										</button>
+										<button
+											type="button"
+											className="btn btn-secondary"
+											onClick={() => {
+												// TODO: Implement calculate jitter step
+												console.log('Calculate jitter step');
+											}}
+										>
+											{t('AddonsConfig:ema-calculate-jitter-step')}
+										</button>
 									</div>
 								</Row>
 								{/* forced_circularity2 and error_rate2 UI removed - replaced by range calibration */}

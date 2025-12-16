@@ -116,12 +116,6 @@ typedef struct
     uint16_t y_center;
     InvertMode analog_invert;
     DpadMode analog_dpad;
-    float x_ema;
-    float y_ema;
-    bool ema_option;
-    float ema_smoothing;
-    float smoothing_alpha_max;
-    float smoothing_delta_max;
     float error_rate;
     float in_deadzone;
     // out_deadzone and forced_circularity removed - replaced by range calibration
@@ -150,7 +144,6 @@ public:
     virtual std::string name() { return AnalogName; }
 private:
     float readPin(int stick_num, Pin_t pin, uint16_t center);
-    float emaCalculation(int stick_num, float ema_value, float ema_previous);
     float getInterpolatedScale(int stick_num, float angle);
     void applyFinetuneShapeAdjustments(int stick_num);
     void trimToSquare(float x, float y, float& outX, float& outY);

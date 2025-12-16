@@ -18,6 +18,7 @@
 #define ANALOG_MAX 1.0f
 #define ANALOG_CENTER 0.5f
 #define ANALOG_MINIMUM 0.0f
+#define CIRCULARITY_DATA_SIZE 48
 
 bool AnalogInput::available() {
     return Storage::getInstance().getAddonOptions().analogOptions.enabled;
@@ -31,13 +32,6 @@ void AnalogInput::setup() {
     adc_pairs[0].y_pin = analogOptions.analogAdc1PinY;
     adc_pairs[0].analog_invert = analogOptions.analogAdc1Invert;
     adc_pairs[0].analog_dpad = analogOptions.analogAdc1Mode;
-    adc_pairs[0].ema_option = analogOptions.analog_smoothing;
-    adc_pairs[0].ema_smoothing = analogOptions.smoothing_factor / 100.0f;
-    // 动态防抖参数：默认值 delta_max=1.5%, alpha_max=95%
-    adc_pairs[0].smoothing_delta_max = (analogOptions.smoothing_delta_max > 0.0f) ? 
-        (analogOptions.smoothing_delta_max / 100.0f) : 0.015f;  // 默认1.5% = 0.015
-    adc_pairs[0].smoothing_alpha_max = (analogOptions.smoothing_alpha_max > 0.0f) ? 
-        (analogOptions.smoothing_alpha_max / 100.0f) : 0.95f;   // 默认95% = 0.95
     adc_pairs[0].error_rate = analogOptions.analog_error / 1000.0f;
     adc_pairs[0].in_deadzone = analogOptions.inner_deadzone / 100.0f;
     // Outer deadzone and forced_circularity removed - replaced by range calibration
@@ -46,7 +40,7 @@ void AnalogInput::setup() {
     adc_pairs[0].joystick_center_y = analogOptions.joystick_center_y;
     // Initialize range calibration data (48 angular positions)
     adc_pairs[0].has_range_calibration = (analogOptions.joystick_range_data_1_count > 0);
-    for (int i = 0; i < 48; i++) {
+    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
         if (i < analogOptions.joystick_range_data_1_count && analogOptions.joystick_range_data_1[i] > 0.0f) {
             adc_pairs[0].range_data[i] = analogOptions.joystick_range_data_1[i];
         } else {
@@ -70,13 +64,6 @@ void AnalogInput::setup() {
     adc_pairs[1].y_pin = analogOptions.analogAdc2PinY;
     adc_pairs[1].analog_invert = analogOptions.analogAdc2Invert;
     adc_pairs[1].analog_dpad = analogOptions.analogAdc2Mode;
-    adc_pairs[1].ema_option = analogOptions.analog_smoothing2;
-    adc_pairs[1].ema_smoothing = analogOptions.smoothing_factor2 / 100.0f;
-    // 动态防抖参数：默认值 delta_max=1.5%, alpha_max=95%
-    adc_pairs[1].smoothing_delta_max = (analogOptions.smoothing_delta_max2 > 0.0f) ? 
-        (analogOptions.smoothing_delta_max2 / 100.0f) : 0.015f;  // 默认1.5% = 0.015
-    adc_pairs[1].smoothing_alpha_max = (analogOptions.smoothing_alpha_max2 > 0.0f) ? 
-        (analogOptions.smoothing_alpha_max2 / 100.0f) : 0.95f;   // 默认95% = 0.95
     adc_pairs[1].error_rate = analogOptions.analog_error2 / 1000.0f;
     adc_pairs[1].in_deadzone = analogOptions.inner_deadzone2 / 100.0f;
     // Outer deadzone and forced_circularity removed - replaced by range calibration
@@ -85,7 +72,7 @@ void AnalogInput::setup() {
     adc_pairs[1].joystick_center_y = analogOptions.joystick_center_y2;
     // Initialize range calibration data (48 angular positions)
     adc_pairs[1].has_range_calibration = (analogOptions.joystick_range_data_2_count > 0);
-    for (int i = 0; i < 48; i++) {
+    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
         if (i < analogOptions.joystick_range_data_2_count && analogOptions.joystick_range_data_2[i] > 0.0f) {
             adc_pairs[1].range_data[i] = analogOptions.joystick_range_data_2[i];
         } else {
@@ -117,8 +104,6 @@ void AnalogInput::setup() {
         adc_pairs[i].x_value = ANALOG_CENTER;
         adc_pairs[i].y_value = ANALOG_CENTER;
         // Note: has_range_calibration is set during range data initialization above
-        adc_pairs[i].x_ema = 0.0f;
-        adc_pairs[i].y_ema = 0.0f;
     }
 
     // Initialize center X/Y for each pair using manual calibration values
@@ -205,14 +190,6 @@ void AnalogInput::process() {
             y_value = ANALOG_MAX - y_value;
         }
 
-        // Apply EMA smoothing if enabled
-        if (adc_pairs[i].ema_option) {
-            x_value = emaCalculation(i, x_value, adc_pairs[i].x_ema);
-            y_value = emaCalculation(i, y_value, adc_pairs[i].y_ema);
-            adc_pairs[i].x_ema = x_value;
-            adc_pairs[i].y_ema = y_value;
-        }
-
         // Apply inner deadzone
         float x_magnitude = x_value - ANALOG_CENTER;
         float y_magnitude = y_value - ANALOG_CENTER;
@@ -270,40 +247,19 @@ void AnalogInput::process() {
     }
 }
 
-float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t center) {
+float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t /* center */) {
     adc_select_input(pin_adc);
     uint16_t adc_value = adc_read();
+    
+    // TODO: EMA smoothing interface - apply smoothing here if enabled
+    // Example interface:
+    // if (adc_pairs[stick_num].ema_enabled) {
+    //     adc_value = applyEMA(stick_num, adc_value);
+    // }
+    
     // Return raw ADC value (0-4095) as float
     // Coordinate transformation will be done in process() function
     return (float)adc_value;
-}
-
-float AnalogInput::emaCalculation(int stick_num, float ema_value, float ema_previous) {
-    float alpha_base = adc_pairs[stick_num].ema_smoothing;        // 基准 α（来自 WebConfig）
-    float delta_max = adc_pairs[stick_num].smoothing_delta_max;   // 快速移动阈值（可配置）
-    float alpha_max = adc_pairs[stick_num].smoothing_alpha_max;   // 最大 α（可配置）
-    
-    // 计算当前变化幅度（速度估计）
-    float delta = std::abs(ema_value - ema_previous);
-    
-    // 防止除零错误：如果 delta_max 为 0 或非常小，使用默认值或直接使用基准 alpha
-    if (delta_max <= 0.0001f) {  // 使用一个很小的阈值来避免除零
-        // 如果 delta_max 无效，直接使用基准 alpha（不进行动态调整）
-        float alpha_dynamic = std::clamp(alpha_base, 0.01f, 0.99f);
-        return (alpha_dynamic * ema_value) + ((1.0f - alpha_dynamic) * ema_previous);
-    }
-    
-    // 计算速度因子（0-1之间）
-    float speed_factor = std::fmin(delta / delta_max, 1.0f);
-    
-    // 动态计算 α（立即响应，不进行平滑）
-    float alpha_dynamic = alpha_base + (alpha_max - alpha_base) * speed_factor;
-    
-    // 边界保护
-    alpha_dynamic = std::clamp(alpha_dynamic, 0.01f, 0.99f);
-    
-    // 计算 EMA（对摇杆值进行平滑，而不是对alpha）
-    return (alpha_dynamic * ema_value) + ((1.0f - alpha_dynamic) * ema_previous);
 }
 
 /**
@@ -314,8 +270,6 @@ float AnalogInput::emaCalculation(int stick_num, float ema_value, float ema_prev
  * @return Scale value (ratio of actual outer radius to standard radius), or 0.0 if no calibration data
  */
 float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
-    const int CIRCULARITY_DATA_SIZE = 48;
-    
     // Check if we have calibration data (use flag set during setup to avoid checking all 48 indices)
     if (!adc_pairs[stick_num].has_range_calibration) {
         return 0.0f;  // No calibration data
@@ -348,13 +302,11 @@ void AnalogInput::applyFinetuneShapeAdjustments(int stick_num) {
         return;  // No calibration data to adjust
     }
     
-    const int CIRCULARITY_DATA_SIZE = 48;
     // Index mapping: angle = (index * 2π / 48) - π
     // 0° (right): index = 24
     // 90° (top): index = 36  
     // 180° (left): index = 0
     // 270° (bottom): index = 12
-    const int cardinalIndices[4] = {24, 36, 0, 12};  // Right, Top, Left, Bottom
     
     if (adc_pairs[stick_num].finetune_shape_force_circular) {
         // Case 2: Force circular enabled - apply amplify factor to all indices
@@ -368,22 +320,32 @@ void AnalogInput::applyFinetuneShapeAdjustments(int stick_num) {
     } else {
         // Case 1: Force circular disabled - apply percentage adjustments to cardinal indices only
         // Cardinal indices: calibration_value / (percent / 100)
-        // Other indices: keep original calibration values (interpolation will be done by getInterpolatedScale)
-        const float cardinalPercentFactors[4] = {
-            adc_pairs[stick_num].finetune_shape_y_right_percent / 100.0f,    // Right (0°, index 24)
-            adc_pairs[stick_num].finetune_shape_x_top_percent / 100.0f,      // Top (90°, index 36)
-            adc_pairs[stick_num].finetune_shape_y_left_percent / 100.0f,      // Left (180°, index 0)
-            adc_pairs[stick_num].finetune_shape_x_bottom_percent / 100.0f     // Bottom (270°, index 12)
-        };
-        
-        // Apply percentage adjustments to cardinal indices (divide by percentage factor, same as amplify)
-        for (int i = 0; i < 4; i++) {
-            int cardIndex = cardinalIndices[i];
-            if (cardinalPercentFactors[i] > 0.0f) {
-                adc_pairs[stick_num].range_data[cardIndex] /= cardinalPercentFactors[i];
+        // Other indices: if > 1, clamp to 1; if < 1, keep original calibration value
+        // Process all indices in a single loop
+        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+            if (i == 0 || i == 12 || i == 24 || i == 36) {
+                // Cardinal index: apply percentage adjustment
+                float percentFactor = 0.0f;
+                if (i == 0) {
+                    percentFactor = adc_pairs[stick_num].finetune_shape_y_left_percent / 100.0f;      // Left (180°)
+                } else if (i == 12) {
+                    percentFactor = adc_pairs[stick_num].finetune_shape_x_bottom_percent / 100.0f;    // Bottom (270°)
+                } else if (i == 24) {
+                    percentFactor = adc_pairs[stick_num].finetune_shape_y_right_percent / 100.0f;      // Right (0°)
+                } else if (i == 36) {
+                    percentFactor = adc_pairs[stick_num].finetune_shape_x_top_percent / 100.0f;      // Top (90°)
+                }
+                if (percentFactor > 0.0f) {
+                    adc_pairs[stick_num].range_data[i] /= percentFactor;
+                }
+            } else {
+                // Non-cardinal index: if > 1, clamp to 1; if < 1, keep original
+                if (adc_pairs[stick_num].range_data[i] > 1.0f) {
+                    adc_pairs[stick_num].range_data[i] = 1.0f;
+                }
+                // If < 1, keep original calibration value (no change needed)
             }
         }
-        // Non-cardinal indices keep their original calibration values
         // Interpolation between indices will be handled by getInterpolatedScale() at runtime
     }
     // Note: Square trimming is applied in process() function to the final output coordinates,

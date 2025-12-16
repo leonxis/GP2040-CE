@@ -112,6 +112,8 @@ export default {
 	'smoothing-factor-desc': 'Base smoothing coefficient for anti-shake',
 	'smoothing-alpha-max-desc': 'Maximum smoothing coefficient when joystick moves fast',
 	'smoothing-dynamic-desc': 'Higher smoothing coefficient means less anti-shake. Faster joystick movement makes the coefficient closer to the dynamic maximum',
+	'ema-start-sampling': 'Start Sampling',
+	'ema-calculate-jitter-step': 'Calculate Jitter Step',
 	'analog-error-label': 'Error Rate',
 	'turbo-header-text': 'Turbo',
 	'turbo-button-pin-label': 'Turbo GPIO Pin',

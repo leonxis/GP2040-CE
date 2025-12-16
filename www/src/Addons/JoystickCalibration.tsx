@@ -68,6 +68,17 @@ const finetuneButtonStyle: React.CSSProperties = {
  * @param amplify - Amplify factor (default 0.0)
  * @returns Adjusted range data array
  */
+/**
+ * Apply finetune shape adjustments to range_data (matches backend logic)
+ * @param rangeData Original calibration data array
+ * @param xTopPercent Top percentage adjustment
+ * @param xBottomPercent Bottom percentage adjustment
+ * @param yLeftPercent Left percentage adjustment
+ * @param yRightPercent Right percentage adjustment
+ * @param forceCircular Whether force circular is enabled
+ * @param amplify Amplify factor (when force circular is enabled)
+ * @returns Adjusted range data array
+ */
 const applyFinetuneShapeAdjustments = (
 	rangeData: number[],
 	xTopPercent: number,
@@ -82,88 +93,51 @@ const applyFinetuneShapeAdjustments = (
 	// 90° (top): index = 36  
 	// 180° (left): index = 0
 	// 270° (bottom): index = 12
-	const cardinalIndices = [
-		{ index: 24, scale: yRightPercent / 100.0, angle: 0 },    // Right (0°)
-		{ index: 36, scale: xTopPercent / 100.0, angle: 90 },   // Top (90°)
-		{ index: 0, scale: yLeftPercent / 100.0, angle: 180 },  // Left (180°)
-		{ index: 12, scale: xBottomPercent / 100.0, angle: 270 } // Bottom (270°)
-	];
 	
-	// Helper function to get scale factor for a given index with interpolation
-	const getScaleFactor = (index: number): number => {
-		// Check if this is exactly a cardinal direction
-		const cardinal = cardinalIndices.find(c => c.index === index);
-		if (cardinal) {
-			return cardinal.scale;
+	if (forceCircular) {
+		// Case 2: Force circular enabled - apply amplify factor to all indices
+		// All scaling ratios = calibration_value / (1 + amplify%)
+		const amplifyFactor = 1.0 + amplify / 100.0;
+		if (amplifyFactor > 0.0) {
+			return rangeData.map((value: number) => {
+				if (value <= 0) return value;
+				return value / amplifyFactor;
+			});
 		}
-		
-		// Find the two nearest cardinal directions for interpolation
-		// Calculate angle for this index
-		const angle = (index * 2 * Math.PI / CIRCULARITY_DATA_SIZE) - Math.PI;
-		const angleDeg = (angle * 180 / Math.PI + 360) % 360;
-		
-		// Find the two adjacent cardinal directions
-		let prevCardinal = cardinalIndices[cardinalIndices.length - 1];
-		let nextCardinal = cardinalIndices[0];
-		
-		for (let i = 0; i < cardinalIndices.length; i++) {
-			const curr = cardinalIndices[i];
-			const next = cardinalIndices[(i + 1) % cardinalIndices.length];
+		return rangeData;
+	} else {
+		// Case 1: Force circular disabled - apply percentage adjustments to cardinal indices only
+		// Cardinal indices: calibration_value / (percent / 100)
+		// Other indices: if > 1, clamp to 1; if < 1, keep original calibration value
+		return rangeData.map((value: number, index: number) => {
+			if (value <= 0) return value;
 			
-			// Calculate angle ranges, handling wrap-around
-			let currAngle = curr.angle;
-			let nextAngle = next.angle;
-			if (nextAngle < currAngle) nextAngle += 360;
-			
-			// Check if current angle is between curr and next
-			let angleInRange = false;
-			if (angleDeg >= currAngle && angleDeg <= nextAngle) {
-				angleInRange = true;
-			} else if (currAngle > 270 && angleDeg < 90) {
-				// Handle wrap-around: angleDeg is near 0, currAngle is near 360
-				angleInRange = true;
+			if (index === 0 || index === 12 || index === 24 || index === 36) {
+				// Cardinal index: apply percentage adjustment
+				let percentFactor = 0.0;
+				if (index === 0) {
+					percentFactor = yLeftPercent / 100.0;      // Left (180°)
+				} else if (index === 12) {
+					percentFactor = xBottomPercent / 100.0;    // Bottom (270°)
+				} else if (index === 24) {
+					percentFactor = yRightPercent / 100.0;    // Right (0°)
+				} else if (index === 36) {
+					percentFactor = xTopPercent / 100.0;      // Top (90°)
+				}
+				if (percentFactor > 0.0) {
+					return value / percentFactor;
+				}
+				return value;
+			} else {
+				// Non-cardinal index: if > 1, clamp to 1; if < 1, keep original
+				if (value > 1.0) {
+					return 1.0;
+				}
+				// If < 1, keep original calibration value (no change needed)
+				return value;
 			}
-			
-			if (angleInRange) {
-				prevCardinal = curr;
-				nextCardinal = next;
-				break;
-			}
-		}
-		
-		// Calculate interpolation factor based on angle
-		let prevAngle = prevCardinal.angle;
-		let nextAngle = nextCardinal.angle;
-		if (nextAngle < prevAngle) nextAngle += 360;
-		
-		let t = 0;
-		if (prevAngle <= angleDeg && angleDeg <= nextAngle) {
-			t = (angleDeg - prevAngle) / (nextAngle - prevAngle);
-		} else if (prevAngle > 270 && angleDeg < 90) {
-			// Handle wrap-around
-			const dist = (angleDeg + 360 - prevAngle) % 360;
-			const total = (nextAngle + 360 - prevAngle) % 360;
-			t = dist / total;
-		}
-		
-		// Linear interpolation between the two cardinal scales
-		return prevCardinal.scale * (1 - t) + nextCardinal.scale * t;
-	};
-	
-	return rangeData.map((value: number, index: number) => {
-		if (value <= 0) return value;
-		
-		// Get scale factor with interpolation
-		let scaleFactor = getScaleFactor(index);
-		
-		// Apply amplify factor if force circular is enabled
-		if (forceCircular && amplify > 0) {
-			scaleFactor *= (1.0 + amplify / 100.0);
-		}
-		
-		// Apply the scale factor to the original calibration value
-		return value * scaleFactor;
-	});
+		});
+	}
 };
 
 /**
@@ -173,6 +147,56 @@ const applyFinetuneShapeAdjustments = (
  * @param centerX - Calibrated center X value
  * @param centerY - Calibrated center Y value
  * @param rangeData - Range calibration data array
+ * @returns Processed stick data and detail information
+ */
+/**
+ * Get interpolated scale for a given angle using range calibration data (matches backend logic)
+ * @param angle Angle in radians (-PI to PI)
+ * @param rangeData Range calibration data array (already adjusted by applyFinetuneShapeAdjustments)
+ * @returns Interpolated scale value, or 0.0 if no calibration data
+ */
+const getInterpolatedScale = (angle: number, rangeData: number[]): number => {
+	// Check if we have calibration data
+	if (!rangeData || rangeData.length === 0 || rangeData.every(v => v <= 0)) {
+		return 0.0;
+	}
+	
+	// Convert angle from [-PI, PI] to [0, 2*PI] then to [0, CIRCULARITY_DATA_SIZE]
+	const normalizedAngle = (angle + Math.PI) / (2.0 * Math.PI);  // 0.0 to 1.0
+	const index = normalizedAngle * CIRCULARITY_DATA_SIZE;
+	
+	// Get the two adjacent indices for interpolation
+	const i0 = Math.floor(index) % CIRCULARITY_DATA_SIZE;
+	const i1 = (i0 + 1) % CIRCULARITY_DATA_SIZE;
+	const t = index - Math.floor(index);  // Fractional part (0.0 to 1.0)
+	
+	// Linear interpolation of adjusted calibration data
+	const r0 = rangeData[i0] || 0;
+	const r1 = rangeData[i1] || 0;
+	return r0 * (1.0 - t) + r1 * t;
+};
+
+/**
+ * Trim cartesian coordinates to square [-1, 1] boundary (DS4-style square trimming)
+ * @param x Input X coordinate
+ * @param y Input Y coordinate
+ * @returns Trimmed coordinates {x, y}
+ */
+const trimToSquare = (x: number, y: number): { x: number; y: number } => {
+	// Trim to -1,-1 to 1,1 square
+	return {
+		x: Math.max(-1.0, Math.min(1.0, x)),
+		y: Math.max(-1.0, Math.min(1.0, y))
+	};
+};
+
+/**
+ * Processes joystick data through coordinate transformation pipeline (matches backend logic)
+ * @param rawX - Raw ADC X value
+ * @param rawY - Raw ADC Y value
+ * @param centerX - Calibrated center X value
+ * @param centerY - Calibrated center Y value
+ * @param rangeData - Range calibration data array (already adjusted by applyFinetuneShapeAdjustments)
  * @returns Processed stick data and detail information
  */
 const processJoystickData = (
@@ -192,29 +216,41 @@ const processJoystickData = (
 	const offset_center_x = offset_x - ADC_CENTER;
 	const offset_center_y = offset_y - ADC_CENTER;
 	
-	// Calculate angle and get scale
+	// Step 4: Range calibration scaling (radial scaling) with interpolation
+	const current_distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
 	const angle = Math.atan2(offset_center_y, offset_center_x);
-	const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
-	const scale = rangeData[angleIndex] > 0 ? rangeData[angleIndex] : 0;
+	const scale = getInterpolatedScale(angle, rangeData);
 	
-	// Step 4: Apply scale
+	const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
+	
 	let scaled_center_x = 0;
 	let scaled_center_y = 0;
-	if (scale > 0 && (offset_center_x !== 0 || offset_center_y !== 0)) {
+	
+	if (scale > 0.0 && current_distance > 0.0) {
+		// Apply radial scaling
 		scaled_center_x = offset_center_x / scale;
 		scaled_center_y = offset_center_y / scale;
 	} else {
+		// No calibration data, use raw data
 		scaled_center_x = offset_center_x;
 		scaled_center_y = offset_center_y;
 	}
 	
-	// Step 6: Normalize
-	const normalizedX = scaled_center_x / ADC_MAX + 0.5;
-	const normalizedY = scaled_center_y / ADC_MAX + 0.5;
+	// Step 5: Normalize to [0.0, 1.0] range
+	const normalized_x = scaled_center_x / ADC_MAX + 0.5;
+	const normalized_y = scaled_center_y / ADC_MAX + 0.5;
 	
-	// Convert to display format (-1 to 1)
-	const stickX = Math.max(-1, Math.min(1, (normalizedX - 0.5) * 2));
-	const stickY = Math.max(-1, Math.min(1, (normalizedY - 0.5) * 2));
+	// Step 6: Apply square trimming to prevent output values > 1.0 (DS4-style)
+	// Convert from [0.0, 1.0] range (center 0.5) to [-1, 1] range (center 0) for trimming
+	const x_normalized = (normalized_x - 0.5) * 2.0;  // [0.0, 1.0] -> [-1, 1]
+	const y_normalized = (normalized_y - 0.5) * 2.0;  // [0.0, 1.0] -> [-1, 1]
+	
+	// Trim to square [-1, 1] boundary
+	const trimmed = trimToSquare(x_normalized, y_normalized);
+	
+	// Convert to display format (-1 to 1) - trimmed values are already in [-1, 1] range
+	const stickX = trimmed.x;
+	const stickY = trimmed.y;
 	
 	return {
 		stickX,
@@ -230,8 +266,8 @@ const processJoystickData = (
 			offsetCenterY: offset_center_y,
 			scaledCenterX: scaled_center_x,
 			scaledCenterY: scaled_center_y,
-			normalizedX,
-			normalizedY,
+			normalizedX: trimmed.x * 0.5 + 0.5,
+			normalizedY: trimmed.y * 0.5 + 0.5,
 		}
 	};
 };
@@ -402,10 +438,6 @@ const JoystickCalibration = ({
 	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
 	const [showLeftFinetuneShapeModal, setShowLeftFinetuneShapeModal] = useState(false);
 	const [showRightFinetuneShapeModal, setShowRightFinetuneShapeModal] = useState(false);
-	const [leftCircularityEnabled, setLeftCircularityEnabled] = useState(false);
-	const [rightCircularityEnabled, setRightCircularityEnabled] = useState(false);
-	const [leftCircularityData, setLeftCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
-	const [rightCircularityData, setRightCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [showLeftRangeDataModal, setShowLeftRangeDataModal] = useState(false);
 	const [showRightRangeDataModal, setShowRightRangeDataModal] = useState(false);
 	const [leftRangeDataSnapshot, setLeftRangeDataSnapshot] = useState<number[]>([]);
@@ -543,18 +575,6 @@ const JoystickCalibration = ({
 							});
 							
 							setLeftStickDetailData(detailData);
-
-							// Collect circularity data if enabled
-							if (leftCircularityEnabled) {
-								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
-								setLeftCircularityData(prev => {
-									const newData = [...prev];
-									const oldValue = newData[circAngleIndex] ?? 0;
-									newData[circAngleIndex] = Math.max(oldValue, distance);
-									return newData;
-								});
-							}
 						}
 					}
 				}
@@ -603,18 +623,6 @@ const JoystickCalibration = ({
 							});
 							
 							setRightStickDetailData(detailData);
-
-							// Collect circularity data if enabled
-							if (rightCircularityEnabled) {
-								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
-								setRightCircularityData(prev => {
-									const newData = [...prev];
-									const oldValue = newData[circAngleIndex] ?? 0;
-									newData[circAngleIndex] = Math.max(oldValue, distance);
-									return newData;
-								});
-							}
 						}
 					}
 				}
@@ -629,7 +637,7 @@ const JoystickCalibration = ({
 		return () => {
 			clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, leftCircularityEnabled, rightCircularityEnabled, (values as any)?.joystickFinetuneShapeXTopPercent1, (values as any)?.joystickFinetuneShapeXBottomPercent1, (values as any)?.joystickFinetuneShapeYLeftPercent1, (values as any)?.joystickFinetuneShapeYRightPercent1, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeXTopPercent2, (values as any)?.joystickFinetuneShapeXBottomPercent2, (values as any)?.joystickFinetuneShapeYLeftPercent2, (values as any)?.joystickFinetuneShapeYRightPercent2, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
+	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, (values as any)?.joystickFinetuneShapeXTopPercent1, (values as any)?.joystickFinetuneShapeXBottomPercent1, (values as any)?.joystickFinetuneShapeYLeftPercent1, (values as any)?.joystickFinetuneShapeYRightPercent1, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeXTopPercent2, (values as any)?.joystickFinetuneShapeXBottomPercent2, (values as any)?.joystickFinetuneShapeYLeftPercent2, (values as any)?.joystickFinetuneShapeYRightPercent2, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
 
 	// Update canvas when stick data changes
 	useEffect(() => {
@@ -650,7 +658,7 @@ const JoystickCalibration = ({
 						radius,
 						leftStickData.x,
 						leftStickData.y,
-						leftCircularityEnabled ? leftCircularityData : null,
+						null, // No circularity data on main page canvas
 						leftFinetuneCenterActive,
 					);
 				}
@@ -672,7 +680,7 @@ const JoystickCalibration = ({
 						radius,
 						rightStickData.x,
 						rightStickData.y,
-						rightCircularityEnabled ? rightCircularityData : null,
+						null, // No circularity data on main page canvas
 						rightFinetuneCenterActive,
 					);
 				}
@@ -680,7 +688,7 @@ const JoystickCalibration = ({
 		};
 
 		updateCanvas();
-	}, [leftStickData, rightStickData, leftCircularityData, rightCircularityData, leftCircularityEnabled, rightCircularityEnabled, leftFinetuneCenterActive, rightFinetuneCenterActive]);
+	}, [leftStickData, rightStickData, leftFinetuneCenterActive, rightFinetuneCenterActive]);
 
 	// Reset finetune shape data when modals open/close
 	useEffect(() => {
@@ -775,7 +783,7 @@ const JoystickCalibration = ({
 								percentRef.amplify
 							);
 							
-							const { stickX, stickY, detailData } = processJoystickData(
+							const { stickX, stickY } = processJoystickData(
 								data.x,
 								data.y,
 								centerX,
@@ -824,7 +832,7 @@ const JoystickCalibration = ({
 								percentRef.amplify
 							);
 							
-							const { stickX, stickY, detailData } = processJoystickData(
+							const { stickX, stickY } = processJoystickData(
 								data.x,
 								data.y,
 								centerX,
@@ -920,20 +928,6 @@ const JoystickCalibration = ({
 				<Row className="mb-3">
 					<Col md={6} className="text-center mb-3">
 						<div>
-							<div className="mb-2 d-flex align-items-center justify-content-center gap-2">
-								<FormCheck
-									type="switch"
-									id="leftCircularityToggle"
-									label={t('AddonsConfig:joystick-calibration-left-stick-error-rate')}
-									checked={leftCircularityEnabled}
-									onChange={(e) => {
-										setLeftCircularityEnabled(e.target.checked);
-										if (!e.target.checked) {
-											setLeftCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
-										}
-									}}
-								/>
-							</div>
 							<canvas
 								ref={leftStickCanvasRef}
 								width={300}
@@ -1074,20 +1068,6 @@ const JoystickCalibration = ({
 					</Col>
 					<Col md={6} className="text-center mb-3">
 						<div>
-							<div className="mb-2 d-flex align-items-center justify-content-center gap-2">
-								<FormCheck
-									type="switch"
-									id="rightCircularityToggle"
-									label={t('AddonsConfig:joystick-calibration-right-stick-error-rate')}
-									checked={rightCircularityEnabled}
-									onChange={(e) => {
-										setRightCircularityEnabled(e.target.checked);
-										if (!e.target.checked) {
-											setRightCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
-										}
-									}}
-								/>
-							</div>
 							<canvas
 								ref={rightStickCanvasRef}
 								width={300}

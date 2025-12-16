@@ -109,6 +109,8 @@ export default {
 	'smoothing-factor-desc': '防抖的基础平滑系数',
 	'smoothing-alpha-max-desc': '摇杆快速移动时的平滑系数上限',
 	'smoothing-dynamic-desc': '平滑系数越大，摇杆防抖程度越低，摇杆移动速度越快，平滑系数越接近动态上限',
+	'ema-start-sampling': '开始取样',
+	'ema-calculate-jitter-step': '计算抖动步长',
 	'analog-error-label': '误差率',
 	'turbo-header-text': '连发',
 	'turbo-button-pin-label': '连发 GPIO 引脚',
