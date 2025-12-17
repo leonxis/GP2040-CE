@@ -81,6 +81,11 @@ typedef struct
     float anti_deadzone;
     uint32_t joystick_center_x;
     uint32_t joystick_center_y;
+    // Jitter filter configuration (ADC units). 0 = disabled.
+    uint32_t jitter_filter;
+    // Last raw ADC readings for jitter filtering
+    uint16_t last_x_adc;
+    uint16_t last_y_adc;
     float range_data[48];  // Circularity data for 48 angular positions
     bool has_range_calibration;  // Flag to indicate if range calibration data exists
     // Finetune shape adjustment percentages (independent from calibration data)
@@ -102,7 +107,7 @@ public:
     virtual void reinit() {}
     virtual std::string name() { return AnalogName; }
 private:
-    float readPin(int stick_num, Pin_t pin, uint16_t center);
+    float readPin(int stick_num, Pin_t pin, uint16_t center, bool isXAxis);
     float getInterpolatedScale(int stick_num, float angle);
     void applyFinetuneShapeAdjustments(int stick_num);
     void trimToSquare(float x, float y, float& outX, float& outY);
