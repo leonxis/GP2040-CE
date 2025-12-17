@@ -491,6 +491,7 @@ const JoystickCalibration = ({
 	const [rightAngleIndexSnapshot, setRightAngleIndexSnapshot] = useState(0);
 	const [leftFinetuneCenterActive, setLeftFinetuneCenterActive] = useState(false);
 	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
+	const [showRangeCalibrationWarning, setShowRangeCalibrationWarning] = useState(false);
 	
 	// Jitter filter state for main canvas visualization (per stick)
 	const leftCanvasJitterLastRef = useRef<{ x: number; y: number } | null>(null);
@@ -1448,7 +1449,7 @@ const JoystickCalibration = ({
 											rangeData.length === CIRCULARITY_DATA_SIZE &&
 											rangeData.some((v: number) => v > 0);
 										if (!hasCalibration) {
-											window.alert('请先进行外圈校准');
+											setShowRangeCalibrationWarning(true);
 											return;
 										}
 										setShowLeftFinetuneShapeModal(true);
@@ -1600,7 +1601,7 @@ const JoystickCalibration = ({
 											rangeData.length === CIRCULARITY_DATA_SIZE &&
 											rangeData.some((v: number) => v > 0);
 										if (!hasCalibration) {
-											window.alert('请先进行外圈校准');
+											setShowRangeCalibrationWarning(true);
 											return;
 										}
 										setShowRightFinetuneShapeModal(true);
@@ -2360,6 +2361,25 @@ const JoystickCalibration = ({
 					{t('Common:button-save-label')}
 				</Button>
 			</div>
+
+			{/* Range calibration warning modal */}
+			<Modal
+				show={showRangeCalibrationWarning}
+				onHide={() => setShowRangeCalibrationWarning(false)}
+				centered
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>提示</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p className="mb-0">请先进行外圈校准。</p>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="primary" onClick={() => setShowRangeCalibrationWarning(false)}>
+						确定
+					</Button>
+				</Modal.Footer>
+			</Modal>
 		</Section>
 	);
 };
