@@ -775,6 +775,8 @@ const JoystickCalibration = ({
 
 	// Update canvas when stick data changes
 	useEffect(() => {
+		let animationFrameId: number | null = null;
+
 		const updateCanvas = () => {
 			// Draw left stick
 			if (leftStickCanvasRef.current) {
@@ -821,7 +823,14 @@ const JoystickCalibration = ({
 			}
 		};
 
-		updateCanvas();
+		// Use requestAnimationFrame to throttle canvas updates
+		animationFrameId = requestAnimationFrame(updateCanvas);
+
+		return () => {
+			if (animationFrameId !== null) {
+				cancelAnimationFrame(animationFrameId);
+			}
+		};
 	}, [leftStickData, rightStickData, leftFinetuneCenterActive, rightFinetuneCenterActive]);
 
 	// Calculate statistics for samples (helper function)
@@ -1273,10 +1282,16 @@ const JoystickCalibration = ({
 				clearInterval(intervalId);
 			};
 		}
-	}, [values, showLeftFinetuneShapeModal, showRightFinetuneShapeModal]);
+	}, [values?.AnalogInputEnabled, values?.joystickCenterX, values?.joystickCenterY, values?.joystickCenterX2, values?.joystickCenterY2, (values as any)?.joystickRangeData1, (values as any)?.joystickRangeData2, (values as any)?.joystickJitterFilter1, (values as any)?.joystickJitterFilter2, showLeftFinetuneShapeModal, showRightFinetuneShapeModal]);
 
 	// Update finetune shape canvas when stick data changes
 	useEffect(() => {
+		if (!showLeftFinetuneShapeModal && !showRightFinetuneShapeModal) {
+			return;
+		}
+
+		let animationFrameId: number | null = null;
+
 		const updateCanvas = () => {
 			// Draw left finetune shape canvas
 			if (leftFinetuneShapeCanvasRef.current && showLeftFinetuneShapeModal) {
@@ -1325,8 +1340,15 @@ const JoystickCalibration = ({
 			}
 		};
 
-		updateCanvas();
-	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal, leftFinetuneShapeStickData, rightFinetuneShapeStickData, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData, leftFinetuneShapeXTopPercent, leftFinetuneShapeXBottomPercent, leftFinetuneShapeYLeftPercent, leftFinetuneShapeYRightPercent, leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify, rightFinetuneShapeXTopPercent, rightFinetuneShapeXBottomPercent, rightFinetuneShapeYLeftPercent, rightFinetuneShapeYRightPercent, rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
+		// Use requestAnimationFrame to throttle canvas updates
+		animationFrameId = requestAnimationFrame(updateCanvas);
+
+		return () => {
+			if (animationFrameId !== null) {
+				cancelAnimationFrame(animationFrameId);
+			}
+		};
+	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal, leftFinetuneShapeStickData, rightFinetuneShapeStickData, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData]);
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
