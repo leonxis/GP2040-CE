@@ -1441,7 +1441,18 @@ const JoystickCalibration = ({
 								<Button
 									variant="warning"
 									size="sm"
-									onClick={() => setShowLeftFinetuneShapeModal(true)}
+									onClick={() => {
+										const rangeData = (values as any)?.joystickRangeData1;
+										const hasCalibration =
+											Array.isArray(rangeData) &&
+											rangeData.length === CIRCULARITY_DATA_SIZE &&
+											rangeData.some((v: number) => v > 0);
+										if (!hasCalibration) {
+											window.alert('请先进行外圈校准');
+											return;
+										}
+										setShowLeftFinetuneShapeModal(true);
+									}}
 								>
 									{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
 								</Button>
@@ -1582,7 +1593,18 @@ const JoystickCalibration = ({
 								<Button
 									variant="warning"
 									size="sm"
-									onClick={() => setShowRightFinetuneShapeModal(true)}
+									onClick={() => {
+										const rangeData = (values as any)?.joystickRangeData2;
+										const hasCalibration =
+											Array.isArray(rangeData) &&
+											rangeData.length === CIRCULARITY_DATA_SIZE &&
+											rangeData.some((v: number) => v > 0);
+										if (!hasCalibration) {
+											window.alert('请先进行外圈校准');
+											return;
+										}
+										setShowRightFinetuneShapeModal(true);
+									}}
 								>
 									{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
 								</Button>
