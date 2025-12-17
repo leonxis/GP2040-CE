@@ -411,11 +411,8 @@ message AnalogOptions
     optional InvertMode analogAdc1Invert = 10;
     optional InvertMode analogAdc2Invert = 11;
     optional uint32 outer_deadzone = 13;
-    optional bool analog_smoothing = 14;
-    optional float smoothing_factor = 15;
+    // EMA smoothing removed - no longer used (fields 14, 15, 17, 18)
     optional uint32 analog_error = 16;
-    optional bool analog_smoothing2 = 17;
-    optional float smoothing_factor2 = 18;
     optional uint32 analog_error2 = 19;
     optional uint32 inner_deadzone2 = 20;
     optional uint32 outer_deadzone2 = 21;
@@ -445,6 +442,8 @@ message AnalogOptions
     optional float joystick_finetune_shape_y_right_percent_2 = 55;
     optional bool joystick_finetune_shape_force_circular_2 = 56;
     optional float joystick_finetune_shape_amplify_2 = 57;
+    optional uint32 joystick_jitter_filter_1 = 58;
+    optional uint32 joystick_jitter_filter_2 = 59;
 }
 
 message TurboOptions

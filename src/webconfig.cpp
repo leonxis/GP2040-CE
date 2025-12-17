@@ -1808,11 +1808,9 @@ std::string setAddonOptions()
     docToValue(analogOptions.joystick_finetune_shape_y_right_percent_2, doc, "joystickFinetuneShapeYRightPercent2");
     docToValue(analogOptions.joystick_finetune_shape_force_circular_2, doc, "joystickFinetuneShapeForceCircular2");
     docToValue(analogOptions.joystick_finetune_shape_amplify_2, doc, "joystickFinetuneShapeAmplify2");
-    docToValue(analogOptions.analog_smoothing, doc, "analog_smoothing");
-    docToValue(analogOptions.analog_smoothing2, doc, "analog_smoothing2");
-    docToValue(analogOptions.smoothing_factor, doc, "smoothing_factor");
-    docToValue(analogOptions.smoothing_factor2, doc, "smoothing_factor2");
-    // smoothing_alpha_max, smoothing_delta_max, analog_error removed - no longer used
+    docToValue(analogOptions.joystick_jitter_filter_1, doc, "joystickJitterFilter1");
+    docToValue(analogOptions.joystick_jitter_filter_2, doc, "joystickJitterFilter2");
+    // EMA smoothing removed - no longer used
     docToValue(analogOptions.enabled, doc, "AnalogInputEnabled");
 
     BootselButtonOptions& bootselButtonOptions = Storage::getInstance().getAddonOptions().bootselButtonOptions;
@@ -2286,11 +2284,9 @@ std::string getAddonOptions()
     writeDoc(doc, "joystickFinetuneShapeYRightPercent2", analogOptions.has_joystick_finetune_shape_y_right_percent_2 ? analogOptions.joystick_finetune_shape_y_right_percent_2 : 100.0f);
     writeDoc(doc, "joystickFinetuneShapeForceCircular2", analogOptions.has_joystick_finetune_shape_force_circular_2 ? analogOptions.joystick_finetune_shape_force_circular_2 : false);
     writeDoc(doc, "joystickFinetuneShapeAmplify2", analogOptions.has_joystick_finetune_shape_amplify_2 ? analogOptions.joystick_finetune_shape_amplify_2 : 0.0f);
-    writeDoc(doc, "analog_smoothing", analogOptions.analog_smoothing);
-    writeDoc(doc, "analog_smoothing2", analogOptions.analog_smoothing2);
-    writeDoc(doc, "smoothing_factor", analogOptions.smoothing_factor);
-    writeDoc(doc, "smoothing_factor2", analogOptions.smoothing_factor2);
-    // smoothing_alpha_max, smoothing_delta_max, analog_error removed - no longer used
+    writeDoc(doc, "joystickJitterFilter1", analogOptions.has_joystick_jitter_filter_1 ? analogOptions.joystick_jitter_filter_1 : 0);
+    writeDoc(doc, "joystickJitterFilter2", analogOptions.has_joystick_jitter_filter_2 ? analogOptions.joystick_jitter_filter_2 : 0);
+    // EMA smoothing removed - no longer used
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
 
     const BootselButtonOptions& bootselButtonOptions = Storage::getInstance().getAddonOptions().bootselButtonOptions;

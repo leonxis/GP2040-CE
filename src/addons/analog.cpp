@@ -164,12 +164,12 @@ void AnalogInput::process() {
         float scaled_center_x = 0.0f;
         float scaled_center_y = 0.0f;
         
-        if (scale > 0.0f && current_distance > 0.0f) {
-            // Apply radial scaling
+        // Apply radial scaling (scale is always > 0: 1.0 when uncalibrated, calibrated value when calibrated)
+        if (current_distance > 0.0f) {
             scaled_center_x = offset_center_x / scale;
             scaled_center_y = offset_center_y / scale;
         } else {
-            // No calibration data, use raw data
+            // Zero distance: no scaling needed
             scaled_center_x = offset_center_x;
             scaled_center_y = offset_center_y;
         }
@@ -265,12 +265,12 @@ float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t /* center */) 
  * Note: range_data has already been adjusted by applyFinetuneShapeAdjustments() during initialization
  * @param stick_num Stick number (0 or 1)
  * @param angle Angle in radians (-PI to PI)
- * @return Scale value (ratio of actual outer radius to standard radius), or 0.0 if no calibration data
+ * @return Scale value (ratio of actual outer radius to standard radius), or 1.0 if no calibration data (1:1 native output)
  */
 float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
     // Check if we have calibration data (use flag set during setup to avoid checking all 48 indices)
     if (!adc_pairs[stick_num].has_range_calibration) {
-        return 0.0f;  // No calibration data
+        return 1.0f;  // No calibration data: use 1:1 scaling (native output)
     }
     
     // Convert angle from [-PI, PI] to [0, 2*PI] then to [0, CIRCULARITY_DATA_SIZE]
@@ -306,46 +306,52 @@ void AnalogInput::applyFinetuneShapeAdjustments(int stick_num) {
     // 180° (left): index = 0
     // 270° (bottom): index = 12
     
-    if (adc_pairs[stick_num].finetune_shape_force_circular) {
-        // Case 2: Force circular enabled - apply amplify factor to all indices
-        // All scaling ratios = calibration_value / (1 + amplify%)
-        float amplifyFactor = 1.0f + adc_pairs[stick_num].finetune_shape_amplify / 100.0f;
-        if (amplifyFactor > 0.0f) {
-            for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+    if (!adc_pairs[stick_num].finetune_shape_force_circular) {
+        // Step 1: When force circular is disabled, set all scaling ratios to the minimum value
+        // Find the minimum scaling ratio
+        // Since has_range_calibration ensures all 48 indices have valid (non-zero) data,
+        // we can use range_data[0] as the initial minScale and compare with remaining indices
+        float minScale = adc_pairs[stick_num].range_data[0];
+        for (int i = 1; i < CIRCULARITY_DATA_SIZE; i++) {
+            if (adc_pairs[stick_num].range_data[i] < minScale) {
+                minScale = adc_pairs[stick_num].range_data[i];
+            }
+        }
+        
+        // Set all scaling ratios to the minimum value
+        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+            adc_pairs[stick_num].range_data[i] = minScale;
+        }
+        
+        // Step 2: Apply percentage adjustments to cardinal indices (0, 12, 24, 36)
+        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i += 12) {
+            float percentFactor = 0.0f;
+            if (i == 0) {
+                percentFactor = adc_pairs[stick_num].finetune_shape_y_left_percent / 100.0f;      // Left (180°)
+            } else if (i == 12) {
+                percentFactor = adc_pairs[stick_num].finetune_shape_x_bottom_percent / 100.0f;    // Bottom (270°)
+            } else if (i == 24) {
+                percentFactor = adc_pairs[stick_num].finetune_shape_y_right_percent / 100.0f;      // Right (0°)
+            } else if (i == 36) {
+                percentFactor = adc_pairs[stick_num].finetune_shape_x_top_percent / 100.0f;      // Top (90°)
+            }
+            if (percentFactor > 0.0f) {
+                adc_pairs[stick_num].range_data[i] /= percentFactor;
+            }
+        }
+    }
+    // Note: When force_circular is true, scaling ratios remain unchanged at this point
+    
+    // Step 3: Apply amplify factor to all scaling ratios (regardless of force_circular setting)
+    float amplifyFactor = 1.0f + adc_pairs[stick_num].finetune_shape_amplify / 100.0f;
+    if (amplifyFactor > 0.0f) {
+        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+            if (adc_pairs[stick_num].range_data[i] > 0.0f) {
                 adc_pairs[stick_num].range_data[i] /= amplifyFactor;
             }
         }
-    } else {
-        // Case 1: Force circular disabled - apply percentage adjustments to cardinal indices only
-        // Cardinal indices: calibration_value / (percent / 100)
-        // Other indices: if > 1, clamp to 1; if < 1, keep original calibration value
-        // Process all indices in a single loop
-        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
-            if (i == 0 || i == 12 || i == 24 || i == 36) {
-                // Cardinal index: apply percentage adjustment
-                float percentFactor = 0.0f;
-                if (i == 0) {
-                    percentFactor = adc_pairs[stick_num].finetune_shape_y_left_percent / 100.0f;      // Left (180°)
-                } else if (i == 12) {
-                    percentFactor = adc_pairs[stick_num].finetune_shape_x_bottom_percent / 100.0f;    // Bottom (270°)
-                } else if (i == 24) {
-                    percentFactor = adc_pairs[stick_num].finetune_shape_y_right_percent / 100.0f;      // Right (0°)
-                } else if (i == 36) {
-                    percentFactor = adc_pairs[stick_num].finetune_shape_x_top_percent / 100.0f;      // Top (90°)
-                }
-                if (percentFactor > 0.0f) {
-                    adc_pairs[stick_num].range_data[i] /= percentFactor;
-                }
-            } else {
-                // Non-cardinal index: if > 1, clamp to 1; if < 1, keep original
-                if (adc_pairs[stick_num].range_data[i] > 1.0f) {
-                    adc_pairs[stick_num].range_data[i] = 1.0f;
-                }
-                // If < 1, keep original calibration value (no change needed)
-            }
-        }
-        // Interpolation between indices will be handled by getInterpolatedScale() at runtime
     }
+    
     // Note: Square trimming is applied in process() function to the final output coordinates,
     // not to the scale ratios in range_data
 }

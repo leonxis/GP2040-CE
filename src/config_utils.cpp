@@ -614,11 +614,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     // outer_deadzone removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone, DEFAULT_ANTI_DEADZONE);
     // Auto calibration removed - deprecated field ignored
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_factor, 15.0f);  // 默认15%
-    // Dynamic smoothing and error rate options removed
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analog_smoothing2, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, smoothing_factor2, 15.0f);  // 默认15%
+    // EMA smoothing removed - no longer used
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone2, DEFAULT_INNER_DEADZONE2);
     // outer_deadzone2 removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone2, DEFAULT_ANTI_DEADZONE2);

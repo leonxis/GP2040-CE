@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useFormikContext } from 'formik';
 import { Row, Col, Button, FormCheck, Modal, Table, Form } from 'react-bootstrap';
 
 import Section from '../Components/Section';
@@ -94,50 +95,54 @@ const applyFinetuneShapeAdjustments = (
 	// 180° (left): index = 0
 	// 270° (bottom): index = 12
 	
-	if (forceCircular) {
-		// Case 2: Force circular enabled - apply amplify factor to all indices
-		// All scaling ratios = calibration_value / (1 + amplify%)
-		const amplifyFactor = 1.0 + amplify / 100.0;
-		if (amplifyFactor > 0.0) {
-			return rangeData.map((value: number) => {
-				if (value <= 0) return value;
-				return value / amplifyFactor;
-			});
-		}
-		return rangeData;
-	} else {
-		// Case 1: Force circular disabled - apply percentage adjustments to cardinal indices only
-		// Cardinal indices: calibration_value / (percent / 100)
-		// Other indices: if > 1, clamp to 1; if < 1, keep original calibration value
-		return rangeData.map((value: number, index: number) => {
-			if (value <= 0) return value;
-			
-			if (index === 0 || index === 12 || index === 24 || index === 36) {
-				// Cardinal index: apply percentage adjustment
-				let percentFactor = 0.0;
-				if (index === 0) {
-					percentFactor = yLeftPercent / 100.0;      // Left (180°)
-				} else if (index === 12) {
-					percentFactor = xBottomPercent / 100.0;    // Bottom (270°)
-				} else if (index === 24) {
-					percentFactor = yRightPercent / 100.0;    // Right (0°)
-				} else if (index === 36) {
-					percentFactor = xTopPercent / 100.0;      // Top (90°)
-				}
-				if (percentFactor > 0.0) {
-					return value / percentFactor;
-				}
-				return value;
-			} else {
-				// Non-cardinal index: if > 1, clamp to 1; if < 1, keep original
-				if (value > 1.0) {
-					return 1.0;
-				}
-				// If < 1, keep original calibration value (no change needed)
-				return value;
+	// Create a copy of the range data to avoid mutating the original
+	const adjustedData = [...rangeData];
+	
+	if (!forceCircular) {
+		// Step 1: When force circular is disabled, set all scaling ratios to the minimum value
+		// Find the minimum scaling ratio
+		// Since has_range_calibration ensures all 48 indices have valid (non-zero) data,
+		// we can use range_data[0] as the initial minScale and compare with remaining indices
+		let minScale = adjustedData[0];
+		for (let i = 1; i < adjustedData.length; i++) {
+			if (adjustedData[i] < minScale) {
+				minScale = adjustedData[i];
 			}
-		});
+		}
+		
+		// Set all scaling ratios to the minimum value
+		for (let i = 0; i < adjustedData.length; i++) {
+			adjustedData[i] = minScale;
+		}
+		
+		// Step 2: Apply percentage adjustments to cardinal indices (0, 12, 24, 36)
+		for (let i = 0; i < adjustedData.length; i += 12) {
+			let percentFactor = 0.0;
+			if (i === 0) {
+				percentFactor = yLeftPercent / 100.0;      // Left (180°)
+			} else if (i === 12) {
+				percentFactor = xBottomPercent / 100.0;    // Bottom (270°)
+			} else if (i === 24) {
+				percentFactor = yRightPercent / 100.0;    // Right (0°)
+			} else if (i === 36) {
+				percentFactor = xTopPercent / 100.0;      // Top (90°)
+			}
+			if (percentFactor > 0.0) {
+				adjustedData[i] /= percentFactor;
+			}
+		}
 	}
+	// Note: When force_circular is true, scaling ratios remain unchanged at this point
+	
+	// Step 3: Apply amplify factor to all scaling ratios (regardless of force_circular setting)
+	const amplifyFactor = 1.0 + amplify / 100.0;
+	if (amplifyFactor > 0.0) {
+		for (let i = 0; i < adjustedData.length; i++) {
+			adjustedData[i] /= amplifyFactor;
+		}
+	}
+	
+	return adjustedData;
 };
 
 /**
@@ -157,8 +162,9 @@ const applyFinetuneShapeAdjustments = (
  */
 const getInterpolatedScale = (angle: number, rangeData: number[]): number => {
 	// Check if we have calibration data
+	// If no calibration data, return 1.0 for 1:1 native output (matches backend logic)
 	if (!rangeData || rangeData.length === 0 || rangeData.every(v => v <= 0)) {
-		return 0.0;
+		return 1.0;
 	}
 	
 	// Convert angle from [-PI, PI] to [0, 2*PI] then to [0, CIRCULARITY_DATA_SIZE]
@@ -226,12 +232,12 @@ const processJoystickData = (
 	let scaled_center_x = 0;
 	let scaled_center_y = 0;
 	
-	if (scale > 0.0 && current_distance > 0.0) {
-		// Apply radial scaling
+	// Apply radial scaling (scale is always > 0: 1.0 when uncalibrated, calibrated value when calibrated)
+	if (current_distance > 0.0) {
 		scaled_center_x = offset_center_x / scale;
 		scaled_center_y = offset_center_y / scale;
 	} else {
-		// No calibration data, use raw data
+		// Zero distance: no scaling needed
 		scaled_center_x = offset_center_x;
 		scaled_center_y = offset_center_y;
 	}
@@ -428,6 +434,7 @@ const JoystickCalibration = ({
 	setFieldValue,
 }: AddonPropTypes) => {
 	const { t } = useTranslation();
+	const { handleSubmit } = useFormikContext();
 	const leftStickCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightStickCanvasRef = useRef<HTMLCanvasElement>(null);
 	const [leftStickData, setLeftStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0 });
@@ -446,6 +453,54 @@ const JoystickCalibration = ({
 	const [rightAngleIndexSnapshot, setRightAngleIndexSnapshot] = useState(0);
 	const [leftFinetuneCenterActive, setLeftFinetuneCenterActive] = useState(false);
 	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
+	
+	// Jitter data correction sampling state for stick 1
+	const [leftJitterSampling, setLeftJitterSampling] = useState(false);
+	const [leftJitterSamples, setLeftJitterSamples] = useState<Array<{ x: number; y: number }>>([]);
+	const [showLeftJitterDataModal, setShowLeftJitterDataModal] = useState(false);
+	const [leftJitterStats, setLeftJitterStats] = useState<{
+		meanX: number;
+		meanY: number;
+		varianceX: number;
+		varianceY: number;
+		meanDeviationX: number;
+		meanDeviationY: number;
+		deviationRateX: number;
+		deviationRateY: number;
+		upperDeviationX: number;
+		upperDeviationY: number;
+		lowerDeviationX: number;
+		lowerDeviationY: number;
+	} | null>(null);
+	const leftJitterSamplingAbortRef = useRef<boolean>(false);
+	const leftJitterLastSampleRef = useRef<{ x: number; y: number } | null>(null);
+	const leftJitterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const [leftJitterFilter, setLeftJitterFilter] = useState<number>(0);
+	const [leftJitterFilterOriginal, setLeftJitterFilterOriginal] = useState<number>(0);
+	
+	// Jitter data correction sampling state for stick 2
+	const [rightJitterSampling, setRightJitterSampling] = useState(false);
+	const [rightJitterSamples, setRightJitterSamples] = useState<Array<{ x: number; y: number }>>([]);
+	const [showRightJitterDataModal, setShowRightJitterDataModal] = useState(false);
+	const [rightJitterStats, setRightJitterStats] = useState<{
+		meanX: number;
+		meanY: number;
+		varianceX: number;
+		varianceY: number;
+		meanDeviationX: number;
+		meanDeviationY: number;
+		deviationRateX: number;
+		deviationRateY: number;
+		upperDeviationX: number;
+		upperDeviationY: number;
+		lowerDeviationX: number;
+		lowerDeviationY: number;
+	} | null>(null);
+	const rightJitterSamplingAbortRef = useRef<boolean>(false);
+	const rightJitterLastSampleRef = useRef<{ x: number; y: number } | null>(null);
+	const rightJitterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const [rightJitterFilter, setRightJitterFilter] = useState<number>(0);
+	const [rightJitterFilterOriginal, setRightJitterFilterOriginal] = useState<number>(0);
 	
 	// Finetune shape modal state - initialize from values
 	const getPercentValue = (val: any, defaultVal: number) => {
@@ -486,6 +541,24 @@ const JoystickCalibration = ({
 			setRightFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
 		}
 	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal, (values as any)?.joystickFinetuneShapeXTopPercent1, (values as any)?.joystickFinetuneShapeXBottomPercent1, (values as any)?.joystickFinetuneShapeYLeftPercent1, (values as any)?.joystickFinetuneShapeYRightPercent1, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeXTopPercent2, (values as any)?.joystickFinetuneShapeXBottomPercent2, (values as any)?.joystickFinetuneShapeYLeftPercent2, (values as any)?.joystickFinetuneShapeYRightPercent2, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
+	
+	// Load jitter filter values when modal opens
+	useEffect(() => {
+		if (showLeftJitterDataModal) {
+			const savedValue = (values as any)?.joystickJitterFilter1 ?? 0;
+			setLeftJitterFilter(savedValue);
+			setLeftJitterFilterOriginal(savedValue);
+		}
+	}, [showLeftJitterDataModal, values]);
+	
+	useEffect(() => {
+		if (showRightJitterDataModal) {
+			const savedValue = (values as any)?.joystickJitterFilter2 ?? 0;
+			setRightJitterFilter(savedValue);
+			setRightJitterFilterOriginal(savedValue);
+		}
+	}, [showRightJitterDataModal, values]);
+	
 	const leftFinetuneShapeCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightFinetuneShapeCanvasRef = useRef<HTMLCanvasElement>(null);
 	const [leftFinetuneShapeStickData, setLeftFinetuneShapeStickData] = useState({ x: 0, y: 0 });
@@ -689,6 +762,261 @@ const JoystickCalibration = ({
 
 		updateCanvas();
 	}, [leftStickData, rightStickData, leftFinetuneCenterActive, rightFinetuneCenterActive]);
+
+	// Calculate statistics for samples (helper function)
+	const calculateJitterStats = (samples: Array<{ x: number; y: number }>) => {
+		if (samples.length === 0) return null;
+
+		// Calculate mean
+		const meanX = samples.reduce((sum, s) => sum + s.x, 0) / samples.length;
+		const meanY = samples.reduce((sum, s) => sum + s.y, 0) / samples.length;
+
+		// Calculate variance
+		const varianceX = samples.reduce((sum, s) => sum + Math.pow(s.x - meanX, 2), 0) / samples.length;
+		const varianceY = samples.reduce((sum, s) => sum + Math.pow(s.y - meanY, 2), 0) / samples.length;
+
+		// Calculate standard deviation
+		const stdDevX = Math.sqrt(varianceX);
+		const stdDevY = Math.sqrt(varianceY);
+
+		// Calculate mean absolute deviation
+		const meanDeviationX = samples.reduce((sum, s) => sum + Math.abs(s.x - meanX), 0) / samples.length;
+		const meanDeviationY = samples.reduce((sum, s) => sum + Math.abs(s.y - meanY), 0) / samples.length;
+
+		// Calculate deviation rate (coefficient of variation)
+		const deviationRateX = meanX !== 0 ? (stdDevX / meanX) * 100 : 0;
+		const deviationRateY = meanY !== 0 ? (stdDevY / meanY) * 100 : 0;
+
+		// Calculate upper and lower deviations
+		const upperDeviationX = Math.max(...samples.map(s => s.x - meanX));
+		const lowerDeviationX = Math.min(...samples.map(s => s.x - meanX));
+		const upperDeviationY = Math.max(...samples.map(s => s.y - meanY));
+		const lowerDeviationY = Math.min(...samples.map(s => s.y - meanY));
+
+		return {
+			meanX,
+			meanY,
+			varianceX,
+			varianceY,
+			meanDeviationX,
+			meanDeviationY,
+			deviationRateX,
+			deviationRateY,
+			upperDeviationX,
+			upperDeviationY,
+			lowerDeviationX,
+			lowerDeviationY,
+		};
+	};
+
+	// Start jitter sampling for stick 1
+	const handleStartJitterSampling1 = () => {
+		if (leftJitterSampling) return;
+		// Clear any existing timeout
+		if (leftJitterTimeoutRef.current) {
+			clearTimeout(leftJitterTimeoutRef.current);
+			leftJitterTimeoutRef.current = null;
+		}
+		setLeftJitterSampling(true);
+		setLeftJitterSamples([]);
+		leftJitterSamplingAbortRef.current = false;
+		leftJitterLastSampleRef.current = null;
+		
+		const maxSamples = 30;
+		
+		const fetchData = async (): Promise<void> => {
+			if (leftJitterSamplingAbortRef.current) {
+				return;
+			}
+
+			try {
+				const controller = new AbortController();
+				const timeoutId = setTimeout(() => controller.abort(), 300);
+
+				const res = await fetch('/api/getJoystickCenter', { signal: controller.signal });
+				clearTimeout(timeoutId);
+				if (res.ok) {
+					const data = await res.json();
+					if (data.success) {
+						// Calculate difference from last sample
+						if (leftJitterLastSampleRef.current !== null) {
+							const deltaX = Math.abs(data.x - leftJitterLastSampleRef.current.x);
+							const deltaY = Math.abs(data.y - leftJitterLastSampleRef.current.y);
+							
+							// Update last sample before state update
+							leftJitterLastSampleRef.current = { x: data.x, y: data.y };
+							
+							setLeftJitterSamples(prev => {
+								const newSamples = [...prev, { x: deltaX, y: deltaY }];
+								if (newSamples.length >= maxSamples) {
+									setLeftJitterSampling(false);
+									// Calculate statistics automatically when sampling completes
+									const stats = calculateJitterStats(newSamples);
+									if (stats) {
+										setLeftJitterStats(stats);
+									}
+									setShowLeftJitterDataModal(true);
+									return newSamples;
+								}
+								// Continue sampling if not reached max samples
+								if (!leftJitterSamplingAbortRef.current) {
+									if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
+									leftJitterTimeoutRef.current = setTimeout(fetchData, 5);
+								}
+								return newSamples;
+							});
+						} else {
+							// First sample: just store it, don't add to samples array
+							leftJitterLastSampleRef.current = { x: data.x, y: data.y };
+							// Continue sampling with slight delay
+							if (!leftJitterSamplingAbortRef.current) {
+								if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
+								leftJitterTimeoutRef.current = setTimeout(fetchData, 5);
+							}
+						}
+					} else {
+						if (!leftJitterSamplingAbortRef.current) {
+							if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
+							leftJitterTimeoutRef.current = setTimeout(fetchData, 10);
+						}
+					}
+				} else {
+					if (!leftJitterSamplingAbortRef.current) {
+						if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
+						leftJitterTimeoutRef.current = setTimeout(fetchData, 10);
+					}
+				}
+			} catch (error) {
+				console.error('Failed to fetch stick 1 jitter data:', error);
+				if (!leftJitterSamplingAbortRef.current) {
+					if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
+					leftJitterTimeoutRef.current = setTimeout(fetchData, 10);
+				}
+			}
+		};
+
+		fetchData();
+	};
+
+	// Start jitter sampling for stick 2
+	const handleStartJitterSampling2 = () => {
+		if (rightJitterSampling) return;
+		// Clear any existing timeout
+		if (rightJitterTimeoutRef.current) {
+			clearTimeout(rightJitterTimeoutRef.current);
+			rightJitterTimeoutRef.current = null;
+		}
+		setRightJitterSampling(true);
+		setRightJitterSamples([]);
+		rightJitterSamplingAbortRef.current = false;
+		rightJitterLastSampleRef.current = null;
+		
+		const maxSamples = 30;
+		
+		const fetchData = async (): Promise<void> => {
+			if (rightJitterSamplingAbortRef.current) {
+				return;
+			}
+
+			try {
+				const controller = new AbortController();
+				const timeoutId = setTimeout(() => controller.abort(), 300);
+
+				const res = await fetch('/api/getJoystickCenter2', { signal: controller.signal });
+				clearTimeout(timeoutId);
+				if (res.ok) {
+					const data = await res.json();
+					if (data.success) {
+						// Calculate difference from last sample
+						if (rightJitterLastSampleRef.current !== null) {
+							const deltaX = Math.abs(data.x - rightJitterLastSampleRef.current.x);
+							const deltaY = Math.abs(data.y - rightJitterLastSampleRef.current.y);
+							
+							// Update last sample before state update
+							rightJitterLastSampleRef.current = { x: data.x, y: data.y };
+							
+							setRightJitterSamples(prev => {
+								const newSamples = [...prev, { x: deltaX, y: deltaY }];
+								if (newSamples.length >= maxSamples) {
+									setRightJitterSampling(false);
+									// Calculate statistics automatically when sampling completes
+									const stats = calculateJitterStats(newSamples);
+									if (stats) {
+										setRightJitterStats(stats);
+									}
+									setShowRightJitterDataModal(true);
+									return newSamples;
+								}
+								// Continue sampling if not reached max samples
+								if (!rightJitterSamplingAbortRef.current) {
+									if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
+									rightJitterTimeoutRef.current = setTimeout(fetchData, 5);
+								}
+								return newSamples;
+							});
+						} else {
+							// First sample: just store it, don't add to samples array
+							rightJitterLastSampleRef.current = { x: data.x, y: data.y };
+							// Continue sampling with slight delay
+							if (!rightJitterSamplingAbortRef.current) {
+								if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
+								rightJitterTimeoutRef.current = setTimeout(fetchData, 5);
+							}
+						}
+					} else {
+						if (!rightJitterSamplingAbortRef.current) {
+							if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
+							rightJitterTimeoutRef.current = setTimeout(fetchData, 10);
+						}
+					}
+				} else {
+					if (!rightJitterSamplingAbortRef.current) {
+						if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
+						rightJitterTimeoutRef.current = setTimeout(fetchData, 10);
+					}
+				}
+			} catch (error) {
+				console.error('Failed to fetch stick 2 jitter data:', error);
+				if (!rightJitterSamplingAbortRef.current) {
+					if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
+					rightJitterTimeoutRef.current = setTimeout(fetchData, 10);
+				}
+			}
+		};
+
+		fetchData();
+	};
+
+	// Cleanup jitter sampling on unmount
+	useEffect(() => {
+		return () => {
+			leftJitterSamplingAbortRef.current = true;
+			rightJitterSamplingAbortRef.current = true;
+			if (leftJitterTimeoutRef.current) {
+				clearTimeout(leftJitterTimeoutRef.current);
+				leftJitterTimeoutRef.current = null;
+			}
+			if (rightJitterTimeoutRef.current) {
+				clearTimeout(rightJitterTimeoutRef.current);
+				rightJitterTimeoutRef.current = null;
+			}
+		};
+	}, []);
+
+	// Cleanup timeouts when sampling stops
+	useEffect(() => {
+		if (!leftJitterSampling && leftJitterTimeoutRef.current) {
+			clearTimeout(leftJitterTimeoutRef.current);
+			leftJitterTimeoutRef.current = null;
+		}
+	}, [leftJitterSampling]);
+
+	useEffect(() => {
+		if (!rightJitterSampling && rightJitterTimeoutRef.current) {
+			clearTimeout(rightJitterTimeoutRef.current);
+			rightJitterTimeoutRef.current = null;
+		}
+	}, [rightJitterSampling]);
 
 	// Reset finetune shape data when modals open/close
 	useEffect(() => {
@@ -1040,17 +1368,18 @@ const JoystickCalibration = ({
 									{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
 								</Button>
 							</div>
-							{/* Detailed data display */}
-							<div className="mt-2 small text-start" style={{ fontSize: '0.75rem', maxWidth: '300px', margin: '0 auto' }}>
-								<div>1. 原始中心: ({leftStickDetailData.centerX.toFixed(1)}, {leftStickDetailData.centerY.toFixed(1)})</div>
-								<div>2. 校准索引: {leftStickDetailData.angleIndex}, 缩放比: {leftStickDetailData.scale > 0 ? leftStickDetailData.scale.toFixed(4) : 'N/A'}</div>
-								<div>3. 原始ADC: ({leftStickDetailData.rawAdcX.toFixed(1)}, {leftStickDetailData.rawAdcY.toFixed(1)})</div>
-								<div>4. 平移后: ({leftStickDetailData.offsetCenterX.toFixed(1)}, {leftStickDetailData.offsetCenterY.toFixed(1)})</div>
-								<div>5. Scale后: ({leftStickDetailData.scaledCenterX.toFixed(1)}, {leftStickDetailData.scaledCenterY.toFixed(1)})</div>
-								<div>6. 归一化: ({leftStickDetailData.normalizedX.toFixed(4)}, {leftStickDetailData.normalizedY.toFixed(4)})</div>
-							</div>
-							{/* View calibration data button */}
+							{/* Jitter data correction and view calibration data buttons */}
 							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+								<Button
+									variant="info"
+									size="sm"
+									disabled={leftJitterSampling}
+									onClick={handleStartJitterSampling1}
+								>
+									{leftJitterSampling 
+										? `抖动数据修正 (${leftJitterSamples.length}/30)` 
+										: '抖动数据修正'}
+								</Button>
 								<Button
 									variant="info"
 									size="sm"
@@ -1180,17 +1509,18 @@ const JoystickCalibration = ({
 									{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
 								</Button>
 							</div>
-							{/* Detailed data display */}
-							<div className="mt-2 small text-start" style={{ fontSize: '0.75rem', maxWidth: '300px', margin: '0 auto' }}>
-								<div>1. 原始中心: ({rightStickDetailData.centerX.toFixed(1)}, {rightStickDetailData.centerY.toFixed(1)})</div>
-								<div>2. 校准索引: {rightStickDetailData.angleIndex}, 缩放比: {rightStickDetailData.scale > 0 ? rightStickDetailData.scale.toFixed(4) : 'N/A'}</div>
-								<div>3. 原始ADC: ({rightStickDetailData.rawAdcX.toFixed(1)}, {rightStickDetailData.rawAdcY.toFixed(1)})</div>
-								<div>4. 平移后: ({rightStickDetailData.offsetCenterX.toFixed(1)}, {rightStickDetailData.offsetCenterY.toFixed(1)})</div>
-								<div>5. Scale后: ({rightStickDetailData.scaledCenterX.toFixed(1)}, {rightStickDetailData.scaledCenterY.toFixed(1)})</div>
-								<div>6. 归一化: ({rightStickDetailData.normalizedX.toFixed(4)}, {rightStickDetailData.normalizedY.toFixed(4)})</div>
-							</div>
-							{/* View calibration data button */}
+							{/* Jitter data correction and view calibration data buttons */}
 							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+								<Button
+									variant="info"
+									size="sm"
+									disabled={rightJitterSampling}
+									onClick={handleStartJitterSampling2}
+								>
+									{rightJitterSampling 
+										? `抖动数据修正 (${rightJitterSamples.length}/30)` 
+										: '抖动数据修正'}
+								</Button>
 								<Button
 									variant="info"
 									size="sm"
@@ -1391,7 +1721,9 @@ const JoystickCalibration = ({
 										onChange={(e) => setLeftFinetuneShapeForceCircular(e.target.checked)}
 									/>
 									<p className="text-muted small mt-2 mb-0">
-										强制圆形会将摇杆外圈移动半径严格归一到圆形，关闭强制圆形会直接利用摇杆原生移动距离而产生不规则外圈形状。
+										{leftFinetuneShapeForceCircular
+											? "强制圆形会将摇杆外圈移动半径严格归一到圆形，关闭强制圆形会直接利用摇杆原生移动距离而产生不规则外圈形状。"
+											: "关闭强制圆形时将产生反映摇杆真实形状的不规则的外圈与误差率，4个方向的百分比可以调节轴向覆盖程度避免打不满。"}
 									</p>
 								</div>
 								{/* Amplify Slider */}
@@ -1405,7 +1737,7 @@ const JoystickCalibration = ({
 										onChange={(e) => setLeftFinetuneShapeAmplify(parseFloat(e.target.value))}
 									/>
 									<p className="text-muted small mt-2 mb-0">
-										当强制圆形开启时，扩大系数滑块可以调整摇杆外圈圆形与标准圆形比例。
+										扩大系数滑块可以放大摇杆覆盖范围，加快摇杆快速移动响应速度。一定程度等同于误差率调整。
 									</p>
 								</div>
 							</div>
@@ -1575,7 +1907,9 @@ const JoystickCalibration = ({
 										onChange={(e) => setRightFinetuneShapeForceCircular(e.target.checked)}
 									/>
 									<p className="text-muted small mt-2 mb-0">
-										强制圆形会将摇杆外圈移动半径严格归一到圆形，关闭强制圆形会直接利用摇杆原生移动距离而产生不规则外圈形状。
+										{rightFinetuneShapeForceCircular
+											? "强制圆形会将摇杆外圈移动半径严格归一到圆形，关闭强制圆形会直接利用摇杆原生移动距离而产生不规则外圈形状。"
+											: "关闭强制圆形时将产生反映摇杆真实形状的不规则的外圈与误差率，4个方向的百分比可以调节轴向覆盖程度避免打不满。"}
 									</p>
 								</div>
 								{/* Amplify Slider */}
@@ -1589,7 +1923,7 @@ const JoystickCalibration = ({
 										onChange={(e) => setRightFinetuneShapeAmplify(parseFloat(e.target.value))}
 									/>
 									<p className="text-muted small mt-2 mb-0">
-										当强制圆形开启时，扩大系数滑块可以调整摇杆外圈圆形与标准圆形比例。
+										扩大系数滑块可以放大摇杆覆盖范围，加快摇杆快速移动响应速度。一定程度等同于误差率调整。
 									</p>
 								</div>
 							</div>
@@ -1709,6 +2043,223 @@ const JoystickCalibration = ({
 					</Button>
 				</Modal.Footer>
 			</Modal>
+
+			{/* Left Jitter Data Modal */}
+			<Modal show={showLeftJitterDataModal} onHide={() => setShowLeftJitterDataModal(false)} size="lg">
+				<Modal.Header closeButton>
+					<Modal.Title>抖动数据修正 - 左摇杆</Modal.Title>
+				</Modal.Header>
+				<Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+					{/* Jitter Filter Slider */}
+					<div className="mb-4">
+						<Form.Label>抖动过滤值: {leftJitterFilter}</Form.Label>
+						<Form.Range
+							min={0}
+							max={30}
+							step={1}
+							value={leftJitterFilter}
+							onChange={(e) => setLeftJitterFilter(parseInt(e.target.value))}
+						/>
+					</div>
+					{/* Statistics Section */}
+					{leftJitterStats && (
+						<div className="mb-4">
+							<h5>抖动统计</h5>
+							<p><strong>样本数量: {leftJitterSamples.length}</strong></p>
+							<Table striped bordered size="sm" className="mb-3">
+								<thead>
+									<tr>
+										<th>统计项</th>
+										<th>X</th>
+										<th>Y</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										<td><strong>平均值</strong></td>
+										<td>{leftJitterStats.meanX.toFixed(2)}</td>
+										<td>{leftJitterStats.meanY.toFixed(2)}</td>
+									</tr>
+									<tr>
+										<td><strong>方差</strong></td>
+										<td>{leftJitterStats.varianceX.toFixed(2)}</td>
+										<td>{leftJitterStats.varianceY.toFixed(2)}</td>
+									</tr>
+									<tr>
+										<td><strong>平均绝对偏差</strong></td>
+										<td>{leftJitterStats.meanDeviationX.toFixed(2)}</td>
+										<td>{leftJitterStats.meanDeviationY.toFixed(2)}</td>
+									</tr>
+									<tr>
+										<td><strong>偏差率</strong></td>
+										<td>{leftJitterStats.deviationRateX.toFixed(2)}%</td>
+										<td>{leftJitterStats.deviationRateY.toFixed(2)}%</td>
+									</tr>
+									<tr>
+										<td><strong>上偏差</strong></td>
+										<td>{leftJitterStats.upperDeviationX.toFixed(2)}</td>
+										<td>{leftJitterStats.upperDeviationY.toFixed(2)}</td>
+									</tr>
+									<tr>
+										<td><strong>下偏差</strong></td>
+										<td>{leftJitterStats.lowerDeviationX.toFixed(2)}</td>
+										<td>{leftJitterStats.lowerDeviationY.toFixed(2)}</td>
+									</tr>
+								</tbody>
+							</Table>
+						</div>
+					)}
+					{/* Sampling Data Section */}
+					<h5>取样数据</h5>
+					<Table striped bordered hover size="sm">
+						<thead>
+							<tr>
+								<th>#</th>
+								<th>X (ADC)</th>
+								<th>Y (ADC)</th>
+							</tr>
+						</thead>
+						<tbody>
+							{leftJitterSamples.map((sample, index) => (
+								<tr key={index}>
+									<td>{index + 1}</td>
+									<td>{sample.x.toFixed(2)}</td>
+									<td>{sample.y.toFixed(2)}</td>
+								</tr>
+							))}
+						</tbody>
+					</Table>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => {
+						// Cancel: restore original value
+						setLeftJitterFilter(leftJitterFilterOriginal);
+						setShowLeftJitterDataModal(false);
+					}}>
+						取消
+					</Button>
+					<Button variant="primary" onClick={() => {
+						// Save: update field value
+						setFieldValue('joystickJitterFilter1', leftJitterFilter);
+						setLeftJitterFilterOriginal(leftJitterFilter);
+						setShowLeftJitterDataModal(false);
+					}}>
+						确定
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Right Jitter Data Modal */}
+			<Modal show={showRightJitterDataModal} onHide={() => setShowRightJitterDataModal(false)} size="lg">
+				<Modal.Header closeButton>
+					<Modal.Title>抖动数据修正 - 右摇杆</Modal.Title>
+				</Modal.Header>
+				<Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+					{/* Jitter Filter Slider */}
+					<div className="mb-4">
+						<Form.Label>抖动过滤值: {rightJitterFilter}</Form.Label>
+						<Form.Range
+							min={0}
+							max={30}
+							step={1}
+							value={rightJitterFilter}
+							onChange={(e) => setRightJitterFilter(parseInt(e.target.value))}
+						/>
+					</div>
+					{/* Statistics Section */}
+					{rightJitterStats && (
+						<div className="mb-4">
+							<h5>抖动统计</h5>
+							<p><strong>样本数量: {rightJitterSamples.length}</strong></p>
+							<Table striped bordered size="sm" className="mb-3">
+								<thead>
+									<tr>
+										<th>统计项</th>
+										<th>X</th>
+										<th>Y</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										<td><strong>平均值</strong></td>
+										<td>{rightJitterStats.meanX.toFixed(2)}</td>
+										<td>{rightJitterStats.meanY.toFixed(2)}</td>
+									</tr>
+									<tr>
+										<td><strong>方差</strong></td>
+										<td>{rightJitterStats.varianceX.toFixed(2)}</td>
+										<td>{rightJitterStats.varianceY.toFixed(2)}</td>
+									</tr>
+									<tr>
+										<td><strong>平均绝对偏差</strong></td>
+										<td>{rightJitterStats.meanDeviationX.toFixed(2)}</td>
+										<td>{rightJitterStats.meanDeviationY.toFixed(2)}</td>
+									</tr>
+									<tr>
+										<td><strong>偏差率</strong></td>
+										<td>{rightJitterStats.deviationRateX.toFixed(2)}%</td>
+										<td>{rightJitterStats.deviationRateY.toFixed(2)}%</td>
+									</tr>
+									<tr>
+										<td><strong>上偏差</strong></td>
+										<td>{rightJitterStats.upperDeviationX.toFixed(2)}</td>
+										<td>{rightJitterStats.upperDeviationY.toFixed(2)}</td>
+									</tr>
+									<tr>
+										<td><strong>下偏差</strong></td>
+										<td>{rightJitterStats.lowerDeviationX.toFixed(2)}</td>
+										<td>{rightJitterStats.lowerDeviationY.toFixed(2)}</td>
+									</tr>
+								</tbody>
+							</Table>
+						</div>
+					)}
+					{/* Sampling Data Section */}
+					<h5>取样数据</h5>
+					<Table striped bordered hover size="sm">
+						<thead>
+							<tr>
+								<th>#</th>
+								<th>X (ADC)</th>
+								<th>Y (ADC)</th>
+							</tr>
+						</thead>
+						<tbody>
+							{rightJitterSamples.map((sample, index) => (
+								<tr key={index}>
+									<td>{index + 1}</td>
+									<td>{sample.x.toFixed(2)}</td>
+									<td>{sample.y.toFixed(2)}</td>
+								</tr>
+							))}
+						</tbody>
+					</Table>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => {
+						// Cancel: restore original value
+						setRightJitterFilter(rightJitterFilterOriginal);
+						setShowRightJitterDataModal(false);
+					}}>
+						取消
+					</Button>
+					<Button variant="primary" onClick={() => {
+						// Save: update field value
+						setFieldValue('joystickJitterFilter2', rightJitterFilter);
+						setRightJitterFilterOriginal(rightJitterFilter);
+						setShowRightJitterDataModal(false);
+					}}>
+						确定
+					</Button>
+				</Modal.Footer>
+			</Modal>
+			
+			{/* Save Button */}
+			<div className="mt-3">
+				<Button type="button" onClick={() => handleSubmit()}>
+					{t('Common:button-save-label')}
+				</Button>
+			</div>
 		</Section>
 	);
 };
