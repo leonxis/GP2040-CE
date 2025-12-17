@@ -429,6 +429,44 @@ const drawStickPosition = (
 	}
 };
 
+/**
+ * Applies jitter filter to raw ADC values for visualization.
+ * Mirrors backend logic: if |current - last| < threshold, keep last value;
+ * otherwise accept current value and update last.
+ */
+const applyJitterFilterToAdc = (
+	rawX: number,
+	rawY: number,
+	threshold: number,
+	lastRef: React.MutableRefObject<{ x: number; y: number } | null>
+): { x: number; y: number } => {
+	// Threshold <= 0 means "no filtering"
+	if (!threshold || threshold <= 0) {
+		lastRef.current = { x: rawX, y: rawY };
+		return { x: rawX, y: rawY };
+	}
+
+	const last = lastRef.current ?? { x: rawX, y: rawY };
+
+	let filteredX = rawX;
+	let filteredY = rawY;
+
+	if (Math.abs(rawX - last.x) < threshold) {
+		filteredX = last.x;
+	} else {
+		last.x = rawX;
+	}
+
+	if (Math.abs(rawY - last.y) < threshold) {
+		filteredY = last.y;
+	} else {
+		last.y = rawY;
+	}
+
+	lastRef.current = last;
+	return { x: filteredX, y: filteredY };
+};
+
 const JoystickCalibration = ({
 	values,
 	setFieldValue,
@@ -454,6 +492,10 @@ const JoystickCalibration = ({
 	const [leftFinetuneCenterActive, setLeftFinetuneCenterActive] = useState(false);
 	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
 	
+	// Jitter filter state for main canvas visualization (per stick)
+	const leftCanvasJitterLastRef = useRef<{ x: number; y: number } | null>(null);
+	const rightCanvasJitterLastRef = useRef<{ x: number; y: number } | null>(null);
+
 	// Jitter data correction sampling state for stick 1
 	const [leftJitterSampling, setLeftJitterSampling] = useState(false);
 	const [leftJitterSamples, setLeftJitterSamples] = useState<Array<{ x: number; y: number }>>([]);
@@ -474,7 +516,7 @@ const JoystickCalibration = ({
 	} | null>(null);
 	const leftJitterSamplingAbortRef = useRef<boolean>(false);
 	const leftJitterLastSampleRef = useRef<{ x: number; y: number } | null>(null);
-	const leftJitterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const leftJitterTimeoutRef = useRef<any>(null);
 	const [leftJitterFilter, setLeftJitterFilter] = useState<number>(0);
 	const [leftJitterFilterOriginal, setLeftJitterFilterOriginal] = useState<number>(0);
 	
@@ -498,7 +540,7 @@ const JoystickCalibration = ({
 	} | null>(null);
 	const rightJitterSamplingAbortRef = useRef<boolean>(false);
 	const rightJitterLastSampleRef = useRef<{ x: number; y: number } | null>(null);
-	const rightJitterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const rightJitterTimeoutRef = useRef<any>(null);
 	const [rightJitterFilter, setRightJitterFilter] = useState<number>(0);
 	const [rightJitterFilterOriginal, setRightJitterFilterOriginal] = useState<number>(0);
 	
@@ -632,9 +674,18 @@ const JoystickCalibration = ({
 								amplify
 							);
 							
-							const { stickX, stickY, detailData } = processJoystickData(
+							// Apply jitter filter for visualization using configured threshold
+							const jitterThreshold1 = (values as any)?.joystickJitterFilter1 ?? 0;
+							const filtered1 = applyJitterFilterToAdc(
 								data1.x,
 								data1.y,
+								jitterThreshold1,
+								leftCanvasJitterLastRef
+							);
+
+							const { stickX, stickY, detailData } = processJoystickData(
+								filtered1.x,
+								filtered1.y,
 								centerX,
 								centerY,
 								adjustedRangeData
@@ -643,8 +694,8 @@ const JoystickCalibration = ({
 							setLeftStickData({
 								x: stickX,
 								y: stickY,
-								rawX: data1.x,
-								rawY: data1.y,
+								rawX: filtered1.x,
+								rawY: filtered1.y,
 							});
 							
 							setLeftStickDetailData(detailData);
@@ -680,9 +731,18 @@ const JoystickCalibration = ({
 								amplify
 							);
 							
-							const { stickX, stickY, detailData } = processJoystickData(
+							// Apply jitter filter for visualization using configured threshold
+							const jitterThreshold2 = (values as any)?.joystickJitterFilter2 ?? 0;
+							const filtered2 = applyJitterFilterToAdc(
 								data2.x,
 								data2.y,
+								jitterThreshold2,
+								rightCanvasJitterLastRef
+							);
+
+							const { stickX, stickY, detailData } = processJoystickData(
+								filtered2.x,
+								filtered2.y,
 								centerX,
 								centerY,
 								adjustedRangeData
@@ -691,8 +751,8 @@ const JoystickCalibration = ({
 							setRightStickData({
 								x: stickX,
 								y: stickY,
-								rawX: data2.x,
-								rawY: data2.y,
+								rawX: filtered2.x,
+								rawY: filtered2.y,
 							});
 							
 							setRightStickDetailData(detailData);
@@ -1111,9 +1171,18 @@ const JoystickCalibration = ({
 								percentRef.amplify
 							);
 							
-							const { stickX, stickY } = processJoystickData(
+							// Apply jitter filter for visualization using configured threshold
+							const jitterThreshold1 = (values as any)?.joystickJitterFilter1 ?? 0;
+							const filtered1 = applyJitterFilterToAdc(
 								data.x,
 								data.y,
+								jitterThreshold1,
+								leftCanvasJitterLastRef
+							);
+
+							const { stickX, stickY } = processJoystickData(
+								filtered1.x,
+								filtered1.y,
 								centerX,
 								centerY,
 								adjustedRangeData
@@ -1160,9 +1229,18 @@ const JoystickCalibration = ({
 								percentRef.amplify
 							);
 							
-							const { stickX, stickY } = processJoystickData(
+							// Apply jitter filter for visualization using configured threshold
+							const jitterThreshold2 = (values as any)?.joystickJitterFilter2 ?? 0;
+							const filtered2 = applyJitterFilterToAdc(
 								data.x,
 								data.y,
+								jitterThreshold2,
+								rightCanvasJitterLastRef
+							);
+
+							const { stickX, stickY } = processJoystickData(
+								filtered2.x,
+								filtered2.y,
 								centerX,
 								centerY,
 								adjustedRangeData
