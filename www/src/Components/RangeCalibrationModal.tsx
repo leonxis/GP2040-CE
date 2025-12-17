@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Modal, Button, Spinner, ProgressBar } from 'react-bootstrap';
+import { Modal, Button, ProgressBar } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 
 interface RangeCalibrationModalProps {
