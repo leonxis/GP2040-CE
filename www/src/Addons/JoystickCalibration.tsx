@@ -10,7 +10,7 @@ import { AddonPropTypes } from '../Pages/AddonsConfigPage';
 
 const CIRCULARITY_DATA_SIZE = 48; // Number of angular positions to sample
 const ADC_MAX = 4095;
-const ADC_CENTER = ADC_MAX / 2;
+const ADC_CENTER = ADC_MAX / 2.0;  // 2047.5, matches backend
 
 /**
  * Calculates circularity error for stick movement data.

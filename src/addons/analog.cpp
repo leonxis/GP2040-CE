@@ -113,110 +113,68 @@ void AnalogInput::setup() {
 void AnalogInput::process() {
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
     
-    uint32_t joystickMid = GAMEPAD_JOYSTICK_MID;
     uint32_t joystickMax = GAMEPAD_JOYSTICK_MAX;
     if ( DriverManager::getInstance().getDriver() != nullptr ) {
-        joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
-        joystickMax = joystickMid * 2; // 0x8000 mid must be 0x10000 max, but we reduce by 1 if we're maxed out
+        uint32_t joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+        joystickMax = joystickMid * 2;
     }
 
-    const float ADC_CENTER = ADC_MAX / 2.0f;  // 2047.5
-
     for(int i = 0; i < ADC_COUNT; i++) {
-        // Step 1: Read raw ADC values (0-4095)
-        float adc_x = 0.0f;
-        float adc_y = 0.0f;
-        
+        // Step 1: Read raw ADC values and transform to center-relative coordinates
+        // Combines: ADC read + center offset + move to center coordinate system
+        // Result: centered coordinates where (0,0) is stick center
+        float cx = 0.0f, cy = 0.0f;
         if (isValidPin(adc_pairs[i].x_pin)) {
-            adc_x = readPin(i, adc_pairs[i].x_pin_adc, adc_pairs[i].x_center, true);
+            cx = readPin(i, adc_pairs[i].x_pin_adc, adc_pairs[i].x_center, true) - (float)adc_pairs[i].x_center;
         }
         if (isValidPin(adc_pairs[i].y_pin)) {
-            adc_y = readPin(i, adc_pairs[i].y_pin_adc, adc_pairs[i].y_center, false);
+            cy = readPin(i, adc_pairs[i].y_pin_adc, adc_pairs[i].y_center, false) - (float)adc_pairs[i].y_center;
         }
 
-        // Step 2: Coordinate translation (offset transformation)
-        // Calculate center offset values
-        float dX_value = (float)adc_pairs[i].x_center - ADC_CENTER;
-        float dY_value = (float)adc_pairs[i].y_center - ADC_CENTER;
-        
-        // Apply offset transformation
-        float offset_x = adc_x - dX_value;  // adc_offset coordinate system
-        float offset_y = adc_y - dY_value;  // adc_offset coordinate system
+        // Step 2: Range calibration scaling (radial scaling)
+        // scale is always > 0: 1.0 when uncalibrated, calibrated value when calibrated
+        float scale = getInterpolatedScale(i, std::atan2(cy, cx));
+        float sx = cx / scale;
+        float sy = cy / scale;
 
-        // Step 3: Move to adc_offset_center coordinate system
-        float offset_center_x = offset_x - ADC_CENTER;
-        float offset_center_y = offset_y - ADC_CENTER;
+        // Step 3: Normalize to [0.0, 1.0] range and apply inversion
+        float x_value = sx / ADC_MAX + ANALOG_CENTER;
+        float y_value = sy / ADC_MAX + ANALOG_CENTER;
 
-        // Step 4: Range calibration scaling (radial scaling)
-        float current_distance = std::sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
-        float angle = std::atan2(offset_center_y, offset_center_x);
-        float scale = getInterpolatedScale(i, angle);
-        
-        float scaled_center_x = 0.0f;
-        float scaled_center_y = 0.0f;
-        
-        // Apply radial scaling (scale is always > 0: 1.0 when uncalibrated, calibrated value when calibrated)
-        if (current_distance > 0.0f) {
-            scaled_center_x = offset_center_x / scale;
-            scaled_center_y = offset_center_y / scale;
-        } else {
-            // Zero distance: no scaling needed
-            scaled_center_x = offset_center_x;
-            scaled_center_y = offset_center_y;
-        }
-
-        // Step 5: Normalize to [0.0, 1.0] range
-        float x_value = scaled_center_x / ADC_MAX + ANALOG_CENTER;
-        float y_value = scaled_center_y / ADC_MAX + ANALOG_CENTER;
-
-        // Apply inversion if needed
         if (adc_pairs[i].analog_invert == InvertMode::INVERT_X || 
             adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
             x_value = ANALOG_MAX - x_value;
         }
-            if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
-                adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
+        if (adc_pairs[i].analog_invert == InvertMode::INVERT_Y || 
+            adc_pairs[i].analog_invert == InvertMode::INVERT_XY) {
             y_value = ANALOG_MAX - y_value;
-            }
+        }
 
-        // Apply inner deadzone
-        float x_magnitude = x_value - ANALOG_CENTER;
-        float y_magnitude = y_value - ANALOG_CENTER;
-        float distance = std::sqrt(x_magnitude * x_magnitude + y_magnitude * y_magnitude);
+        // Step 4: Apply deadzone and anti-deadzone
+        float mx = x_value - ANALOG_CENTER;
+        float my = y_value - ANALOG_CENTER;
+        float dist = std::sqrt(mx * mx + my * my);
         
-        if (distance < adc_pairs[i].in_deadzone) {
+        if (dist < adc_pairs[i].in_deadzone) {
             x_value = ANALOG_CENTER;
             y_value = ANALOG_CENTER;
-        } else {
-            // Apply anti-deadzone if needed
-            if (adc_pairs[i].anti_deadzone > 0.0f && distance > 0.0f) {
-                float normalized = std::min(distance / ANALOG_CENTER, 1.0f);
-                float baseline = std::clamp(adc_pairs[i].anti_deadzone, 0.0f, 1.0f);
-                if (normalized < baseline) {
-                    float targetLength = baseline * ANALOG_CENTER;
-                    float scale_factor = targetLength / distance;
-                    x_magnitude *= scale_factor;
-                    y_magnitude *= scale_factor;
-                    x_value = x_magnitude + ANALOG_CENTER;
-                    y_value = y_magnitude + ANALOG_CENTER;
-                }
+        } else if (adc_pairs[i].anti_deadzone > 0.0f && dist > 0.0f) {
+            float normalized = std::min(dist / ANALOG_CENTER, 1.0f);
+            float baseline = std::clamp(adc_pairs[i].anti_deadzone, 0.0f, 1.0f);
+            if (normalized < baseline) {
+                float scale_factor = (baseline * ANALOG_CENTER) / dist;
+                x_value = mx * scale_factor + ANALOG_CENTER;
+                y_value = my * scale_factor + ANALOG_CENTER;
             }
         }
 
-        // Apply square trimming to prevent output values > 1.0 (DS4-style)
-        // Convert from [0.0, 1.0] range (center 0.5) to [-1, 1] range (center 0) for trimming
-        float x_normalized = (x_value - ANALOG_CENTER) * 2.0f;  // [0.0, 1.0] -> [-1, 1]
-        float y_normalized = (y_value - ANALOG_CENTER) * 2.0f;  // [0.0, 1.0] -> [-1, 1]
-        
-        // Trim to square [-1, 1] boundary
-        float trimmedX, trimmedY;
-        trimToSquare(x_normalized, y_normalized, trimmedX, trimmedY);
-        
-        // Convert back to [0.0, 1.0] range
-        // Note: Since trimmedX/Y are guaranteed to be in [-1, 1] by trimToSquare,
-        // the converted values are guaranteed to be in [0.0, 1.0], no clamp needed
-        x_value = trimmedX * 0.5f + ANALOG_CENTER;
-        y_value = trimmedY * 0.5f + ANALOG_CENTER;
+        // Step 5: Square trimming (DS4-style) - clamp to [-1, 1] then back to [0, 1]
+        float nx = (x_value - ANALOG_CENTER) * 2.0f;
+        float ny = (y_value - ANALOG_CENTER) * 2.0f;
+        float tx, ty;
+        trimToSquare(nx, ny, tx, ty);
+        x_value = tx * 0.5f + ANALOG_CENTER;
+        y_value = ty * 0.5f + ANALOG_CENTER;
 
         // Store values
         adc_pairs[i].x_value = x_value;
