@@ -88,11 +88,7 @@ typedef struct
     uint16_t last_y_adc;
     float range_data[48];  // Circularity data for 48 angular positions
     bool has_range_calibration;  // Flag to indicate if range calibration data exists
-    // Finetune shape adjustment percentages (independent from calibration data)
-    float finetune_shape_x_top_percent;
-    float finetune_shape_x_bottom_percent;
-    float finetune_shape_y_left_percent;
-    float finetune_shape_y_right_percent;
+    // Finetune shape adjustment settings (independent from calibration data)
     bool finetune_shape_force_circular;
     float finetune_shape_amplify;
 } adc_instance;

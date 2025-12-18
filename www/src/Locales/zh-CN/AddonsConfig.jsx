@@ -84,7 +84,7 @@ export default {
 	'joystick-calibration-right-stick-error-rate': '右摇杆误差率',
 	'joystick-calibration-finetune-center-button': '微调摇杆中心',
 	'joystick-calibration-finetune-shape-button': '调整外圈形状',
-	'joystick-range-calibration-modal-title': '{{stick}}外圈校准',
+	'joystick-range-calibration-modal-title': '{{stick}}外圈校准（须先校准中心）',
 	'joystick-range-calibration-modal-start': '开始',
 	'joystick-range-calibration-modal-collecting': '采集中...',
 	'joystick-range-calibration-modal-done': '完成',

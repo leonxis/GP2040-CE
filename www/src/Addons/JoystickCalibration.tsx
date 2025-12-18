@@ -72,37 +72,21 @@ const finetuneButtonStyle: React.CSSProperties = {
 /**
  * Apply finetune shape adjustments to range_data (matches backend logic)
  * @param rangeData Original calibration data array
- * @param xTopPercent Top percentage adjustment
- * @param xBottomPercent Bottom percentage adjustment
- * @param yLeftPercent Left percentage adjustment
- * @param yRightPercent Right percentage adjustment
  * @param forceCircular Whether force circular is enabled
- * @param amplify Amplify factor (when force circular is enabled)
+ * @param amplify Amplify factor
  * @returns Adjusted range data array
  */
 const applyFinetuneShapeAdjustments = (
 	rangeData: number[],
-	xTopPercent: number,
-	xBottomPercent: number,
-	yLeftPercent: number,
-	yRightPercent: number,
 	forceCircular: boolean,
 	amplify: number
 ): number[] => {
-	// Index mapping: angle = (index * 2π / 48) - π
-	// 0° (right): index = 24
-	// 90° (top): index = 36  
-	// 180° (left): index = 0
-	// 270° (bottom): index = 12
-	
 	// Create a copy of the range data to avoid mutating the original
 	const adjustedData = [...rangeData];
 	
 	if (!forceCircular) {
-		// Step 1: When force circular is disabled, set all scaling ratios to the minimum value
+		// When force circular is disabled, set all scaling ratios to the minimum value
 		// Find the minimum scaling ratio
-		// Since has_range_calibration ensures all 48 indices have valid (non-zero) data,
-		// we can use range_data[0] as the initial minScale and compare with remaining indices
 		let minScale = adjustedData[0];
 		for (let i = 1; i < adjustedData.length; i++) {
 			if (adjustedData[i] < minScale) {
@@ -114,27 +98,10 @@ const applyFinetuneShapeAdjustments = (
 		for (let i = 0; i < adjustedData.length; i++) {
 			adjustedData[i] = minScale;
 		}
-		
-		// Step 2: Apply percentage adjustments to cardinal indices (0, 12, 24, 36)
-		for (let i = 0; i < adjustedData.length; i += 12) {
-			let percentFactor = 0.0;
-			if (i === 0) {
-				percentFactor = yLeftPercent / 100.0;      // Left (180°)
-			} else if (i === 12) {
-				percentFactor = xBottomPercent / 100.0;    // Bottom (270°)
-			} else if (i === 24) {
-				percentFactor = yRightPercent / 100.0;    // Right (0°)
-			} else if (i === 36) {
-				percentFactor = xTopPercent / 100.0;      // Top (90°)
-			}
-			if (percentFactor > 0.0) {
-				adjustedData[i] /= percentFactor;
-			}
-		}
 	}
 	// Note: When force_circular is true, scaling ratios remain unchanged at this point
 	
-	// Step 3: Apply amplify factor to all scaling ratios (regardless of force_circular setting)
+	// Apply amplify factor to all scaling ratios (regardless of force_circular setting)
 	const amplifyFactor = 1.0 + amplify / 100.0;
 	if (amplifyFactor > 0.0) {
 		for (let i = 0; i < adjustedData.length; i++) {
@@ -481,8 +448,8 @@ const JoystickCalibration = ({
 	const [showRightCalibrationModal, setShowRightCalibrationModal] = useState(false);
 	const [showLeftRangeModal, setShowLeftRangeModal] = useState(false);
 	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
-	const [showLeftFinetuneShapeModal, setShowLeftFinetuneShapeModal] = useState(false);
-	const [showRightFinetuneShapeModal, setShowRightFinetuneShapeModal] = useState(false);
+	const [leftFinetuneShapeActive, setLeftFinetuneShapeActive] = useState(false);
+	const [rightFinetuneShapeActive, setRightFinetuneShapeActive] = useState(false);
 	const [showLeftRangeDataModal, setShowLeftRangeDataModal] = useState(false);
 	const [showRightRangeDataModal, setShowRightRangeDataModal] = useState(false);
 	const [leftRangeDataSnapshot, setLeftRangeDataSnapshot] = useState<number[]>([]);
@@ -546,44 +513,22 @@ const JoystickCalibration = ({
 	const [rightJitterFilterOriginal, setRightJitterFilterOriginal] = useState<number>(0);
 	
 	// Finetune shape modal state - initialize from values
-	const getPercentValue = (val: any, defaultVal: number) => {
-		if (val === undefined || val === null) return defaultVal;
-		const numVal = typeof val === 'number' ? val : parseFloat(val);
-		return isNaN(numVal) || numVal === 0 ? defaultVal : numVal;
-	};
-	
-	const [leftFinetuneShapeXTopPercent, setLeftFinetuneShapeXTopPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent1, 100.0));
-	const [leftFinetuneShapeXBottomPercent, setLeftFinetuneShapeXBottomPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent1, 100.0));
-	const [leftFinetuneShapeYLeftPercent, setLeftFinetuneShapeYLeftPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent1, 100.0));
-	const [leftFinetuneShapeYRightPercent, setLeftFinetuneShapeYRightPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent1, 100.0));
 	const [leftFinetuneShapeForceCircular, setLeftFinetuneShapeForceCircular] = useState((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
 	const [leftFinetuneShapeAmplify, setLeftFinetuneShapeAmplify] = useState((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
-	const [rightFinetuneShapeXTopPercent, setRightFinetuneShapeXTopPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent2, 100.0));
-	const [rightFinetuneShapeXBottomPercent, setRightFinetuneShapeXBottomPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent2, 100.0));
-	const [rightFinetuneShapeYLeftPercent, setRightFinetuneShapeYLeftPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent2, 100.0));
-	const [rightFinetuneShapeYRightPercent, setRightFinetuneShapeYRightPercent] = useState(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent2, 100.0));
 	const [rightFinetuneShapeForceCircular, setRightFinetuneShapeForceCircular] = useState((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
 	const [rightFinetuneShapeAmplify, setRightFinetuneShapeAmplify] = useState((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
 	
-	// Update state when modal opens (load saved values from server)
+	// Update state when finetune shape becomes active (load saved values from server)
 	useEffect(() => {
-		if (showLeftFinetuneShapeModal) {
-			setLeftFinetuneShapeXTopPercent(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent1, 100.0));
-			setLeftFinetuneShapeXBottomPercent(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent1, 100.0));
-			setLeftFinetuneShapeYLeftPercent(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent1, 100.0));
-			setLeftFinetuneShapeYRightPercent(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent1, 100.0));
+		if (leftFinetuneShapeActive) {
 			setLeftFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
 			setLeftFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
 		}
-		if (showRightFinetuneShapeModal) {
-			setRightFinetuneShapeXTopPercent(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent2, 100.0));
-			setRightFinetuneShapeXBottomPercent(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent2, 100.0));
-			setRightFinetuneShapeYLeftPercent(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent2, 100.0));
-			setRightFinetuneShapeYRightPercent(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent2, 100.0));
+		if (rightFinetuneShapeActive) {
 			setRightFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
 			setRightFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
 		}
-	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal, (values as any)?.joystickFinetuneShapeXTopPercent1, (values as any)?.joystickFinetuneShapeXBottomPercent1, (values as any)?.joystickFinetuneShapeYLeftPercent1, (values as any)?.joystickFinetuneShapeYRightPercent1, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeXTopPercent2, (values as any)?.joystickFinetuneShapeXBottomPercent2, (values as any)?.joystickFinetuneShapeYLeftPercent2, (values as any)?.joystickFinetuneShapeYRightPercent2, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
+	}, [leftFinetuneShapeActive, rightFinetuneShapeActive, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
 	
 	// Load jitter filter values when modal opens
 	useEffect(() => {
@@ -602,10 +547,7 @@ const JoystickCalibration = ({
 		}
 	}, [showRightJitterDataModal, values]);
 	
-	const leftFinetuneShapeCanvasRef = useRef<HTMLCanvasElement>(null);
-	const rightFinetuneShapeCanvasRef = useRef<HTMLCanvasElement>(null);
-	const [leftFinetuneShapeStickData, setLeftFinetuneShapeStickData] = useState({ x: 0, y: 0 });
-	const [rightFinetuneShapeStickData, setRightFinetuneShapeStickData] = useState({ x: 0, y: 0 });
+	// Circularity data for main canvas (used when finetune shape is active)
 	const [leftFinetuneShapeCircularityData, setLeftFinetuneShapeCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [rightFinetuneShapeCircularityData, setRightFinetuneShapeCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	
@@ -657,20 +599,17 @@ const JoystickCalibration = ({
 							const centerY = values.joystickCenterY || ADC_CENTER;
 							const originalRangeData = (values as any).joystickRangeData1 || [];
 							
-							// Apply finetune shape adjustments from saved values
-							const xTopPercent = getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent1, 100.0);
-							const xBottomPercent = getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent1, 100.0);
-							const yLeftPercent = getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent1, 100.0);
-							const yRightPercent = getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent1, 100.0);
-							const forceCircular = (values as any)?.joystickFinetuneShapeForceCircular1 ?? false;
-							const amplify = (values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0;
+							// Use ref values when finetune shape is active, otherwise use saved values
+							const percentRef = leftFinetuneShapePercentRef.current;
+							const forceCircular = leftFinetuneShapeActive 
+								? percentRef.forceCircular 
+								: ((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
+							const amplify = leftFinetuneShapeActive 
+								? percentRef.amplify 
+								: ((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
 							
 							const adjustedRangeData = applyFinetuneShapeAdjustments(
 								originalRangeData,
-								xTopPercent,
-								xBottomPercent,
-								yLeftPercent,
-								yRightPercent,
 								forceCircular,
 								amplify
 							);
@@ -684,13 +623,18 @@ const JoystickCalibration = ({
 								leftCanvasJitterLastRef
 							);
 
-							const { stickX, stickY, detailData } = processJoystickData(
+							const { stickX: rawStickX, stickY: rawStickY, detailData } = processJoystickData(
 								filtered1.x,
 								filtered1.y,
 								centerX,
 								centerY,
 								adjustedRangeData
 							);
+							
+							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y)
+							const invert1 = (values as any)?.analogAdc1Invert ?? 0;
+							const stickX = (invert1 === 1 || invert1 === 3) ? -rawStickX : rawStickX;
+							const stickY = (invert1 === 2 || invert1 === 3) ? -rawStickY : rawStickY;
 							
 							setLeftStickData({
 								x: stickX,
@@ -700,6 +644,19 @@ const JoystickCalibration = ({
 							});
 							
 							setLeftStickDetailData(detailData);
+							
+							// Collect circularity data when finetune shape is active
+							if (leftFinetuneShapeActive) {
+								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
+								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
+								setLeftFinetuneShapeCircularityData(prev => {
+									const newData = [...prev];
+									if (distance > newData[circAngleIndex]) {
+										newData[circAngleIndex] = distance;
+									}
+									return newData;
+								});
+							}
 						}
 					}
 				}
@@ -714,20 +671,17 @@ const JoystickCalibration = ({
 							const centerY = values.joystickCenterY2 || ADC_CENTER;
 							const originalRangeData = (values as any).joystickRangeData2 || [];
 							
-							// Apply finetune shape adjustments from saved values
-							const xTopPercent = getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent2, 100.0);
-							const xBottomPercent = getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent2, 100.0);
-							const yLeftPercent = getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent2, 100.0);
-							const yRightPercent = getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent2, 100.0);
-							const forceCircular = (values as any)?.joystickFinetuneShapeForceCircular2 ?? false;
-							const amplify = (values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0;
+							// Use ref values when finetune shape is active, otherwise use saved values
+							const percentRef = rightFinetuneShapePercentRef.current;
+							const forceCircular = rightFinetuneShapeActive 
+								? percentRef.forceCircular 
+								: ((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
+							const amplify = rightFinetuneShapeActive 
+								? percentRef.amplify 
+								: ((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
 							
 							const adjustedRangeData = applyFinetuneShapeAdjustments(
 								originalRangeData,
-								xTopPercent,
-								xBottomPercent,
-								yLeftPercent,
-								yRightPercent,
 								forceCircular,
 								amplify
 							);
@@ -741,13 +695,18 @@ const JoystickCalibration = ({
 								rightCanvasJitterLastRef
 							);
 
-							const { stickX, stickY, detailData } = processJoystickData(
+							const { stickX: rawStickX, stickY: rawStickY, detailData } = processJoystickData(
 								filtered2.x,
 								filtered2.y,
 								centerX,
 								centerY,
 								adjustedRangeData
 							);
+							
+							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y)
+							const invert2 = (values as any)?.analogAdc2Invert ?? 0;
+							const stickX = (invert2 === 1 || invert2 === 3) ? -rawStickX : rawStickX;
+							const stickY = (invert2 === 2 || invert2 === 3) ? -rawStickY : rawStickY;
 							
 							setRightStickData({
 								x: stickX,
@@ -757,6 +716,19 @@ const JoystickCalibration = ({
 							});
 							
 							setRightStickDetailData(detailData);
+							
+							// Collect circularity data when finetune shape is active
+							if (rightFinetuneShapeActive) {
+								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
+								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
+								setRightFinetuneShapeCircularityData(prev => {
+									const newData = [...prev];
+									if (distance > newData[circAngleIndex]) {
+										newData[circAngleIndex] = distance;
+									}
+									return newData;
+								});
+							}
 						}
 					}
 				}
@@ -771,7 +743,7 @@ const JoystickCalibration = ({
 		return () => {
 			clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, (values as any)?.joystickFinetuneShapeXTopPercent1, (values as any)?.joystickFinetuneShapeXBottomPercent1, (values as any)?.joystickFinetuneShapeYLeftPercent1, (values as any)?.joystickFinetuneShapeYRightPercent1, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeXTopPercent2, (values as any)?.joystickFinetuneShapeXBottomPercent2, (values as any)?.joystickFinetuneShapeYLeftPercent2, (values as any)?.joystickFinetuneShapeYRightPercent2, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
+	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2, leftFinetuneShapeActive, rightFinetuneShapeActive]);
 
 	// Update canvas when stick data changes
 	useEffect(() => {
@@ -794,7 +766,7 @@ const JoystickCalibration = ({
 						radius,
 						leftStickData.x,
 						leftStickData.y,
-						null, // No circularity data on main page canvas
+						leftFinetuneShapeActive ? leftFinetuneShapeCircularityData : null, // Show circularity when active
 						leftFinetuneCenterActive,
 					);
 				}
@@ -816,7 +788,7 @@ const JoystickCalibration = ({
 						radius,
 						rightStickData.x,
 						rightStickData.y,
-						null, // No circularity data on main page canvas
+						rightFinetuneShapeActive ? rightFinetuneShapeCircularityData : null, // Show circularity when active
 						rightFinetuneCenterActive,
 					);
 				}
@@ -831,7 +803,7 @@ const JoystickCalibration = ({
 				cancelAnimationFrame(animationFrameId);
 			}
 		};
-	}, [leftStickData, rightStickData, leftFinetuneCenterActive, rightFinetuneCenterActive]);
+	}, [leftStickData, rightStickData, leftFinetuneCenterActive, rightFinetuneCenterActive, leftFinetuneShapeActive, rightFinetuneShapeActive, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData]);
 
 	// Calculate statistics for samples (helper function)
 	const calculateJitterStats = (samples: Array<{ x: number; y: number }>) => {
@@ -1088,578 +1060,446 @@ const JoystickCalibration = ({
 		}
 	}, [rightJitterSampling]);
 
-	// Reset finetune shape data when modals open/close
+	// Reset finetune shape data when active state changes or values change
 	useEffect(() => {
-		if (showLeftFinetuneShapeModal) {
+		if (leftFinetuneShapeActive) {
 			setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 		}
-		if (showRightFinetuneShapeModal) {
-			setRightFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
-		}
-	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal]);
-
-	// Reset circularity data when percentage values change (to reflect new coverage)
-	useEffect(() => {
-		if (showLeftFinetuneShapeModal) {
-			setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
-		}
-	}, [showLeftFinetuneShapeModal, leftFinetuneShapeXTopPercent, leftFinetuneShapeXBottomPercent, leftFinetuneShapeYLeftPercent, leftFinetuneShapeYRightPercent, leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify]);
+	}, [leftFinetuneShapeActive, leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify]);
 
 	useEffect(() => {
-		if (showRightFinetuneShapeModal) {
+		if (rightFinetuneShapeActive) {
 			setRightFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 		}
-	}, [showRightFinetuneShapeModal, rightFinetuneShapeXTopPercent, rightFinetuneShapeXBottomPercent, rightFinetuneShapeYLeftPercent, rightFinetuneShapeYRightPercent, rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
+	}, [rightFinetuneShapeActive, rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
 
-	// Use refs to store latest percentage values for real-time updates
+	// Use refs to store latest values for real-time updates
 	const leftFinetuneShapePercentRef = useRef({
-		xTop: leftFinetuneShapeXTopPercent,
-		xBottom: leftFinetuneShapeXBottomPercent,
-		yLeft: leftFinetuneShapeYLeftPercent,
-		yRight: leftFinetuneShapeYRightPercent,
 		forceCircular: leftFinetuneShapeForceCircular,
 		amplify: leftFinetuneShapeAmplify
 	});
 	const rightFinetuneShapePercentRef = useRef({
-		xTop: rightFinetuneShapeXTopPercent,
-		xBottom: rightFinetuneShapeXBottomPercent,
-		yLeft: rightFinetuneShapeYLeftPercent,
-		yRight: rightFinetuneShapeYRightPercent,
 		forceCircular: rightFinetuneShapeForceCircular,
 		amplify: rightFinetuneShapeAmplify
 	});
 
-	// Update refs when percentage values change
+	// Update refs when values change
 	useEffect(() => {
 		leftFinetuneShapePercentRef.current = {
-			xTop: leftFinetuneShapeXTopPercent,
-			xBottom: leftFinetuneShapeXBottomPercent,
-			yLeft: leftFinetuneShapeYLeftPercent,
-			yRight: leftFinetuneShapeYRightPercent,
 			forceCircular: leftFinetuneShapeForceCircular,
 			amplify: leftFinetuneShapeAmplify
 		};
-	}, [leftFinetuneShapeXTopPercent, leftFinetuneShapeXBottomPercent, leftFinetuneShapeYLeftPercent, leftFinetuneShapeYRightPercent, leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify]);
+	}, [leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify]);
 
 	useEffect(() => {
 		rightFinetuneShapePercentRef.current = {
-			xTop: rightFinetuneShapeXTopPercent,
-			xBottom: rightFinetuneShapeXBottomPercent,
-			yLeft: rightFinetuneShapeYLeftPercent,
-			yRight: rightFinetuneShapeYRightPercent,
 			forceCircular: rightFinetuneShapeForceCircular,
 			amplify: rightFinetuneShapeAmplify
 		};
-	}, [rightFinetuneShapeXTopPercent, rightFinetuneShapeXBottomPercent, rightFinetuneShapeYLeftPercent, rightFinetuneShapeYRightPercent, rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
+	}, [rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
 
-	// Fetch joystick data for finetune shape modals
-	useEffect(() => {
-		if (!values || !values.AnalogInputEnabled) {
-			return;
-		}
-
-		const fetchFinetuneShapeData = async () => {
-			if (showLeftFinetuneShapeModal) {
-				try {
-					const res = await fetch('/api/getJoystickCenter');
-					if (res.ok) {
-						const data = await res.json();
-						if (data.success) {
-							const centerX = values.joystickCenterX || ADC_CENTER;
-							const centerY = values.joystickCenterY || ADC_CENTER;
-							const originalRangeData = (values as any).joystickRangeData1 || [];
-							
-							// Use ref to get latest percentage values for real-time updates
-							const percentRef = leftFinetuneShapePercentRef.current;
-							const adjustedRangeData = applyFinetuneShapeAdjustments(
-								originalRangeData,
-								percentRef.xTop,
-								percentRef.xBottom,
-								percentRef.yLeft,
-								percentRef.yRight,
-								percentRef.forceCircular,
-								percentRef.amplify
-							);
-							
-							// Apply jitter filter for visualization using configured threshold
-							const jitterThreshold1 = (values as any)?.joystickJitterFilter1 ?? 0;
-							const filtered1 = applyJitterFilterToAdc(
-								data.x,
-								data.y,
-								jitterThreshold1,
-								leftCanvasJitterLastRef
-							);
-
-							const { stickX, stickY } = processJoystickData(
-								filtered1.x,
-								filtered1.y,
-								centerX,
-								centerY,
-								adjustedRangeData
-							);
-							
-							setLeftFinetuneShapeStickData({ x: stickX, y: stickY });
-
-							// Collect circularity data (always enabled in finetune shape modal)
-							const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-							const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
-							setLeftFinetuneShapeCircularityData(prev => {
-								const newData = [...prev];
-								if (distance > newData[circAngleIndex]) {
-									newData[circAngleIndex] = distance;
-								}
-								return newData;
-							});
-						}
-					}
-				} catch (error) {
-					console.error('Failed to fetch left stick data for finetune shape:', error);
-				}
-			}
-
-			if (showRightFinetuneShapeModal) {
-				try {
-					const res = await fetch('/api/getJoystickCenter2');
-					if (res.ok) {
-						const data = await res.json();
-						if (data.success) {
-							const centerX = values.joystickCenterX2 || ADC_CENTER;
-							const centerY = values.joystickCenterY2 || ADC_CENTER;
-							const originalRangeData = (values as any).joystickRangeData2 || [];
-							
-							// Use ref to get latest percentage values for real-time updates
-							const percentRef = rightFinetuneShapePercentRef.current;
-							const adjustedRangeData = applyFinetuneShapeAdjustments(
-								originalRangeData,
-								percentRef.xTop,
-								percentRef.xBottom,
-								percentRef.yLeft,
-								percentRef.yRight,
-								percentRef.forceCircular,
-								percentRef.amplify
-							);
-							
-							// Apply jitter filter for visualization using configured threshold
-							const jitterThreshold2 = (values as any)?.joystickJitterFilter2 ?? 0;
-							const filtered2 = applyJitterFilterToAdc(
-								data.x,
-								data.y,
-								jitterThreshold2,
-								rightCanvasJitterLastRef
-							);
-
-							const { stickX, stickY } = processJoystickData(
-								filtered2.x,
-								filtered2.y,
-								centerX,
-								centerY,
-								adjustedRangeData
-							);
-							
-							setRightFinetuneShapeStickData({ x: stickX, y: stickY });
-
-							// Collect circularity data (always enabled in finetune shape modal)
-							const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-							const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
-							setRightFinetuneShapeCircularityData(prev => {
-								const newData = [...prev];
-								if (distance > newData[circAngleIndex]) {
-									newData[circAngleIndex] = distance;
-								}
-								return newData;
-							});
-						}
-					}
-				} catch (error) {
-					console.error('Failed to fetch right stick data for finetune shape:', error);
-				}
-			}
-		};
-
-		if (showLeftFinetuneShapeModal || showRightFinetuneShapeModal) {
-			const intervalId = setInterval(fetchFinetuneShapeData, 33);
-			return () => {
-				clearInterval(intervalId);
-			};
-		}
-	}, [values?.AnalogInputEnabled, values?.joystickCenterX, values?.joystickCenterY, values?.joystickCenterX2, values?.joystickCenterY2, (values as any)?.joystickRangeData1, (values as any)?.joystickRangeData2, (values as any)?.joystickJitterFilter1, (values as any)?.joystickJitterFilter2, showLeftFinetuneShapeModal, showRightFinetuneShapeModal]);
-
-	// Update finetune shape canvas when stick data changes
-	useEffect(() => {
-		if (!showLeftFinetuneShapeModal && !showRightFinetuneShapeModal) {
-			return;
-		}
-
-		let animationFrameId: number | null = null;
-
-		const updateCanvas = () => {
-			// Draw left finetune shape canvas
-			if (leftFinetuneShapeCanvasRef.current && showLeftFinetuneShapeModal) {
-				const ctx = leftFinetuneShapeCanvasRef.current.getContext('2d');
-				if (ctx) {
-					const canvas = leftFinetuneShapeCanvasRef.current;
-					const centerX = canvas.width / 2;
-					const centerY = canvas.height / 2;
-					const radius = Math.min(centerX, centerY) - 10;
-					
-					// Always show circularity data in finetune shape modal
-					drawStickPosition(
-						ctx,
-						centerX,
-						centerY,
-						radius,
-						leftFinetuneShapeStickData.x,
-						leftFinetuneShapeStickData.y,
-						leftFinetuneShapeCircularityData, // Always show coverage and error rate
-						false,
-					);
-				}
-			}
-
-			// Draw right finetune shape canvas
-			if (rightFinetuneShapeCanvasRef.current && showRightFinetuneShapeModal) {
-				const ctx = rightFinetuneShapeCanvasRef.current.getContext('2d');
-				if (ctx) {
-					const canvas = rightFinetuneShapeCanvasRef.current;
-					const centerX = canvas.width / 2;
-					const centerY = canvas.height / 2;
-					const radius = Math.min(centerX, centerY) - 10;
-					
-					// Always show circularity data in finetune shape modal
-					drawStickPosition(
-						ctx,
-						centerX,
-						centerY,
-						radius,
-						rightFinetuneShapeStickData.x,
-						rightFinetuneShapeStickData.y,
-						rightFinetuneShapeCircularityData, // Always show coverage and error rate
-						false,
-					);
-				}
-			}
-		};
-
-		// Use requestAnimationFrame to throttle canvas updates
-		animationFrameId = requestAnimationFrame(updateCanvas);
-
-		return () => {
-			if (animationFrameId !== null) {
-				cancelAnimationFrame(animationFrameId);
-			}
-		};
-	}, [showLeftFinetuneShapeModal, showRightFinetuneShapeModal, leftFinetuneShapeStickData, rightFinetuneShapeStickData, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData]);
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
 			<div id="JoystickCalibrationOptions" hidden={!values || !values.AnalogInputEnabled || values.AnalogInputEnabled === 0}>
-				{/* First row: Canvas visualization for left and right sticks */}
-				<Row className="mb-3">
-					<Col md={6} className="text-center mb-3">
-						<div>
-							<canvas
-								ref={leftStickCanvasRef}
-								width={300}
-								height={300}
-								style={{ border: '1px solid #ccc', borderRadius: '4px' }}
-							/>
-							<div className="mt-2 small">
-								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-									<span>X:</span>
-									{leftFinetuneCenterActive && (
-										<Button
-											variant="light"
-											size="sm"
-											style={finetuneButtonStyle}
-											onClick={() => {
-												const currentCenterX = values?.joystickCenterX || ADC_CENTER;
-												setFieldValue('joystickCenterX', currentCenterX + 2);
-											}}
-										>
-											+
-										</Button>
-									)}
-									<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
-										{leftStickData.rawX}
-									</span>
-									{leftFinetuneCenterActive && (
-										<Button
-											variant="light"
-											size="sm"
-											style={finetuneButtonStyle}
-											onClick={() => {
-												const currentCenterX = values?.joystickCenterX || ADC_CENTER;
-												setFieldValue('joystickCenterX', currentCenterX - 2);
-											}}
-										>
-											−
-										</Button>
-									)}
-									<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
-										({convertToDS4Normalized(leftStickData.x)})
-									</span>
-								</div>
-								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-									<span>Y:</span>
-									{leftFinetuneCenterActive && (
-										<Button
-											variant="light"
-											size="sm"
-											style={finetuneButtonStyle}
-											onClick={() => {
-												const currentCenterY = values?.joystickCenterY || ADC_CENTER;
-												setFieldValue('joystickCenterY', currentCenterY + 2);
-											}}
-										>
-											+
-										</Button>
-									)}
-									<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
-										{leftStickData.rawY}
-									</span>
-									{leftFinetuneCenterActive && (
-										<Button
-											variant="light"
-											size="sm"
-											style={finetuneButtonStyle}
-											onClick={() => {
-												const currentCenterY = values?.joystickCenterY || ADC_CENTER;
-												setFieldValue('joystickCenterY', currentCenterY - 2);
-											}}
-										>
-											−
-										</Button>
-									)}
-									<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
-										({convertToDS4Normalized(leftStickData.y)})
-									</span>
-								</div>
+				{/* Canvas and controls row: Left Canvas - Left Controls - Right Canvas - Right Controls */}
+				<div className="mb-3" style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+					{/* Left stick canvas and buttons */}
+					<div className="text-center" style={{ width: '300px' }}>
+						<canvas
+							ref={leftStickCanvasRef}
+							width={300}
+							height={300}
+							style={{ border: '1px solid #ccc', borderRadius: '4px' }}
+						/>
+						<div className="mt-2 small">
+							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+								<span>X:</span>
+								{leftFinetuneCenterActive && (
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => {
+											const currentCenterX = values?.joystickCenterX || ADC_CENTER;
+											setFieldValue('joystickCenterX', currentCenterX + 2);
+										}}
+									>
+										+
+									</Button>
+								)}
+								<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
+									{leftStickData.rawX}
+								</span>
+								{leftFinetuneCenterActive && (
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => {
+											const currentCenterX = values?.joystickCenterX || ADC_CENTER;
+											setFieldValue('joystickCenterX', currentCenterX - 2);
+										}}
+									>
+										−
+									</Button>
+								)}
+								<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
+									({convertToDS4Normalized(leftStickData.x)})
+								</span>
 							</div>
-							{/* Left stick calibration buttons - First row */}
-							<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
-								<Button
-									variant="primary"
-									size="sm"
-									onClick={() => setShowLeftCalibrationModal(true)}
-								>
-									{t('AddonsConfig:joystick-calibration-center-button')}
-								</Button>
-								<Button
-									variant="primary"
-									size="sm"
-									onClick={() => setShowLeftRangeModal(true)}
-								>
-									{t('AddonsConfig:joystick-calibration-range-button')}
-								</Button>
-							</div>
-							{/* Left stick finetune buttons - Second row */}
-							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
-								<Button
-									variant="warning"
-									size="sm"
-									onClick={() => setLeftFinetuneCenterActive(!leftFinetuneCenterActive)}
-								>
-									{t('AddonsConfig:joystick-calibration-finetune-center-button')}
-								</Button>
-								<Button
-									variant="warning"
-									size="sm"
-									onClick={() => {
-										const rangeData = (values as any)?.joystickRangeData1;
-										const hasCalibration =
-											Array.isArray(rangeData) &&
-											rangeData.length === CIRCULARITY_DATA_SIZE &&
-											rangeData.some((v: number) => v > 0);
-										if (!hasCalibration) {
-											setShowRangeCalibrationWarning(true);
-											return;
-										}
-										setShowLeftFinetuneShapeModal(true);
-									}}
-								>
-									{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
-								</Button>
-							</div>
-							{/* Jitter data correction and view calibration data buttons */}
-							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
-								<Button
-									variant="info"
-									size="sm"
-									disabled={leftJitterSampling}
-									onClick={handleStartJitterSampling1}
-								>
-									{leftJitterSampling 
-										? `抖动数据修正 (${leftJitterSamples.length}/30)` 
-										: '抖动数据修正'}
-								</Button>
-								<Button
-									variant="info"
-									size="sm"
-									onClick={() => {
-										const rangeData = (values as any)?.joystickRangeData1;
-										setLeftRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
-										setLeftAngleIndexSnapshot(leftStickDetailData.angleIndex);
-										setShowLeftRangeDataModal(true);
-									}}
-								>
-									查看校准数据
-								</Button>
+							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+								<span>Y:</span>
+								{leftFinetuneCenterActive && (
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => {
+											const currentCenterY = values?.joystickCenterY || ADC_CENTER;
+											setFieldValue('joystickCenterY', currentCenterY + 2);
+										}}
+									>
+										+
+									</Button>
+								)}
+								<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
+									{leftStickData.rawY}
+								</span>
+								{leftFinetuneCenterActive && (
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => {
+											const currentCenterY = values?.joystickCenterY || ADC_CENTER;
+											setFieldValue('joystickCenterY', currentCenterY - 2);
+										}}
+									>
+										−
+									</Button>
+								)}
+								<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
+									({convertToDS4Normalized(leftStickData.y)})
+								</span>
 							</div>
 						</div>
-					</Col>
-					<Col md={6} className="text-center mb-3">
-						<div>
-							<canvas
-								ref={rightStickCanvasRef}
-								width={300}
-								height={300}
-								style={{ border: '1px solid #ccc', borderRadius: '4px' }}
-							/>
-							<div className="mt-2 small">
-								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-									<span>X:</span>
-									{rightFinetuneCenterActive && (
-										<Button
-											variant="light"
-											size="sm"
-											style={finetuneButtonStyle}
-											onClick={() => {
-												const currentCenterX = values?.joystickCenterX2 || ADC_CENTER;
-												setFieldValue('joystickCenterX2', currentCenterX + 2);
-											}}
-										>
-											+
-										</Button>
-									)}
-									<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
-										{rightStickData.rawX}
-									</span>
-									{rightFinetuneCenterActive && (
-										<Button
-											variant="light"
-											size="sm"
-											style={finetuneButtonStyle}
-											onClick={() => {
-												const currentCenterX = values?.joystickCenterX2 || ADC_CENTER;
-												setFieldValue('joystickCenterX2', currentCenterX - 2);
-											}}
-										>
-											−
-										</Button>
-									)}
-									<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
-										({convertToDS4Normalized(rightStickData.x)})
-									</span>
+						{/* Left stick calibration buttons - First row */}
+						<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="primary"
+								size="sm"
+								onClick={() => setShowLeftCalibrationModal(true)}
+							>
+								{t('AddonsConfig:joystick-calibration-center-button')}
+							</Button>
+							<Button
+								variant="primary"
+								size="sm"
+								onClick={() => setShowLeftRangeModal(true)}
+							>
+								{t('AddonsConfig:joystick-calibration-range-button')}
+							</Button>
+						</div>
+						{/* Left stick finetune buttons - Second row */}
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="warning"
+								size="sm"
+								onClick={() => setLeftFinetuneCenterActive(!leftFinetuneCenterActive)}
+							>
+								{t('AddonsConfig:joystick-calibration-finetune-center-button')}
+							</Button>
+							<Button
+								variant={leftFinetuneShapeActive ? "success" : "warning"}
+								size="sm"
+								onClick={() => {
+									const rangeData = (values as any)?.joystickRangeData1;
+									const hasCalibration =
+										Array.isArray(rangeData) &&
+										rangeData.length === CIRCULARITY_DATA_SIZE &&
+										rangeData.some((v: number) => v > 0);
+									if (!hasCalibration && !leftFinetuneShapeActive) {
+										setShowRangeCalibrationWarning(true);
+										return;
+									}
+									// Save to formik when closing
+									if (leftFinetuneShapeActive) {
+										setFieldValue('joystickFinetuneShapeForceCircular1', leftFinetuneShapeForceCircular);
+										setFieldValue('joystickFinetuneShapeAmplify1', leftFinetuneShapeAmplify);
+									}
+									setLeftFinetuneShapeActive(!leftFinetuneShapeActive);
+								}}
+							>
+								{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
+							</Button>
+						</div>
+						{/* Jitter data correction and view calibration data buttons */}
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="info"
+								size="sm"
+								disabled={leftJitterSampling}
+								onClick={handleStartJitterSampling1}
+							>
+								{leftJitterSampling 
+									? `抖动数据修正 (${leftJitterSamples.length}/30)` 
+									: '抖动数据修正'}
+							</Button>
+							<Button
+								variant="info"
+								size="sm"
+								onClick={() => {
+									const rangeData = (values as any)?.joystickRangeData1;
+									setLeftRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
+									setLeftAngleIndexSnapshot(leftStickDetailData.angleIndex);
+									setShowLeftRangeDataModal(true);
+								}}
+							>
+								查看校准数据
+							</Button>
+						</div>
+					</div>
+
+					{/* Left finetune shape controls (fixed width placeholder) */}
+					<div style={{ width: '300px', minHeight: '300px' }}>
+						{leftFinetuneShapeActive && (
+							<div style={{ textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
+								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>左摇杆外圈调教</div>
+								<div className="p-2">
+									<div className="mb-3">
+										<FormCheck
+											type="switch"
+											id="leftFinetuneShapeForceCircular"
+											label="强制圆形"
+											checked={leftFinetuneShapeForceCircular}
+											onChange={(e) => setLeftFinetuneShapeForceCircular(e.target.checked)}
+										/>
+										<p className="text-muted small mt-1 mb-0">
+											{leftFinetuneShapeForceCircular
+												? "强制圆形会将摇杆外圈移动半径严格归一到圆形。"
+												: "关闭强制圆形时将产生反映摇杆真实形状的外圈与误差率。"}
+										</p>
+									</div>
+									<div className="mb-2">
+										<Form.Label className="mb-1">外圈放大系数: {leftFinetuneShapeAmplify.toFixed(1)}%</Form.Label>
+										<Form.Range
+											min={-20}
+											max={20}
+											step={0.1}
+											value={leftFinetuneShapeAmplify}
+											onChange={(e) => setLeftFinetuneShapeAmplify(parseFloat(e.target.value))}
+										/>
+										<p className="text-muted small mt-1 mb-0">
+											扩大系数可以放大摇杆覆盖范围，加快移动响应速度。
+										</p>
+									</div>
+									<div className="text-muted small">
+										误差率: {calculateCircularityError(leftFinetuneShapeCircularityData).toFixed(1)}%
+									</div>
 								</div>
-								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-									<span>Y:</span>
-									{rightFinetuneCenterActive && (
-										<Button
-											variant="light"
-											size="sm"
-											style={finetuneButtonStyle}
-											onClick={() => {
-												const currentCenterY = values?.joystickCenterY2 || ADC_CENTER;
-												setFieldValue('joystickCenterY2', currentCenterY + 2);
-											}}
-										>
-											+
-										</Button>
-									)}
-									<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
-										{rightStickData.rawY}
-									</span>
-									{rightFinetuneCenterActive && (
-										<Button
-											variant="light"
-											size="sm"
-											style={finetuneButtonStyle}
-											onClick={() => {
-												const currentCenterY = values?.joystickCenterY2 || ADC_CENTER;
-												setFieldValue('joystickCenterY2', currentCenterY - 2);
-											}}
-										>
-											−
-										</Button>
-									)}
-									<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
-										({convertToDS4Normalized(rightStickData.y)})
-									</span>
+							</div>
+						)}
+					</div>
+
+					{/* Right finetune shape controls (fixed width placeholder) */}
+					<div style={{ width: '300px', minHeight: '300px' }}>
+						{rightFinetuneShapeActive && (
+							<div style={{ textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
+								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>右摇杆外圈调教</div>
+								<div className="p-2">
+									<div className="mb-3">
+										<FormCheck
+											type="switch"
+											id="rightFinetuneShapeForceCircular"
+											label="强制圆形"
+											checked={rightFinetuneShapeForceCircular}
+											onChange={(e) => setRightFinetuneShapeForceCircular(e.target.checked)}
+										/>
+										<p className="text-muted small mt-1 mb-0">
+											{rightFinetuneShapeForceCircular
+												? "强制圆形会将摇杆外圈移动半径严格归一到圆形。"
+												: "关闭强制圆形时将产生反映摇杆真实形状的外圈与误差率。"}
+										</p>
+									</div>
+									<div className="mb-2">
+										<Form.Label className="mb-1">外圈放大系数: {rightFinetuneShapeAmplify.toFixed(1)}%</Form.Label>
+										<Form.Range
+											min={-20}
+											max={20}
+											step={0.1}
+											value={rightFinetuneShapeAmplify}
+											onChange={(e) => setRightFinetuneShapeAmplify(parseFloat(e.target.value))}
+										/>
+										<p className="text-muted small mt-1 mb-0">
+											扩大系数可以放大摇杆覆盖范围，加快移动响应速度。
+										</p>
+									</div>
+									<div className="text-muted small">
+										误差率: {calculateCircularityError(rightFinetuneShapeCircularityData).toFixed(1)}%
+									</div>
 								</div>
 							</div>
-							{/* Right stick calibration buttons - First row */}
-							<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
-								<Button
-									variant="primary"
-									size="sm"
-									onClick={() => setShowRightCalibrationModal(true)}
-								>
-									{t('AddonsConfig:joystick-calibration-center-button')}
-								</Button>
-								<Button
-									variant="primary"
-									size="sm"
-									onClick={() => setShowRightRangeModal(true)}
-								>
-									{t('AddonsConfig:joystick-calibration-range-button')}
-								</Button>
+						)}
+					</div>
+
+					{/* Right stick canvas and buttons */}
+					<div className="text-center" style={{ width: '300px' }}>
+						<canvas
+							ref={rightStickCanvasRef}
+							width={300}
+							height={300}
+							style={{ border: '1px solid #ccc', borderRadius: '4px' }}
+						/>
+						<div className="mt-2 small">
+							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+								<span>X:</span>
+								{rightFinetuneCenterActive && (
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => {
+											const currentCenterX = values?.joystickCenterX2 || ADC_CENTER;
+											setFieldValue('joystickCenterX2', currentCenterX + 2);
+										}}
+									>
+										+
+									</Button>
+								)}
+								<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
+									{rightStickData.rawX}
+								</span>
+								{rightFinetuneCenterActive && (
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => {
+											const currentCenterX = values?.joystickCenterX2 || ADC_CENTER;
+											setFieldValue('joystickCenterX2', currentCenterX - 2);
+										}}
+									>
+										−
+									</Button>
+								)}
+								<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
+									({convertToDS4Normalized(rightStickData.x)})
+								</span>
 							</div>
-							{/* Right stick finetune buttons - Second row */}
-							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
-								<Button
-									variant="warning"
-									size="sm"
-									onClick={() => setRightFinetuneCenterActive(!rightFinetuneCenterActive)}
-								>
-									{t('AddonsConfig:joystick-calibration-finetune-center-button')}
-								</Button>
-								<Button
-									variant="warning"
-									size="sm"
-									onClick={() => {
-										const rangeData = (values as any)?.joystickRangeData2;
-										const hasCalibration =
-											Array.isArray(rangeData) &&
-											rangeData.length === CIRCULARITY_DATA_SIZE &&
-											rangeData.some((v: number) => v > 0);
-										if (!hasCalibration) {
-											setShowRangeCalibrationWarning(true);
-											return;
-										}
-										setShowRightFinetuneShapeModal(true);
-									}}
-								>
-									{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
-								</Button>
-							</div>
-							{/* Jitter data correction and view calibration data buttons */}
-							<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
-								<Button
-									variant="info"
-									size="sm"
-									disabled={rightJitterSampling}
-									onClick={handleStartJitterSampling2}
-								>
-									{rightJitterSampling 
-										? `抖动数据修正 (${rightJitterSamples.length}/30)` 
-										: '抖动数据修正'}
-								</Button>
-								<Button
-									variant="info"
-									size="sm"
-									onClick={() => {
-										const rangeData = (values as any)?.joystickRangeData2;
-										setRightRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
-										setRightAngleIndexSnapshot(rightStickDetailData.angleIndex);
-										setShowRightRangeDataModal(true);
-									}}
-								>
-									查看校准数据
-								</Button>
+							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+								<span>Y:</span>
+								{rightFinetuneCenterActive && (
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => {
+											const currentCenterY = values?.joystickCenterY2 || ADC_CENTER;
+											setFieldValue('joystickCenterY2', currentCenterY + 2);
+										}}
+									>
+										+
+									</Button>
+								)}
+								<span style={{ minWidth: '60px', textAlign: 'center', display: 'inline-block' }}>
+									{rightStickData.rawY}
+								</span>
+								{rightFinetuneCenterActive && (
+									<Button
+										variant="light"
+										size="sm"
+										style={finetuneButtonStyle}
+										onClick={() => {
+											const currentCenterY = values?.joystickCenterY2 || ADC_CENTER;
+											setFieldValue('joystickCenterY2', currentCenterY - 2);
+										}}
+									>
+										−
+									</Button>
+								)}
+								<span style={{ marginLeft: '8px', minWidth: '90px', textAlign: 'left', display: 'inline-block' }}>
+									({convertToDS4Normalized(rightStickData.y)})
+								</span>
 							</div>
 						</div>
-					</Col>
-				</Row>
+						{/* Right stick calibration buttons - First row */}
+						<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="primary"
+								size="sm"
+								onClick={() => setShowRightCalibrationModal(true)}
+							>
+								{t('AddonsConfig:joystick-calibration-center-button')}
+							</Button>
+							<Button
+								variant="primary"
+								size="sm"
+								onClick={() => setShowRightRangeModal(true)}
+							>
+								{t('AddonsConfig:joystick-calibration-range-button')}
+							</Button>
+						</div>
+						{/* Right stick finetune buttons - Second row */}
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="warning"
+								size="sm"
+								onClick={() => setRightFinetuneCenterActive(!rightFinetuneCenterActive)}
+							>
+								{t('AddonsConfig:joystick-calibration-finetune-center-button')}
+							</Button>
+							<Button
+								variant={rightFinetuneShapeActive ? "success" : "warning"}
+								size="sm"
+								onClick={() => {
+									const rangeData = (values as any)?.joystickRangeData2;
+									const hasCalibration =
+										Array.isArray(rangeData) &&
+										rangeData.length === CIRCULARITY_DATA_SIZE &&
+										rangeData.some((v: number) => v > 0);
+									if (!hasCalibration && !rightFinetuneShapeActive) {
+										setShowRangeCalibrationWarning(true);
+										return;
+									}
+									// Save to formik when closing
+									if (rightFinetuneShapeActive) {
+										setFieldValue('joystickFinetuneShapeForceCircular2', rightFinetuneShapeForceCircular);
+										setFieldValue('joystickFinetuneShapeAmplify2', rightFinetuneShapeAmplify);
+									}
+									setRightFinetuneShapeActive(!rightFinetuneShapeActive);
+								}}
+							>
+								{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
+							</Button>
+						</div>
+						{/* Jitter data correction and view calibration data buttons */}
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="info"
+								size="sm"
+								disabled={rightJitterSampling}
+								onClick={handleStartJitterSampling2}
+							>
+								{rightJitterSampling 
+									? `抖动数据修正 (${rightJitterSamples.length}/30)` 
+									: '抖动数据修正'}
+							</Button>
+							<Button
+								variant="info"
+								size="sm"
+								onClick={() => {
+									const rangeData = (values as any)?.joystickRangeData2;
+									setRightRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
+									setRightAngleIndexSnapshot(rightStickDetailData.angleIndex);
+									setShowRightRangeDataModal(true);
+								}}
+							>
+								查看校准数据
+							</Button>
+						</div>
+					</div>
+				</div>
 			</div>
 			
 			{/* Calibration Modals */}
@@ -1708,379 +1548,7 @@ const JoystickCalibration = ({
 				centerY={values?.joystickCenterY2}
 			/>
 			
-			{/* Finetune Shape Modals */}
-			<Modal
-				show={showLeftFinetuneShapeModal}
-				onHide={() => {
-					setShowLeftFinetuneShapeModal(false);
-					// Reset to saved values on cancel
-					setLeftFinetuneShapeXTopPercent(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent1, 100.0));
-					setLeftFinetuneShapeXBottomPercent(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent1, 100.0));
-					setLeftFinetuneShapeYLeftPercent(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent1, 100.0));
-					setLeftFinetuneShapeYRightPercent(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent1, 100.0));
-					setLeftFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
-					setLeftFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
-				}}
-				size="lg"
-			>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('AddonsConfig:joystick-calibration-finetune-shape-button')} - {t('AddonsConfig:joystick-calibration-left-stick')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<Row>
-						{/* Left side: Canvas */}
-						<Col md={6}>
-							<div style={{ position: 'relative', display: 'inline-block', padding: '40px 60px' }}>
-								<canvas
-									ref={leftFinetuneShapeCanvasRef}
-									width={250}
-									height={250}
-									style={{ border: '1px solid #ccc', borderRadius: '4px', display: 'block' }}
-								/>
-								{/* X-axis controls (top) - horizontal layout: + on left, value in middle, - on right */}
-								{!leftFinetuneShapeForceCircular && (
-									<>
-										<div style={{ position: 'absolute', left: '50%', top: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setLeftFinetuneShapeXBottomPercent(prev => prev + 0.2)}
-											>
-												+
-											</Button>
-											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-												{leftFinetuneShapeXBottomPercent.toFixed(1)}%
-											</span>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setLeftFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
-											>
-												−
-											</Button>
-										</div>
-										{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
-										<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setLeftFinetuneShapeXTopPercent(prev => prev + 0.2)}
-											>
-												+
-											</Button>
-											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-												{leftFinetuneShapeXTopPercent.toFixed(1)}%
-											</span>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setLeftFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
-											>
-												−
-											</Button>
-										</div>
-										{/* Y-axis controls (left) - vertical layout: + on top, value in middle, - on bottom */}
-										<div style={{ position: 'absolute', left: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setLeftFinetuneShapeYLeftPercent(prev => prev + 0.2)}
-											>
-												+
-											</Button>
-											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-												{leftFinetuneShapeYLeftPercent.toFixed(1)}%
-											</span>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setLeftFinetuneShapeYLeftPercent(prev => Math.max(0, prev - 0.2))}
-											>
-												−
-											</Button>
-										</div>
-										{/* Y-axis controls (right) - vertical layout: + on top, value in middle, - on bottom */}
-										<div style={{ position: 'absolute', right: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setLeftFinetuneShapeYRightPercent(prev => prev + 0.2)}
-											>
-												+
-											</Button>
-											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-												{leftFinetuneShapeYRightPercent.toFixed(1)}%
-											</span>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setLeftFinetuneShapeYRightPercent(prev => Math.max(0, prev - 0.2))}
-											>
-												−
-											</Button>
-										</div>
-									</>
-								)}
-							</div>
-						</Col>
-						{/* Right side: Controls */}
-						<Col md={6}>
-							<div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-								{/* Force Circular Switch */}
-								<div>
-									<FormCheck
-										type="switch"
-										id="leftFinetuneShapeForceCircular"
-										label="强制圆形"
-										checked={leftFinetuneShapeForceCircular}
-										onChange={(e) => setLeftFinetuneShapeForceCircular(e.target.checked)}
-									/>
-									<p className="text-muted small mt-2 mb-0">
-										{leftFinetuneShapeForceCircular
-											? "强制圆形会将摇杆外圈移动半径严格归一到圆形，关闭强制圆形会直接利用摇杆原生移动距离而产生不规则外圈形状。"
-											: "关闭强制圆形时将产生反映摇杆真实形状的不规则的外圈与误差率，4个方向的百分比可以调节轴向覆盖程度避免打不满。"}
-									</p>
-								</div>
-								{/* Amplify Slider */}
-								<div>
-									<Form.Label>外圈放大系数: {leftFinetuneShapeAmplify.toFixed(1)}%</Form.Label>
-									<Form.Range
-										min={0}
-										max={20}
-										step={0.1}
-										value={leftFinetuneShapeAmplify}
-										onChange={(e) => setLeftFinetuneShapeAmplify(parseFloat(e.target.value))}
-									/>
-									<p className="text-muted small mt-2 mb-0">
-										扩大系数滑块可以放大摇杆覆盖范围，加快摇杆快速移动响应速度。一定程度等同于误差率调整。
-									</p>
-								</div>
-							</div>
-						</Col>
-					</Row>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => {
-						setShowLeftFinetuneShapeModal(false);
-						// Reset to original values on cancel
-						setLeftFinetuneShapeXTopPercent(100.0);
-						setLeftFinetuneShapeXBottomPercent(100.0);
-						setLeftFinetuneShapeYLeftPercent(100.0);
-						setLeftFinetuneShapeYRightPercent(100.0);
-						setLeftFinetuneShapeForceCircular(false);
-						setLeftFinetuneShapeAmplify(0.0);
-					}}>
-						取消
-					</Button>
-					<Button variant="primary" onClick={() => {
-						// Save percentage values only (do not modify original calibration data)
-						// Backend will apply these adjustments at runtime
-						setFieldValue('joystickFinetuneShapeXTopPercent1', leftFinetuneShapeXTopPercent);
-						setFieldValue('joystickFinetuneShapeXBottomPercent1', leftFinetuneShapeXBottomPercent);
-						setFieldValue('joystickFinetuneShapeYLeftPercent1', leftFinetuneShapeYLeftPercent);
-						setFieldValue('joystickFinetuneShapeYRightPercent1', leftFinetuneShapeYRightPercent);
-						setFieldValue('joystickFinetuneShapeForceCircular1', leftFinetuneShapeForceCircular);
-						setFieldValue('joystickFinetuneShapeAmplify1', leftFinetuneShapeAmplify);
-						setShowLeftFinetuneShapeModal(false);
-					}}>
-						确定
-					</Button>
-				</Modal.Footer>
-			</Modal>
-			<Modal
-				show={showRightFinetuneShapeModal}
-				onHide={() => {
-					setShowRightFinetuneShapeModal(false);
-					// Reset to saved values on cancel
-					setRightFinetuneShapeXTopPercent(getPercentValue((values as any)?.joystickFinetuneShapeXTopPercent2, 100.0));
-					setRightFinetuneShapeXBottomPercent(getPercentValue((values as any)?.joystickFinetuneShapeXBottomPercent2, 100.0));
-					setRightFinetuneShapeYLeftPercent(getPercentValue((values as any)?.joystickFinetuneShapeYLeftPercent2, 100.0));
-					setRightFinetuneShapeYRightPercent(getPercentValue((values as any)?.joystickFinetuneShapeYRightPercent2, 100.0));
-					setRightFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
-					setRightFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
-				}}
-				size="lg"
-			>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('AddonsConfig:joystick-calibration-finetune-shape-button')} - {t('AddonsConfig:joystick-calibration-right-stick')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<Row>
-						{/* Left side: Canvas */}
-						<Col md={6}>
-							<div style={{ position: 'relative', display: 'inline-block', padding: '40px 60px' }}>
-								<canvas
-									ref={rightFinetuneShapeCanvasRef}
-									width={250}
-									height={250}
-									style={{ border: '1px solid #ccc', borderRadius: '4px', display: 'block' }}
-								/>
-								{/* X-axis controls (top) - horizontal layout: + on left, value in middle, - on right */}
-								{!rightFinetuneShapeForceCircular && (
-									<>
-										<div style={{ position: 'absolute', left: '50%', top: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setRightFinetuneShapeXBottomPercent(prev => prev + 0.2)}
-											>
-												+
-											</Button>
-											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-												{rightFinetuneShapeXBottomPercent.toFixed(1)}%
-											</span>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setRightFinetuneShapeXBottomPercent(prev => Math.max(0, prev - 0.2))}
-											>
-												−
-											</Button>
-										</div>
-										{/* X-axis controls (bottom) - horizontal layout: + on left, value in middle, - on right */}
-										<div style={{ position: 'absolute', left: '50%', bottom: '0px', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setRightFinetuneShapeXTopPercent(prev => prev + 0.2)}
-											>
-												+
-											</Button>
-											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-												{rightFinetuneShapeXTopPercent.toFixed(1)}%
-											</span>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setRightFinetuneShapeXTopPercent(prev => Math.max(0, prev - 0.2))}
-											>
-												−
-											</Button>
-										</div>
-										{/* Y-axis controls (left) - vertical layout: + on top, value in middle, - on bottom */}
-										<div style={{ position: 'absolute', left: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setRightFinetuneShapeYLeftPercent(prev => prev + 0.2)}
-											>
-												+
-											</Button>
-											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-												{rightFinetuneShapeYLeftPercent.toFixed(1)}%
-											</span>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setRightFinetuneShapeYLeftPercent(prev => Math.max(0, prev - 0.2))}
-											>
-												−
-											</Button>
-										</div>
-										{/* Y-axis controls (right) - vertical layout: + on top, value in middle, - on bottom */}
-										<div style={{ position: 'absolute', right: '0px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setRightFinetuneShapeYRightPercent(prev => prev + 0.2)}
-											>
-												+
-											</Button>
-											<span style={{ minWidth: '60px', textAlign: 'center', fontSize: '14px' }}>
-												{rightFinetuneShapeYRightPercent.toFixed(1)}%
-											</span>
-											<Button
-												variant="light"
-												size="sm"
-												style={finetuneButtonStyle}
-												onClick={() => setRightFinetuneShapeYRightPercent(prev => Math.max(0, prev - 0.2))}
-											>
-												−
-											</Button>
-										</div>
-									</>
-								)}
-							</div>
-						</Col>
-						{/* Right side: Controls */}
-						<Col md={6}>
-							<div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-								{/* Force Circular Switch */}
-								<div>
-									<FormCheck
-										type="switch"
-										id="rightFinetuneShapeForceCircular"
-										label="强制圆形"
-										checked={rightFinetuneShapeForceCircular}
-										onChange={(e) => setRightFinetuneShapeForceCircular(e.target.checked)}
-									/>
-									<p className="text-muted small mt-2 mb-0">
-										{rightFinetuneShapeForceCircular
-											? "强制圆形会将摇杆外圈移动半径严格归一到圆形，关闭强制圆形会直接利用摇杆原生移动距离而产生不规则外圈形状。"
-											: "关闭强制圆形时将产生反映摇杆真实形状的不规则的外圈与误差率，4个方向的百分比可以调节轴向覆盖程度避免打不满。"}
-									</p>
-								</div>
-								{/* Amplify Slider */}
-								<div>
-									<Form.Label>外圈放大系数: {rightFinetuneShapeAmplify.toFixed(1)}%</Form.Label>
-									<Form.Range
-										min={0}
-										max={20}
-										step={0.1}
-										value={rightFinetuneShapeAmplify}
-										onChange={(e) => setRightFinetuneShapeAmplify(parseFloat(e.target.value))}
-									/>
-									<p className="text-muted small mt-2 mb-0">
-										扩大系数滑块可以放大摇杆覆盖范围，加快摇杆快速移动响应速度。一定程度等同于误差率调整。
-									</p>
-								</div>
-							</div>
-						</Col>
-					</Row>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => {
-						setShowRightFinetuneShapeModal(false);
-						// Reset to original values on cancel
-						setRightFinetuneShapeXTopPercent(100.0);
-						setRightFinetuneShapeXBottomPercent(100.0);
-						setRightFinetuneShapeYLeftPercent(100.0);
-						setRightFinetuneShapeYRightPercent(100.0);
-						setRightFinetuneShapeForceCircular(false);
-						setRightFinetuneShapeAmplify(0.0);
-					}}>
-						取消
-					</Button>
-					<Button variant="primary" onClick={() => {
-						// Save percentage values only (do not modify original calibration data)
-						// Backend will apply these adjustments at runtime
-						setFieldValue('joystickFinetuneShapeXTopPercent2', rightFinetuneShapeXTopPercent);
-						setFieldValue('joystickFinetuneShapeXBottomPercent2', rightFinetuneShapeXBottomPercent);
-						setFieldValue('joystickFinetuneShapeYLeftPercent2', rightFinetuneShapeYLeftPercent);
-						setFieldValue('joystickFinetuneShapeYRightPercent2', rightFinetuneShapeYRightPercent);
-						setFieldValue('joystickFinetuneShapeForceCircular2', rightFinetuneShapeForceCircular);
-						setFieldValue('joystickFinetuneShapeAmplify2', rightFinetuneShapeAmplify);
-						setShowRightFinetuneShapeModal(false);
-					}}>
-						确定
-					</Button>
-				</Modal.Footer>
-			</Modal>
+			
 			
 			{/* Range Data Detail Modals */}
 			<Modal show={showLeftRangeDataModal} onHide={() => setShowLeftRangeDataModal(false)} size="lg">

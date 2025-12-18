@@ -429,17 +429,17 @@ message AnalogOptions
     optional float smoothing_delta_max2 = 33;
     repeated float joystick_range_data_1 = 34 [(nanopb).max_count = 48];
     repeated float joystick_range_data_2 = 35 [(nanopb).max_count = 48];
-    // Finetune shape adjustment percentages (100.0 = 100%, no adjustment)
-    optional float joystick_finetune_shape_x_top_percent_1 = 46;
-    optional float joystick_finetune_shape_x_bottom_percent_1 = 47;
-    optional float joystick_finetune_shape_y_left_percent_1 = 48;
-    optional float joystick_finetune_shape_y_right_percent_1 = 49;
+    // Finetune shape adjustment settings
+    optional float joystick_finetune_shape_x_top_percent_1 = 46 [deprecated = true];
+    optional float joystick_finetune_shape_x_bottom_percent_1 = 47 [deprecated = true];
+    optional float joystick_finetune_shape_y_left_percent_1 = 48 [deprecated = true];
+    optional float joystick_finetune_shape_y_right_percent_1 = 49 [deprecated = true];
     optional bool joystick_finetune_shape_force_circular_1 = 50;
     optional float joystick_finetune_shape_amplify_1 = 51;
-    optional float joystick_finetune_shape_x_top_percent_2 = 52;
-    optional float joystick_finetune_shape_x_bottom_percent_2 = 53;
-    optional float joystick_finetune_shape_y_left_percent_2 = 54;
-    optional float joystick_finetune_shape_y_right_percent_2 = 55;
+    optional float joystick_finetune_shape_x_top_percent_2 = 52 [deprecated = true];
+    optional float joystick_finetune_shape_x_bottom_percent_2 = 53 [deprecated = true];
+    optional float joystick_finetune_shape_y_left_percent_2 = 54 [deprecated = true];
+    optional float joystick_finetune_shape_y_right_percent_2 = 55 [deprecated = true];
     optional bool joystick_finetune_shape_force_circular_2 = 56;
     optional float joystick_finetune_shape_amplify_2 = 57;
     optional uint32 joystick_jitter_filter_1 = 58;

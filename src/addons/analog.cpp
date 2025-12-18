@@ -48,15 +48,7 @@ void AnalogInput::setup() {
             adc_pairs[0].range_data[i] = 0.0f;  // Default: no calibration data
         }
     }
-    // Initialize finetune shape adjustment percentages (default 100% = no adjustment)
-    adc_pairs[0].finetune_shape_x_top_percent = analogOptions.has_joystick_finetune_shape_x_top_percent_1 ? 
-        analogOptions.joystick_finetune_shape_x_top_percent_1 : 100.0f;
-    adc_pairs[0].finetune_shape_x_bottom_percent = analogOptions.has_joystick_finetune_shape_x_bottom_percent_1 ? 
-        analogOptions.joystick_finetune_shape_x_bottom_percent_1 : 100.0f;
-    adc_pairs[0].finetune_shape_y_left_percent = analogOptions.has_joystick_finetune_shape_y_left_percent_1 ? 
-        analogOptions.joystick_finetune_shape_y_left_percent_1 : 100.0f;
-    adc_pairs[0].finetune_shape_y_right_percent = analogOptions.has_joystick_finetune_shape_y_right_percent_1 ? 
-        analogOptions.joystick_finetune_shape_y_right_percent_1 : 100.0f;
+    // Initialize finetune shape adjustment settings
     adc_pairs[0].finetune_shape_force_circular = analogOptions.has_joystick_finetune_shape_force_circular_1 ? 
         analogOptions.joystick_finetune_shape_force_circular_1 : false;
     adc_pairs[0].finetune_shape_amplify = analogOptions.has_joystick_finetune_shape_amplify_1 ? 
@@ -81,15 +73,7 @@ void AnalogInput::setup() {
             adc_pairs[1].range_data[i] = 0.0f;  // Default: no calibration data
         }
     }
-    // Initialize finetune shape adjustment percentages (default 100% = no adjustment)
-    adc_pairs[1].finetune_shape_x_top_percent = analogOptions.has_joystick_finetune_shape_x_top_percent_2 ? 
-        analogOptions.joystick_finetune_shape_x_top_percent_2 : 100.0f;
-    adc_pairs[1].finetune_shape_x_bottom_percent = analogOptions.has_joystick_finetune_shape_x_bottom_percent_2 ? 
-        analogOptions.joystick_finetune_shape_x_bottom_percent_2 : 100.0f;
-    adc_pairs[1].finetune_shape_y_left_percent = analogOptions.has_joystick_finetune_shape_y_left_percent_2 ? 
-        analogOptions.joystick_finetune_shape_y_left_percent_2 : 100.0f;
-    adc_pairs[1].finetune_shape_y_right_percent = analogOptions.has_joystick_finetune_shape_y_right_percent_2 ? 
-        analogOptions.joystick_finetune_shape_y_right_percent_2 : 100.0f;
+    // Initialize finetune shape adjustment settings
     adc_pairs[1].finetune_shape_force_circular = analogOptions.has_joystick_finetune_shape_force_circular_2 ? 
         analogOptions.joystick_finetune_shape_force_circular_2 : false;
     adc_pairs[1].finetune_shape_amplify = analogOptions.has_joystick_finetune_shape_amplify_2 ? 
@@ -312,7 +296,7 @@ float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
 
 /**
  * Apply finetune shape adjustments to range_data during initialization
- * Modifies range_data array based on force circular and percentage/amplify settings
+ * Modifies range_data array based on force circular and amplify settings
  * @param stick_num Stick number (0 or 1)
  */
 void AnalogInput::applyFinetuneShapeAdjustments(int stick_num) {
@@ -320,17 +304,9 @@ void AnalogInput::applyFinetuneShapeAdjustments(int stick_num) {
         return;  // No calibration data to adjust
     }
     
-    // Index mapping: angle = (index * 2π / 48) - π
-    // 0° (right): index = 24
-    // 90° (top): index = 36  
-    // 180° (left): index = 0
-    // 270° (bottom): index = 12
-    
     if (!adc_pairs[stick_num].finetune_shape_force_circular) {
-        // Step 1: When force circular is disabled, set all scaling ratios to the minimum value
+        // When force circular is disabled, set all scaling ratios to the minimum value
         // Find the minimum scaling ratio
-        // Since has_range_calibration ensures all 48 indices have valid (non-zero) data,
-        // we can use range_data[0] as the initial minScale and compare with remaining indices
         float minScale = adc_pairs[stick_num].range_data[0];
         for (int i = 1; i < CIRCULARITY_DATA_SIZE; i++) {
             if (adc_pairs[stick_num].range_data[i] < minScale) {
@@ -342,27 +318,10 @@ void AnalogInput::applyFinetuneShapeAdjustments(int stick_num) {
         for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
             adc_pairs[stick_num].range_data[i] = minScale;
         }
-        
-        // Step 2: Apply percentage adjustments to cardinal indices (0, 12, 24, 36)
-        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i += 12) {
-            float percentFactor = 0.0f;
-            if (i == 0) {
-                percentFactor = adc_pairs[stick_num].finetune_shape_y_left_percent / 100.0f;      // Left (180°)
-            } else if (i == 12) {
-                percentFactor = adc_pairs[stick_num].finetune_shape_x_bottom_percent / 100.0f;    // Bottom (270°)
-            } else if (i == 24) {
-                percentFactor = adc_pairs[stick_num].finetune_shape_y_right_percent / 100.0f;      // Right (0°)
-            } else if (i == 36) {
-                percentFactor = adc_pairs[stick_num].finetune_shape_x_top_percent / 100.0f;      // Top (90°)
-            }
-            if (percentFactor > 0.0f) {
-                adc_pairs[stick_num].range_data[i] /= percentFactor;
-            }
-        }
     }
     // Note: When force_circular is true, scaling ratios remain unchanged at this point
     
-    // Step 3: Apply amplify factor to all scaling ratios (regardless of force_circular setting)
+    // Apply amplify factor to all scaling ratios (regardless of force_circular setting)
     float amplifyFactor = 1.0f + adc_pairs[stick_num].finetune_shape_amplify / 100.0f;
     if (amplifyFactor > 0.0f) {
         for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
