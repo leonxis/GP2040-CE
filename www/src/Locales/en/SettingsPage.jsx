@@ -64,6 +64,7 @@ export default {
 		'PS4 mode allows GP2040-CE to run as an authenticated PS4 controller.',
 	'ps4-mode-warning-text':
 		'<span>⏳ WARNING ⏳:</span> PS4 will timeout after 8 minutes without authentication.',
+	'ps4-keys-embedded': 'Note: Default PS4 keys loaded',
 	'ps4-usb-host-mode-text':
 		'<span>INFO:</span> Please ensure USB Peripheral is enabled and a PS4 compatible USB device is plugged in.',
 	'ps4-id-mode-label': 'Identification Mode',

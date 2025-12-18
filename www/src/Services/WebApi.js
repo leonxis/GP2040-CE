@@ -556,6 +556,16 @@ async function setPS4Options(options) {
 		});
 }
 
+async function getPS4KeyState() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getPS4KeyState`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+		return { hasKeys: 0 };
+	}
+}
+
 async function getWiiControls(setLoading) {
 	setLoading(true);
 
@@ -738,6 +748,7 @@ export default {
 	getMacroAddonOptions,
 	setMacroAddonOptions,
 	setPS4Options,
+	getPS4KeyState,
 	getWiiControls,
 	setWiiControls,
 	getPeripheralOptions,

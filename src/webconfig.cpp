@@ -2064,6 +2064,24 @@ std::string setPS4Options()
     return "{\"success\":true}";
 }
 
+std::string getPS4KeyState()
+{
+    DynamicJsonDocument doc(128);
+    PS4Options& ps4Options = Storage::getInstance().getAddonOptions().ps4Options;
+
+    // Check if all required keys are present (serial, signature, N, E, P, Q)
+    bool hasKeys = (ps4Options.serial.size == 16) &&
+                   (ps4Options.signature.size == 256) &&
+                   (ps4Options.rsaN.size == 256) &&
+                   (ps4Options.rsaE.size == 4) &&
+                   (ps4Options.rsaP.size == 128) &&
+                   (ps4Options.rsaQ.size == 128);
+
+    writeDoc(doc, "hasKeys", hasKeys ? 1 : 0);
+
+    return serialize_json(doc);
+}
+
 std::string setWiiControls()
 {
     DynamicJsonDocument doc = get_post_data();
@@ -2762,6 +2780,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setAddonsOptions", setAddonOptions },
     { "/api/setMacroAddonOptions", setMacroAddonOptions },
     { "/api/setPS4Options", setPS4Options },
+    { "/api/getPS4KeyState", getPS4KeyState },
     { "/api/setWiiControls", setWiiControls },
     { "/api/setSplashImage", setSplashImage },
     { "/api/reboot", reboot },

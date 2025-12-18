@@ -599,6 +599,20 @@ export default function SettingsPage() {
 	const [PS4Key, setPS4Key] = useState();
 	const [PS4Serial, setPS4Serial] = useState();
 	const [PS4Signature, setPS4Signature] = useState();
+	const [hasEmbeddedPS4Keys, setHasEmbeddedPS4Keys] = useState(false);
+
+	// Check if PS4 keys are embedded in firmware
+	useEffect(() => {
+		const checkPS4Keys = async () => {
+			try {
+				const response = await WebApi.getPS4KeyState();
+				setHasEmbeddedPS4Keys(response.hasKeys === 1);
+			} catch (error) {
+				console.error('Failed to check PS4 key state:', error);
+			}
+		};
+		checkPS4Keys();
+	}, []);
 
 	const handlePS4Key = (event) => {
 		setPS4Key(event.target.files[0]);
@@ -931,76 +945,88 @@ export default function SettingsPage() {
 				)}
 				{values.ps4AuthType === 1 && (
 					<Row className="mb-3">
-						<Row className="mb-3">
-							<Col sm={5}>
-								<Form.Label className="badge bg-primary fs-2">
-									{t('AddonsConfig:ps4-mode-sub-header')}
-								</Form.Label>
-								<br />
-								<Form.Label className="fw-bolder">
-									{t('AddonsConfig:ps4-mode-sub-header-text')}
-								</Form.Label>
-							</Col>
-						</Row>
-						<Row className="mb-3">
-							<Col sm={3}>
-								<Form.Label>
-									{t('AddonsConfig:ps4-mode-private-key-label')}:
-								</Form.Label>
-								<br />
-								<input
-									type="file"
-									id="ps4key-input"
-									onChange={handlePS4Key}
-									multiple={false}
-									accept="*/*"
-								/>
-							</Col>
-							<Col sm={3}>
-								<Form.Label>
-									{t('AddonsConfig:ps4-mode-serial-number-label')}:
-								</Form.Label>
-								<br />
-								<input
-									type="file"
-									id="ps4serial-input"
-									accept="*/*"
-									multiple={false}
-									onChange={handlePS4Serial}
-								/>
-							</Col>
-							<Col sm={3}>
-								<Form.Label>
-									{t('AddonsConfig:ps4-mode-signature-label')}:
-								</Form.Label>
-								<br />
-								<input
-									type="file"
-									id="ps4signature-input"
-									accept="*/*"
-									multiple={false}
-									onChange={handlePS4Signature}
-								/>
-							</Col>
-						</Row>
-						<Row className="mb-3">
-							<Col sm={10}>
-								<Button
-									type="button"
-									onClick={() =>
-										verifyAndSavePS4({
-											PS4Key,
-											PS4Serial,
-											PS4Signature,
-											setMessage,
-										})
-									}
-								>
-									{t('Common:button-verify-save-label')}
-								</Button>
-								{message && <span> {message}</span>}
-							</Col>
-						</Row>
+						{hasEmbeddedPS4Keys ? (
+							<Row className="mb-3">
+								<Col sm={10}>
+									<Form.Label>
+										{t('SettingsPage:ps4-keys-embedded')}
+									</Form.Label>
+								</Col>
+							</Row>
+						) : (
+							<>
+								<Row className="mb-3">
+									<Col sm={5}>
+										<Form.Label className="badge bg-primary fs-2">
+											{t('AddonsConfig:ps4-mode-sub-header')}
+										</Form.Label>
+										<br />
+										<Form.Label className="fw-bolder">
+											{t('AddonsConfig:ps4-mode-sub-header-text')}
+										</Form.Label>
+									</Col>
+								</Row>
+								<Row className="mb-3">
+									<Col sm={3}>
+										<Form.Label>
+											{t('AddonsConfig:ps4-mode-private-key-label')}:
+										</Form.Label>
+										<br />
+										<input
+											type="file"
+											id="ps4key-input"
+											onChange={handlePS4Key}
+											multiple={false}
+											accept="*/*"
+										/>
+									</Col>
+									<Col sm={3}>
+										<Form.Label>
+											{t('AddonsConfig:ps4-mode-serial-number-label')}:
+										</Form.Label>
+										<br />
+										<input
+											type="file"
+											id="ps4serial-input"
+											accept="*/*"
+											multiple={false}
+											onChange={handlePS4Serial}
+										/>
+									</Col>
+									<Col sm={3}>
+										<Form.Label>
+											{t('AddonsConfig:ps4-mode-signature-label')}:
+										</Form.Label>
+										<br />
+										<input
+											type="file"
+											id="ps4signature-input"
+											accept="*/*"
+											multiple={false}
+											onChange={handlePS4Signature}
+										/>
+									</Col>
+								</Row>
+								<Row className="mb-3">
+									<Col sm={10}>
+										<Button
+											type="button"
+											onClick={() =>
+												verifyAndSavePS4({
+													PS4Key,
+													PS4Serial,
+													PS4Signature,
+													setMessage,
+												})
+											}
+										>
+											{t('Common:button-verify-save-label')}
+										</Button>
+										{message && <span> {message}</span>}
+									</Col>
+								</Row>
+							</>
+						)}
 					</Row>
 				)}
 				{values.ps4AuthType === 2 && (

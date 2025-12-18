@@ -61,6 +61,7 @@ export default {
 	'mini-menu-gamepad-input': '使用游戏手柄输入控制显示屏迷你菜单',
 	'ps4-mode-explanation-text': 'PS4 模式允许 GP2040-CE 作为经过认证的 PS4 控制器运行。',
 	'ps4-mode-warning-text': '<span>⏳ 警告 ⏳:</span> PS4 在没有认证的情况下会在 8 分钟后超时。',
+	'ps4-keys-embedded': '提示：已载入默认PS4密钥',
 	'ps4-usb-host-mode-text': '<span>信息:</span> 请确保已启用 USB 外设并插入兼容 PS4 的 USB 设备。',
 	'ps4-id-mode-label': '识别模式',
 	'ps4-id-mode-explanation-text': '<ul><li>控制台模式主要用于连接到 PS4 控制台。</li><li>远程/模拟模式仅应用于连接到需要 DualShock 4 兼容控制器的模拟层或远程游戏环境。</li></ul>',

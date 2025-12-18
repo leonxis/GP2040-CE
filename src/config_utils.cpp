@@ -146,6 +146,43 @@
     #define DEFAULT_PS4_ID_MODE PS4_ID_CONSOLE
 #endif
 
+// PS4 Authentication Key Defaults (define in BoardConfig.h to embed keys)
+#ifndef DEFAULT_PS4_SERIAL
+    #define DEFAULT_PS4_SERIAL_DEFINED 0
+#else
+    #define DEFAULT_PS4_SERIAL_DEFINED 1
+#endif
+
+#ifndef DEFAULT_PS4_SIGNATURE
+    #define DEFAULT_PS4_SIGNATURE_DEFINED 0
+#else
+    #define DEFAULT_PS4_SIGNATURE_DEFINED 1
+#endif
+
+#ifndef DEFAULT_PS4_RSA_N
+    #define DEFAULT_PS4_RSA_N_DEFINED 0
+#else
+    #define DEFAULT_PS4_RSA_N_DEFINED 1
+#endif
+
+#ifndef DEFAULT_PS4_RSA_E
+    #define DEFAULT_PS4_RSA_E_DEFINED 0
+#else
+    #define DEFAULT_PS4_RSA_E_DEFINED 1
+#endif
+
+#ifndef DEFAULT_PS4_RSA_P
+    #define DEFAULT_PS4_RSA_P_DEFINED 0
+#else
+    #define DEFAULT_PS4_RSA_P_DEFINED 1
+#endif
+
+#ifndef DEFAULT_PS4_RSA_Q
+    #define DEFAULT_PS4_RSA_Q_DEFINED 0
+#else
+    #define DEFAULT_PS4_RSA_Q_DEFINED 1
+#endif
+
 #ifndef DEFAULT_USB_DESC_OVERRIDE
    #define DEFAULT_USB_DESC_OVERRIDE false
 #endif
@@ -716,13 +753,50 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.buzzerOptions, enablePin, BUZZER_ENABLE_PIN);
 
     // addonOptions.ps4Options
+#if DEFAULT_PS4_SERIAL_DEFINED
+    const unsigned char defaultPS4Serial[] = { DEFAULT_PS4_SERIAL };
+    INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, serial, defaultPS4Serial);
+#else
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, serial, emptyByteArray);
+#endif
+
+#if DEFAULT_PS4_SIGNATURE_DEFINED
+    const unsigned char defaultPS4Signature[] = { DEFAULT_PS4_SIGNATURE };
+    INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, signature, defaultPS4Signature);
+#else
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, signature, emptyByteArray);
+#endif
+
+#if DEFAULT_PS4_RSA_N_DEFINED
+    const unsigned char defaultPS4RsaN[] = { DEFAULT_PS4_RSA_N };
+    INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaN, defaultPS4RsaN);
+#else
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaN, emptyByteArray);
+#endif
+
+#if DEFAULT_PS4_RSA_E_DEFINED
+    const unsigned char defaultPS4RsaE[] = { DEFAULT_PS4_RSA_E };
+    INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaE, defaultPS4RsaE);
+#else
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaE, emptyByteArray);
+#endif
+
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaD, emptyByteArray);
+
+#if DEFAULT_PS4_RSA_P_DEFINED
+    const unsigned char defaultPS4RsaP[] = { DEFAULT_PS4_RSA_P };
+    INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaP, defaultPS4RsaP);
+#else
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaP, emptyByteArray);
+#endif
+
+#if DEFAULT_PS4_RSA_Q_DEFINED
+    const unsigned char defaultPS4RsaQ[] = { DEFAULT_PS4_RSA_Q };
+    INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaQ, defaultPS4RsaQ);
+#else
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaQ, emptyByteArray);
+#endif
+
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaDP, emptyByteArray);
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaDQ, emptyByteArray);
     INIT_UNSET_PROPERTY_BYTES(config.addonOptions.ps4Options, rsaQP, emptyByteArray);
