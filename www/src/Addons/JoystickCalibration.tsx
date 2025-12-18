@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFormikContext } from 'formik';
-import { Row, Col, Button, FormCheck, Modal, Table, Form } from 'react-bootstrap';
+import { Button, FormCheck, Modal, Table, Form } from 'react-bootstrap';
 
 import Section from '../Components/Section';
 import StickCalibrationModal from '../Components/StickCalibrationModal';
@@ -59,17 +59,6 @@ const finetuneButtonStyle: React.CSSProperties = {
 };
 
 /**
- * Applies finetune shape percentage adjustments to range data with angle interpolation
- * @param rangeData - Original range calibration data array
- * @param xTopPercent - X axis top percentage (default 100.0)
- * @param xBottomPercent - X axis bottom percentage (default 100.0)
- * @param yLeftPercent - Y axis left percentage (default 100.0)
- * @param yRightPercent - Y axis right percentage (default 100.0)
- * @param forceCircular - Force circular flag
- * @param amplify - Amplify factor (default 0.0)
- * @returns Adjusted range data array
- */
-/**
  * Apply finetune shape adjustments to range_data (matches backend logic)
  * @param rangeData Original calibration data array
  * @param forceCircular Whether force circular is enabled
@@ -112,15 +101,6 @@ const applyFinetuneShapeAdjustments = (
 	return adjustedData;
 };
 
-/**
- * Processes joystick data through coordinate transformation pipeline
- * @param rawX - Raw ADC X value
- * @param rawY - Raw ADC Y value
- * @param centerX - Calibrated center X value
- * @param centerY - Calibrated center Y value
- * @param rangeData - Range calibration data array
- * @returns Processed stick data and detail information
- */
 /**
  * Get interpolated scale for a given angle using range calibration data (matches backend logic)
  * @param angle Angle in radians (-PI to PI)
@@ -1223,10 +1203,10 @@ const JoystickCalibration = ({
 										setShowRangeCalibrationWarning(true);
 										return;
 									}
-									// Save to formik when closing
+									// Reset to saved values when closing (cancel effect)
 									if (leftFinetuneShapeActive) {
-										setFieldValue('joystickFinetuneShapeForceCircular1', leftFinetuneShapeForceCircular);
-										setFieldValue('joystickFinetuneShapeAmplify1', leftFinetuneShapeAmplify);
+										setLeftFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
+										setLeftFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
 									}
 									setLeftFinetuneShapeActive(!leftFinetuneShapeActive);
 								}}
@@ -1294,8 +1274,18 @@ const JoystickCalibration = ({
 											扩大系数可以放大摇杆覆盖范围，加快移动响应速度。
 										</p>
 									</div>
-									<div className="text-muted small">
-										误差率: {calculateCircularityError(leftFinetuneShapeCircularityData).toFixed(1)}%
+									<div className="mt-3 text-end">
+										<Button
+											variant="danger"
+											size="sm"
+											onClick={() => {
+												setFieldValue('joystickFinetuneShapeForceCircular1', leftFinetuneShapeForceCircular);
+												setFieldValue('joystickFinetuneShapeAmplify1', leftFinetuneShapeAmplify);
+												setLeftFinetuneShapeActive(false);
+											}}
+										>
+											确定
+										</Button>
 									</div>
 								</div>
 							</div>
@@ -1335,8 +1325,18 @@ const JoystickCalibration = ({
 											扩大系数可以放大摇杆覆盖范围，加快移动响应速度。
 										</p>
 									</div>
-									<div className="text-muted small">
-										误差率: {calculateCircularityError(rightFinetuneShapeCircularityData).toFixed(1)}%
+									<div className="mt-3 text-end">
+										<Button
+											variant="danger"
+											size="sm"
+											onClick={() => {
+												setFieldValue('joystickFinetuneShapeForceCircular2', rightFinetuneShapeForceCircular);
+												setFieldValue('joystickFinetuneShapeAmplify2', rightFinetuneShapeAmplify);
+												setRightFinetuneShapeActive(false);
+											}}
+										>
+											确定
+										</Button>
 									</div>
 								</div>
 							</div>
@@ -1462,10 +1462,10 @@ const JoystickCalibration = ({
 										setShowRangeCalibrationWarning(true);
 										return;
 									}
-									// Save to formik when closing
+									// Reset to saved values when closing (cancel effect)
 									if (rightFinetuneShapeActive) {
-										setFieldValue('joystickFinetuneShapeForceCircular2', rightFinetuneShapeForceCircular);
-										setFieldValue('joystickFinetuneShapeAmplify2', rightFinetuneShapeAmplify);
+										setRightFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
+										setRightFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
 									}
 									setRightFinetuneShapeActive(!rightFinetuneShapeActive);
 								}}

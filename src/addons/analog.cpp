@@ -150,15 +150,19 @@ void AnalogInput::process() {
             y_value = ANALOG_MAX - y_value;
         }
 
-        // Step 4: Apply deadzone and anti-deadzone
+        // Step 4: Apply deadzone and anti-deadzone (optimized: defer sqrt)
         float mx = x_value - ANALOG_CENTER;
         float my = y_value - ANALOG_CENTER;
-        float dist = std::sqrt(mx * mx + my * my);
+        float dist_sq = mx * mx + my * my;
+        float deadzone_sq = adc_pairs[i].in_deadzone * adc_pairs[i].in_deadzone;
         
-        if (dist < adc_pairs[i].in_deadzone) {
+        if (dist_sq < deadzone_sq) {
+            // Inside deadzone: no sqrt needed
             x_value = ANALOG_CENTER;
             y_value = ANALOG_CENTER;
-        } else if (adc_pairs[i].anti_deadzone > 0.0f && dist > 0.0f) {
+        } else if (adc_pairs[i].anti_deadzone > 0.0f) {
+            // Only compute sqrt when anti-deadzone is enabled
+            float dist = std::sqrt(dist_sq);
             float normalized = std::min(dist / ANALOG_CENTER, 1.0f);
             float baseline = std::clamp(adc_pairs[i].anti_deadzone, 0.0f, 1.0f);
             if (normalized < baseline) {
