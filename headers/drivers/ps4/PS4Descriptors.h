@@ -419,8 +419,8 @@ typedef struct __attribute__((packed)) {
 } PS4Report;
 
 static const uint8_t ps4_string_language[]     = { 0x09, 0x04 };
-static const uint8_t ps4_string_manufacturer[] = "Open Stick Community";
-static const uint8_t ps4_string_product[]      = "GP2040-CE (PS4)";
+static const uint8_t ps4_string_manufacturer[] = "Sony";
+static const uint8_t ps4_string_product[]      = "Wireless Controller";
 static const uint8_t ps4_string_version[]      = "1.0";
 
 static const uint8_t *ps4_string_descriptors[] __attribute__((unused)) =
