@@ -1802,6 +1802,35 @@ std::string setAddonOptions()
     docToValue(analogOptions.joystick_finetune_shape_amplify_2, doc, "joystickFinetuneShapeAmplify2");
     docToValue(analogOptions.joystick_jitter_filter_1, doc, "joystickJitterFilter1");
     docToValue(analogOptions.joystick_jitter_filter_2, doc, "joystickJitterFilter2");
+    // Read curve points (stored as JSON array of {x, y} objects, max 3 points)
+    if (doc.containsKey("joystickCurvePoints1") && doc["joystickCurvePoints1"].is<JsonArray>()) {
+        JsonArray curvePoints1 = doc["joystickCurvePoints1"];
+        analogOptions.joystick_curve_points_1_count = 0;
+        for (size_t i = 0; i < curvePoints1.size() && i < 3; i++) {
+            if (curvePoints1[i].is<JsonObject>()) {
+                JsonObject point = curvePoints1[i];
+                if (point.containsKey("x") && point.containsKey("y")) {
+                    analogOptions.joystick_curve_points_1[i].x = point["x"].as<float>();
+                    analogOptions.joystick_curve_points_1[i].y = point["y"].as<float>();
+                    analogOptions.joystick_curve_points_1_count++;
+                }
+            }
+        }
+    }
+    if (doc.containsKey("joystickCurvePoints2") && doc["joystickCurvePoints2"].is<JsonArray>()) {
+        JsonArray curvePoints2 = doc["joystickCurvePoints2"];
+        analogOptions.joystick_curve_points_2_count = 0;
+        for (size_t i = 0; i < curvePoints2.size() && i < 3; i++) {
+            if (curvePoints2[i].is<JsonObject>()) {
+                JsonObject point = curvePoints2[i];
+                if (point.containsKey("x") && point.containsKey("y")) {
+                    analogOptions.joystick_curve_points_2[i].x = point["x"].as<float>();
+                    analogOptions.joystick_curve_points_2[i].y = point["y"].as<float>();
+                    analogOptions.joystick_curve_points_2_count++;
+                }
+            }
+        }
+    }
     // EMA smoothing removed - no longer used
     docToValue(analogOptions.enabled, doc, "AnalogInputEnabled");
 
@@ -1985,6 +2014,10 @@ std::string setAddonOptions()
     docToPin(heTriggerOptions.muxADCPin3, doc, "muxADCPin3");
     docToValue(heTriggerOptions.emaSmoothing, doc, "heTriggerSmoothing");
     docToValue(heTriggerOptions.smoothingFactor, doc, "heTriggerSmoothingFactor");
+
+    // Curve points are passed through in the response (they are stored in web config JSON)
+    // Note: Curve points are not stored in protobuf, only in web config for frontend use
+    // They will be persisted in the web config file
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
@@ -2288,6 +2321,19 @@ std::string getAddonOptions()
     writeDoc(doc, "joystickFinetuneShapeAmplify2", analogOptions.has_joystick_finetune_shape_amplify_2 ? analogOptions.joystick_finetune_shape_amplify_2 : 0.0f);
     writeDoc(doc, "joystickJitterFilter1", analogOptions.has_joystick_jitter_filter_1 ? analogOptions.joystick_jitter_filter_1 : 0);
     writeDoc(doc, "joystickJitterFilter2", analogOptions.has_joystick_jitter_filter_2 ? analogOptions.joystick_jitter_filter_2 : 0);
+    // Write curve points
+    JsonArray curvePoints1 = doc.createNestedArray("joystickCurvePoints1");
+    for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_1_count && i < 3; i++) {
+        JsonObject point = curvePoints1.createNestedObject();
+        point["x"] = analogOptions.joystick_curve_points_1[i].x;
+        point["y"] = analogOptions.joystick_curve_points_1[i].y;
+    }
+    JsonArray curvePoints2 = doc.createNestedArray("joystickCurvePoints2");
+    for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_2_count && i < 3; i++) {
+        JsonObject point = curvePoints2.createNestedObject();
+        point["x"] = analogOptions.joystick_curve_points_2[i].x;
+        point["y"] = analogOptions.joystick_curve_points_2[i].y;
+    }
     // EMA smoothing removed - no longer used
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
 

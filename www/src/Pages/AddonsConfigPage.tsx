@@ -237,7 +237,7 @@ export default function AddonsConfigPage() {
 			}
 		});
 		// Also check for array fields that might not be in flattened (if they were empty before)
-		const arrayFields = ['joystickRangeData1', 'joystickRangeData2'];
+		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2'];
 		arrayFields.forEach(field => {
 			const newVal = get(valuesSchema, field);
 			const oldVal = get(flattened, field);

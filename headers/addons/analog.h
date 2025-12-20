@@ -91,6 +91,25 @@ typedef struct
     // Finetune shape adjustment settings (independent from calibration data)
     bool finetune_shape_force_circular;
     float finetune_shape_amplify;
+    // Preprocessed curve points array: start (0,0) + sorted control points + end (1,1)
+    // Note: Frontend saves control points sorted by x coordinate
+    struct {
+        float x;
+        float y;
+    } curve_points_sorted[5];  // max 5 points: (0,0) + 3 control + (1,1)
+    uint8_t curve_points_sorted_count;  // Total number of points in sorted array (0-5, 0 means no curve)
+    // Precomputed curve segment parameters for fast lookup: slope and intercept for each segment
+    // For segment [p1x, p2x]: curvedMagnitude = intercept + magnitude * slope
+    struct {
+        float slope;      // Slope of the segment: (p2y - p1y) / (p2x - p1x)
+        float intercept;  // Intercept: p1y - p1x * slope
+        float x_start;    // Start x of segment (p1x)
+        float x_end;      // End x of segment (p2x)
+        float x_start_sq; // Start x squared (p1x * p1x) for fast comparison without sqrt
+        float x_end_sq;   // End x squared (p2x * p2x) for fast comparison without sqrt
+    } curve_segments[4];  // max 4 segments: (0,0)->p1, p1->p2, p2->p3, p3->(1,1)
+    uint8_t curve_segments_count;  // Number of segments (0-4, 0 means no curve)
+    float curve_extrapolate_slope;  // Slope for extrapolation when magnitude > 1.0
 } adc_instance;
 
 class AnalogInput : public GPAddon {
@@ -104,9 +123,11 @@ public:
     virtual std::string name() { return AnalogName; }
 private:
     float readPin(int stick_num, Pin_t pin, uint16_t center, bool isXAxis);
+    float fastAtan2(float y, float x);
     float getInterpolatedScale(int stick_num, float angle);
     void applyFinetuneShapeAdjustments(int stick_num);
-    void trimToSquare(float x, float y, float& outX, float& outY);
+    void initializeCurveSegments(int stick_num, const struct { float x; float y; }* control_points, int control_points_count);
+    void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, float magnitude_sq, float magnitude = -1.0f);
     adc_instance adc_pairs[ADC_COUNT];
 };
 

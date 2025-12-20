@@ -117,6 +117,20 @@ export const analogScheme = {
 	joystickFinetuneShapeYRightPercent2: yup.number().label('Joystick Finetune Shape Y Right Percent 2'),
 	joystickFinetuneShapeForceCircular2: yup.boolean().label('Joystick Finetune Shape Force Circular 2'),
 	joystickFinetuneShapeAmplify2: yup.number().label('Joystick Finetune Shape Amplify 2'),
+	joystickCurvePoints1: yup
+		.array()
+		.of(yup.object().shape({
+			x: yup.number().min(0).max(1),
+			y: yup.number().min(0).max(1)
+		}))
+		.label('Joystick Curve Points 1'),
+	joystickCurvePoints2: yup
+		.array()
+		.of(yup.object().shape({
+			x: yup.number().min(0).max(1),
+			y: yup.number().min(0).max(1)
+		}))
+		.label('Joystick Curve Points 2'),
 };
 
 export const analogState = {
@@ -155,6 +169,8 @@ export const analogState = {
 	joystickFinetuneShapeAmplify2: 0.0,
 	joystickRangeData1: [],
 	joystickRangeData2: [],
+	joystickCurvePoints1: [],
+	joystickCurvePoints2: [],
 };
 
 // errorRateToPercent and percentToErrorRate removed - no longer used after removing forced_circularity

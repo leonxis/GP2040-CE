@@ -443,6 +443,16 @@ const drawCurveEditor = (
 	ctx.textBaseline = 'top';
 	ctx.fillText('0', 2, height - 2);
 	
+	// Draw reference line (diagonal from 0,0 to 1,1)
+	ctx.strokeStyle = '#999999';
+	ctx.lineWidth = 1;
+	ctx.setLineDash([5, 5]); // Dashed line pattern
+	ctx.beginPath();
+	ctx.moveTo(0, height); // Start at (0, 0) in normalized coordinates
+	ctx.lineTo(width, 0); // End at (1, 1) in normalized coordinates
+	ctx.stroke();
+	ctx.setLineDash([]); // Reset to solid line
+	
 	// Build full point list: start (0,0) + control points + end (1,1)
 	const fullPoints: Array<{x: number, y: number}> = [
 		{x: 0, y: 0},
@@ -600,8 +610,15 @@ const JoystickCalibration = ({
 	const [rightCurveActive, setRightCurveActive] = useState(false);
 	// Curve control points: array of {x, y} where x and y are in [0, 1] range
 	// Maximum 3 points (plus start (0,0) and end (1,1)) = 4 segments
-	const [leftCurvePoints, setLeftCurvePoints] = useState<Array<{x: number, y: number}>>([]);
-	const [rightCurvePoints, setRightCurvePoints] = useState<Array<{x: number, y: number}>>([]);
+	// Load from config if available
+	const [leftCurvePoints, setLeftCurvePoints] = useState<Array<{x: number, y: number}>>(() => {
+		const saved = (values as any)?.joystickCurvePoints1;
+		return Array.isArray(saved) ? saved : [];
+	});
+	const [rightCurvePoints, setRightCurvePoints] = useState<Array<{x: number, y: number}>>(() => {
+		const saved = (values as any)?.joystickCurvePoints2;
+		return Array.isArray(saved) ? saved : [];
+	});
 	const [draggingPointIndex, setDraggingPointIndex] = useState<{stick: 'left' | 'right', index: number} | null>(null);
 	const leftCurveCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightCurveCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -782,8 +799,8 @@ const JoystickCalibration = ({
 							let stickX = (invert1 === 1 || invert1 === 3) ? -rawStickX : rawStickX;
 							let stickY = (invert1 === 2 || invert1 === 3) ? -rawStickY : rawStickY;
 							
-							// Apply response curve if active
-							if (leftCurveActive && leftCurvePoints.length > 0) {
+							// Apply response curve if points are configured
+							if (leftCurvePoints.length > 0) {
 								// Convert from [-1, 1] to [0, 1] for curve application
 								const normalizedX = (stickX + 1) / 2;
 								const normalizedY = (stickY + 1) / 2;
@@ -872,8 +889,8 @@ const JoystickCalibration = ({
 							let stickX = (invert2 === 1 || invert2 === 3) ? -rawStickX : rawStickX;
 							let stickY = (invert2 === 2 || invert2 === 3) ? -rawStickY : rawStickY;
 							
-							// Apply response curve if active
-							if (rightCurveActive && rightCurvePoints.length > 0) {
+							// Apply response curve if points are configured
+							if (rightCurvePoints.length > 0) {
 								// Convert from [-1, 1] to [0, 1] for curve application
 								const normalizedX = (stickX + 1) / 2;
 								const normalizedY = (stickY + 1) / 2;
@@ -992,7 +1009,7 @@ const JoystickCalibration = ({
 		if (leftCurveActive && leftCurveCanvasRef.current) {
 			const ctx = leftCurveCanvasRef.current.getContext('2d');
 			if (ctx) {
-				drawCurveEditor(ctx, 280, 280, leftCurvePoints);
+				drawCurveEditor(ctx, 290, 290, leftCurvePoints);
 			}
 		}
 	}, [leftCurveActive, leftCurvePoints]);
@@ -1001,7 +1018,7 @@ const JoystickCalibration = ({
 		if (rightCurveActive && rightCurveCanvasRef.current) {
 			const ctx = rightCurveCanvasRef.current.getContext('2d');
 			if (ctx) {
-				drawCurveEditor(ctx, 280, 280, rightCurvePoints);
+				drawCurveEditor(ctx, 290, 290, rightCurvePoints);
 			}
 		}
 	}, [rightCurveActive, rightCurvePoints]);
@@ -1470,6 +1487,13 @@ const JoystickCalibration = ({
 									if (leftFinetuneShapeActive) {
 										setLeftFinetuneShapeActive(false);
 									}
+									if (!leftCurveActive) {
+										// Load curve points from config when opening
+										const saved = (values as any)?.joystickCurvePoints1;
+										if (Array.isArray(saved)) {
+											setLeftCurvePoints(saved);
+										}
+									}
 									setLeftCurveActive(!leftCurveActive);
 								}}
 							>
@@ -1529,14 +1553,14 @@ const JoystickCalibration = ({
 						)}
 						{leftCurveActive && (
 							<div style={{ textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
-								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>左摇杆曲线设置</div>
-								<div className="p-2">
-									<canvas
-										ref={leftCurveCanvasRef}
-										width={280}
-										height={280}
-										style={{ border: '1px solid #ccc', borderRadius: '4px', cursor: 'crosshair' }}
-										onMouseDown={(e) => {
+								<div>
+									<div style={{ display: 'flex', justifyContent: 'center' }}>
+										<canvas
+											ref={leftCurveCanvasRef}
+											width={290}
+											height={290}
+											style={{ border: '1px solid #ccc', borderRadius: '4px', cursor: 'crosshair' }}
+											onMouseDown={(e) => {
 											if (!leftCurveCanvasRef.current) return;
 											const rect = leftCurveCanvasRef.current.getBoundingClientRect();
 											const x = (e.clientX - rect.left) / rect.width;
@@ -1574,7 +1598,7 @@ const JoystickCalibration = ({
 															// Redraw immediately
 															const ctx = leftCurveCanvasRef.current.getContext('2d');
 															if (ctx) {
-																drawCurveEditor(ctx, 280, 280, updatedPoints);
+																drawCurveEditor(ctx, 290, 290, updatedPoints);
 															}
 															return;
 														}
@@ -1582,30 +1606,33 @@ const JoystickCalibration = ({
 												}
 											}
 										}}
-										onMouseMove={(e) => {
-											if (draggingPointIndex?.stick === 'left' && leftCurveCanvasRef.current) {
-												const rect = leftCurveCanvasRef.current.getBoundingClientRect();
-												const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-												const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
-												const newPoints = [...leftCurvePoints];
-												newPoints[draggingPointIndex.index] = { x, y };
-												setLeftCurvePoints(newPoints);
-												// Redraw immediately
-												const ctx = leftCurveCanvasRef.current.getContext('2d');
-												if (ctx) {
-													drawCurveEditor(ctx, 280, 280, newPoints);
+											onMouseMove={(e) => {
+												if (draggingPointIndex?.stick === 'left' && leftCurveCanvasRef.current) {
+													const rect = leftCurveCanvasRef.current.getBoundingClientRect();
+													const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+													const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+													const newPoints = [...leftCurvePoints];
+													newPoints[draggingPointIndex.index] = { x, y };
+													setLeftCurvePoints(newPoints);
+													// Redraw immediately
+													const ctx = leftCurveCanvasRef.current.getContext('2d');
+													if (ctx) {
+														drawCurveEditor(ctx, 290, 290, newPoints);
+													}
 												}
-											}
-										}}
-										onMouseUp={() => {
-											setDraggingPointIndex(null);
-										}}
-										onMouseLeave={() => {
-											setDraggingPointIndex(null);
-										}}
-									/>
-									<div className="mt-2 small text-muted text-center">
-										点击线条添加控制点（最多3个），拖动控制点调整曲线
+											}}
+											onMouseUp={() => {
+												setDraggingPointIndex(null);
+											}}
+											onMouseLeave={() => {
+												setDraggingPointIndex(null);
+											}}
+										/>
+									</div>
+									<div className="mt-2 small text-muted text-left">
+										1、点击线条添加控制点（最多3个）<br />
+										2、横向为摇杆物理距离，纵向为输出距离<br />
+										3、在虚线上方反映更灵敏，下方更迟钝
 									</div>
 									<div className="mt-2 d-flex gap-2 justify-content-end">
 										<Button
@@ -1617,7 +1644,7 @@ const JoystickCalibration = ({
 												if (leftCurveCanvasRef.current) {
 													const ctx = leftCurveCanvasRef.current.getContext('2d');
 													if (ctx) {
-														drawCurveEditor(ctx, 280, 280, []);
+														drawCurveEditor(ctx, 290, 290, []);
 													}
 												}
 											}}
@@ -1628,6 +1655,14 @@ const JoystickCalibration = ({
 											variant="danger"
 											size="sm"
 											onClick={() => {
+												// Save curve points to config (sorted by x coordinate)
+												// Validate and clamp values to [0, 1] range
+												const validatedPoints = leftCurvePoints.map(p => ({
+													x: Math.max(0, Math.min(1, p.x)),
+													y: Math.max(0, Math.min(1, p.y))
+												}));
+												const sortedPoints = validatedPoints.sort((a, b) => a.x - b.x);
+												setFieldValue('joystickCurvePoints1', sortedPoints);
 												setLeftCurveActive(false);
 											}}
 										>
@@ -1690,14 +1725,14 @@ const JoystickCalibration = ({
 						)}
 						{rightCurveActive && (
 							<div style={{ textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
-								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>右摇杆曲线设置</div>
-								<div className="p-2">
-									<canvas
-										ref={rightCurveCanvasRef}
-										width={280}
-										height={280}
-										style={{ border: '1px solid #ccc', borderRadius: '4px', cursor: 'crosshair' }}
-										onMouseDown={(e) => {
+								<div>
+									<div style={{ display: 'flex', justifyContent: 'center' }}>
+										<canvas
+											ref={rightCurveCanvasRef}
+											width={290}
+											height={290}
+											style={{ border: '1px solid #ccc', borderRadius: '4px', cursor: 'crosshair' }}
+											onMouseDown={(e) => {
 											if (!rightCurveCanvasRef.current) return;
 											const rect = rightCurveCanvasRef.current.getBoundingClientRect();
 											const x = (e.clientX - rect.left) / rect.width;
@@ -1735,7 +1770,7 @@ const JoystickCalibration = ({
 															// Redraw immediately
 															const ctx = rightCurveCanvasRef.current.getContext('2d');
 															if (ctx) {
-																drawCurveEditor(ctx, 280, 280, updatedPoints);
+																drawCurveEditor(ctx, 290, 290, updatedPoints);
 															}
 															return;
 														}
@@ -1743,30 +1778,33 @@ const JoystickCalibration = ({
 												}
 											}
 										}}
-										onMouseMove={(e) => {
-											if (draggingPointIndex?.stick === 'right' && rightCurveCanvasRef.current) {
-												const rect = rightCurveCanvasRef.current.getBoundingClientRect();
-												const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-												const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
-												const newPoints = [...rightCurvePoints];
-												newPoints[draggingPointIndex.index] = { x, y };
-												setRightCurvePoints(newPoints);
-												// Redraw immediately
-												const ctx = rightCurveCanvasRef.current.getContext('2d');
-												if (ctx) {
-													drawCurveEditor(ctx, 280, 280, newPoints);
+											onMouseMove={(e) => {
+												if (draggingPointIndex?.stick === 'right' && rightCurveCanvasRef.current) {
+													const rect = rightCurveCanvasRef.current.getBoundingClientRect();
+													const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+													const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+													const newPoints = [...rightCurvePoints];
+													newPoints[draggingPointIndex.index] = { x, y };
+													setRightCurvePoints(newPoints);
+													// Redraw immediately
+													const ctx = rightCurveCanvasRef.current.getContext('2d');
+													if (ctx) {
+														drawCurveEditor(ctx, 290, 290, newPoints);
+													}
 												}
-											}
-										}}
-										onMouseUp={() => {
-											setDraggingPointIndex(null);
-										}}
-										onMouseLeave={() => {
-											setDraggingPointIndex(null);
-										}}
-									/>
-									<div className="mt-2 small text-muted text-center">
-										点击线条添加控制点（最多3个），拖动控制点调整曲线
+											}}
+											onMouseUp={() => {
+												setDraggingPointIndex(null);
+											}}
+											onMouseLeave={() => {
+												setDraggingPointIndex(null);
+											}}
+										/>
+									</div>
+									<div className="mt-2 small text-muted text-left">
+										1、点击线条添加控制点（最多3个）<br />
+										2、横向为摇杆物理距离，纵向为输出距离<br />
+										3、在虚线上方反映更灵敏，下方更迟钝
 									</div>
 									<div className="mt-2 d-flex gap-2 justify-content-end">
 										<Button
@@ -1778,7 +1816,7 @@ const JoystickCalibration = ({
 												if (rightCurveCanvasRef.current) {
 													const ctx = rightCurveCanvasRef.current.getContext('2d');
 													if (ctx) {
-														drawCurveEditor(ctx, 280, 280, []);
+														drawCurveEditor(ctx, 290, 290, []);
 													}
 												}
 											}}
@@ -1789,6 +1827,14 @@ const JoystickCalibration = ({
 											variant="danger"
 											size="sm"
 											onClick={() => {
+												// Save curve points to config (sorted by x coordinate)
+												// Validate and clamp values to [0, 1] range
+												const validatedPoints = rightCurvePoints.map(p => ({
+													x: Math.max(0, Math.min(1, p.x)),
+													y: Math.max(0, Math.min(1, p.y))
+												}));
+												const sortedPoints = validatedPoints.sort((a, b) => a.x - b.x);
+												setFieldValue('joystickCurvePoints2', sortedPoints);
 												setRightCurveActive(false);
 											}}
 										>
@@ -1964,6 +2010,13 @@ const JoystickCalibration = ({
 									// If finetune shape is active, close it
 									if (rightFinetuneShapeActive) {
 										setRightFinetuneShapeActive(false);
+									}
+									if (!rightCurveActive) {
+										// Load curve points from config when opening
+										const saved = (values as any)?.joystickCurvePoints2;
+										if (Array.isArray(saved)) {
+											setRightCurvePoints(saved);
+										}
 									}
 									setRightCurveActive(!rightCurveActive);
 								}}
@@ -2348,5 +2401,3 @@ const JoystickCalibration = ({
 };
 
 export default JoystickCalibration;
-
-
