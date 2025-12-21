@@ -8,6 +8,10 @@ import StickCalibrationModal from '../Components/StickCalibrationModal';
 import RangeCalibrationModal from '../Components/RangeCalibrationModal';
 import { AddonPropTypes } from '../Pages/AddonsConfigPage';
 
+// Type definitions
+type CurvePoint = { x: number; y: number };
+type CurvePointInput = { x: string; y: string };
+
 const CIRCULARITY_DATA_SIZE = 48; // Number of angular positions to sample
 const ADC_MAX = 4095;
 const ADC_CENTER = ADC_MAX / 2.0;  // 2047.5, matches backend
@@ -219,6 +223,7 @@ const processJoystickData = (
 			offsetCenterY: offset_center_y,
 			scaledCenterX: scaled_center_x,
 			scaledCenterY: scaled_center_y,
+			currentDistance: current_distance, // Distance before range calibration scaling
 			normalizedX: trimmed.x * 0.5 + 0.5,
 			normalizedY: trimmed.y * 0.5 + 0.5,
 		}
@@ -382,16 +387,18 @@ const drawStickPosition = (
  * @param width Canvas width
  * @param height Canvas height
  * @param points Control points (excluding start (0,0) and end (1,1))
- * @param onPointClick Callback when clicking on line to add point
- * @param onPointDrag Callback when dragging a point
+ * @param progressRatio Progress ratio (0-1) for orange highlight line, or undefined to hide
+ * @param innerDeadzone Inner deadzone value (0-1), X-axis intercept
+ * @param antiDeadzone Anti-deadzone value (0-1), Y-axis intercept
  */
 const drawCurveEditor = (
 	ctx: CanvasRenderingContext2D,
 	width: number,
 	height: number,
-	points: Array<{x: number, y: number}>,
-	onPointClick?: (x: number, y: number) => void,
-	onPointDrag?: (index: number, x: number, y: number) => void
+	points: CurvePoint[],
+	progressRatio?: number,
+	innerDeadzone: number = 0,
+	antiDeadzone: number = 0
 ) => {
 	// Clear canvas
 	ctx.fillStyle = '#ffffff';
@@ -443,25 +450,81 @@ const drawCurveEditor = (
 	ctx.textBaseline = 'top';
 	ctx.fillText('0', 2, height - 2);
 	
-	// Draw reference line (diagonal from 0,0 to 1,1)
+	// Draw reference line (diagonal from (deadzone, antiDeadzone) to (1,1))
+	// This will be drawn after we calculate the deadzone/anti-deadzone points
+	
+	// Apply deadzone and anti-deadzone to points
+	// Deadzone: X-axis intercept - input values < deadzone produce output = antiDeadzone
+	// Anti-deadzone: Y-axis intercept - all outputs start from antiDeadzone
+	// 
+	// Visualization logic:
+	// 1. Start point: (innerDeadzone, 0) - curve starts at deadzone position on X-axis
+	// 2. Vertical segment: from (innerDeadzone, 0) to (innerDeadzone, antiDeadzone)
+	//    This represents the jump from 0 output to antiDeadzone output when input reaches deadzone
+	// 3. Actual curve: from (innerDeadzone, antiDeadzone) to (1, 1)
+	//    Points are remapped: x stays in [deadzone, 1], y is remapped from [0, 1] to [antiDeadzone, 1]
+	const applyDeadzones = (x: number, y: number): CurvePoint => {
+		if (x < innerDeadzone) {
+			// Input is below deadzone threshold: output = antiDeadzone
+			// But for visualization, we don't show points before deadzone
+			// Return a point that will be filtered out
+			return { x: -1, y: -1 }; // Invalid point, will be filtered
+		} else {
+			// Input is above deadzone: keep x in [deadzone, 1] range
+			// Apply anti-deadzone: remap y from [0, 1] to [antiDeadzone, 1]
+			const remappedY = antiDeadzone + y * (1 - antiDeadzone);
+			return { x, y: remappedY };
+		}
+	};
+	
+	// Build full point list with deadzone/anti-deadzone applied
+	// Start point: (innerDeadzone, 0) - curve starts at deadzone position
+	// Vertical segment end: (innerDeadzone, antiDeadzone)
+	// Actual curve points: from (innerDeadzone, antiDeadzone) onwards
+	const startPoint = { x: innerDeadzone, y: 0 };
+	const verticalEndPoint = { x: innerDeadzone, y: antiDeadzone };
+	const adjustedPoints = points
+		.map(p => applyDeadzones(p.x, p.y))
+		.filter(p => p.x >= 0 && p.y >= 0) // Filter out invalid points (x < deadzone)
+		.filter(p => p.x >= innerDeadzone) // Only keep points at or after deadzone
+		.sort((a, b) => a.x - b.x);
+	const endPoint = applyDeadzones(1, 1);
+	
+	// Build full points: start -> vertical end -> adjusted curve points -> end
+	const fullPoints: CurvePoint[] = [
+		startPoint,
+		...(innerDeadzone > 0 ? [verticalEndPoint] : []), // Add vertical segment end if deadzone > 0
+		...adjustedPoints,
+		endPoint
+	];
+	
+	// Draw reference line (diagonal from (deadzone, antiDeadzone) to (1,1))
 	ctx.strokeStyle = '#999999';
 	ctx.lineWidth = 1;
 	ctx.setLineDash([5, 5]); // Dashed line pattern
 	ctx.beginPath();
-	ctx.moveTo(0, height); // Start at (0, 0) in normalized coordinates
-	ctx.lineTo(width, 0); // End at (1, 1) in normalized coordinates
+	const refStartX = verticalEndPoint.x * width;
+	const refStartY = height - verticalEndPoint.y * height;
+	const refEndX = width; // (1, 1) in canvas coordinates
+	const refEndY = 0; // (1, 1) in canvas coordinates
+	ctx.moveTo(refStartX, refStartY);
+	ctx.lineTo(refEndX, refEndY);
 	ctx.stroke();
 	ctx.setLineDash([]); // Reset to solid line
 	
-	// Build full point list: start (0,0) + control points + end (1,1)
-	const fullPoints: Array<{x: number, y: number}> = [
-		{x: 0, y: 0},
-		...points.sort((a, b) => a.x - b.x), // Sort by x coordinate
-		{x: 1, y: 1}
-	];
+	// Calculate total curve length along the path
+	let totalCurveLength = 0;
+	const segmentLengths: number[] = [];
+	for (let i = 0; i < fullPoints.length - 1; i++) {
+		const dx = (fullPoints[i + 1].x - fullPoints[i].x) * width;
+		const dy = (fullPoints[i + 1].y - fullPoints[i].y) * height;
+		const segmentLength = Math.sqrt(dx * dx + dy * dy);
+		segmentLengths.push(segmentLength);
+		totalCurveLength += segmentLength;
+	}
 	
-	// Draw curve line
-	ctx.strokeStyle = '#0000ff';
+	// Draw full curve line in dark gray
+	ctx.strokeStyle = '#404040'; // Dark gray
 	ctx.lineWidth = 2;
 	ctx.beginPath();
 	for (let i = 0; i < fullPoints.length; i++) {
@@ -475,10 +538,53 @@ const drawCurveEditor = (
 	}
 	ctx.stroke();
 	
+	// Draw orange highlight line if progressRatio is provided
+	if (progressRatio !== undefined && progressRatio > 0 && totalCurveLength > 0) {
+		const targetLength = Math.min(progressRatio, 1.0) * totalCurveLength;
+		
+		ctx.strokeStyle = '#FFA500'; // Orange
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		// Start at the adjusted start point (with deadzone/anti-deadzone applied)
+		const startPx = startPoint.x * width;
+		const startPy = height - startPoint.y * height;
+		ctx.moveTo(startPx, startPy);
+		
+		let accumulatedLength = 0;
+		for (let i = 0; i < fullPoints.length - 1; i++) {
+			const px1 = fullPoints[i].x * width;
+			const py1 = height - fullPoints[i].y * height;
+			const px2 = fullPoints[i + 1].x * width;
+			const py2 = height - fullPoints[i + 1].y * height;
+			
+			const segmentLength = segmentLengths[i];
+			
+			if (accumulatedLength + segmentLength <= targetLength) {
+				// Entire segment is within target length
+				ctx.lineTo(px2, py2);
+				accumulatedLength += segmentLength;
+			} else {
+				// Partial segment - draw up to target point
+				const remainingLength = targetLength - accumulatedLength;
+				const t = remainingLength / segmentLength;
+				const endX = px1 + t * (px2 - px1);
+				const endY = py1 + t * (py2 - py1);
+				ctx.lineTo(endX, endY);
+				break;
+			}
+		}
+		ctx.stroke();
+	}
+	
 	// Draw control points (excluding start and end)
+	// Apply deadzone/anti-deadzone transformation to control points for correct display
 	for (let i = 0; i < points.length; i++) {
-		const px = points[i].x * width;
-		const py = height - points[i].y * height;
+		// Apply the same transformation as used for the curve
+		const transformedPoint = applyDeadzones(points[i].x, points[i].y);
+		// Only draw if point is valid (x >= deadzone)
+		if (transformedPoint.x >= innerDeadzone && transformedPoint.x >= 0 && transformedPoint.y >= 0) {
+			const px = transformedPoint.x * width;
+			const py = height - transformedPoint.y * height;
 		
 		// Draw point circle
 		ctx.fillStyle = '#ff0000';
@@ -488,21 +594,109 @@ const drawCurveEditor = (
 		ctx.strokeStyle = '#ffffff';
 		ctx.lineWidth = 2;
 		ctx.stroke();
+		}
 	}
 	
-	// Draw start and end points
+	// Draw start and end points (with deadzone/anti-deadzone applied)
+	const startPx = startPoint.x * width;
+	const startPy = height - startPoint.y * height;
+	const endPx = endPoint.x * width;
+	const endPy = height - endPoint.y * height;
+	
 	ctx.fillStyle = '#00ff00';
 	ctx.beginPath();
-	ctx.arc(0, height, 6, 0, 2 * Math.PI);
+	ctx.arc(startPx, startPy, 6, 0, 2 * Math.PI);
 	ctx.fill();
 	ctx.strokeStyle = '#ffffff';
 	ctx.lineWidth = 2;
 	ctx.stroke();
 	
 	ctx.beginPath();
-	ctx.arc(width, 0, 6, 0, 2 * Math.PI);
+	ctx.arc(endPx, endPy, 6, 0, 2 * Math.PI);
 	ctx.fill();
 	ctx.stroke();
+	
+	// Draw deadzone and anti-deadzone reference lines and semi-transparent overlay
+	const deadzoneX = innerDeadzone * width;
+	const antiDeadzoneY = height - antiDeadzone * height;
+	
+	// Draw semi-transparent overlay in the rectangle formed by deadzone line, anti-deadzone line, and (1,1)
+	// Rectangle: from (deadzoneX, antiDeadzoneY) to (width, 0)
+	// In canvas coordinates: (1,1) is at (width, 0)
+	if (innerDeadzone > 0 || antiDeadzone > 0) {
+		ctx.fillStyle = 'rgba(200, 200, 200, 0.5)'; // Light gray with 50% opacity
+		ctx.beginPath();
+		// Rectangle from (deadzoneX, antiDeadzoneY) to (width, 0)
+		// Draw using moveTo and lineTo to ensure correct coordinates
+		ctx.moveTo(deadzoneX, antiDeadzoneY);
+		ctx.lineTo(width, antiDeadzoneY);
+		ctx.lineTo(width, 0);
+		ctx.lineTo(deadzoneX, 0);
+		ctx.closePath();
+		ctx.fill();
+	}
+	
+	// Draw deadzone vertical line (X-axis intercept) in light gray
+	if (innerDeadzone > 0) {
+		ctx.strokeStyle = '#cccccc'; // Light gray
+		ctx.lineWidth = 1;
+		ctx.setLineDash([3, 3]);
+		ctx.beginPath();
+		ctx.moveTo(deadzoneX, height);
+		ctx.lineTo(deadzoneX, 0);
+		ctx.stroke();
+		ctx.setLineDash([]);
+	}
+	
+	// Draw anti-deadzone horizontal line (Y-axis intercept) in light gray
+	if (antiDeadzone > 0) {
+		ctx.strokeStyle = '#cccccc'; // Light gray
+		ctx.lineWidth = 1;
+		ctx.setLineDash([3, 3]);
+		ctx.beginPath();
+		ctx.moveTo(0, antiDeadzoneY);
+		ctx.lineTo(width, antiDeadzoneY);
+		ctx.stroke();
+		ctx.setLineDash([]);
+	}
+};
+
+/**
+ * Validates and corrects a point's Y value to ensure monotonicity
+ * Each point's Y value must be >= all points with smaller X values
+ * @param point The point to validate
+ * @param allPoints All existing points (excluding start (0,0) and end (1,1))
+ * @returns Corrected point with valid Y value
+ */
+const validatePointMonotonicity = (point: CurvePoint, allPoints: CurvePoint[]): CurvePoint => {
+	// Find the maximum Y value among all points with X < point.x
+	const maxYBefore = allPoints
+		.filter(p => p.x < point.x)
+		.reduce((max, p) => Math.max(max, p.y), 0); // Start with 0 (from start point (0,0))
+	
+	// Ensure point.y >= maxYBefore
+	const correctedY = Math.max(point.y, maxYBefore);
+	
+	return { x: point.x, y: correctedY };
+};
+
+/**
+ * Validates and corrects all points to ensure monotonicity
+ * @param points Array of points to validate
+ * @returns Array of corrected points, sorted by X
+ */
+const validateAllPointsMonotonicity = (points: CurvePoint[]): CurvePoint[] => {
+	// Sort by X first
+	const sorted = [...points].sort((a, b) => a.x - b.x);
+	
+	// Validate each point in order
+	const validated: CurvePoint[] = [];
+	for (let i = 0; i < sorted.length; i++) {
+		const corrected = validatePointMonotonicity(sorted[i], validated);
+		validated.push(corrected);
+	}
+	
+	return validated;
 };
 
 /**
@@ -511,14 +705,14 @@ const drawCurveEditor = (
  * @param points Control points (excluding start (0,0) and end (1,1))
  * @returns Output value in [0, 1]
  */
-const applyResponseCurve = (value: number, points: Array<{x: number, y: number}>): number => {
+const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
 	if (points.length === 0) {
 		// No curve: linear mapping
 		return value;
 	}
 	
 	// Build full point list: start (0,0) + control points + end (1,1)
-	const fullPoints: Array<{x: number, y: number}> = [
+	const fullPoints: CurvePoint[] = [
 		{x: 0, y: 0},
 		...points.sort((a, b) => a.x - b.x), // Sort by x coordinate
 		{x: 1, y: 1}
@@ -589,8 +783,8 @@ const JoystickCalibration = ({
 	const { handleSubmit } = useFormikContext();
 	const leftStickCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightStickCanvasRef = useRef<HTMLCanvasElement>(null);
-	const [leftStickData, setLeftStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0 });
-	const [rightStickData, setRightStickData] = useState({ x: 0, y: 0, rawX: 0, rawY: 0 });
+	const [leftStickData, setLeftStickData] = useState<{ x: number; y: number; rawX: number; rawY: number; progressRatio?: number }>({ x: 0, y: 0, rawX: 0, rawY: 0 });
+	const [rightStickData, setRightStickData] = useState<{ x: number; y: number; rawX: number; rawY: number; progressRatio?: number }>({ x: 0, y: 0, rawX: 0, rawY: 0 });
 	const [showLeftCalibrationModal, setShowLeftCalibrationModal] = useState(false);
 	const [showRightCalibrationModal, setShowRightCalibrationModal] = useState(false);
 	const [showLeftRangeModal, setShowLeftRangeModal] = useState(false);
@@ -611,13 +805,28 @@ const JoystickCalibration = ({
 	// Curve control points: array of {x, y} where x and y are in [0, 1] range
 	// Maximum 3 points (plus start (0,0) and end (1,1)) = 4 segments
 	// Load from config if available
-	const [leftCurvePoints, setLeftCurvePoints] = useState<Array<{x: number, y: number}>>(() => {
-		const saved = (values as any)?.joystickCurvePoints1;
-		return Array.isArray(saved) ? saved : [];
+	const [leftCurvePoints, setLeftCurvePoints] = useState<CurvePoint[]>(() => {
+		const saved = values?.joystickCurvePoints1;
+		return Array.isArray(saved) ? saved as CurvePoint[] : [];
 	});
-	const [rightCurvePoints, setRightCurvePoints] = useState<Array<{x: number, y: number}>>(() => {
-		const saved = (values as any)?.joystickCurvePoints2;
-		return Array.isArray(saved) ? saved : [];
+	const [rightCurvePoints, setRightCurvePoints] = useState<CurvePoint[]>(() => {
+		const saved = values?.joystickCurvePoints2;
+		return Array.isArray(saved) ? saved as CurvePoint[] : [];
+	});
+	// Temporary input values for curve points (only update state on blur)
+	const [leftCurveInputValues, setLeftCurveInputValues] = useState<CurvePointInput[]>(() => {
+		const saved = values?.joystickCurvePoints1;
+		if (Array.isArray(saved)) {
+			return (saved as CurvePoint[]).map(p => ({ x: p.x.toString(), y: p.y.toString() }));
+		}
+		return [];
+	});
+	const [rightCurveInputValues, setRightCurveInputValues] = useState<CurvePointInput[]>(() => {
+		const saved = values?.joystickCurvePoints2;
+		if (Array.isArray(saved)) {
+			return (saved as CurvePoint[]).map(p => ({ x: p.x.toString(), y: p.y.toString() }));
+		}
+		return [];
 	});
 	const [draggingPointIndex, setDraggingPointIndex] = useState<{stick: 'left' | 'right', index: number} | null>(null);
 	const leftCurveCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -647,7 +856,7 @@ const JoystickCalibration = ({
 	} | null>(null);
 	const leftJitterSamplingAbortRef = useRef<boolean>(false);
 	const leftJitterLastSampleRef = useRef<{ x: number; y: number } | null>(null);
-	const leftJitterTimeoutRef = useRef<any>(null);
+	const leftJitterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [leftJitterFilter, setLeftJitterFilter] = useState<number>(0);
 	const [leftJitterFilterOriginal, setLeftJitterFilterOriginal] = useState<number>(0);
 	
@@ -671,32 +880,32 @@ const JoystickCalibration = ({
 	} | null>(null);
 	const rightJitterSamplingAbortRef = useRef<boolean>(false);
 	const rightJitterLastSampleRef = useRef<{ x: number; y: number } | null>(null);
-	const rightJitterTimeoutRef = useRef<any>(null);
+	const rightJitterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [rightJitterFilter, setRightJitterFilter] = useState<number>(0);
 	const [rightJitterFilterOriginal, setRightJitterFilterOriginal] = useState<number>(0);
 	
 	// Finetune shape modal state - initialize from values
-	const [leftFinetuneShapeForceCircular, setLeftFinetuneShapeForceCircular] = useState((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
-	const [leftFinetuneShapeAmplify, setLeftFinetuneShapeAmplify] = useState((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
-	const [rightFinetuneShapeForceCircular, setRightFinetuneShapeForceCircular] = useState((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
-	const [rightFinetuneShapeAmplify, setRightFinetuneShapeAmplify] = useState((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
+	const [leftFinetuneShapeForceCircular, setLeftFinetuneShapeForceCircular] = useState(values?.joystickFinetuneShapeForceCircular1 ?? false);
+	const [leftFinetuneShapeAmplify, setLeftFinetuneShapeAmplify] = useState(values?.joystickFinetuneShapeAmplify1 ?? 0.0);
+	const [rightFinetuneShapeForceCircular, setRightFinetuneShapeForceCircular] = useState(values?.joystickFinetuneShapeForceCircular2 ?? false);
+	const [rightFinetuneShapeAmplify, setRightFinetuneShapeAmplify] = useState(values?.joystickFinetuneShapeAmplify2 ?? 0.0);
 	
 	// Update state when finetune shape becomes active (load saved values from server)
 	useEffect(() => {
 		if (leftFinetuneShapeActive) {
-			setLeftFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
-			setLeftFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
+			setLeftFinetuneShapeForceCircular(values?.joystickFinetuneShapeForceCircular1 ?? false);
+			setLeftFinetuneShapeAmplify(values?.joystickFinetuneShapeAmplify1 ?? 0.0);
 		}
 		if (rightFinetuneShapeActive) {
-			setRightFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
-			setRightFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
+			setRightFinetuneShapeForceCircular(values?.joystickFinetuneShapeForceCircular2 ?? false);
+			setRightFinetuneShapeAmplify(values?.joystickFinetuneShapeAmplify2 ?? 0.0);
 		}
-	}, [leftFinetuneShapeActive, rightFinetuneShapeActive, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2]);
+	}, [leftFinetuneShapeActive, rightFinetuneShapeActive, values?.joystickFinetuneShapeForceCircular1, values?.joystickFinetuneShapeAmplify1, values?.joystickFinetuneShapeForceCircular2, values?.joystickFinetuneShapeAmplify2]);
 	
 	// Load jitter filter values when modal opens
 	useEffect(() => {
 		if (showLeftJitterDataModal) {
-			const savedValue = (values as any)?.joystickJitterFilter1 ?? 0;
+			const savedValue = values?.joystickJitterFilter1 ?? 0;
 			setLeftJitterFilter(savedValue);
 			setLeftJitterFilterOriginal(savedValue);
 		}
@@ -704,7 +913,7 @@ const JoystickCalibration = ({
 	
 	useEffect(() => {
 		if (showRightJitterDataModal) {
-			const savedValue = (values as any)?.joystickJitterFilter2 ?? 0;
+			const savedValue = values?.joystickJitterFilter2 ?? 0;
 			setRightJitterFilter(savedValue);
 			setRightJitterFilterOriginal(savedValue);
 		}
@@ -726,6 +935,7 @@ const JoystickCalibration = ({
 		offsetCenterY: 0,
 		scaledCenterX: 0,
 		scaledCenterY: 0,
+		currentDistance: 0,
 		normalizedX: 0,
 		normalizedY: 0,
 	});
@@ -740,6 +950,7 @@ const JoystickCalibration = ({
 		offsetCenterY: 0,
 		scaledCenterX: 0,
 		scaledCenterY: 0,
+		currentDistance: 0,
 		normalizedX: 0,
 		normalizedY: 0,
 	});
@@ -760,16 +971,16 @@ const JoystickCalibration = ({
 						if (data1.success) {
 							const centerX = values.joystickCenterX || ADC_CENTER;
 							const centerY = values.joystickCenterY || ADC_CENTER;
-							const originalRangeData = (values as any).joystickRangeData1 || [];
+							const originalRangeData = values?.joystickRangeData1 || [];
 							
 							// Use ref values when finetune shape is active, otherwise use saved values
 							const percentRef = leftFinetuneShapePercentRef.current;
 							const forceCircular = leftFinetuneShapeActive 
 								? percentRef.forceCircular 
-								: ((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
+								: (values?.joystickFinetuneShapeForceCircular1 ?? false);
 							const amplify = leftFinetuneShapeActive 
 								? percentRef.amplify 
-								: ((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
+								: (values?.joystickFinetuneShapeAmplify1 ?? 0.0);
 							
 							const adjustedRangeData = applyFinetuneShapeAdjustments(
 								originalRangeData,
@@ -778,7 +989,7 @@ const JoystickCalibration = ({
 							);
 							
 							// Apply jitter filter for visualization using configured threshold
-							const jitterThreshold1 = (values as any)?.joystickJitterFilter1 ?? 0;
+							const jitterThreshold1 = values?.joystickJitterFilter1 ?? 0;
 							const filtered1 = applyJitterFilterToAdc(
 								data1.x,
 								data1.y,
@@ -795,7 +1006,7 @@ const JoystickCalibration = ({
 							);
 							
 							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y)
-							const invert1 = (values as any)?.analogAdc1Invert ?? 0;
+							const invert1 = values?.analogAdc1Invert ?? 0;
 							let stickX = (invert1 === 1 || invert1 === 3) ? -rawStickX : rawStickX;
 							let stickY = (invert1 === 2 || invert1 === 3) ? -rawStickY : rawStickY;
 							
@@ -817,11 +1028,29 @@ const JoystickCalibration = ({
 								}
 							}
 							
+							// Calculate progress ratio for curve visualization
+							// dist = currentDistance - distance from center in ADC units (before range calibration scaling)
+							// This is the raw distance before applying range calibration
+							const dist = detailData.currentDistance;
+							// l = scale * ADC_CENTER - outer calibration ADC value length for this direction
+							// rangeData stores scale = distance / ADC_CENTER for each angle
+							// So when stick reaches outer boundary: distance = scale * ADC_CENTER
+							// Therefore: l = scale * ADC_CENTER (the maximum distance for this direction)
+							// When scale = 1.0 (no calibration), l = ADC_CENTER
+							// When scale > 1.0 (calibrated), l > ADC_CENTER (larger outer boundary)
+							// When scale < 1.0 (calibrated), l < ADC_CENTER (smaller outer boundary)
+							const l = detailData.scale > 0 ? detailData.scale * ADC_CENTER : ADC_CENTER;
+							// progressRatio = dist / l (clamped to [0, 1])
+							// This represents how far along the outer boundary the stick has reached
+							// When dist = l, the stick has reached the outer boundary, progressRatio = 1
+							const progressRatio = l > 0 ? Math.min(1.0, Math.max(0.0, dist / l)) : 0;
+							
 							setLeftStickData({
 								x: stickX,
 								y: stickY,
 								rawX: filtered1.x,
 								rawY: filtered1.y,
+								progressRatio: progressRatio,
 							});
 							
 							setLeftStickDetailData(detailData);
@@ -850,16 +1079,16 @@ const JoystickCalibration = ({
 						if (data2.success) {
 							const centerX = values.joystickCenterX2 || ADC_CENTER;
 							const centerY = values.joystickCenterY2 || ADC_CENTER;
-							const originalRangeData = (values as any).joystickRangeData2 || [];
+							const originalRangeData = values?.joystickRangeData2 || [];
 							
 							// Use ref values when finetune shape is active, otherwise use saved values
 							const percentRef = rightFinetuneShapePercentRef.current;
 							const forceCircular = rightFinetuneShapeActive 
 								? percentRef.forceCircular 
-								: ((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
+								: (values?.joystickFinetuneShapeForceCircular2 ?? false);
 							const amplify = rightFinetuneShapeActive 
 								? percentRef.amplify 
-								: ((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
+								: (values?.joystickFinetuneShapeAmplify2 ?? 0.0);
 							
 							const adjustedRangeData = applyFinetuneShapeAdjustments(
 								originalRangeData,
@@ -868,7 +1097,7 @@ const JoystickCalibration = ({
 							);
 							
 							// Apply jitter filter for visualization using configured threshold
-							const jitterThreshold2 = (values as any)?.joystickJitterFilter2 ?? 0;
+							const jitterThreshold2 = values?.joystickJitterFilter2 ?? 0;
 							const filtered2 = applyJitterFilterToAdc(
 								data2.x,
 								data2.y,
@@ -885,7 +1114,7 @@ const JoystickCalibration = ({
 							);
 							
 							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y)
-							const invert2 = (values as any)?.analogAdc2Invert ?? 0;
+							const invert2 = values?.analogAdc2Invert ?? 0;
 							let stickX = (invert2 === 1 || invert2 === 3) ? -rawStickX : rawStickX;
 							let stickY = (invert2 === 2 || invert2 === 3) ? -rawStickY : rawStickY;
 							
@@ -907,11 +1136,29 @@ const JoystickCalibration = ({
 								}
 							}
 							
+							// Calculate progress ratio for curve visualization
+							// dist = currentDistance - distance from center in ADC units (before range calibration scaling)
+							// This is the raw distance before applying range calibration
+							const dist = detailData.currentDistance;
+							// l = scale * ADC_CENTER - outer calibration ADC value length for this direction
+							// rangeData stores scale = distance / ADC_CENTER for each angle
+							// So when stick reaches outer boundary: distance = scale * ADC_CENTER
+							// Therefore: l = scale * ADC_CENTER (the maximum distance for this direction)
+							// When scale = 1.0 (no calibration), l = ADC_CENTER
+							// When scale > 1.0 (calibrated), l > ADC_CENTER (larger outer boundary)
+							// When scale < 1.0 (calibrated), l < ADC_CENTER (smaller outer boundary)
+							const l = detailData.scale > 0 ? detailData.scale * ADC_CENTER : ADC_CENTER;
+							// progressRatio = dist / l (clamped to [0, 1])
+							// This represents how far along the outer boundary the stick has reached
+							// When dist = l, the stick has reached the outer boundary, progressRatio = 1
+							const progressRatio = l > 0 ? Math.min(1.0, Math.max(0.0, dist / l)) : 0;
+							
 							setRightStickData({
 								x: stickX,
 								y: stickY,
 								rawX: filtered2.x,
 								rawY: filtered2.y,
+								progressRatio: progressRatio,
 							});
 							
 							setRightStickDetailData(detailData);
@@ -942,7 +1189,7 @@ const JoystickCalibration = ({
 		return () => {
 			clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, (values as any)?.joystickFinetuneShapeForceCircular1, (values as any)?.joystickFinetuneShapeAmplify1, (values as any)?.joystickFinetuneShapeForceCircular2, (values as any)?.joystickFinetuneShapeAmplify2, leftFinetuneShapeActive, rightFinetuneShapeActive]);
+	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.joystickFinetuneShapeForceCircular1, values?.joystickFinetuneShapeAmplify1, values?.joystickFinetuneShapeForceCircular2, values?.joystickFinetuneShapeAmplify2, leftFinetuneShapeActive, rightFinetuneShapeActive]);
 
 	// Update canvas when stick data changes
 	useEffect(() => {
@@ -1004,24 +1251,61 @@ const JoystickCalibration = ({
 		};
 	}, [leftStickData, rightStickData, leftFinetuneCenterActive, rightFinetuneCenterActive, leftFinetuneShapeActive, rightFinetuneShapeActive, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData]);
 
+	// Sync input values with curve points when points change from other sources (e.g., canvas dragging, adding points)
+	useEffect(() => {
+		if (leftCurvePoints.length === leftCurveInputValues.length) {
+			// Only update if there's a mismatch (excluding user editing)
+			const needsUpdate = leftCurvePoints.some((p, i) => {
+				const inputVal = leftCurveInputValues[i];
+				return !inputVal || Math.abs(parseFloat(inputVal.x || '0') - p.x) > 0.0001 || Math.abs(parseFloat(inputVal.y || '0') - p.y) > 0.0001;
+			});
+			if (needsUpdate) {
+				setLeftCurveInputValues(leftCurvePoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+			}
+		} else {
+			// Length mismatch - full sync
+			setLeftCurveInputValues(leftCurvePoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+		}
+	}, [leftCurvePoints]);
+
+	useEffect(() => {
+		if (rightCurvePoints.length === rightCurveInputValues.length) {
+			// Only update if there's a mismatch (excluding user editing)
+			const needsUpdate = rightCurvePoints.some((p, i) => {
+				const inputVal = rightCurveInputValues[i];
+				return !inputVal || Math.abs(parseFloat(inputVal.x || '0') - p.x) > 0.0001 || Math.abs(parseFloat(inputVal.y || '0') - p.y) > 0.0001;
+			});
+			if (needsUpdate) {
+				setRightCurveInputValues(rightCurvePoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+			}
+		} else {
+			// Length mismatch - full sync
+			setRightCurveInputValues(rightCurvePoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+		}
+	}, [rightCurvePoints]);
+
 	// Update curve editor canvas
 	useEffect(() => {
 		if (leftCurveActive && leftCurveCanvasRef.current) {
 			const ctx = leftCurveCanvasRef.current.getContext('2d');
 			if (ctx) {
-				drawCurveEditor(ctx, 290, 290, leftCurvePoints);
+				const innerDeadzone = (values?.inner_deadzone || 0) / 100.0; // Convert from percentage to 0-1
+				const antiDeadzone = (values?.anti_deadzone || 0) / 100.0; // Convert from percentage to 0-1
+				drawCurveEditor(ctx, 300, 300, leftCurvePoints, leftStickData.progressRatio, innerDeadzone, antiDeadzone);
 			}
 		}
-	}, [leftCurveActive, leftCurvePoints]);
+	}, [leftCurveActive, leftCurvePoints, leftStickData.progressRatio, values?.inner_deadzone, values?.anti_deadzone]);
 
 	useEffect(() => {
 		if (rightCurveActive && rightCurveCanvasRef.current) {
 			const ctx = rightCurveCanvasRef.current.getContext('2d');
 			if (ctx) {
-				drawCurveEditor(ctx, 290, 290, rightCurvePoints);
+				const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0; // Convert from percentage to 0-1
+				const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0; // Convert from percentage to 0-1
+				drawCurveEditor(ctx, 300, 300, rightCurvePoints, rightStickData.progressRatio, innerDeadzone, antiDeadzone);
 			}
 		}
-	}, [rightCurveActive, rightCurvePoints]);
+	}, [rightCurveActive, rightCurvePoints, rightStickData.progressRatio, values?.inner_deadzone2, values?.anti_deadzone2]);
 
 	// Calculate statistics for samples (helper function)
 	const calculateJitterStats = (samples: Array<{ x: number; y: number }>) => {
@@ -1319,18 +1603,686 @@ const JoystickCalibration = ({
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
-			<div id="JoystickCalibrationOptions" hidden={!values || !values.AnalogInputEnabled || values.AnalogInputEnabled === 0}>
-				{/* Canvas and controls row: Left Canvas - Left Controls - Right Canvas - Right Controls */}
-				<div className="mb-3" style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
-					{/* Left stick canvas and buttons */}
-					<div className="text-center" style={{ width: '300px' }}>
+			<div id="JoystickCalibrationOptions" hidden={!values || !values.AnalogInputEnabled || values.AnalogInputEnabled === 0} style={{ overflowX: 'auto' }}>
+				{/* 4 columns x 2 rows grid layout */}
+				<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 300px)', gridTemplateRows: '310px auto auto', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
+					{/* Row 1, Column 1: Left stick canvas (position or curve) */}
+					<div className="text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', width: '300px' }}>
+						<div style={{ position: 'relative', width: '300px', height: '300px' }}>
 						<canvas
 							ref={leftStickCanvasRef}
 							width={300}
 							height={300}
-							style={{ border: '1px solid #ccc', borderRadius: '4px' }}
-						/>
-						<div className="mt-2 small">
+								style={{ 
+									border: '1px solid #ccc', 
+									borderRadius: '4px',
+									display: leftCurveActive ? 'none' : 'block'
+								}}
+							/>
+										<canvas
+											ref={leftCurveCanvasRef}
+								width={300}
+								height={300}
+								style={{ 
+									border: '1px solid #ccc', 
+									borderRadius: '4px', 
+									cursor: 'crosshair',
+									display: leftCurveActive ? 'block' : 'none',
+									position: leftCurveActive ? 'absolute' : 'relative',
+									top: leftCurveActive ? 0 : 'auto',
+									left: leftCurveActive ? 0 : 'auto'
+								}}
+											onMouseDown={(e) => {
+											if (!leftCurveCanvasRef.current) return;
+											const rect = leftCurveCanvasRef.current.getBoundingClientRect();
+											const x = (e.clientX - rect.left) / rect.width;
+											const y = 1 - (e.clientY - rect.top) / rect.height; // Flip Y axis
+											
+											// Check if clicking on an existing point
+											// Apply deadzone/anti-deadzone transformation to match displayed positions
+											const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+											const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+											const applyDeadzones = (px: number, py: number) => {
+												if (px < innerDeadzone) {
+													return { x: -1, y: -1 }; // Invalid point
+												} else {
+													const remappedY = antiDeadzone + py * (1 - antiDeadzone);
+													return { x: px, y: remappedY };
+												}
+											};
+											const pointRadius = 6 / rect.width;
+											for (let i = 0; i < leftCurvePoints.length; i++) {
+												const transformedPoint = applyDeadzones(leftCurvePoints[i].x, leftCurvePoints[i].y);
+												if (transformedPoint.x >= innerDeadzone && transformedPoint.x >= 0 && transformedPoint.y >= 0) {
+													const px = transformedPoint.x;
+													const py = transformedPoint.y;
+													const dist = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
+													if (dist < pointRadius * 2) {
+														setDraggingPointIndex({ stick: 'left', index: i });
+														return;
+													}
+												}
+											}
+											
+											// Check if clicking on the line to add a new point
+											if (leftCurvePoints.length < 3) {
+												// Find the segment
+												const sortedPoints = [...leftCurvePoints].sort((a, b) => a.x - b.x);
+												const fullPoints = [{x: 0, y: 0}, ...sortedPoints, {x: 1, y: 1}];
+												for (let i = 0; i < fullPoints.length - 1; i++) {
+													const p1 = fullPoints[i];
+													const p2 = fullPoints[i + 1];
+													if (x >= p1.x && x <= p2.x) {
+														// Calculate Y on the line
+														const t = (x - p1.x) / (p2.x - p1.x);
+														const lineY = p1.y + t * (p2.y - p1.y);
+														const dist = Math.abs(y - lineY);
+														if (dist < 0.05) { // Within 5% of line
+															const newPoint = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+															// Validate monotonicity before adding
+															const validatedPoint = validatePointMonotonicity(newPoint, leftCurvePoints);
+															const updatedPoints = [...leftCurvePoints, validatedPoint];
+															// Re-validate all points to ensure monotonicity
+															const finalPoints = validateAllPointsMonotonicity(updatedPoints);
+															setLeftCurvePoints(finalPoints);
+													setLeftCurveInputValues(finalPoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+															// Redraw immediately
+															const ctx = leftCurveCanvasRef.current.getContext('2d');
+															if (ctx) {
+														const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+														const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+														drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
+															}
+															return;
+														}
+													}
+												}
+											}
+										}}
+											onMouseMove={(e) => {
+												if (draggingPointIndex?.stick === 'left' && leftCurveCanvasRef.current) {
+													const rect = leftCurveCanvasRef.current.getBoundingClientRect();
+													const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+													const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+													const newPoints = [...leftCurvePoints];
+													const updatedPoint = { x, y };
+													// Validate monotonicity for the dragged point
+													const otherPoints = newPoints.filter((_, i) => i !== draggingPointIndex.index);
+													const validatedPoint = validatePointMonotonicity(updatedPoint, otherPoints);
+													newPoints[draggingPointIndex.index] = validatedPoint;
+													// Re-validate all points to ensure monotonicity
+													const finalPoints = validateAllPointsMonotonicity(newPoints);
+													setLeftCurvePoints(finalPoints);
+										// Update input values to match (use final validated points)
+										setLeftCurveInputValues(finalPoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+													// Redraw immediately
+													const ctx = leftCurveCanvasRef.current.getContext('2d');
+													if (ctx) {
+											const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+											const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+											drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
+													}
+												}
+											}}
+											onMouseUp={() => {
+												setDraggingPointIndex(null);
+											}}
+											onMouseLeave={() => {
+												setDraggingPointIndex(null);
+											}}
+										/>
+									</div>
+									</div>
+
+					{/* Row 1, Column 2: Left finetune shape controls or left curve info box */}
+					<div style={{ width: '300px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+						{leftFinetuneShapeActive && !leftCurveActive && (
+							<div style={{ width: '300px', textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
+								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>左摇杆外圈调教</div>
+								<div className="p-2">
+									<div className="mb-3">
+										<FormCheck
+											type="switch"
+											id="leftFinetuneShapeForceCircular"
+											label="强制圆形"
+											checked={leftFinetuneShapeForceCircular}
+											onChange={(e) => setLeftFinetuneShapeForceCircular(e.target.checked)}
+										/>
+										<p className="text-muted small mt-1 mb-0">
+											{leftFinetuneShapeForceCircular
+												? "强制圆形会将摇杆外圈移动半径严格归一到圆形。"
+												: "关闭强制圆形时将产生反映摇杆真实形状的外圈与误差率。"}
+										</p>
+									</div>
+									<div className="mb-2">
+										<Form.Label className="mb-1">外圈放大系数: {leftFinetuneShapeAmplify.toFixed(1)}%</Form.Label>
+										<Form.Range
+											min={-20}
+											max={20}
+											step={0.1}
+											value={leftFinetuneShapeAmplify}
+											onChange={(e) => setLeftFinetuneShapeAmplify(parseFloat(e.target.value))}
+										/>
+										<p className="text-muted small mt-1 mb-0">
+											扩大系数可以放大摇杆覆盖范围，加快移动响应速度。
+										</p>
+									</div>
+									<div className="mt-3 text-end">
+										<Button
+											variant="danger"
+											size="sm"
+											onClick={() => {
+												setFieldValue('joystickFinetuneShapeForceCircular1', leftFinetuneShapeForceCircular);
+												setFieldValue('joystickFinetuneShapeAmplify1', leftFinetuneShapeAmplify);
+												setLeftFinetuneShapeActive(false);
+											}}
+										>
+											确定
+										</Button>
+									</div>
+								</div>
+							</div>
+						)}
+						{leftCurveActive && (
+							<div style={{ width: '300px', textAlign: 'left' }}>
+								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+									<div style={{ marginBottom: '6px', fontSize: '0.95rem' }}>左摇杆曲线设置</div>
+									<div style={{ marginBottom: '6px' }}>
+										<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>内部死区: {(values?.inner_deadzone || 0).toFixed(1)}%</Form.Label>
+										<Form.Range
+											min={0}
+											max={15}
+											step={0.1}
+											value={values?.inner_deadzone || 0}
+											onChange={(e) => setFieldValue('inner_deadzone', Math.round(parseFloat(e.target.value)))}
+										/>
+									</div>
+									<div style={{ marginBottom: '6px' }}>
+										<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>反死区: {(values?.anti_deadzone || 0).toFixed(1)}%</Form.Label>
+										<Form.Range
+											min={0}
+											max={15}
+											step={0.1}
+											value={values?.anti_deadzone || 0}
+											onChange={(e) => setFieldValue('anti_deadzone', Math.round(parseFloat(e.target.value)))}
+										/>
+									</div>
+									<div style={{ flex: 1, overflowY: 'auto' }}>
+										<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>控制点</div>
+										{leftCurvePoints.length > 0 ? (
+											<div style={{ fontSize: '0.875rem' }}>
+												{leftCurvePoints.map((point, originalIndex) => ({ point, originalIndex }))
+													.sort((a, b) => a.point.x - b.point.x)
+													.map(({ point, originalIndex }) => {
+														const inputValue = leftCurveInputValues[originalIndex] || { x: point.x.toString(), y: point.y.toString() };
+														return (
+															<div key={originalIndex} style={{ marginBottom: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+																<span style={{ minWidth: '16px', fontSize: '0.8rem' }}>X:</span>
+																<Form.Control
+																	type="number"
+																	size="sm"
+																	min={0}
+																	max={1}
+																	step={0.001}
+																	value={inputValue.x}
+																	style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+																	onKeyDown={(e) => {
+																		// Prevent form submission on Enter key
+																		if (e.key === 'Enter') {
+																			e.preventDefault();
+																			e.currentTarget.blur(); // Trigger onBlur to save value
+																		}
+																	}}
+																	onChange={(e) => {
+																		// Only update input display value, don't update actual state
+																		const newInputValues = [...leftCurveInputValues];
+																		if (originalIndex >= 0 && originalIndex < newInputValues.length) {
+																			newInputValues[originalIndex] = { ...newInputValues[originalIndex], x: e.target.value };
+																			setLeftCurveInputValues(newInputValues);
+																		}
+																	}}
+																	onBlur={(e) => {
+																		// Only update actual state on blur
+																		const inputValue = e.target.value;
+																		const numValue = parseFloat(inputValue);
+																		if (!isNaN(numValue) && isFinite(numValue)) {
+																			const newX = Math.max(0, Math.min(1, numValue));
+																			const newPoints = [...leftCurvePoints];
+																			if (originalIndex >= 0 && originalIndex < newPoints.length) {
+																				newPoints[originalIndex] = { ...newPoints[originalIndex], x: newX };
+																				// Re-validate all points to ensure monotonicity
+																				const finalPoints = validateAllPointsMonotonicity(newPoints);
+																				setLeftCurvePoints(finalPoints);
+																				// Update input value to match
+																				setLeftCurveInputValues(finalPoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+																				// Redraw canvas
+												if (leftCurveCanvasRef.current) {
+													const ctx = leftCurveCanvasRef.current.getContext('2d');
+													if (ctx) {
+																						const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+																						const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+																						drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
+																					}
+																				}
+																			}
+																		} else {
+																			// Restore original value if invalid
+																			const newInputValues = [...leftCurveInputValues];
+																			newInputValues[originalIndex] = { ...newInputValues[originalIndex], x: point.x.toString() };
+																			setLeftCurveInputValues(newInputValues);
+																		}
+																	}}
+																/>
+																<span style={{ minWidth: '16px', fontSize: '0.8rem' }}>Y:</span>
+																<Form.Control
+																	type="number"
+											size="sm"
+																	min={0}
+																	max={1}
+																	step={0.001}
+																	value={inputValue.y}
+																	style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+																	onKeyDown={(e) => {
+																		// Prevent form submission on Enter key
+																		if (e.key === 'Enter') {
+																			e.preventDefault();
+																			e.currentTarget.blur(); // Trigger onBlur to save value
+																		}
+																	}}
+																	onChange={(e) => {
+																		// Only update input display value, don't update actual state
+																		const newInputValues = [...leftCurveInputValues];
+																		if (originalIndex >= 0 && originalIndex < newInputValues.length) {
+																			newInputValues[originalIndex] = { ...newInputValues[originalIndex], y: e.target.value };
+																			setLeftCurveInputValues(newInputValues);
+																		}
+																	}}
+																	onBlur={(e) => {
+																		// Only update actual state on blur
+																		const inputValue = e.target.value;
+																		const numValue = parseFloat(inputValue);
+																		if (!isNaN(numValue) && isFinite(numValue)) {
+																			const newY = Math.max(0, Math.min(1, numValue));
+													const newPoints = [...leftCurvePoints];
+																			if (originalIndex >= 0 && originalIndex < newPoints.length) {
+																				newPoints[originalIndex] = { ...newPoints[originalIndex], y: newY };
+													setLeftCurvePoints(newPoints);
+																				// Update input value to match
+																				const newInputValues = [...leftCurveInputValues];
+																				newInputValues[originalIndex] = { ...newInputValues[originalIndex], y: newY.toString() };
+																				setLeftCurveInputValues(newInputValues);
+																				// Redraw canvas
+																				if (leftCurveCanvasRef.current) {
+													const ctx = leftCurveCanvasRef.current.getContext('2d');
+													if (ctx) {
+																						drawCurveEditor(ctx, 300, 300, newPoints);
+																					}
+																				}
+																			}
+																		} else {
+																			// Restore original value if invalid
+																			const newInputValues = [...leftCurveInputValues];
+																			newInputValues[originalIndex] = { ...newInputValues[originalIndex], y: point.y.toString() };
+																			setLeftCurveInputValues(newInputValues);
+																		}
+																	}}
+										/>
+									</div>
+														);
+													})}
+									</div>
+										) : (
+											<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>暂无控制点</div>
+										)}
+									</div>
+								</div>
+							</div>
+						)}
+					</div>
+
+					{/* Row 1, Column 3: Right finetune shape controls or right curve info box */}
+					<div style={{ width: '300px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+						{rightFinetuneShapeActive && !rightCurveActive && (
+							<div style={{ width: '300px', textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
+								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>右摇杆外圈调教</div>
+								<div className="p-2">
+									<div className="mb-3">
+										<FormCheck
+											type="switch"
+											id="rightFinetuneShapeForceCircular"
+											label="强制圆形"
+											checked={rightFinetuneShapeForceCircular}
+											onChange={(e) => setRightFinetuneShapeForceCircular(e.target.checked)}
+										/>
+										<p className="text-muted small mt-1 mb-0">
+											{rightFinetuneShapeForceCircular
+												? "强制圆形会将摇杆外圈移动半径严格归一到圆形。"
+												: "关闭强制圆形时将产生反映摇杆真实形状的外圈与误差率。"}
+										</p>
+									</div>
+									<div className="mb-2">
+										<Form.Label className="mb-1">外圈放大系数: {rightFinetuneShapeAmplify.toFixed(1)}%</Form.Label>
+										<Form.Range
+											min={-20}
+											max={20}
+											step={0.1}
+											value={rightFinetuneShapeAmplify}
+											onChange={(e) => setRightFinetuneShapeAmplify(parseFloat(e.target.value))}
+										/>
+										<p className="text-muted small mt-1 mb-0">
+											扩大系数可以放大摇杆覆盖范围，加快移动响应速度。
+										</p>
+									</div>
+									<div className="mt-3 text-end">
+										<Button
+											variant="danger"
+											size="sm"
+											onClick={() => {
+												setFieldValue('joystickFinetuneShapeForceCircular2', rightFinetuneShapeForceCircular);
+												setFieldValue('joystickFinetuneShapeAmplify2', rightFinetuneShapeAmplify);
+												setRightFinetuneShapeActive(false);
+											}}
+										>
+											确定
+										</Button>
+									</div>
+								</div>
+							</div>
+						)}
+						{rightCurveActive && (
+							<div style={{ width: '300px', textAlign: 'left' }}>
+								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+									<div style={{ marginBottom: '6px', fontSize: '0.95rem' }}>右摇杆曲线设置</div>
+									<div style={{ marginBottom: '6px' }}>
+										<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>内部死区: {(values?.inner_deadzone2 || 0).toFixed(1)}%</Form.Label>
+										<Form.Range
+											min={0}
+											max={15}
+											step={0.1}
+											value={values?.inner_deadzone2 || 0}
+											onChange={(e) => setFieldValue('inner_deadzone2', Math.round(parseFloat(e.target.value)))}
+										/>
+									</div>
+									<div style={{ marginBottom: '6px' }}>
+										<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>反死区: {(values?.anti_deadzone2 || 0).toFixed(1)}%</Form.Label>
+										<Form.Range
+											min={0}
+											max={15}
+											step={0.1}
+											value={values?.anti_deadzone2 || 0}
+											onChange={(e) => setFieldValue('anti_deadzone2', Math.round(parseFloat(e.target.value)))}
+										/>
+									</div>
+									<div style={{ flex: 1, overflowY: 'auto' }}>
+										<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>控制点</div>
+										{rightCurvePoints.length > 0 ? (
+											<div style={{ fontSize: '0.875rem' }}>
+												{rightCurvePoints.map((point, originalIndex) => ({ point, originalIndex }))
+													.sort((a, b) => a.point.x - b.point.x)
+													.map(({ point, originalIndex }) => {
+														const inputValue = rightCurveInputValues[originalIndex] || { x: point.x.toString(), y: point.y.toString() };
+														return (
+															<div key={originalIndex} style={{ marginBottom: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+																<span style={{ minWidth: '16px', fontSize: '0.8rem' }}>X:</span>
+																<Form.Control
+																	type="number"
+																	size="sm"
+																	min={0}
+																	max={1}
+																	step={0.001}
+																	value={inputValue.x}
+																	style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+																	onKeyDown={(e) => {
+																		// Prevent form submission on Enter key
+																		if (e.key === 'Enter') {
+																			e.preventDefault();
+																			e.currentTarget.blur(); // Trigger onBlur to save value
+																		}
+																	}}
+																	onChange={(e) => {
+																		// Only update input display value, don't update actual state
+																		const newInputValues = [...rightCurveInputValues];
+																		if (originalIndex >= 0 && originalIndex < newInputValues.length) {
+																			newInputValues[originalIndex] = { ...newInputValues[originalIndex], x: e.target.value };
+																			setRightCurveInputValues(newInputValues);
+																		}
+																	}}
+																	onBlur={(e) => {
+																		// Only update actual state on blur
+																		const inputValue = e.target.value;
+																		const numValue = parseFloat(inputValue);
+																		if (!isNaN(numValue) && isFinite(numValue)) {
+																				const newX = Math.max(0, Math.min(1, numValue));
+																				const newPoints = [...rightCurvePoints];
+																				if (originalIndex >= 0 && originalIndex < newPoints.length) {
+																					newPoints[originalIndex] = { ...newPoints[originalIndex], x: newX };
+																				// Re-validate all points to ensure monotonicity
+																				const finalPoints = validateAllPointsMonotonicity(newPoints);
+																				setRightCurvePoints(finalPoints);
+																				// Update input value to match
+																				setRightCurveInputValues(finalPoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+																				// Redraw canvas
+																				if (rightCurveCanvasRef.current) {
+																					const ctx = rightCurveCanvasRef.current.getContext('2d');
+																					if (ctx) {
+																						const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+																						const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+																						drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
+																					}
+																				}
+																			}
+																		} else {
+																			// Restore original value if invalid
+																			const newInputValues = [...rightCurveInputValues];
+																			newInputValues[originalIndex] = { ...newInputValues[originalIndex], x: point.x.toString() };
+																			setRightCurveInputValues(newInputValues);
+																		}
+																	}}
+																/>
+																<span style={{ minWidth: '16px', fontSize: '0.8rem' }}>Y:</span>
+																<Form.Control
+																	type="number"
+																	size="sm"
+																	min={0}
+																	max={1}
+																	step={0.001}
+																	value={inputValue.y}
+																	style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+																	onKeyDown={(e) => {
+																		// Prevent form submission on Enter key
+																		if (e.key === 'Enter') {
+																			e.preventDefault();
+																			e.currentTarget.blur(); // Trigger onBlur to save value
+																		}
+																	}}
+																	onChange={(e) => {
+																		// Only update input display value, don't update actual state
+																		const newInputValues = [...rightCurveInputValues];
+																		if (originalIndex >= 0 && originalIndex < newInputValues.length) {
+																			newInputValues[originalIndex] = { ...newInputValues[originalIndex], y: e.target.value };
+																			setRightCurveInputValues(newInputValues);
+																		}
+																	}}
+																	onBlur={(e) => {
+																		// Only update actual state on blur
+																		const inputValue = e.target.value;
+																		const numValue = parseFloat(inputValue);
+																		if (!isNaN(numValue) && isFinite(numValue)) {
+																				const newY = Math.max(0, Math.min(1, numValue));
+																				const newPoints = [...rightCurvePoints];
+																				if (originalIndex >= 0 && originalIndex < newPoints.length) {
+																					const updatedPoint = { ...newPoints[originalIndex], y: newY };
+																				// Validate monotonicity for this point
+																				const otherPoints = newPoints.filter((_, i) => i !== originalIndex);
+																				const validatedPoint = validatePointMonotonicity(updatedPoint, otherPoints);
+																				newPoints[originalIndex] = validatedPoint;
+																				// Re-validate all points to ensure monotonicity
+																				const finalPoints = validateAllPointsMonotonicity(newPoints);
+																				setRightCurvePoints(finalPoints);
+																				// Update input value to match
+																				setRightCurveInputValues(finalPoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+																				// Redraw canvas
+																				if (rightCurveCanvasRef.current) {
+																					const ctx = rightCurveCanvasRef.current.getContext('2d');
+																					if (ctx) {
+																						const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+																						const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+																						drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
+																					}
+																				}
+																			}
+																		} else {
+																			// Restore original value if invalid
+																			const newInputValues = [...rightCurveInputValues];
+																			newInputValues[originalIndex] = { ...newInputValues[originalIndex], y: point.y.toString() };
+																			setRightCurveInputValues(newInputValues);
+																		}
+																	}}
+																/>
+															</div>
+														);
+													})}
+											</div>
+										) : (
+											<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>暂无控制点</div>
+										)}
+									</div>
+								</div>
+							</div>
+						)}
+					</div>
+
+					{/* Row 1, Column 4: Right stick canvas (position or curve) */}
+					<div className="text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', width: '300px' }}>
+						<div style={{ position: 'relative', width: '300px', height: '300px' }}>
+							<canvas
+								ref={rightStickCanvasRef}
+								width={300}
+								height={300}
+								style={{ 
+									border: '1px solid #ccc', 
+									borderRadius: '4px',
+									display: rightCurveActive ? 'none' : 'block'
+								}}
+							/>
+										<canvas
+											ref={rightCurveCanvasRef}
+								width={300}
+								height={300}
+								style={{ 
+									border: '1px solid #ccc', 
+									borderRadius: '4px', 
+									cursor: 'crosshair',
+									display: rightCurveActive ? 'block' : 'none',
+									position: rightCurveActive ? 'absolute' : 'relative',
+									top: rightCurveActive ? 0 : 'auto',
+									left: rightCurveActive ? 0 : 'auto'
+								}}
+											onMouseDown={(e) => {
+											if (!rightCurveCanvasRef.current) return;
+											const rect = rightCurveCanvasRef.current.getBoundingClientRect();
+											const x = (e.clientX - rect.left) / rect.width;
+											const y = 1 - (e.clientY - rect.top) / rect.height; // Flip Y axis
+											
+											// Check if clicking on an existing point
+											// Apply deadzone/anti-deadzone transformation to match displayed positions
+											const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+											const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+											const applyDeadzones = (px: number, py: number) => {
+												if (px < innerDeadzone) {
+													return { x: -1, y: -1 }; // Invalid point
+												} else {
+													const remappedY = antiDeadzone + py * (1 - antiDeadzone);
+													return { x: px, y: remappedY };
+												}
+											};
+											const pointRadius = 6 / rect.width;
+											for (let i = 0; i < rightCurvePoints.length; i++) {
+												const transformedPoint = applyDeadzones(rightCurvePoints[i].x, rightCurvePoints[i].y);
+												if (transformedPoint.x >= innerDeadzone && transformedPoint.x >= 0 && transformedPoint.y >= 0) {
+													const px = transformedPoint.x;
+													const py = transformedPoint.y;
+													const dist = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
+													if (dist < pointRadius * 2) {
+														setDraggingPointIndex({ stick: 'right', index: i });
+														return;
+													}
+												}
+											}
+											
+											// Check if clicking on the line to add a new point
+											if (rightCurvePoints.length < 3) {
+												// Find the segment
+												const sortedPoints = [...rightCurvePoints].sort((a, b) => a.x - b.x);
+												const fullPoints = [{x: 0, y: 0}, ...sortedPoints, {x: 1, y: 1}];
+												for (let i = 0; i < fullPoints.length - 1; i++) {
+													const p1 = fullPoints[i];
+													const p2 = fullPoints[i + 1];
+													if (x >= p1.x && x <= p2.x) {
+														// Calculate Y on the line
+														const t = (x - p1.x) / (p2.x - p1.x);
+														const lineY = p1.y + t * (p2.y - p1.y);
+														const dist = Math.abs(y - lineY);
+														if (dist < 0.05) { // Within 5% of line
+															const newPoint = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+															// Validate monotonicity before adding
+															const validatedPoint = validatePointMonotonicity(newPoint, rightCurvePoints);
+															const updatedPoints = [...rightCurvePoints, validatedPoint];
+															// Re-validate all points to ensure monotonicity
+															const finalPoints = validateAllPointsMonotonicity(updatedPoints);
+															setRightCurvePoints(finalPoints);
+													setRightCurveInputValues(finalPoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+															// Redraw immediately
+															const ctx = rightCurveCanvasRef.current.getContext('2d');
+															if (ctx) {
+														const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+														const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+														drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
+															}
+															return;
+														}
+													}
+												}
+											}
+										}}
+											onMouseMove={(e) => {
+												if (draggingPointIndex?.stick === 'right' && rightCurveCanvasRef.current) {
+													const rect = rightCurveCanvasRef.current.getBoundingClientRect();
+													const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+													const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+													const newPoints = [...rightCurvePoints];
+													const updatedPoint = { x, y };
+													// Validate monotonicity for the dragged point
+													const otherPoints = newPoints.filter((_, i) => i !== draggingPointIndex.index);
+													const validatedPoint = validatePointMonotonicity(updatedPoint, otherPoints);
+													newPoints[draggingPointIndex.index] = validatedPoint;
+													// Re-validate all points to ensure monotonicity
+													const finalPoints = validateAllPointsMonotonicity(newPoints);
+													setRightCurvePoints(finalPoints);
+										// Update input values to match (use final validated points)
+										setRightCurveInputValues(finalPoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+													// Redraw immediately
+													const ctx = rightCurveCanvasRef.current.getContext('2d');
+													if (ctx) {
+											const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+											const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+											drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
+													}
+												}
+											}}
+											onMouseUp={() => {
+												setDraggingPointIndex(null);
+											}}
+											onMouseLeave={() => {
+												setDraggingPointIndex(null);
+											}}
+										/>
+									</div>
+									</div>
+
+					{/* Row 2, Column 1: Left stick XY position info */}
+					<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '300px' }}>
+						<div className="small" style={{ display: leftCurveActive ? 'none' : 'block', width: '100%' }}>
 							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
 								<span>X:</span>
 								{leftFinetuneCenterActive && (
@@ -1402,421 +2354,68 @@ const JoystickCalibration = ({
 								</span>
 							</div>
 						</div>
-						{/* Left stick calibration buttons - First row */}
-						<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
-							<Button
-								variant="primary"
-								size="sm"
-								onClick={() => setShowLeftCalibrationModal(true)}
-							>
-								{t('AddonsConfig:joystick-calibration-center-button')}
-							</Button>
-							<Button
-								variant="primary"
-								size="sm"
-								onClick={() => setShowLeftRangeModal(true)}
-							>
-								{t('AddonsConfig:joystick-calibration-range-button')}
-							</Button>
-						</div>
-						{/* Left stick finetune buttons - Second row */}
-						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
-							<Button
-								variant="warning"
-								size="sm"
-								onClick={() => setLeftFinetuneCenterActive(!leftFinetuneCenterActive)}
-							>
-								{t('AddonsConfig:joystick-calibration-finetune-center-button')}
-							</Button>
-							<Button
-								variant={leftFinetuneShapeActive ? "success" : "warning"}
-								size="sm"
-								onClick={() => {
-									const rangeData = (values as any)?.joystickRangeData1;
-									const hasCalibration =
-										Array.isArray(rangeData) &&
-										rangeData.length === CIRCULARITY_DATA_SIZE &&
-										rangeData.some((v: number) => v > 0);
-									if (!hasCalibration && !leftFinetuneShapeActive) {
-										setShowRangeCalibrationWarning(true);
-										return;
-									}
-									// Reset to saved values when closing (cancel effect)
-									if (leftFinetuneShapeActive) {
-										setLeftFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular1 ?? false);
-										setLeftFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify1 ?? 0.0);
-									}
-									setLeftFinetuneShapeActive(!leftFinetuneShapeActive);
-								}}
-							>
-								{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
-							</Button>
-						</div>
-						{/* Jitter data correction and view calibration data buttons */}
-						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
-							<Button
-								variant="info"
-								size="sm"
-								disabled={leftJitterSampling}
-								onClick={handleStartJitterSampling1}
-							>
-								{leftJitterSampling 
-									? `抖动数据修正 (${leftJitterSamples.length}/30)` 
-									: '抖动数据修正'}
-							</Button>
-							<Button
-								variant="info"
-								size="sm"
-								onClick={() => {
-									const rangeData = (values as any)?.joystickRangeData1;
-									setLeftRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
-									setLeftAngleIndexSnapshot(leftStickDetailData.angleIndex);
-									setShowLeftRangeDataModal(true);
-								}}
-							>
-								查看校准数据
-							</Button>
-						</div>
-						{/* Curve setting button */}
-						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
-							<Button
-								variant={leftCurveActive ? "success" : "warning"}
-								size="sm"
-								onClick={() => {
-									// If finetune shape is active, close it
-									if (leftFinetuneShapeActive) {
-										setLeftFinetuneShapeActive(false);
-									}
-									if (!leftCurveActive) {
-										// Load curve points from config when opening
-										const saved = (values as any)?.joystickCurvePoints1;
-										if (Array.isArray(saved)) {
-											setLeftCurvePoints(saved);
-										}
-									}
-									setLeftCurveActive(!leftCurveActive);
-								}}
-							>
-								{t('AddonsConfig:joystick-calibration-curve-button')}
-							</Button>
-						</div>
 					</div>
 
-					{/* Left finetune shape controls (fixed width placeholder) */}
-					<div style={{ width: '300px', minHeight: '300px' }}>
-						{leftFinetuneShapeActive && !leftCurveActive && (
-							<div style={{ textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
-								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>左摇杆外圈调教</div>
-								<div className="p-2">
-									<div className="mb-3">
-										<FormCheck
-											type="switch"
-											id="leftFinetuneShapeForceCircular"
-											label="强制圆形"
-											checked={leftFinetuneShapeForceCircular}
-											onChange={(e) => setLeftFinetuneShapeForceCircular(e.target.checked)}
-										/>
-										<p className="text-muted small mt-1 mb-0">
-											{leftFinetuneShapeForceCircular
-												? "强制圆形会将摇杆外圈移动半径严格归一到圆形。"
-												: "关闭强制圆形时将产生反映摇杆真实形状的外圈与误差率。"}
-										</p>
-									</div>
-									<div className="mb-2">
-										<Form.Label className="mb-1">外圈放大系数: {leftFinetuneShapeAmplify.toFixed(1)}%</Form.Label>
-										<Form.Range
-											min={-20}
-											max={20}
-											step={0.1}
-											value={leftFinetuneShapeAmplify}
-											onChange={(e) => setLeftFinetuneShapeAmplify(parseFloat(e.target.value))}
-										/>
-										<p className="text-muted small mt-1 mb-0">
-											扩大系数可以放大摇杆覆盖范围，加快移动响应速度。
-										</p>
-									</div>
-									<div className="mt-3 text-end">
-										<Button
-											variant="danger"
-											size="sm"
-											onClick={() => {
-												setFieldValue('joystickFinetuneShapeForceCircular1', leftFinetuneShapeForceCircular);
-												setFieldValue('joystickFinetuneShapeAmplify1', leftFinetuneShapeAmplify);
-												setLeftFinetuneShapeActive(false);
-											}}
-										>
-											确定
-										</Button>
-									</div>
-								</div>
-							</div>
-						)}
+					{/* Row 2, Column 2: Left curve buttons (reset and confirm) */}
+					<div style={{ width: '300px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
 						{leftCurveActive && (
-							<div style={{ textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
-								<div>
-									<div style={{ display: 'flex', justifyContent: 'center' }}>
-										<canvas
-											ref={leftCurveCanvasRef}
-											width={290}
-											height={290}
-											style={{ border: '1px solid #ccc', borderRadius: '4px', cursor: 'crosshair' }}
-											onMouseDown={(e) => {
-											if (!leftCurveCanvasRef.current) return;
-											const rect = leftCurveCanvasRef.current.getBoundingClientRect();
-											const x = (e.clientX - rect.left) / rect.width;
-											const y = 1 - (e.clientY - rect.top) / rect.height; // Flip Y axis
-											
-											// Check if clicking on an existing point
-											const pointRadius = 6 / rect.width;
-											for (let i = 0; i < leftCurvePoints.length; i++) {
-												const px = leftCurvePoints[i].x;
-												const py = leftCurvePoints[i].y;
-												const dist = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
-												if (dist < pointRadius * 2) {
-													setDraggingPointIndex({ stick: 'left', index: i });
-													return;
-												}
+							<div className="d-flex gap-2">
+								<Button
+									variant="secondary"
+									size="sm"
+									onClick={() => {
+										setLeftCurvePoints([]);
+										// Redraw immediately
+										if (leftCurveCanvasRef.current) {
+											const ctx = leftCurveCanvasRef.current.getContext('2d');
+											if (ctx) {
+												const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+												const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+												drawCurveEditor(ctx, 300, 300, [], undefined, innerDeadzone, antiDeadzone);
 											}
-											
-											// Check if clicking on the line to add a new point
-											if (leftCurvePoints.length < 3) {
-												// Find the segment
-												const sortedPoints = [...leftCurvePoints].sort((a, b) => a.x - b.x);
-												const fullPoints = [{x: 0, y: 0}, ...sortedPoints, {x: 1, y: 1}];
-												for (let i = 0; i < fullPoints.length - 1; i++) {
-													const p1 = fullPoints[i];
-													const p2 = fullPoints[i + 1];
-													if (x >= p1.x && x <= p2.x) {
-														// Calculate Y on the line
-														const t = (x - p1.x) / (p2.x - p1.x);
-														const lineY = p1.y + t * (p2.y - p1.y);
-														const dist = Math.abs(y - lineY);
-														if (dist < 0.05) { // Within 5% of line
-															const newPoint = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
-															const updatedPoints = [...leftCurvePoints, newPoint];
-															setLeftCurvePoints(updatedPoints);
-															// Redraw immediately
-															const ctx = leftCurveCanvasRef.current.getContext('2d');
-															if (ctx) {
-																drawCurveEditor(ctx, 290, 290, updatedPoints);
-															}
-															return;
-														}
-													}
-												}
-											}
-										}}
-											onMouseMove={(e) => {
-												if (draggingPointIndex?.stick === 'left' && leftCurveCanvasRef.current) {
-													const rect = leftCurveCanvasRef.current.getBoundingClientRect();
-													const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-													const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
-													const newPoints = [...leftCurvePoints];
-													newPoints[draggingPointIndex.index] = { x, y };
-													setLeftCurvePoints(newPoints);
-													// Redraw immediately
-													const ctx = leftCurveCanvasRef.current.getContext('2d');
-													if (ctx) {
-														drawCurveEditor(ctx, 290, 290, newPoints);
-													}
-												}
-											}}
-											onMouseUp={() => {
-												setDraggingPointIndex(null);
-											}}
-											onMouseLeave={() => {
-												setDraggingPointIndex(null);
-											}}
-										/>
-									</div>
-									<div className="mt-2 small text-muted text-left">
-										1、点击线条添加控制点（最多3个）<br />
-										2、横向为摇杆物理距离，纵向为输出距离<br />
-										3、在虚线上方反映更灵敏，下方更迟钝
-									</div>
-									<div className="mt-2 d-flex gap-2 justify-content-end">
-										<Button
-											variant="secondary"
-											size="sm"
-											onClick={() => {
-												setLeftCurvePoints([]);
-												// Redraw immediately
-												if (leftCurveCanvasRef.current) {
-													const ctx = leftCurveCanvasRef.current.getContext('2d');
-													if (ctx) {
-														drawCurveEditor(ctx, 290, 290, []);
-													}
-												}
-											}}
-										>
-											重置
-										</Button>
-										<Button
-											variant="danger"
-											size="sm"
-											onClick={() => {
-												// Save curve points to config (sorted by x coordinate)
-												// Validate and clamp values to [0, 1] range
-												const validatedPoints = leftCurvePoints.map(p => ({
-													x: Math.max(0, Math.min(1, p.x)),
-													y: Math.max(0, Math.min(1, p.y))
-												}));
-												const sortedPoints = validatedPoints.sort((a, b) => a.x - b.x);
-												setFieldValue('joystickCurvePoints1', sortedPoints);
-												setLeftCurveActive(false);
-											}}
-										>
-											确定
-										</Button>
-									</div>
-								</div>
+										}
+									}}
+								>
+									重置
+								</Button>
+								<Button
+									variant="danger"
+									size="sm"
+									onClick={() => {
+										// Save curve points to config (sorted by x coordinate)
+										// Validate and clamp values to [0, 1] range
+										const validatedPoints = leftCurvePoints.map(p => ({
+											x: Math.max(0, Math.min(1, p.x)),
+											y: Math.max(0, Math.min(1, p.y))
+										}));
+										const sortedPoints = validatedPoints.sort((a, b) => a.x - b.x);
+										setFieldValue('joystickCurvePoints1', sortedPoints);
+										setLeftCurveActive(false);
+									}}
+								>
+									确定
+								</Button>
 							</div>
 						)}
 					</div>
 
-					{/* Right finetune shape controls (fixed width placeholder) */}
-					<div style={{ width: '300px', minHeight: '300px' }}>
-						{rightFinetuneShapeActive && !rightCurveActive && (
-							<div style={{ textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
-								<div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>右摇杆外圈调教</div>
-								<div className="p-2">
-									<div className="mb-3">
-										<FormCheck
-											type="switch"
-											id="rightFinetuneShapeForceCircular"
-											label="强制圆形"
-											checked={rightFinetuneShapeForceCircular}
-											onChange={(e) => setRightFinetuneShapeForceCircular(e.target.checked)}
-										/>
-										<p className="text-muted small mt-1 mb-0">
-											{rightFinetuneShapeForceCircular
-												? "强制圆形会将摇杆外圈移动半径严格归一到圆形。"
-												: "关闭强制圆形时将产生反映摇杆真实形状的外圈与误差率。"}
-										</p>
-									</div>
-									<div className="mb-2">
-										<Form.Label className="mb-1">外圈放大系数: {rightFinetuneShapeAmplify.toFixed(1)}%</Form.Label>
-										<Form.Range
-											min={-20}
-											max={20}
-											step={0.1}
-											value={rightFinetuneShapeAmplify}
-											onChange={(e) => setRightFinetuneShapeAmplify(parseFloat(e.target.value))}
-										/>
-										<p className="text-muted small mt-1 mb-0">
-											扩大系数可以放大摇杆覆盖范围，加快移动响应速度。
-										</p>
-									</div>
-									<div className="mt-3 text-end">
-										<Button
-											variant="danger"
-											size="sm"
-											onClick={() => {
-												setFieldValue('joystickFinetuneShapeForceCircular2', rightFinetuneShapeForceCircular);
-												setFieldValue('joystickFinetuneShapeAmplify2', rightFinetuneShapeAmplify);
-												setRightFinetuneShapeActive(false);
-											}}
-										>
-											确定
-										</Button>
-									</div>
-								</div>
-							</div>
-						)}
+					{/* Row 2, Column 3: Right curve buttons (reset and confirm) */}
+					<div style={{ width: '300px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
 						{rightCurveActive && (
-							<div style={{ textAlign: 'left', border: '1px solid #dee2e6', borderRadius: '4px', padding: '8px' }}>
-								<div>
-									<div style={{ display: 'flex', justifyContent: 'center' }}>
-										<canvas
-											ref={rightCurveCanvasRef}
-											width={290}
-											height={290}
-											style={{ border: '1px solid #ccc', borderRadius: '4px', cursor: 'crosshair' }}
-											onMouseDown={(e) => {
-											if (!rightCurveCanvasRef.current) return;
-											const rect = rightCurveCanvasRef.current.getBoundingClientRect();
-											const x = (e.clientX - rect.left) / rect.width;
-											const y = 1 - (e.clientY - rect.top) / rect.height; // Flip Y axis
-											
-											// Check if clicking on an existing point
-											const pointRadius = 6 / rect.width;
-											for (let i = 0; i < rightCurvePoints.length; i++) {
-												const px = rightCurvePoints[i].x;
-												const py = rightCurvePoints[i].y;
-												const dist = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
-												if (dist < pointRadius * 2) {
-													setDraggingPointIndex({ stick: 'right', index: i });
-													return;
-												}
-											}
-											
-											// Check if clicking on the line to add a new point
-											if (rightCurvePoints.length < 3) {
-												// Find the segment
-												const sortedPoints = [...rightCurvePoints].sort((a, b) => a.x - b.x);
-												const fullPoints = [{x: 0, y: 0}, ...sortedPoints, {x: 1, y: 1}];
-												for (let i = 0; i < fullPoints.length - 1; i++) {
-													const p1 = fullPoints[i];
-													const p2 = fullPoints[i + 1];
-													if (x >= p1.x && x <= p2.x) {
-														// Calculate Y on the line
-														const t = (x - p1.x) / (p2.x - p1.x);
-														const lineY = p1.y + t * (p2.y - p1.y);
-														const dist = Math.abs(y - lineY);
-														if (dist < 0.05) { // Within 5% of line
-															const newPoint = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
-															const updatedPoints = [...rightCurvePoints, newPoint];
-															setRightCurvePoints(updatedPoints);
-															// Redraw immediately
-															const ctx = rightCurveCanvasRef.current.getContext('2d');
-															if (ctx) {
-																drawCurveEditor(ctx, 290, 290, updatedPoints);
-															}
-															return;
-														}
-													}
-												}
-											}
-										}}
-											onMouseMove={(e) => {
-												if (draggingPointIndex?.stick === 'right' && rightCurveCanvasRef.current) {
-													const rect = rightCurveCanvasRef.current.getBoundingClientRect();
-													const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-													const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
-													const newPoints = [...rightCurvePoints];
-													newPoints[draggingPointIndex.index] = { x, y };
-													setRightCurvePoints(newPoints);
-													// Redraw immediately
-													const ctx = rightCurveCanvasRef.current.getContext('2d');
-													if (ctx) {
-														drawCurveEditor(ctx, 290, 290, newPoints);
-													}
-												}
-											}}
-											onMouseUp={() => {
-												setDraggingPointIndex(null);
-											}}
-											onMouseLeave={() => {
-												setDraggingPointIndex(null);
-											}}
-										/>
-									</div>
-									<div className="mt-2 small text-muted text-left">
-										1、点击线条添加控制点（最多3个）<br />
-										2、横向为摇杆物理距离，纵向为输出距离<br />
-										3、在虚线上方反映更灵敏，下方更迟钝
-									</div>
-									<div className="mt-2 d-flex gap-2 justify-content-end">
+							<div className="d-flex gap-2">
 										<Button
 											variant="secondary"
 											size="sm"
 											onClick={() => {
 												setRightCurvePoints([]);
+										setRightCurveInputValues([]);
 												// Redraw immediately
 												if (rightCurveCanvasRef.current) {
 													const ctx = rightCurveCanvasRef.current.getContext('2d');
 													if (ctx) {
-														drawCurveEditor(ctx, 290, 290, []);
+												const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+												const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+												drawCurveEditor(ctx, 300, 300, [], undefined, innerDeadzone, antiDeadzone);
 													}
 												}
 											}}
@@ -1840,21 +2439,13 @@ const JoystickCalibration = ({
 										>
 											确定
 										</Button>
-									</div>
-								</div>
 							</div>
 						)}
 					</div>
 
-					{/* Right stick canvas and buttons */}
-					<div className="text-center" style={{ width: '300px' }}>
-						<canvas
-							ref={rightStickCanvasRef}
-							width={300}
-							height={300}
-							style={{ border: '1px solid #ccc', borderRadius: '4px' }}
-						/>
-						<div className="mt-2 small">
+					{/* Row 2, Column 4: Right stick XY position info */}
+					<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '300px' }}>
+						<div className="small" style={{ display: rightCurveActive ? 'none' : 'block', width: '100%' }}>
 							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
 								<span>X:</span>
 								{rightFinetuneCenterActive && (
@@ -1926,7 +2517,151 @@ const JoystickCalibration = ({
 								</span>
 							</div>
 						</div>
-						{/* Right stick calibration buttons - First row */}
+					</div>
+
+					{/* Row 3, Column 1: Left stick buttons */}
+					<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '300px' }}>
+						<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="primary"
+								size="sm"
+								onClick={() => setShowLeftCalibrationModal(true)}
+							>
+								{t('AddonsConfig:joystick-calibration-center-button')}
+							</Button>
+							<Button
+								variant="primary"
+								size="sm"
+								onClick={() => setShowLeftRangeModal(true)}
+							>
+								{t('AddonsConfig:joystick-calibration-range-button')}
+							</Button>
+						</div>
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="warning"
+								size="sm"
+								onClick={() => setLeftFinetuneCenterActive(!leftFinetuneCenterActive)}
+							>
+								{t('AddonsConfig:joystick-calibration-finetune-center-button')}
+							</Button>
+							<Button
+								variant="warning"
+								size="sm"
+								disabled={leftJitterSampling}
+								onClick={handleStartJitterSampling1}
+							>
+								{leftJitterSampling 
+									? `抖动数据修正 (${leftJitterSamples.length}/30)` 
+									: '抖动数据修正'}
+							</Button>
+						</div>
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant={leftFinetuneShapeActive ? "success" : "warning"}
+								size="sm"
+								onClick={() => {
+									const rangeData = values?.joystickRangeData1;
+									const hasCalibration =
+										Array.isArray(rangeData) &&
+										rangeData.length === CIRCULARITY_DATA_SIZE &&
+										rangeData.some((v: number) => v > 0);
+									if (!hasCalibration && !leftFinetuneShapeActive) {
+										setShowRangeCalibrationWarning(true);
+										return;
+									}
+									// Reset to saved values when closing (cancel effect)
+									if (leftFinetuneShapeActive) {
+										setLeftFinetuneShapeForceCircular(values?.joystickFinetuneShapeForceCircular1 ?? false);
+										setLeftFinetuneShapeAmplify(values?.joystickFinetuneShapeAmplify1 ?? 0.0);
+									}
+									setLeftFinetuneShapeActive(!leftFinetuneShapeActive);
+								}}
+							>
+								{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
+							</Button>
+							<Button
+								variant={leftCurveActive ? "success" : "warning"}
+								size="sm"
+								onClick={() => {
+									// If finetune shape is active, close it
+									if (leftFinetuneShapeActive) {
+										setLeftFinetuneShapeActive(false);
+									}
+									if (!leftCurveActive) {
+										// Load curve points from config when opening
+										const saved = values?.joystickCurvePoints1;
+										if (Array.isArray(saved)) {
+											setLeftCurvePoints(saved);
+											setLeftCurveInputValues(saved.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+										} else {
+											setLeftCurveInputValues([]);
+										}
+									}
+									setLeftCurveActive(!leftCurveActive);
+								}}
+							>
+								{t('AddonsConfig:joystick-calibration-curve-button')}
+							</Button>
+						</div>
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="info"
+								size="sm"
+								onClick={() => {
+									const rangeData = values?.joystickRangeData1;
+									setLeftRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
+									setLeftAngleIndexSnapshot(leftStickDetailData.angleIndex);
+									setShowLeftRangeDataModal(true);
+								}}
+							>
+								查看校准数据
+							</Button>
+						</div>
+					</div>
+
+					{/* Row 3, Column 2: Left curve instructions */}
+					<div style={{ width: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+						{leftCurveActive && (
+							<div className="small text-muted" style={{ textAlign: 'left' }}>
+								1、点击线条添加控制点（最多3个）<br />
+								2、横向为摇杆物理距离，纵向为输出距离<br />
+								3、在虚线上方反映更灵敏，下方更迟钝
+								<br /><br />
+								<div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>
+									调试信息：<br />
+									高亮线条比例：{(leftStickData.progressRatio !== undefined ? (leftStickData.progressRatio * 100).toFixed(1) : '0.0')}%<br />
+									当前摇杆输出值：X: {leftStickData.x.toFixed(3)}, Y: {leftStickData.y.toFixed(3)}<br />
+									当前摇杆距离中心距离：{leftStickDetailData.currentDistance.toFixed(1)}<br />
+									scale: {leftStickDetailData.scale.toFixed(3)}, l: {(leftStickDetailData.scale > 0 ? (ADC_CENTER / leftStickDetailData.scale).toFixed(1) : ADC_CENTER.toFixed(1))}<br />
+									offsetCenter: X: {leftStickDetailData.offsetCenterX.toFixed(1)}, Y: {leftStickDetailData.offsetCenterY.toFixed(1)}
+								</div>
+							</div>
+						)}
+					</div>
+
+					{/* Row 3, Column 3: Right curve instructions */}
+					<div style={{ width: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+						{rightCurveActive && (
+							<div className="small text-muted" style={{ textAlign: 'left' }}>
+								1、点击线条添加控制点（最多3个）<br />
+								2、横向为摇杆物理距离，纵向为输出距离<br />
+								3、在虚线上方反映更灵敏，下方更迟钝
+								<br /><br />
+								<div style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px' }}>
+									调试信息：<br />
+									高亮线条比例：{(rightStickData.progressRatio !== undefined ? (rightStickData.progressRatio * 100).toFixed(1) : '0.0')}%<br />
+									当前摇杆输出值：X: {rightStickData.x.toFixed(3)}, Y: {rightStickData.y.toFixed(3)}<br />
+									当前摇杆距离中心距离：{rightStickDetailData.currentDistance.toFixed(1)}<br />
+									scale: {rightStickDetailData.scale.toFixed(3)}, l: {(rightStickDetailData.scale > 0 ? (ADC_CENTER / rightStickDetailData.scale).toFixed(1) : ADC_CENTER.toFixed(1))}<br />
+									offsetCenter: X: {rightStickDetailData.offsetCenterX.toFixed(1)}, Y: {rightStickDetailData.offsetCenterY.toFixed(1)}
+								</div>
+							</div>
+						)}
+					</div>
+
+					{/* Row 3, Column 4: Right stick buttons */}
+					<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '300px' }}>
 						<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
 							<Button
 								variant="primary"
@@ -1943,7 +2678,6 @@ const JoystickCalibration = ({
 								{t('AddonsConfig:joystick-calibration-range-button')}
 							</Button>
 						</div>
-						{/* Right stick finetune buttons - Second row */}
 						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
 							<Button
 								variant="warning"
@@ -1953,10 +2687,22 @@ const JoystickCalibration = ({
 								{t('AddonsConfig:joystick-calibration-finetune-center-button')}
 							</Button>
 							<Button
+								variant="warning"
+								size="sm"
+								disabled={rightJitterSampling}
+								onClick={handleStartJitterSampling2}
+							>
+								{rightJitterSampling 
+									? `抖动数据修正 (${rightJitterSamples.length}/30)` 
+									: '抖动数据修正'}
+							</Button>
+						</div>
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
 								variant={rightFinetuneShapeActive ? "success" : "warning"}
 								size="sm"
 								onClick={() => {
-									const rangeData = (values as any)?.joystickRangeData2;
+									const rangeData = values?.joystickRangeData2;
 									const hasCalibration =
 										Array.isArray(rangeData) &&
 										rangeData.length === CIRCULARITY_DATA_SIZE &&
@@ -1967,42 +2713,14 @@ const JoystickCalibration = ({
 									}
 									// Reset to saved values when closing (cancel effect)
 									if (rightFinetuneShapeActive) {
-										setRightFinetuneShapeForceCircular((values as any)?.joystickFinetuneShapeForceCircular2 ?? false);
-										setRightFinetuneShapeAmplify((values as any)?.joystickFinetuneShapeAmplify2 ?? 0.0);
+										setRightFinetuneShapeForceCircular(values?.joystickFinetuneShapeForceCircular2 ?? false);
+										setRightFinetuneShapeAmplify(values?.joystickFinetuneShapeAmplify2 ?? 0.0);
 									}
 									setRightFinetuneShapeActive(!rightFinetuneShapeActive);
 								}}
 							>
 								{t('AddonsConfig:joystick-calibration-finetune-shape-button')}
 							</Button>
-						</div>
-						{/* Jitter data correction and view calibration data buttons */}
-						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
-							<Button
-								variant="info"
-								size="sm"
-								disabled={rightJitterSampling}
-								onClick={handleStartJitterSampling2}
-							>
-								{rightJitterSampling 
-									? `抖动数据修正 (${rightJitterSamples.length}/30)` 
-									: '抖动数据修正'}
-							</Button>
-							<Button
-								variant="info"
-								size="sm"
-								onClick={() => {
-									const rangeData = (values as any)?.joystickRangeData2;
-									setRightRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
-									setRightAngleIndexSnapshot(rightStickDetailData.angleIndex);
-									setShowRightRangeDataModal(true);
-								}}
-							>
-								查看校准数据
-							</Button>
-						</div>
-						{/* Curve setting button */}
-						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
 							<Button
 								variant={rightCurveActive ? "success" : "warning"}
 								size="sm"
@@ -2016,12 +2734,29 @@ const JoystickCalibration = ({
 										const saved = (values as any)?.joystickCurvePoints2;
 										if (Array.isArray(saved)) {
 											setRightCurvePoints(saved);
+											setRightCurveInputValues(saved.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+										} else {
+											setRightCurveInputValues([]);
 										}
 									}
 									setRightCurveActive(!rightCurveActive);
 								}}
 							>
 								{t('AddonsConfig:joystick-calibration-curve-button')}
+							</Button>
+						</div>
+						<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+							<Button
+								variant="info"
+								size="sm"
+								onClick={() => {
+									const rangeData = values?.joystickRangeData2;
+									setRightRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
+									setRightAngleIndexSnapshot(rightStickDetailData.angleIndex);
+									setShowRightRangeDataModal(true);
+								}}
+							>
+								查看校准数据
 							</Button>
 						</div>
 					</div>
