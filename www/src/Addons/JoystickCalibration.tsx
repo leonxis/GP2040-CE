@@ -450,9 +450,6 @@ const drawCurveEditor = (
 	ctx.textBaseline = 'top';
 	ctx.fillText('0', 2, height - 2);
 	
-	// Draw reference line (diagonal from (deadzone, antiDeadzone) to (1,1))
-	// This will be drawn after we calculate the deadzone/anti-deadzone points
-	
 	// Apply deadzone and anti-deadzone to points
 	// Deadzone: X-axis intercept - input values < deadzone produce output = antiDeadzone
 	// Anti-deadzone: Y-axis intercept - all outputs start from antiDeadzone
@@ -491,45 +488,98 @@ const drawCurveEditor = (
 	const endPoint = applyDeadzones(1, 1);
 	
 	// Build full points: start -> vertical end -> adjusted curve points -> end
-	const fullPoints: CurvePoint[] = [
-		startPoint,
-		...(innerDeadzone > 0 ? [verticalEndPoint] : []), // Add vertical segment end if deadzone > 0
-		...adjustedPoints,
-		endPoint
-	];
+	// When deadzone = 0 but antiDeadzone > 0, start directly from (0, antiDeadzone)
+	// When deadzone > 0, add vertical segment from (deadzone, 0) to (deadzone, antiDeadzone)
+	const fullPoints: CurvePoint[] = [];
+	if (innerDeadzone > 0) {
+		// Deadzone > 0: add start point and vertical segment
+		fullPoints.push(startPoint, verticalEndPoint);
+	} else if (antiDeadzone > 0) {
+		// Deadzone = 0 but antiDeadzone > 0: start from (0, antiDeadzone)
+		fullPoints.push(verticalEndPoint);
+	} else {
+		// Both deadzone and antiDeadzone = 0: start from (0, 0)
+		fullPoints.push(startPoint);
+	}
+	fullPoints.push(...adjustedPoints, endPoint);
 	
-	// Draw reference line (diagonal from (deadzone, antiDeadzone) to (1,1))
+	// Step 2: Draw deadzone and anti-deadzone reference lines (dashed)
 	ctx.strokeStyle = '#999999';
 	ctx.lineWidth = 1;
 	ctx.setLineDash([5, 5]); // Dashed line pattern
-	ctx.beginPath();
-	const refStartX = verticalEndPoint.x * width;
-	const refStartY = height - verticalEndPoint.y * height;
-	const refEndX = width; // (1, 1) in canvas coordinates
-	const refEndY = 0; // (1, 1) in canvas coordinates
-	ctx.moveTo(refStartX, refStartY);
-	ctx.lineTo(refEndX, refEndY);
-	ctx.stroke();
+	
+	// Draw deadzone vertical line (if deadzone > 0)
+	if (innerDeadzone > 0) {
+		ctx.beginPath();
+		const deadzoneX = innerDeadzone * width;
+		ctx.moveTo(deadzoneX, 0);
+		ctx.lineTo(deadzoneX, height);
+		ctx.stroke();
+	}
+	
+	// Draw anti-deadzone horizontal line (if antiDeadzone > 0)
+	if (antiDeadzone > 0) {
+		ctx.beginPath();
+		const antiDeadzoneY = height - antiDeadzone * height;
+		ctx.moveTo(0, antiDeadzoneY);
+		ctx.lineTo(width, antiDeadzoneY);
+		ctx.stroke();
+	}
+	
+	// Draw reference diagonal line from (deadzone, antiDeadzone) to (1, 1)
+	if (innerDeadzone > 0 || antiDeadzone > 0) {
+		ctx.beginPath();
+		const refStartX = innerDeadzone * width;
+		const refStartY = height - antiDeadzone * height;
+		ctx.moveTo(refStartX, refStartY);
+		ctx.lineTo(width, 0); // (1, 1) in canvas coordinates
+		ctx.stroke();
+	}
+	
 	ctx.setLineDash([]); // Reset to solid line
 	
-	// Calculate total curve length along the path
+	// Step 3: Draw light gray mask area (rectangle with diagonal from (deadzone, antiDeadzone) to (1,1))
+	// The mask area is a rectangle: from (deadzone, antiDeadzone) to (1, 1)
+	// Rectangle corners: (deadzone, antiDeadzone), (1, antiDeadzone), (1, 1), (deadzone, 1)
+	if (innerDeadzone > 0 || antiDeadzone > 0) {
+		ctx.fillStyle = 'rgba(200, 200, 200, 0.3)'; // Light gray with transparency
+		ctx.beginPath();
+		const deadzoneX = innerDeadzone * width;
+		const antiDeadzoneY = height - antiDeadzone * height;
+		// Rectangle: (deadzone, antiDeadzone) -> (1, antiDeadzone) -> (1, 1) -> (deadzone, 1) -> (deadzone, antiDeadzone)
+		ctx.moveTo(deadzoneX, antiDeadzoneY); // (deadzone, antiDeadzone)
+		ctx.lineTo(width, antiDeadzoneY); // (1, antiDeadzone)
+		ctx.lineTo(width, 0); // (1, 1)
+		ctx.lineTo(deadzoneX, 0); // (deadzone, 1)
+		ctx.closePath();
+		ctx.fill();
+	}
+	
+	// Step 4: Draw curve
+	// Build curve points from gray origin to (1, 1)
+	// Curve starts from (deadzone, antiDeadzone) and goes to (1, 1)
+	const grayOriginPoint = { x: innerDeadzone, y: antiDeadzone };
+	const curveStartPoint = (innerDeadzone > 0 || antiDeadzone > 0) ? grayOriginPoint : { x: 0, y: 0 };
+	const curvePoints: CurvePoint[] = [curveStartPoint, ...adjustedPoints, endPoint];
+	
+	// Calculate total curve length along the path (from gray origin to end)
 	let totalCurveLength = 0;
 	const segmentLengths: number[] = [];
-	for (let i = 0; i < fullPoints.length - 1; i++) {
-		const dx = (fullPoints[i + 1].x - fullPoints[i].x) * width;
-		const dy = (fullPoints[i + 1].y - fullPoints[i].y) * height;
+	for (let i = 0; i < curvePoints.length - 1; i++) {
+		const dx = (curvePoints[i + 1].x - curvePoints[i].x) * width;
+		const dy = (curvePoints[i + 1].y - curvePoints[i].y) * height;
 		const segmentLength = Math.sqrt(dx * dx + dy * dy);
 		segmentLengths.push(segmentLength);
 		totalCurveLength += segmentLength;
 	}
 	
-	// Draw full curve line in dark gray
+	// Draw full curve line in dark gray (from gray origin to end)
 	ctx.strokeStyle = '#404040'; // Dark gray
 	ctx.lineWidth = 2;
 	ctx.beginPath();
-	for (let i = 0; i < fullPoints.length; i++) {
-		const px = fullPoints[i].x * width;
-		const py = height - fullPoints[i].y * height; // Flip Y axis
+	for (let i = 0; i < curvePoints.length; i++) {
+		const px = curvePoints[i].x * width;
+		const py = height - curvePoints[i].y * height; // Flip Y axis
 		if (i === 0) {
 			ctx.moveTo(px, py);
 		} else {
@@ -538,45 +588,180 @@ const drawCurveEditor = (
 	}
 	ctx.stroke();
 	
-	// Draw orange highlight line if progressRatio is provided
-	if (progressRatio !== undefined && progressRatio > 0 && totalCurveLength > 0) {
-		const targetLength = Math.min(progressRatio, 1.0) * totalCurveLength;
-		
+	// Step 5: Draw orange highlight line if progressRatio is provided
+	// Highlight line: from origin (0,0) -> (deadzone, 0) -> jump to (deadzone, antiDeadzone) -> continue along curve
+	if (progressRatio !== undefined && progressRatio >= 0) {
 		ctx.strokeStyle = '#FFA500'; // Orange
 		ctx.lineWidth = 2;
 		ctx.beginPath();
-		// Start at the adjusted start point (with deadzone/anti-deadzone applied)
-		const startPx = startPoint.x * width;
-		const startPy = height - startPoint.y * height;
-		ctx.moveTo(startPx, startPy);
 		
-		let accumulatedLength = 0;
-		for (let i = 0; i < fullPoints.length - 1; i++) {
-			const px1 = fullPoints[i].x * width;
-			const py1 = height - fullPoints[i].y * height;
-			const px2 = fullPoints[i + 1].x * width;
-			const py2 = height - fullPoints[i + 1].y * height;
-			
-			const segmentLength = segmentLengths[i];
-			
-			if (accumulatedLength + segmentLength <= targetLength) {
-				// Entire segment is within target length
-				ctx.lineTo(px2, py2);
-				accumulatedLength += segmentLength;
+		// Always start from origin (0, 0)
+		ctx.moveTo(0, height);
+		
+		// If deadzone > 0
+		if (innerDeadzone > 0) {
+			const deadzoneX = innerDeadzone * width;
+			if (progressRatio < innerDeadzone) {
+				// progressRatio < deadzone: only draw horizontal line from (0, 0) to (progressRatio, 0)
+				const progressX = progressRatio * width;
+				ctx.lineTo(progressX, height);
+				ctx.stroke();
+				// Don't return early - continue to draw points in Step 6
 			} else {
-				// Partial segment - draw up to target point
-				const remainingLength = targetLength - accumulatedLength;
-				const t = remainingLength / segmentLength;
-				const endX = px1 + t * (px2 - px1);
-				const endY = py1 + t * (py2 - py1);
-				ctx.lineTo(endX, endY);
-				break;
+				// progressRatio >= deadzone: draw horizontal line from (0, 0) to (deadzone, 0)
+				ctx.lineTo(deadzoneX, height); // (deadzone, 0) in canvas coordinates
+				// Jump to (deadzone, antiDeadzone) and draw vertical line
+				const antiDeadzoneY = height - antiDeadzone * height;
+				ctx.lineTo(deadzoneX, antiDeadzoneY); // Vertical line from (deadzone, 0) to (deadzone, antiDeadzone)
+				
+				// Continue along the curve from gray origin
+				if (totalCurveLength > 0) {
+					// Find the point on the curve where x coordinate equals progressRatio
+					const targetX = Math.min(progressRatio, 1.0);
+					let found = false;
+					
+					// Search through curve segments to find the one containing targetX
+					for (let i = 0; i < curvePoints.length - 1; i++) {
+						const p1 = curvePoints[i];
+						const p2 = curvePoints[i + 1];
+						
+						if (targetX >= p1.x && targetX <= p2.x) {
+							// targetX is within this segment, interpolate Y
+							const t = p2.x !== p1.x ? (targetX - p1.x) / (p2.x - p1.x) : 0;
+							const targetY = p1.y + t * (p2.y - p1.y);
+							
+							// Draw to this point
+							const targetPx = targetX * width;
+							const targetPy = height - targetY * height;
+							ctx.lineTo(targetPx, targetPy);
+							found = true;
+							break;
+						} else if (targetX > p2.x) {
+							// Draw to the end of this segment, continue to next
+							const px2 = p2.x * width;
+							const py2 = height - p2.y * height;
+							ctx.lineTo(px2, py2);
+						}
+					}
+					
+					// If progressRatio >= 1.0 and we haven't found the point, draw to end point
+					if (progressRatio >= 1.0 && !found) {
+						const endPx = endPoint.x * width;
+						const endPy = height - endPoint.y * height;
+						ctx.lineTo(endPx, endPy);
+					}
+				}
+				ctx.stroke();
 			}
+		} else if (antiDeadzone > 0) {
+			// No deadzone but antiDeadzone > 0: start from (0, antiDeadzone)
+			const antiDeadzoneY = height - antiDeadzone * height;
+			ctx.moveTo(0, antiDeadzoneY);
+			
+			// Continue along the curve from gray origin
+			if (totalCurveLength > 0 && progressRatio > 0) {
+				// Find the point on the curve where x coordinate equals progressRatio
+				const targetX = Math.min(progressRatio, 1.0);
+				let found = false;
+				
+				// Search through curve segments to find the one containing targetX
+				for (let i = 0; i < curvePoints.length - 1; i++) {
+					const p1 = curvePoints[i];
+					const p2 = curvePoints[i + 1];
+					
+					if (targetX >= p1.x && targetX <= p2.x) {
+						// targetX is within this segment, interpolate Y
+						const t = p2.x !== p1.x ? (targetX - p1.x) / (p2.x - p1.x) : 0;
+						const targetY = p1.y + t * (p2.y - p1.y);
+						
+						// Draw to this point
+						const targetPx = targetX * width;
+						const targetPy = height - targetY * height;
+						ctx.lineTo(targetPx, targetPy);
+						found = true;
+						break;
+					} else if (targetX > p2.x) {
+						// Draw to the end of this segment, continue to next
+						const px2 = p2.x * width;
+						const py2 = height - p2.y * height;
+						ctx.lineTo(px2, py2);
+					}
+				}
+				
+				// If progressRatio >= 1.0 and we haven't found the point, draw to end point
+				if (progressRatio >= 1.0 && !found) {
+					const endPx = endPoint.x * width;
+					const endPy = height - endPoint.y * height;
+					ctx.lineTo(endPx, endPy);
+				}
+			}
+			ctx.stroke();
+		} else {
+			// No deadzone and no antiDeadzone: draw directly along curve from origin
+			if (totalCurveLength > 0 && progressRatio > 0) {
+				// Find the point on the curve where x coordinate equals progressRatio
+				const targetX = Math.min(progressRatio, 1.0);
+				let found = false;
+				
+				// Search through curve segments to find the one containing targetX
+				for (let i = 0; i < curvePoints.length - 1; i++) {
+					const p1 = curvePoints[i];
+					const p2 = curvePoints[i + 1];
+					
+					if (targetX >= p1.x && targetX <= p2.x) {
+						// targetX is within this segment, interpolate Y
+						const t = p2.x !== p1.x ? (targetX - p1.x) / (p2.x - p1.x) : 0;
+						const targetY = p1.y + t * (p2.y - p1.y);
+						
+						// Draw to this point
+						const targetPx = targetX * width;
+						const targetPy = height - targetY * height;
+						ctx.lineTo(targetPx, targetPy);
+						found = true;
+						break;
+					} else if (targetX > p2.x) {
+						// Draw to the end of this segment, continue to next
+						const px2 = p2.x * width;
+						const py2 = height - p2.y * height;
+						ctx.lineTo(px2, py2);
+					}
+				}
+				
+				// If progressRatio >= 1.0 and we haven't found the point, draw to end point
+				if (progressRatio >= 1.0 && !found) {
+					const endPx = endPoint.x * width;
+					const endPy = height - endPoint.y * height;
+					ctx.lineTo(endPx, endPy);
+				}
+			}
+			ctx.stroke();
 		}
+	}
+	
+	// Step 6: Draw all points (origin, gray origin, control points, end point)
+	// Draw origin point at (0, 0) - always visible
+	ctx.fillStyle = '#00ff00'; // Green
+	ctx.beginPath();
+	ctx.arc(0, height, 6, 0, 2 * Math.PI);
+	ctx.fill();
+	ctx.strokeStyle = '#ffffff';
+	ctx.lineWidth = 2;
+	ctx.stroke();
+	
+	// Draw gray origin point at (deadzone, antiDeadzone) if deadzone or antiDeadzone > 0
+	if (innerDeadzone > 0 || antiDeadzone > 0) {
+		const grayOriginX = grayOriginPoint.x * width;
+		const grayOriginY = height - grayOriginPoint.y * height;
+		ctx.fillStyle = '#808080'; // Gray
+		ctx.beginPath();
+		ctx.arc(grayOriginX, grayOriginY, 6, 0, 2 * Math.PI);
+		ctx.fill();
+		ctx.strokeStyle = '#ffffff';
+		ctx.lineWidth = 2;
 		ctx.stroke();
 	}
 	
-	// Draw control points (excluding start and end)
+	// Draw control points (red)
 	// Apply deadzone/anti-deadzone transformation to control points for correct display
 	for (let i = 0; i < points.length; i++) {
 		// Apply the same transformation as used for the curve
@@ -586,84 +771,32 @@ const drawCurveEditor = (
 			const px = transformedPoint.x * width;
 			const py = height - transformedPoint.y * height;
 		
-		// Draw point circle
-		ctx.fillStyle = '#ff0000';
-		ctx.beginPath();
-		ctx.arc(px, py, 6, 0, 2 * Math.PI);
-		ctx.fill();
-		ctx.strokeStyle = '#ffffff';
-		ctx.lineWidth = 2;
-		ctx.stroke();
+			// Draw point circle
+			ctx.fillStyle = '#ff0000'; // Red
+			ctx.beginPath();
+			ctx.arc(px, py, 6, 0, 2 * Math.PI);
+			ctx.fill();
+			ctx.strokeStyle = '#ffffff';
+			ctx.lineWidth = 2;
+			ctx.stroke();
 		}
 	}
 	
-	// Draw start and end points (with deadzone/anti-deadzone applied)
-	const startPx = startPoint.x * width;
-	const startPy = height - startPoint.y * height;
+	// Draw end point at (1, 1)
 	const endPx = endPoint.x * width;
 	const endPy = height - endPoint.y * height;
-	
-	ctx.fillStyle = '#00ff00';
+	ctx.fillStyle = '#00ff00'; // Green
 	ctx.beginPath();
-	ctx.arc(startPx, startPy, 6, 0, 2 * Math.PI);
+	ctx.arc(endPx, endPy, 6, 0, 2 * Math.PI);
 	ctx.fill();
 	ctx.strokeStyle = '#ffffff';
 	ctx.lineWidth = 2;
 	ctx.stroke();
-	
-	ctx.beginPath();
-	ctx.arc(endPx, endPy, 6, 0, 2 * Math.PI);
-	ctx.fill();
-	ctx.stroke();
-	
-	// Draw deadzone and anti-deadzone reference lines and semi-transparent overlay
-	const deadzoneX = innerDeadzone * width;
-	const antiDeadzoneY = height - antiDeadzone * height;
-	
-	// Draw semi-transparent overlay in the rectangle formed by deadzone line, anti-deadzone line, and (1,1)
-	// Rectangle: from (deadzoneX, antiDeadzoneY) to (width, 0)
-	// In canvas coordinates: (1,1) is at (width, 0)
-	if (innerDeadzone > 0 || antiDeadzone > 0) {
-		ctx.fillStyle = 'rgba(200, 200, 200, 0.5)'; // Light gray with 50% opacity
-		ctx.beginPath();
-		// Rectangle from (deadzoneX, antiDeadzoneY) to (width, 0)
-		// Draw using moveTo and lineTo to ensure correct coordinates
-		ctx.moveTo(deadzoneX, antiDeadzoneY);
-		ctx.lineTo(width, antiDeadzoneY);
-		ctx.lineTo(width, 0);
-		ctx.lineTo(deadzoneX, 0);
-		ctx.closePath();
-		ctx.fill();
-	}
-	
-	// Draw deadzone vertical line (X-axis intercept) in light gray
-	if (innerDeadzone > 0) {
-		ctx.strokeStyle = '#cccccc'; // Light gray
-		ctx.lineWidth = 1;
-		ctx.setLineDash([3, 3]);
-		ctx.beginPath();
-		ctx.moveTo(deadzoneX, height);
-		ctx.lineTo(deadzoneX, 0);
-		ctx.stroke();
-		ctx.setLineDash([]);
-	}
-	
-	// Draw anti-deadzone horizontal line (Y-axis intercept) in light gray
-	if (antiDeadzone > 0) {
-		ctx.strokeStyle = '#cccccc'; // Light gray
-		ctx.lineWidth = 1;
-		ctx.setLineDash([3, 3]);
-		ctx.beginPath();
-		ctx.moveTo(0, antiDeadzoneY);
-		ctx.lineTo(width, antiDeadzoneY);
-		ctx.stroke();
-		ctx.setLineDash([]);
-	}
 };
 
 /**
- * Validates and corrects a point's Y value to ensure monotonicity
- * Each point's Y value must be >= all points with smaller X values
+ * Validates and corrects a point's Y value to ensure strict monotonicity
+ * Each point's Y value must be > all points with smaller X values (strictly increasing)
  * @param point The point to validate
  * @param allPoints All existing points (excluding start (0,0) and end (1,1))
  * @returns Corrected point with valid Y value
@@ -674,26 +807,60 @@ const validatePointMonotonicity = (point: CurvePoint, allPoints: CurvePoint[]): 
 		.filter(p => p.x < point.x)
 		.reduce((max, p) => Math.max(max, p.y), 0); // Start with 0 (from start point (0,0))
 	
-	// Ensure point.y >= maxYBefore
-	const correctedY = Math.max(point.y, maxYBefore);
+	// Ensure point.y > maxYBefore (strictly greater, not equal)
+	// Add a small epsilon to ensure strict inequality
+	const epsilon = 0.01; // 1% to ensure strict inequality
+	const correctedY = Math.max(point.y, maxYBefore + epsilon);
 	
-	return { x: point.x, y: correctedY };
+	// Clamp to [0, 1] range
+	const clampedY = Math.max(0, Math.min(1, correctedY));
+	
+	return { x: point.x, y: clampedY };
 };
 
 /**
- * Validates and corrects all points to ensure monotonicity
+ * Validates and corrects all points to ensure strict monotonicity
+ * Points are sorted by X, and Y values must be strictly increasing
  * @param points Array of points to validate
- * @returns Array of corrected points, sorted by X
+ * @returns Array of corrected points, sorted by X with strictly increasing Y values
  */
 const validateAllPointsMonotonicity = (points: CurvePoint[]): CurvePoint[] => {
 	// Sort by X first
-	const sorted = [...points].sort((a, b) => a.x - b.x);
+	const sorted = [...points].sort((a, b) => {
+		// If X values are equal, sort by Y to ensure consistent ordering
+		if (a.x === b.x) {
+			return a.y - b.y;
+		}
+		return a.x - b.x;
+	});
 	
-	// Validate each point in order
+	// Validate each point in order, ensuring Y is strictly increasing
 	const validated: CurvePoint[] = [];
+	const epsilon = 0.01; // 1% to ensure strict inequality
+	
 	for (let i = 0; i < sorted.length; i++) {
-		const corrected = validatePointMonotonicity(sorted[i], validated);
-		validated.push(corrected);
+		const point = sorted[i];
+		
+		// Find the maximum Y value among all previously validated points
+		const maxYBefore = validated.length > 0
+			? validated.reduce((max, p) => Math.max(max, p.y), 0)
+			: 0; // Start with 0 (from start point (0,0))
+		
+		// Ensure point.y > maxYBefore (strictly greater)
+		let correctedY = Math.max(point.y, maxYBefore + epsilon);
+		
+		// Clamp to [0, 1] range
+		correctedY = Math.max(0, Math.min(1, correctedY));
+		
+		// If X is same as previous point, ensure Y is strictly greater
+		if (validated.length > 0 && point.x === validated[validated.length - 1].x) {
+			// Same X value: ensure Y is strictly greater than previous
+			const prevY = validated[validated.length - 1].y;
+			correctedY = Math.max(correctedY, prevY + epsilon);
+			correctedY = Math.max(0, Math.min(1, correctedY));
+		}
+		
+		validated.push({ x: point.x, y: correctedY });
 	}
 	
 	return validated;
@@ -735,6 +902,84 @@ const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
 	
 	// Should not reach here, but return value as fallback
 	return value;
+};
+
+/**
+ * Calculates output distance from physical distance based on curve, deadzone, and anti-deadzone
+ * This matches the logic used in the curve canvas highlight line
+ * @param physicalDistance Physical distance in [0, 1]
+ * @param curvePoints Control points for the response curve (excluding start and end)
+ * @param innerDeadzone Inner deadzone value
+ * @param antiDeadzone Anti-deadzone value
+ * @returns Output distance in [0, 1]
+ */
+const calculateOutputDistanceFromCurve = (
+	physicalDistance: number,
+	curvePoints: CurvePoint[],
+	innerDeadzone: number,
+	antiDeadzone: number
+): number => {
+	// If physical distance < deadzone, output distance = 0
+	if (physicalDistance < innerDeadzone) {
+		return 0;
+	}
+	
+	// If deadzone <= physical distance <= antiDeadzone, output distance = antiDeadzone
+	if (physicalDistance <= antiDeadzone) {
+		return antiDeadzone;
+	}
+	
+	// If physical distance > antiDeadzone, find Y value on curve where X = physicalDistance
+	// Curve starts from gray origin (innerDeadzone, antiDeadzone) and goes to (1, 1)
+	// Build curve points: gray origin + control points + end point
+	const grayOriginPoint = { x: innerDeadzone, y: antiDeadzone };
+	const curveStartPoint = (innerDeadzone > 0 || antiDeadzone > 0) ? grayOriginPoint : { x: 0, y: 0 };
+	
+	// Apply deadzone/anti-deadzone transformation to control points
+	const applyDeadzones = (x: number, y: number): CurvePoint => {
+		if (x < innerDeadzone) {
+			return { x: -1, y: -1 }; // Invalid point
+		} else {
+			const remappedY = antiDeadzone + y * (1 - antiDeadzone);
+			return { x, y: remappedY };
+		}
+	};
+	
+	const adjustedPoints = curvePoints
+		.map(p => applyDeadzones(p.x, p.y))
+		.filter(p => p.x >= 0 && p.y >= 0 && p.x >= innerDeadzone)
+		.sort((a, b) => a.x - b.x);
+	
+	const endPoint = applyDeadzones(1, 1);
+	const fullCurvePoints: CurvePoint[] = [curveStartPoint, ...adjustedPoints, endPoint];
+	
+	// Find the point on the curve where x = physicalDistance
+	const targetX = Math.min(physicalDistance, 1.0);
+	
+	for (let i = 0; i < fullCurvePoints.length - 1; i++) {
+		const p1 = fullCurvePoints[i];
+		const p2 = fullCurvePoints[i + 1];
+		
+		if (targetX >= p1.x && targetX <= p2.x) {
+			// Interpolate Y value
+			if (p2.x === p1.x) {
+				return p1.y;
+			}
+			const t = (targetX - p1.x) / (p2.x - p1.x);
+			return p1.y + t * (p2.y - p1.y);
+		} else if (targetX > p2.x) {
+			// Continue to next segment
+			continue;
+		}
+	}
+	
+	// If physicalDistance >= 1.0, return end point Y value
+	if (physicalDistance >= 1.0) {
+		return endPoint.y;
+	}
+	
+	// Fallback: return physicalDistance (linear mapping)
+	return physicalDistance;
 };
 
 /**
@@ -1005,33 +1250,90 @@ const JoystickCalibration = ({
 								adjustedRangeData
 							);
 							
-							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y)
+							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y) - matches backend Step 3
 							const invert1 = values?.analogAdc1Invert ?? 0;
 							let stickX = (invert1 === 1 || invert1 === 3) ? -rawStickX : rawStickX;
 							let stickY = (invert1 === 2 || invert1 === 3) ? -rawStickY : rawStickY;
 							
-							// Apply response curve if points are configured
+							// Step 4: Apply deadzone and anti-deadzone (matches backend Step 4)
+							const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+							const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+							const dist_sq = stickX * stickX + stickY * stickY;
+							const deadzone_sq = innerDeadzone * innerDeadzone;
+							let dist = 0.0;
+							let scale_factor = 0.0;
+							
+							if (dist_sq < deadzone_sq) {
+								// Inside deadzone: set to center (matches backend)
+								stickX = 0.0;
+								stickY = 0.0;
+							} else if (antiDeadzone > 0.0) {
+								// Anti-deadzone enabled: compute sqrt and apply if needed
+								dist = Math.sqrt(dist_sq);
+								const baseline = antiDeadzone;
+								if (dist > 0.0 && dist < baseline) {
+									scale_factor = baseline / dist;
+									stickX = stickX * scale_factor;
+									stickY = stickY * scale_factor;
+									dist = dist * scale_factor; // Update dist for curve application
+								} else {
+									dist = dist; // Keep original dist
+								}
+							} else {
+								// No anti-deadzone: dist remains 0, will compute in curve if needed
+								dist = Math.sqrt(dist_sq);
+							}
+							
+							// Step 5: Square trimming (matches backend Step 5)
+							const nx_before = stickX;
+							const ny_before = stickY;
+							stickX = Math.max(-1.0, Math.min(1.0, stickX));
+							stickY = Math.max(-1.0, Math.min(1.0, stickY));
+							const coords_changed = (stickX !== nx_before) || (stickY !== ny_before);
+							
+							// Step 6: Apply response curve if configured (matches backend Step 6)
 							if (leftCurvePoints.length > 0) {
-								// Convert from [-1, 1] to [0, 1] for curve application
-								const normalizedX = (stickX + 1) / 2;
-								const normalizedY = (stickY + 1) / 2;
+								let magnitude_sq;
+								let magnitude = -1.0;
 								
-								// Apply curve to magnitude (distance from center)
-								const magnitude = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
-								const curvedMagnitude = applyResponseCurve(magnitude, leftCurvePoints);
+								if (coords_changed) {
+									// Square trimming changed coordinates: recalculate from stickX/stickY
+									magnitude_sq = stickX * stickX + stickY * stickY;
+								} else {
+									// Square trimming didn't change coordinates: reuse dist
+									if (antiDeadzone > 0.0 && scale_factor > 0.0) {
+										magnitude_sq = dist_sq * scale_factor * scale_factor;
+										magnitude = dist; // Already updated above
+									} else if (antiDeadzone > 0.0) {
+										magnitude_sq = dist_sq;
+										magnitude = dist;
+									} else {
+										magnitude_sq = dist_sq;
+										// magnitude remains -1.0, will be computed below
+									}
+								}
 								
-								// Apply curve to output, preserving direction
-								if (magnitude > 0) {
-									const scale = curvedMagnitude / magnitude;
-									stickX = ((normalizedX * scale) * 2 - 1);
-									stickY = ((normalizedY * scale) * 2 - 1);
+								if (magnitude_sq > 0.0) {
+									if (magnitude < 0.0) {
+										magnitude = Math.sqrt(magnitude_sq);
+									}
+									
+									// Apply curve to magnitude
+									const curvedMagnitude = applyResponseCurve(magnitude, leftCurvePoints);
+									
+									// Apply curve to output, preserving direction
+									if (magnitude > 0) {
+										const scale = curvedMagnitude / magnitude;
+										stickX = stickX * scale;
+										stickY = stickY * scale;
+									}
 								}
 							}
 							
 							// Calculate progress ratio for curve visualization
-							// dist = currentDistance - distance from center in ADC units (before range calibration scaling)
+							// rawDist = currentDistance - distance from center in ADC units (before range calibration scaling)
 							// This is the raw distance before applying range calibration
-							const dist = detailData.currentDistance;
+							const rawDist = detailData.currentDistance;
 							// l = scale * ADC_CENTER - outer calibration ADC value length for this direction
 							// rangeData stores scale = distance / ADC_CENTER for each angle
 							// So when stick reaches outer boundary: distance = scale * ADC_CENTER
@@ -1040,10 +1342,10 @@ const JoystickCalibration = ({
 							// When scale > 1.0 (calibrated), l > ADC_CENTER (larger outer boundary)
 							// When scale < 1.0 (calibrated), l < ADC_CENTER (smaller outer boundary)
 							const l = detailData.scale > 0 ? detailData.scale * ADC_CENTER : ADC_CENTER;
-							// progressRatio = dist / l (clamped to [0, 1])
+							// progressRatio = rawDist / l (clamped to [0, 1])
 							// This represents how far along the outer boundary the stick has reached
-							// When dist = l, the stick has reached the outer boundary, progressRatio = 1
-							const progressRatio = l > 0 ? Math.min(1.0, Math.max(0.0, dist / l)) : 0;
+							// When rawDist = l, the stick has reached the outer boundary, progressRatio = 1
+							const progressRatio = l > 0 ? Math.min(1.0, Math.max(0.0, rawDist / l)) : 0;
 							
 							setLeftStickData({
 								x: stickX,
@@ -1113,33 +1415,90 @@ const JoystickCalibration = ({
 								adjustedRangeData
 							);
 							
-							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y)
+							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y) - matches backend Step 3
 							const invert2 = values?.analogAdc2Invert ?? 0;
 							let stickX = (invert2 === 1 || invert2 === 3) ? -rawStickX : rawStickX;
 							let stickY = (invert2 === 2 || invert2 === 3) ? -rawStickY : rawStickY;
 							
-							// Apply response curve if points are configured
+							// Step 4: Apply deadzone and anti-deadzone (matches backend Step 4)
+							const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+							const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+							const dist_sq = stickX * stickX + stickY * stickY;
+							const deadzone_sq = innerDeadzone * innerDeadzone;
+							let dist = 0.0;
+							let scale_factor = 0.0;
+							
+							if (dist_sq < deadzone_sq) {
+								// Inside deadzone: set to center (matches backend)
+								stickX = 0.0;
+								stickY = 0.0;
+							} else if (antiDeadzone > 0.0) {
+								// Anti-deadzone enabled: compute sqrt and apply if needed
+								dist = Math.sqrt(dist_sq);
+								const baseline = antiDeadzone;
+								if (dist > 0.0 && dist < baseline) {
+									scale_factor = baseline / dist;
+									stickX = stickX * scale_factor;
+									stickY = stickY * scale_factor;
+									dist = dist * scale_factor; // Update dist for curve application
+								} else {
+									dist = dist; // Keep original dist
+								}
+							} else {
+								// No anti-deadzone: dist remains 0, will compute in curve if needed
+								dist = Math.sqrt(dist_sq);
+							}
+							
+							// Step 5: Square trimming (matches backend Step 5)
+							const nx_before = stickX;
+							const ny_before = stickY;
+							stickX = Math.max(-1.0, Math.min(1.0, stickX));
+							stickY = Math.max(-1.0, Math.min(1.0, stickY));
+							const coords_changed = (stickX !== nx_before) || (stickY !== ny_before);
+							
+							// Step 6: Apply response curve if configured (matches backend Step 6)
 							if (rightCurvePoints.length > 0) {
-								// Convert from [-1, 1] to [0, 1] for curve application
-								const normalizedX = (stickX + 1) / 2;
-								const normalizedY = (stickY + 1) / 2;
+								let magnitude_sq;
+								let magnitude = -1.0;
 								
-								// Apply curve to magnitude (distance from center)
-								const magnitude = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
-								const curvedMagnitude = applyResponseCurve(magnitude, rightCurvePoints);
+								if (coords_changed) {
+									// Square trimming changed coordinates: recalculate from stickX/stickY
+									magnitude_sq = stickX * stickX + stickY * stickY;
+								} else {
+									// Square trimming didn't change coordinates: reuse dist
+									if (antiDeadzone > 0.0 && scale_factor > 0.0) {
+										magnitude_sq = dist_sq * scale_factor * scale_factor;
+										magnitude = dist; // Already updated above
+									} else if (antiDeadzone > 0.0) {
+										magnitude_sq = dist_sq;
+										magnitude = dist;
+									} else {
+										magnitude_sq = dist_sq;
+										// magnitude remains -1.0, will be computed below
+									}
+								}
 								
-								// Apply curve to output, preserving direction
-								if (magnitude > 0) {
-									const scale = curvedMagnitude / magnitude;
-									stickX = ((normalizedX * scale) * 2 - 1);
-									stickY = ((normalizedY * scale) * 2 - 1);
+								if (magnitude_sq > 0.0) {
+									if (magnitude < 0.0) {
+										magnitude = Math.sqrt(magnitude_sq);
+									}
+									
+									// Apply curve to magnitude
+									const curvedMagnitude = applyResponseCurve(magnitude, rightCurvePoints);
+									
+									// Apply curve to output, preserving direction
+									if (magnitude > 0) {
+										const scale = curvedMagnitude / magnitude;
+										stickX = stickX * scale;
+										stickY = stickY * scale;
+									}
 								}
 							}
 							
 							// Calculate progress ratio for curve visualization
-							// dist = currentDistance - distance from center in ADC units (before range calibration scaling)
+							// rawDist = currentDistance - distance from center in ADC units (before range calibration scaling)
 							// This is the raw distance before applying range calibration
-							const dist = detailData.currentDistance;
+							const rawDist = detailData.currentDistance;
 							// l = scale * ADC_CENTER - outer calibration ADC value length for this direction
 							// rangeData stores scale = distance / ADC_CENTER for each angle
 							// So when stick reaches outer boundary: distance = scale * ADC_CENTER
@@ -1148,10 +1507,10 @@ const JoystickCalibration = ({
 							// When scale > 1.0 (calibrated), l > ADC_CENTER (larger outer boundary)
 							// When scale < 1.0 (calibrated), l < ADC_CENTER (smaller outer boundary)
 							const l = detailData.scale > 0 ? detailData.scale * ADC_CENTER : ADC_CENTER;
-							// progressRatio = dist / l (clamped to [0, 1])
+							// progressRatio = rawDist / l (clamped to [0, 1])
 							// This represents how far along the outer boundary the stick has reached
-							// When dist = l, the stick has reached the outer boundary, progressRatio = 1
-							const progressRatio = l > 0 ? Math.min(1.0, Math.max(0.0, dist / l)) : 0;
+							// When rawDist = l, the stick has reached the outer boundary, progressRatio = 1
+							const progressRatio = l > 0 ? Math.min(1.0, Math.max(0.0, rawDist / l)) : 0;
 							
 							setRightStickData({
 								x: stickX,
@@ -1189,7 +1548,7 @@ const JoystickCalibration = ({
 		return () => {
 			clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.joystickFinetuneShapeForceCircular1, values?.joystickFinetuneShapeAmplify1, values?.joystickFinetuneShapeForceCircular2, values?.joystickFinetuneShapeAmplify2, leftFinetuneShapeActive, rightFinetuneShapeActive]);
+	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.joystickFinetuneShapeForceCircular1, values?.joystickFinetuneShapeAmplify1, values?.joystickFinetuneShapeForceCircular2, values?.joystickFinetuneShapeAmplify2, leftFinetuneShapeActive, rightFinetuneShapeActive, leftCurvePoints, rightCurvePoints, values?.inner_deadzone, values?.anti_deadzone, values?.inner_deadzone2, values?.anti_deadzone2]);
 
 	// Update canvas when stick data changes
 	useEffect(() => {
@@ -1665,20 +2024,56 @@ const JoystickCalibration = ({
 											}
 											
 											// Check if clicking on the line to add a new point
+											// Mouse position (x, y) is in displayed coordinates (with deadzone/anti-deadzone applied)
+											// Need to check against the displayed curve, then reverse transform to get original coordinates
 											if (leftCurvePoints.length < 3) {
-												// Find the segment
+												// Build the displayed curve points (with transformation applied)
 												const sortedPoints = [...leftCurvePoints].sort((a, b) => a.x - b.x);
-												const fullPoints = [{x: 0, y: 0}, ...sortedPoints, {x: 1, y: 1}];
-												for (let i = 0; i < fullPoints.length - 1; i++) {
-													const p1 = fullPoints[i];
-													const p2 = fullPoints[i + 1];
+												const grayOriginPoint = { x: innerDeadzone, y: antiDeadzone };
+												const curveStartPoint = (innerDeadzone > 0 || antiDeadzone > 0) ? grayOriginPoint : { x: 0, y: 0 };
+												
+												// Transform all points to displayed coordinates
+												const displayedPoints: CurvePoint[] = [curveStartPoint];
+												for (const pt of sortedPoints) {
+													const transformed = applyDeadzones(pt.x, pt.y);
+													if (transformed.x >= innerDeadzone && transformed.x >= 0 && transformed.y >= 0) {
+														displayedPoints.push(transformed);
+													}
+												}
+												const endPoint = applyDeadzones(1, 1);
+												displayedPoints.push(endPoint);
+												
+												// Check if mouse is near any segment of the displayed curve
+												for (let i = 0; i < displayedPoints.length - 1; i++) {
+													const p1 = displayedPoints[i];
+													const p2 = displayedPoints[i + 1];
+													
+													// Check if mouse X is within this segment's X range
 													if (x >= p1.x && x <= p2.x) {
-														// Calculate Y on the line
-														const t = (x - p1.x) / (p2.x - p1.x);
+														// Calculate Y on the displayed line segment
+														const t = p2.x !== p1.x ? (x - p1.x) / (p2.x - p1.x) : 0;
 														const lineY = p1.y + t * (p2.y - p1.y);
 														const dist = Math.abs(y - lineY);
 														if (dist < 0.05) { // Within 5% of line
-															const newPoint = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+															// Reverse transform: convert displayed coordinates back to original coordinates
+															let originalX = x;
+															let originalY = y;
+															
+															// Clamp X to be at least deadzone
+															if (originalX < innerDeadzone) {
+																originalX = innerDeadzone;
+															}
+															
+															// Reverse anti-deadzone transformation for Y
+															if (antiDeadzone > 0 && antiDeadzone < 1) {
+																// y = antiDeadzone + originalY * (1 - antiDeadzone)
+																// originalY = (y - antiDeadzone) / (1 - antiDeadzone)
+																originalY = (y - antiDeadzone) / (1 - antiDeadzone);
+																// Clamp to [0, 1]
+																originalY = Math.max(0, Math.min(1, originalY));
+															}
+															
+															const newPoint = { x: originalX, y: originalY };
 															// Validate monotonicity before adding
 															const validatedPoint = validatePointMonotonicity(newPoint, leftCurvePoints);
 															const updatedPoints = [...leftCurvePoints, validatedPoint];
@@ -1689,8 +2084,6 @@ const JoystickCalibration = ({
 															// Redraw immediately
 															const ctx = leftCurveCanvasRef.current.getContext('2d');
 															if (ctx) {
-														const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
-														const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
 														drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
 															}
 															return;
@@ -1702,10 +2095,36 @@ const JoystickCalibration = ({
 											onMouseMove={(e) => {
 												if (draggingPointIndex?.stick === 'left' && leftCurveCanvasRef.current) {
 													const rect = leftCurveCanvasRef.current.getBoundingClientRect();
-													const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-													const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+													// Mouse position in canvas coordinates [0, 1]
+													const mouseX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+													const mouseY = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+													
+													// Reverse transform: from displayed position back to original point coordinates
+													const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+													const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+													
+													// Reverse the deadzone/anti-deadzone transformation
+													// Displayed: x = originalX (if x >= deadzone), y = antiDeadzone + originalY * (1 - antiDeadzone)
+													// Reverse: originalX = x (if x >= deadzone), originalY = (y - antiDeadzone) / (1 - antiDeadzone)
+													let originalX = mouseX;
+													let originalY = mouseY;
+													
+													// Clamp X to be at least deadzone
+													if (originalX < innerDeadzone) {
+														originalX = innerDeadzone;
+													}
+													
+													// Reverse anti-deadzone transformation for Y
+													if (antiDeadzone > 0 && antiDeadzone < 1) {
+														// y = antiDeadzone + originalY * (1 - antiDeadzone)
+														// originalY = (y - antiDeadzone) / (1 - antiDeadzone)
+														originalY = (mouseY - antiDeadzone) / (1 - antiDeadzone);
+														// Clamp to [0, 1]
+														originalY = Math.max(0, Math.min(1, originalY));
+													}
+													
 													const newPoints = [...leftCurvePoints];
-													const updatedPoint = { x, y };
+													const updatedPoint = { x: originalX, y: originalY };
 													// Validate monotonicity for the dragged point
 													const otherPoints = newPoints.filter((_, i) => i !== draggingPointIndex.index);
 													const validatedPoint = validatePointMonotonicity(updatedPoint, otherPoints);
@@ -1718,8 +2137,6 @@ const JoystickCalibration = ({
 													// Redraw immediately
 													const ctx = leftCurveCanvasRef.current.getContext('2d');
 													if (ctx) {
-											const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
-											const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
 											drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
 													}
 												}
@@ -1732,6 +2149,27 @@ const JoystickCalibration = ({
 											}}
 										/>
 									</div>
+									{/* Display current stick physical and output distance */}
+									{leftCurveActive && (() => {
+										const physicalDistance = leftStickData.progressRatio !== undefined ? leftStickData.progressRatio : 0;
+										// Output distance is the Y value on the curve at the position where X = physicalDistance
+										// This matches the highlight line position on the curve canvas
+										const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+										const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+										const outputDistance = calculateOutputDistanceFromCurve(
+											physicalDistance,
+											leftCurvePoints,
+											innerDeadzone,
+											antiDeadzone
+										);
+										
+										return (
+											<div style={{ marginTop: '8px', fontSize: '0.875rem', textAlign: 'center' }}>
+												<div>当前摇杆物理距离：{(physicalDistance * 100).toFixed(1)}%</div>
+												<div>当前摇杆输出距离：{(outputDistance * 100).toFixed(1)}%</div>
+											</div>
+										);
+									})()}
 									</div>
 
 					{/* Row 1, Column 2: Left finetune shape controls or left curve info box */}
@@ -2211,20 +2649,56 @@ const JoystickCalibration = ({
 											}
 											
 											// Check if clicking on the line to add a new point
+											// Mouse position (x, y) is in displayed coordinates (with deadzone/anti-deadzone applied)
+											// Need to check against the displayed curve, then reverse transform to get original coordinates
 											if (rightCurvePoints.length < 3) {
-												// Find the segment
+												// Build the displayed curve points (with transformation applied)
 												const sortedPoints = [...rightCurvePoints].sort((a, b) => a.x - b.x);
-												const fullPoints = [{x: 0, y: 0}, ...sortedPoints, {x: 1, y: 1}];
-												for (let i = 0; i < fullPoints.length - 1; i++) {
-													const p1 = fullPoints[i];
-													const p2 = fullPoints[i + 1];
+												const grayOriginPoint = { x: innerDeadzone, y: antiDeadzone };
+												const curveStartPoint = (innerDeadzone > 0 || antiDeadzone > 0) ? grayOriginPoint : { x: 0, y: 0 };
+												
+												// Transform all points to displayed coordinates
+												const displayedPoints: CurvePoint[] = [curveStartPoint];
+												for (const pt of sortedPoints) {
+													const transformed = applyDeadzones(pt.x, pt.y);
+													if (transformed.x >= innerDeadzone && transformed.x >= 0 && transformed.y >= 0) {
+														displayedPoints.push(transformed);
+													}
+												}
+												const endPoint = applyDeadzones(1, 1);
+												displayedPoints.push(endPoint);
+												
+												// Check if mouse is near any segment of the displayed curve
+												for (let i = 0; i < displayedPoints.length - 1; i++) {
+													const p1 = displayedPoints[i];
+													const p2 = displayedPoints[i + 1];
+													
+													// Check if mouse X is within this segment's X range
 													if (x >= p1.x && x <= p2.x) {
-														// Calculate Y on the line
-														const t = (x - p1.x) / (p2.x - p1.x);
+														// Calculate Y on the displayed line segment
+														const t = p2.x !== p1.x ? (x - p1.x) / (p2.x - p1.x) : 0;
 														const lineY = p1.y + t * (p2.y - p1.y);
 														const dist = Math.abs(y - lineY);
 														if (dist < 0.05) { // Within 5% of line
-															const newPoint = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+															// Reverse transform: convert displayed coordinates back to original coordinates
+															let originalX = x;
+															let originalY = y;
+															
+															// Clamp X to be at least deadzone
+															if (originalX < innerDeadzone) {
+																originalX = innerDeadzone;
+															}
+															
+															// Reverse anti-deadzone transformation for Y
+															if (antiDeadzone > 0 && antiDeadzone < 1) {
+																// y = antiDeadzone + originalY * (1 - antiDeadzone)
+																// originalY = (y - antiDeadzone) / (1 - antiDeadzone)
+																originalY = (y - antiDeadzone) / (1 - antiDeadzone);
+																// Clamp to [0, 1]
+																originalY = Math.max(0, Math.min(1, originalY));
+															}
+															
+															const newPoint = { x: originalX, y: originalY };
 															// Validate monotonicity before adding
 															const validatedPoint = validatePointMonotonicity(newPoint, rightCurvePoints);
 															const updatedPoints = [...rightCurvePoints, validatedPoint];
@@ -2235,8 +2709,6 @@ const JoystickCalibration = ({
 															// Redraw immediately
 															const ctx = rightCurveCanvasRef.current.getContext('2d');
 															if (ctx) {
-														const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
-														const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
 														drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
 															}
 															return;
@@ -2248,10 +2720,36 @@ const JoystickCalibration = ({
 											onMouseMove={(e) => {
 												if (draggingPointIndex?.stick === 'right' && rightCurveCanvasRef.current) {
 													const rect = rightCurveCanvasRef.current.getBoundingClientRect();
-													const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-													const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+													// Mouse position in canvas coordinates [0, 1]
+													const mouseX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+													const mouseY = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+													
+													// Reverse transform: from displayed position back to original point coordinates
+													const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+													const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+													
+													// Reverse the deadzone/anti-deadzone transformation
+													// Displayed: x = originalX (if x >= deadzone), y = antiDeadzone + originalY * (1 - antiDeadzone)
+													// Reverse: originalX = x (if x >= deadzone), originalY = (y - antiDeadzone) / (1 - antiDeadzone)
+													let originalX = mouseX;
+													let originalY = mouseY;
+													
+													// Clamp X to be at least deadzone
+													if (originalX < innerDeadzone) {
+														originalX = innerDeadzone;
+													}
+													
+													// Reverse anti-deadzone transformation for Y
+													if (antiDeadzone > 0 && antiDeadzone < 1) {
+														// y = antiDeadzone + originalY * (1 - antiDeadzone)
+														// originalY = (y - antiDeadzone) / (1 - antiDeadzone)
+														originalY = (mouseY - antiDeadzone) / (1 - antiDeadzone);
+														// Clamp to [0, 1]
+														originalY = Math.max(0, Math.min(1, originalY));
+													}
+													
 													const newPoints = [...rightCurvePoints];
-													const updatedPoint = { x, y };
+													const updatedPoint = { x: originalX, y: originalY };
 													// Validate monotonicity for the dragged point
 													const otherPoints = newPoints.filter((_, i) => i !== draggingPointIndex.index);
 													const validatedPoint = validatePointMonotonicity(updatedPoint, otherPoints);
@@ -2264,8 +2762,6 @@ const JoystickCalibration = ({
 													// Redraw immediately
 													const ctx = rightCurveCanvasRef.current.getContext('2d');
 													if (ctx) {
-											const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
-											const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
 											drawCurveEditor(ctx, 300, 300, finalPoints, undefined, innerDeadzone, antiDeadzone);
 													}
 												}
@@ -2278,6 +2774,27 @@ const JoystickCalibration = ({
 											}}
 										/>
 									</div>
+								{/* Display current stick physical and output distance */}
+								{rightCurveActive && (() => {
+									const physicalDistance = rightStickData.progressRatio !== undefined ? rightStickData.progressRatio : 0;
+									// Output distance is the Y value on the curve at the position where X = physicalDistance
+									// This matches the highlight line position on the curve canvas
+									const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+									const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+									const outputDistance = calculateOutputDistanceFromCurve(
+										physicalDistance,
+										rightCurvePoints,
+										innerDeadzone,
+										antiDeadzone
+									);
+									
+									return (
+										<div style={{ marginTop: '8px', fontSize: '0.875rem', textAlign: 'center' }}>
+											<div>当前摇杆物理距离：{(physicalDistance * 100).toFixed(1)}%</div>
+											<div>当前摇杆输出距离：{(outputDistance * 100).toFixed(1)}%</div>
+										</div>
+									);
+								})()}
 									</div>
 
 					{/* Row 2, Column 1: Left stick XY position info */}

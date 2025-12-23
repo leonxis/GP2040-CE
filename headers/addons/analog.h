@@ -64,6 +64,12 @@
 
 #define ADC_COUNT 2
 
+// Curve point structure for response curve (avoid conflict with protobuf CurvePoint)
+typedef struct {
+    float x;
+    float y;
+} AnalogCurvePoint;
+
 typedef struct
 {
     Pin_t x_pin;
@@ -123,10 +129,9 @@ public:
     virtual std::string name() { return AnalogName; }
 private:
     float readPin(int stick_num, Pin_t pin, uint16_t center, bool isXAxis);
-    float fastAtan2(float y, float x);
     float getInterpolatedScale(int stick_num, float angle);
     void applyFinetuneShapeAdjustments(int stick_num);
-    void initializeCurveSegments(int stick_num, const struct { float x; float y; }* control_points, int control_points_count);
+    void initializeCurveSegments(int stick_num, const AnalogCurvePoint* control_points, int control_points_count);
     void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, float magnitude_sq, float magnitude = -1.0f);
     adc_instance adc_pairs[ADC_COUNT];
 };

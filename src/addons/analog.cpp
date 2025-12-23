@@ -63,7 +63,7 @@ void AnalogInput::setup() {
     adc_pairs[0].curve_points_sorted_count = 0;
     adc_pairs[0].curve_segments_count = 0;
     if (analogOptions.joystick_curve_points_1_count > 0) {
-        initializeCurveSegments(0, analogOptions.joystick_curve_points_1, analogOptions.joystick_curve_points_1_count);
+        initializeCurveSegments(0, reinterpret_cast<const AnalogCurvePoint*>(analogOptions.joystick_curve_points_1), analogOptions.joystick_curve_points_1_count);
     }
     adc_pairs[1].x_pin = analogOptions.analogAdc2PinX;
     adc_pairs[1].y_pin = analogOptions.analogAdc2PinY;
@@ -99,7 +99,7 @@ void AnalogInput::setup() {
     adc_pairs[1].curve_points_sorted_count = 0;
     adc_pairs[1].curve_segments_count = 0;
     if (analogOptions.joystick_curve_points_2_count > 0) {
-        initializeCurveSegments(1, analogOptions.joystick_curve_points_2, analogOptions.joystick_curve_points_2_count);
+        initializeCurveSegments(1, reinterpret_cast<const AnalogCurvePoint*>(analogOptions.joystick_curve_points_2), analogOptions.joystick_curve_points_2_count);
     }
     
     // Apply finetune shape adjustments to range_data for both sticks
@@ -156,8 +156,7 @@ void AnalogInput::process() {
 
         // Step 2: Range calibration scaling (radial scaling)
         // scale is always > 0: 1.0 when uncalibrated, calibrated value when calibrated
-        // Use fast atan2 approximation to reduce CPU cycles (saves ~100-150 cycles per call)
-        float scale = getInterpolatedScale(i, fastAtan2(cy, cx));
+        float scale = getInterpolatedScale(i, std::atan2(cy, cx));
         float sx = cx / scale;
         float sy = cy / scale;
 
@@ -295,50 +294,6 @@ float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t /* center */, 
     return static_cast<float>(adc_value);
 }
 
-/**
- * Fast atan2 approximation using polynomial approximation
- * Accuracy: ~0.01 radians (~0.57 degrees) for most inputs
- * CPU cycles: ~20-30 (vs ~100-200 for std::atan2)
- * @param y Y coordinate
- * @param x X coordinate
- * @return Angle in radians [-PI, PI]
- */
-float AnalogInput::fastAtan2(float y, float x) {
-    // Handle edge cases
-    if (x == 0.0f) {
-        return (y > 0.0f) ? M_PI / 2.0f : (y < 0.0f) ? -M_PI / 2.0f : 0.0f;
-    }
-    
-    // Calculate atan(|y/x|) using polynomial approximation
-    float abs_y = (y < 0.0f) ? -y : y;
-    float abs_x = (x < 0.0f) ? -x : x;
-    float ratio = (abs_x > abs_y) ? abs_y / abs_x : abs_x / abs_y;
-    
-    // Polynomial approximation: atan(r) ≈ r * (1.0 - 0.3333333 * r^2 + 0.2 * r^4 - 0.1428571 * r^6)
-    // Optimize: compute powers incrementally to reduce multiplications
-    float ratio_sq = ratio * ratio;
-    float ratio_sq_sq = ratio_sq * ratio_sq;  // ratio^4
-    float ratio_sq_cu = ratio_sq_sq * ratio_sq;  // ratio^6
-    float atan_ratio = ratio * (1.0f - 0.3333333f * ratio_sq + 0.2f * ratio_sq_sq - 0.1428571f * ratio_sq_cu);
-    // Adjust based on quadrant
-    float angle;
-    if (abs_x > abs_y) {
-        // Primary range: [-PI/4, PI/4]
-        angle = atan_ratio;
-    } else {
-        // Secondary range: [PI/4, 3*PI/4] or [-3*PI/4, -PI/4]
-        angle = M_PI / 2.0f - atan_ratio;
-    }
-    
-    // Apply sign and quadrant correction
-    if (x < 0.0f) {
-        angle = (y >= 0.0f) ? M_PI - angle : -M_PI - angle;
-    } else if (y < 0.0f) {
-        angle = -angle;
-    }
-    
-    return angle;
-}
 
 /**
  * Get interpolated scale for a given angle using range calibration data
@@ -424,7 +379,7 @@ void AnalogInput::applyFinetuneShapeAdjustments(int stick_num) {
  * @param control_points Array of control points (already sorted by x coordinate from frontend)
  * @param control_points_count Number of control points (0-3)
  */
-void AnalogInput::initializeCurveSegments(int stick_num, const struct { float x; float y; }* control_points, int control_points_count) {
+void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint* control_points, int control_points_count) {
     // Build preprocessed array: start (0,0) + control points + end (1,1)
     adc_pairs[stick_num].curve_points_sorted_count = 0;
     
