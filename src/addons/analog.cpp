@@ -28,6 +28,9 @@ bool AnalogInput::available() {
 void AnalogInput::setup() {
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     
+    // Check if curve is enabled (default to enabled if not set)
+    bool curveEnabled = analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : true;
+    
     // Setup our ADC Pair of Sticks
     adc_pairs[0].x_pin = analogOptions.analogAdc1PinX;
     adc_pairs[0].y_pin = analogOptions.analogAdc1PinY;
@@ -58,11 +61,11 @@ void AnalogInput::setup() {
     // Initialize response curve points: build preprocessed array with start (0,0) + control points + end (1,1)
     // Note: Frontend saves control points sorted by x coordinate, so no sorting needed here
     // Frontend limits to max 3 points, protobuf also limits to max 3, so no need to check > 3
-    // Relationship: curve_points_sorted_count = (joystick_curve_points_1_count > 0) ? (2 + joystick_curve_points_1_count) : 0
-    //               (start point + control points + end point, or 0 if no curve)
+    // Relationship: curve_points_sorted_count = (joystick_curve_points_1_count > 0 && joystick_curve_enabled) ? (2 + joystick_curve_points_1_count) : 0
+    //               (start point + control points + end point, or 0 if no curve or curve disabled)
     adc_pairs[0].curve_points_sorted_count = 0;
     adc_pairs[0].curve_segments_count = 0;
-    if (analogOptions.joystick_curve_points_1_count > 0) {
+    if (curveEnabled && analogOptions.joystick_curve_points_1_count > 0) {
         initializeCurveSegments(0, reinterpret_cast<const AnalogCurvePoint*>(analogOptions.joystick_curve_points_1), analogOptions.joystick_curve_points_1_count);
     }
     adc_pairs[1].x_pin = analogOptions.analogAdc2PinX;
@@ -94,11 +97,11 @@ void AnalogInput::setup() {
     // Initialize response curve points: build preprocessed array with start (0,0) + control points + end (1,1)
     // Note: Frontend saves control points sorted by x coordinate, so no sorting needed here
     // Frontend limits to max 3 points, protobuf also limits to max 3, so no need to check > 3
-    // Relationship: curve_points_sorted_count = (joystick_curve_points_2_count > 0) ? (2 + joystick_curve_points_2_count) : 0
-    //               (start point + control points + end point, or 0 if no curve)
+    // Relationship: curve_points_sorted_count = (joystick_curve_points_2_count > 0 && joystick_curve_enabled) ? (2 + joystick_curve_points_2_count) : 0
+    //               (start point + control points + end point, or 0 if no curve or curve disabled)
     adc_pairs[1].curve_points_sorted_count = 0;
     adc_pairs[1].curve_segments_count = 0;
-    if (analogOptions.joystick_curve_points_2_count > 0) {
+    if (curveEnabled && analogOptions.joystick_curve_points_2_count > 0) {
         initializeCurveSegments(1, reinterpret_cast<const AnalogCurvePoint*>(analogOptions.joystick_curve_points_2), analogOptions.joystick_curve_points_2_count);
     }
     

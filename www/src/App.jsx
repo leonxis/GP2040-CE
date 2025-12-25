@@ -16,6 +16,7 @@ import AddonsConfigPage from './Pages/AddonsConfigPage';
 import BackupPage from './Pages/BackupPage';
 import PlaygroundPage from './Pages/PlaygroundPage';
 import InputMacroAddonPage from './Pages/InputMacroAddonPage';
+import HMLSettingsPage from './Pages/HMLSettingsPage';
 
 import './App.scss';
 
@@ -27,6 +28,7 @@ const App = () => {
 				<div className="body-content container-lg">
 					<Routes>
 						<Route path="/" element={<HomePage />} />
+						<Route path="/hml-settings" element={<HMLSettingsPage />} />
 						<Route path="/settings" element={<SettingsPage />} />
 						<Route path="/pin-mapping" element={<PinMappingPage />} />
 						<Route

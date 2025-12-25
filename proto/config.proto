@@ -453,6 +453,7 @@ message AnalogOptions
     // Response curve control points (max 3 points per stick)
     repeated CurvePoint joystick_curve_points_1 = 60 [(nanopb).max_count = 3];
     repeated CurvePoint joystick_curve_points_2 = 61 [(nanopb).max_count = 3];
+    optional bool joystick_curve_enabled = 62 [default = true];
 }
 
 message TurboOptions

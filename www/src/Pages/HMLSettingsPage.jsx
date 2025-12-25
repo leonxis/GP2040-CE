@@ -1,0 +1,58 @@
+import React, { useState } from 'react';
+import { Row, Col, Nav } from 'react-bootstrap';
+import ModeSettings from './HMLSettings/components/ModeSettings';
+import BackButtonMapping from './HMLSettings/components/BackButtonMapping';
+import FunctionButtons from './HMLSettings/components/FunctionButtons';
+import CalibrationSettings from './HMLSettings/components/CalibrationSettings';
+import HardwareConfig from './HMLSettings/components/HardwareConfig';
+import BackupReset from './HMLSettings/components/BackupReset';
+import { TABS } from './HMLSettings/constants/hmlInputModes';
+
+export default function HMLSettingsPage() {
+	const [activeKey, setActiveKey] = useState('mode');
+
+	const renderContent = () => {
+		switch (activeKey) {
+			case 'mode':
+				return <ModeSettings />;
+			case 'back-buttons':
+				return <BackButtonMapping />;
+			case 'function-buttons':
+				return <FunctionButtons />;
+			case 'calibration':
+				return <CalibrationSettings />;
+			case 'hardware':
+				return <HardwareConfig />;
+			case 'backup-reset':
+				return <BackupReset />;
+			default:
+				return null;
+		}
+	};
+
+	return (
+		<div className="mt-4">
+			<Row>
+				<Col style={{ width: '150px', flex: '0 0 150px', maxWidth: '150px' }}>
+					<Nav
+						variant="pills"
+						className="flex-column"
+						activeKey={activeKey}
+						onSelect={(k) => {
+							if (k) setActiveKey(k);
+						}}
+					>
+						{TABS.map((tab) => (
+							<Nav.Item key={tab.key}>
+								<Nav.Link eventKey={tab.key}>{tab.label}</Nav.Link>
+							</Nav.Item>
+						))}
+					</Nav>
+				</Col>
+				<Col>
+					{renderContent()}
+				</Col>
+			</Row>
+		</div>
+	);
+}

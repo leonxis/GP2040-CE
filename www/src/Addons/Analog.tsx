@@ -131,6 +131,7 @@ export const analogScheme = {
 			y: yup.number().min(0).max(1)
 		}))
 		.label('Joystick Curve Points 2'),
+	joystickCurveEnabled: yup.boolean().label('Joystick Curve Enabled'),
 };
 
 export const analogState = {
@@ -171,6 +172,7 @@ export const analogState = {
 	joystickRangeData2: [],
 	joystickCurvePoints1: [],
 	joystickCurvePoints2: [],
+	joystickCurveEnabled: true,
 };
 
 // errorRateToPercent and percentToErrorRate removed - no longer used after removing forced_circularity

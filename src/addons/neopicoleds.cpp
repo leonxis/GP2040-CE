@@ -325,8 +325,6 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	const LEDOptions& ledOptions = Storage::getInstance().getLedOptions();
 	
 	uint8_t alStartIndex = ledOptions.caseRGBIndex;
-	uint8_t multipleOfCustomStaticThemeCount;
-	uint8_t remainderOfCustomStaticThemeCount;
 	int maxFrame = (int)ledOptions.caseRGBCount;
 	if ( maxFrame > FRAME_MAX - alStartIndex )
 		maxFrame = FRAME_MAX - alStartIndex; // make sure we don't go over 100 and overflow frame[]
@@ -468,21 +466,17 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 				frame[alStartIndex + i] = ambientLight.value(Animation::format, alBrightnessBreathX);
 			}
 			break;
-		case AL_CUSTOM_EFFECT_STATIC_THEME:
-			multipleOfCustomStaticThemeCount = maxFrame / AL_COL;
-			remainderOfCustomStaticThemeCount = maxFrame % AL_COL;
-			// Fill frame with extras on remainder
-			for(int i = 0; i < multipleOfCustomStaticThemeCount; i++){
-				for(int j = 0; j < AL_COL; j++){
-					frame[alStartIndex + i*AL_COL + j] = alCustomStaticTheme[options.alCustomStaticThemeIndex][j].value(Animation::format, options.alStaticBrightnessCustomThemeX);
-				}
-			}
-			if(remainderOfCustomStaticThemeCount != 0){
-				for(int k = 0; k < remainderOfCustomStaticThemeCount; k++){
-					frame[alStartIndex + multipleOfCustomStaticThemeCount * AL_COL + k] = alCustomStaticTheme[options.alCustomStaticThemeIndex][k].value(Animation::format, options.alStaticBrightnessCustomThemeX);
-				}
+		case AL_CUSTOM_EFFECT_STATIC_THEME: {
+			// Use pledColor and brightnessMaximum from HML Settings hardware config as static theme
+			// All LEDs display the same color and brightness from HML Settings
+			RGB hmlLedColor(static_cast<uint32_t>(ledOptions.pledColor));
+			// Convert brightnessMaximum (0-255) to brightness multiplier (0.0-1.0)
+			float hmlBrightnessX = static_cast<float>(ledOptions.brightnessMaximum) / 255.0f;
+			for(int i = 0; i < maxFrame; i++) {
+				frame[alStartIndex + i] = hmlLedColor.value(Animation::format, hmlBrightnessX);
 			}
 			break;
+		}
 		default:
 			break;
 	}
@@ -585,7 +579,7 @@ void NeoPicoLEDAddon::process() {
             if (gamepad->auxState.sensors.statusLight.enabled && gamepad->auxState.sensors.statusLight.active) {
                 rgbPLEDValues[i] = (RGB(gamepad->auxState.sensors.statusLight.color.red, gamepad->auxState.sensors.statusLight.color.green, gamepad->auxState.sensors.statusLight.color.blue)).value(neopico.GetFormat(), brightness);
             } else {
-                rgbPLEDValues[i] = ((RGB)ledOptions.pledColor).value(neopico.GetFormat(), brightness);
+                rgbPLEDValues[i] = RGB(static_cast<uint32_t>(ledOptions.pledColor)).value(neopico.GetFormat(), brightness);
             }
             frame[pledIndexes[i]] = rgbPLEDValues[i];
         }
@@ -606,6 +600,13 @@ void NeoPicoLEDAddon::process() {
 		ledOptions.caseRGBCount > 0 ) {
 		ambientHotkeys(gamepad);
 		if ( ledOptions.caseRGBType == CASE_RGB_TYPE_AMBIENT ) {
+			// If LED strip is enabled (dataPin != -1), force effect 5 (static theme)
+			// Otherwise use the selected effect from animation options
+			AnimationOptions & animationOptions = Storage::getInstance().getAnimationOptions();
+			if (isValidPin(ledOptions.dataPin)) {
+				// LED strip is enabled: force effect 5 and use pledColor from HML Settings
+				animationOptions.ambientLightEffectsCountIndex = AL_CUSTOM_EFFECT_STATIC_THEME;
+			}
 			this->ambientLightCustom();
 		} else if ( ledOptions.caseRGBType == CASE_RGB_TYPE_LINKED ) {
 			this->ambientLightLinkage(); //Custom mode
@@ -966,51 +967,66 @@ void NeoPicoLEDAddon::ambientHotkeys(Gamepad *gamepad)
 	LEDOptions & ledOptions = Storage::getInstance().getLedOptions();
 
 	// Only allow Start + Key Ambient Changes if Case RGB is enabled
+	// If LED strip is enabled (dataPin != -1), disable hotkey switching and force effect 5
+	bool ledStripEnabled = isValidPin(ledOptions.dataPin);
+	
     if(gamepad->pressedS2() && (gamepad->pressedS1() == false)) // start (not start+back) 
 	{ 
 		if(gamepad->pressedL1()) { // LB
-			action = HOTKEY_AMBIENT_LIGHT_EFFECTS_CHANGE;
-			gamepad->state.buttons &= ~(GAMEPAD_MASK_L1 | GAMEPAD_MASK_S2);
-			if (lastAmbientAction != action ) {
-				// Ambient changes are all done inside of neopico instead of animation station?
-				animationOptions.ambientLightEffectsCountIndex++;
-				if(animationOptions.ambientLightEffectsCountIndex > AL_EFFECT_MODE_MAX - 1){
-					animationOptions.ambientLightEffectsCountIndex = 0;
+			// Disable effect switching if LED strip is enabled
+			if (!ledStripEnabled) {
+				action = HOTKEY_AMBIENT_LIGHT_EFFECTS_CHANGE;
+				gamepad->state.buttons &= ~(GAMEPAD_MASK_L1 | GAMEPAD_MASK_S2);
+				if (lastAmbientAction != action ) {
+					// Ambient changes are all done inside of neopico instead of animation station?
+					animationOptions.ambientLightEffectsCountIndex++;
+					if(animationOptions.ambientLightEffectsCountIndex > AL_EFFECT_MODE_MAX - 1){
+						animationOptions.ambientLightEffectsCountIndex = 0;
+					}
+					// Reset our ambient light RGB
+					ambientLight.r = 0x00;
+					ambientLight.g = 0x00;
+					ambientLight.b = 0x00;
+					alCurrentFrame = 0;
+					alFrameToRGB = 0;
+					alReverse = false;
+					chaseLightIndex = ledOptions.caseRGBIndex;
+					alBrightnessBreathX = 1.00f;
+					breathLedEffectCycle = 0;
+					reqSave = true;
 				}
-				// Reset our ambient light RGB
-				ambientLight.r = 0x00;
-				ambientLight.g = 0x00;
-				ambientLight.b = 0x00;
-				alCurrentFrame = 0;
-				alFrameToRGB = 0;
-				alReverse = false;
-				chaseLightIndex = ledOptions.caseRGBIndex;
-				alBrightnessBreathX = 1.00f;
-				breathLedEffectCycle = 0;
-				reqSave = true;
+			} else {
+				// LED strip enabled: consume the button press but don't change effect
+				gamepad->state.buttons &= ~(GAMEPAD_MASK_L1 | GAMEPAD_MASK_S2);
 			}
 		} else if (gamepad->pressedL2()) { // LT (Different from COSMOX, we just cycle instead of temporary disable)
-			action = HOTKEY_AMBIENT_LIGHT_EFFECTS_ON_OFF;
-			if (lastAmbientAction != action ) {
-				// Move the other way
-				if(animationOptions.ambientLightEffectsCountIndex == 0 )
-					animationOptions.ambientLightEffectsCountIndex = AL_EFFECT_MODE_MAX - 1;
-				else
-					animationOptions.ambientLightEffectsCountIndex--;
-				// Reset our ambient light RGB
-				ambientLight.r = 0x00;
-				ambientLight.g = 0x00;
-				ambientLight.b = 0x00;
-				alCurrentFrame = 0;
-				alFrameToRGB = 0;
-				alReverse = false;
-				chaseLightIndex = ledOptions.caseRGBIndex;
-				alBrightnessBreathX = 1.00f;
-				breathLedEffectCycle = 0;
-				reqSave = true;
+			// Disable effect switching if LED strip is enabled
+			if (!ledStripEnabled) {
+				action = HOTKEY_AMBIENT_LIGHT_EFFECTS_ON_OFF;
+				if (lastAmbientAction != action ) {
+					// Move the other way
+					if(animationOptions.ambientLightEffectsCountIndex == 0 )
+						animationOptions.ambientLightEffectsCountIndex = AL_EFFECT_MODE_MAX - 1;
+					else
+						animationOptions.ambientLightEffectsCountIndex--;
+					// Reset our ambient light RGB
+					ambientLight.r = 0x00;
+					ambientLight.g = 0x00;
+					ambientLight.b = 0x00;
+					alCurrentFrame = 0;
+					alFrameToRGB = 0;
+					alReverse = false;
+					chaseLightIndex = ledOptions.caseRGBIndex;
+					alBrightnessBreathX = 1.00f;
+					breathLedEffectCycle = 0;
+					reqSave = true;
+				}
+				// turn off brightness for ambient lights
+				gamepad->state.buttons &= ~(GAMEPAD_MASK_L2 | GAMEPAD_MASK_S2);
+			} else {
+				// LED strip enabled: consume the button press but don't change effect
+				gamepad->state.buttons &= ~(GAMEPAD_MASK_L2 | GAMEPAD_MASK_S2);
 			}
-			// turn off brightness for ambient lights
-			gamepad->state.buttons &= ~(GAMEPAD_MASK_L2 | GAMEPAD_MASK_S2);
 		} else if (gamepad->pressedB4() && (gamepad->pressedB3() == false)) { // Y  not X+Y
 			action = HOTKEY_AMBIENT_LIGHT_EFFECTS_BRIGHTNESS_UP;
 			if ( lastAmbientAction != action ) {
@@ -1045,39 +1061,47 @@ void NeoPicoLEDAddon::ambientHotkeys(Gamepad *gamepad)
 			}
 			gamepad->state.buttons &= ~(GAMEPAD_MASK_B2 | GAMEPAD_MASK_S2);
 		} else if (gamepad->pressedR1()) { // RB
-			action = HOTKEY_AMBIENT_LIGHT_EFFECTS_PARAMETER_UP;
-			if ( lastAmbientAction != action ) {
-				if ( animationOptions.ambientLightEffectsCountIndex == AL_CUSTOM_EFFECT_STATIC_COLOR ) {
-					animationOptions.alCustomStaticColorIndex++;
-					if (animationOptions.alCustomStaticColorIndex > AL_STATIC_COLOR_COUNT - 1){
-						animationOptions.alCustomStaticColorIndex = 0; // loop
+			// Disable parameter changes for static theme if LED strip is enabled
+			if (!ledStripEnabled || animationOptions.ambientLightEffectsCountIndex != AL_CUSTOM_EFFECT_STATIC_THEME) {
+				action = HOTKEY_AMBIENT_LIGHT_EFFECTS_PARAMETER_UP;
+				if ( lastAmbientAction != action ) {
+					if ( animationOptions.ambientLightEffectsCountIndex == AL_CUSTOM_EFFECT_STATIC_COLOR ) {
+						animationOptions.alCustomStaticColorIndex++;
+						if (animationOptions.alCustomStaticColorIndex > AL_STATIC_COLOR_COUNT - 1){
+							animationOptions.alCustomStaticColorIndex = 0; // loop
+						}
+					} else if ( animationOptions.ambientLightEffectsCountIndex == AL_CUSTOM_EFFECT_STATIC_THEME ) {
+						// Parameter changes disabled when LED strip is enabled (uses HML Settings color)
+						animationOptions.alCustomStaticThemeIndex++;
+						if (animationOptions.alCustomStaticThemeIndex > AL_ROW - 1){
+							animationOptions.alCustomStaticThemeIndex = 0; // loop
+						}
 					}
-				} else if ( animationOptions.ambientLightEffectsCountIndex == AL_CUSTOM_EFFECT_STATIC_THEME ) {
-					animationOptions.alCustomStaticThemeIndex++;
-					if (animationOptions.alCustomStaticThemeIndex > AL_ROW - 1){
-						animationOptions.alCustomStaticThemeIndex = 0; // loop
-					}
+					reqSave = true;
 				}
-				reqSave = true;
 			}
 			gamepad->state.buttons &= ~(GAMEPAD_MASK_R1 | GAMEPAD_MASK_S2);
 		} else if (gamepad->pressedR2()) { // RT
-			action = HOTKEY_AMBIENT_LIGHT_EFFECTS_PARAMETER_DOWN;
-			if ( lastAmbientAction != action ) {
-				if ( animationOptions.ambientLightEffectsCountIndex == AL_CUSTOM_EFFECT_STATIC_COLOR ) {
-					if (animationOptions.alCustomStaticColorIndex == 0 ) {
-						animationOptions.alCustomStaticColorIndex = AL_STATIC_COLOR_COUNT - 1;
-					} else {
-						animationOptions.alCustomStaticColorIndex--;
+			// Disable parameter changes for static theme if LED strip is enabled
+			if (!ledStripEnabled || animationOptions.ambientLightEffectsCountIndex != AL_CUSTOM_EFFECT_STATIC_THEME) {
+				action = HOTKEY_AMBIENT_LIGHT_EFFECTS_PARAMETER_DOWN;
+				if ( lastAmbientAction != action ) {
+					if ( animationOptions.ambientLightEffectsCountIndex == AL_CUSTOM_EFFECT_STATIC_COLOR ) {
+						if (animationOptions.alCustomStaticColorIndex == 0 ) {
+							animationOptions.alCustomStaticColorIndex = AL_STATIC_COLOR_COUNT - 1;
+						} else {
+							animationOptions.alCustomStaticColorIndex--;
+						}
+					} else if ( animationOptions.ambientLightEffectsCountIndex == AL_CUSTOM_EFFECT_STATIC_THEME ) {
+						// Parameter changes disabled when LED strip is enabled (uses HML Settings color)
+						if (animationOptions.alCustomStaticThemeIndex == 0 ) {
+							animationOptions.alCustomStaticThemeIndex = AL_ROW - 1;
+						} else {
+							animationOptions.alCustomStaticThemeIndex--;
+						}
 					}
-				} else if ( animationOptions.ambientLightEffectsCountIndex == AL_CUSTOM_EFFECT_STATIC_THEME ) {
-					if (animationOptions.alCustomStaticThemeIndex == 0 ) {
-						animationOptions.alCustomStaticThemeIndex = AL_ROW - 1;
-					} else {
-						animationOptions.alCustomStaticThemeIndex--;
-					}
+					reqSave = true;
 				}
-				reqSave = true;
 			}
 			gamepad->state.buttons &= ~(GAMEPAD_MASK_R2 | GAMEPAD_MASK_S2);
 		} else if (gamepad->pressedL3()) { // LS

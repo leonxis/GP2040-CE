@@ -288,14 +288,14 @@ async function setSplashImage({ splashImage, splashImage2, splashImage3 }) {
 }
 
 async function getGamepadOptions(setLoading) {
-	setLoading(true);
+	if (setLoading) setLoading(true);
 
 	try {
 		const response = await Http.get(`${baseUrl}/api/getGamepadOptions`);
-		setLoading(false);
+		if (setLoading) setLoading(false);
 		return response.data;
 	} catch (error) {
-		setLoading(false);
+		if (setLoading) setLoading(false);
 		console.error(error);
 	}
 }
@@ -313,17 +313,17 @@ async function setGamepadOptions(options) {
 }
 
 async function getLedOptions(setLoading) {
-	setLoading(true);
+	if (setLoading) setLoading(true);
 
 	try {
 		const response = await Http.get(`${baseUrl}/api/getLedOptions`);
-		setLoading(false);
+		if (setLoading) setLoading(false);
 
 		response.data.pledColor = rgbIntToHex(response.data.pledColor) || '#ffffff';
 
 		return response.data;
 	} catch (error) {
-		setLoading(false);
+		if (setLoading) setLoading(false);
 		console.error(error);
 	}
 }
@@ -341,11 +341,11 @@ async function setLedOptions(options) {
 }
 
 async function getCustomTheme(setLoading) {
-	setLoading(true);
+	if (setLoading) setLoading(true);
 
 	try {
 		const response = await Http.get(`${baseUrl}/api/getCustomTheme`);
-		setLoading(false);
+		if (setLoading) setLoading(false);
 
 		let data = { hasCustomTheme: response.data.enabled, customTheme: {} };
 
@@ -362,7 +362,7 @@ async function getCustomTheme(setLoading) {
 		console.log(data);
 		return data;
 	} catch (error) {
-		setLoading(false);
+		if (setLoading) setLoading(false);
 		console.error(error);
 	}
 }
@@ -471,12 +471,12 @@ async function setKeyMappings(mappings) {
 }
 
 async function getAddonsOptions(setLoading) {
-	setLoading(true);
+	if (setLoading) setLoading(true);
 
 	try {
 		const response = await Http.get(`${baseUrl}/api/getAddonsOptions`);
 		const data = response.data;
-		setLoading(false);
+		if (setLoading) setLoading(false);
 
 		response.data.turboLedColor =
 			rgbIntToHex(response.data.turboLedColor) || '#ffffff';
@@ -489,7 +489,7 @@ async function getAddonsOptions(setLoading) {
 
 		return { ...data, keyboardHostMap };
 	} catch (error) {
-		setLoading(false);
+		if (setLoading) setLoading(false);
 		console.error(error);
 	}
 }
@@ -515,16 +515,16 @@ async function setAddonsOptions(options) {
 }
 
 async function getMacroAddonOptions(setLoading) {
-	setLoading(true);
+	if (setLoading) setLoading(true);
 
 	try {
 		const response = await Http.get(`${baseUrl}/api/getMacroAddonOptions`);
 		const data = response.data;
-		setLoading(false);
+		if (setLoading) setLoading(false);
 
 		return data;
 	} catch (error) {
-		setLoading(false);
+		if (setLoading) setLoading(false);
 		console.error(error);
 	}
 }
@@ -612,15 +612,15 @@ async function setReactiveLEDs(leds) {
 }
 
 async function getPeripheralOptions(setLoading) {
-	setLoading(true);
+	if (setLoading) setLoading(true);
 	try {
 		const response = await Http.get(`${baseUrl}/api/getPeripheralOptions`);
-		setLoading(false);
+		if (setLoading) setLoading(false);
 
 		let mappings = { ...basePeripheralMapping, ...response.data };
 		return mappings;
 	} catch (error) {
-		setLoading(false);
+		if (setLoading) setLoading(false);
 		console.error(error);
 	}
 }

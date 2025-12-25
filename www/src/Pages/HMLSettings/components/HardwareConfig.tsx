@@ -1,0 +1,335 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button, Form } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
+
+import Section from '../../../Components/Section';
+import ColorPicker from '../../../Components/ColorPicker';
+import WebApi from '../../../Services/WebApi';
+import { hexToInt } from '../../../Services/Utilities';
+
+export default function HardwareConfig() {
+	const navigate = useNavigate();
+	const { t } = useTranslation('');
+
+	const [peripheralOptions, setPeripheralOptions] = useState({
+		peripheral: {
+			usb0: {
+				enabled: 0,
+			},
+			i2c0: {
+				enabled: 0,
+			},
+		},
+	});
+	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
+	const [ledOptions, setLedOptions] = useState({
+		dataPin: -1,
+		brightnessMaximum: 255,
+		ledColor: '#00ff00',
+		ledFormat: 0,
+		ledLayout: 0,
+		ledsPerButton: 2,
+	});
+
+	const [hostSaveMessage, setHostSaveMessage] = useState('');
+	const [ledSaveMessage, setLedSaveMessage] = useState('');
+	const [colorPickerTarget, setColorPickerTarget] = useState(null);
+	const [showColorPicker, setShowColorPicker] = useState(false);
+
+	useEffect(() => {
+		async function fetchData() {
+			const [peripheral, display, led] = await Promise.all([
+				WebApi.getPeripheralOptions(),
+				WebApi.getDisplayOptions(),
+				WebApi.getLedOptions(),
+			]);
+			setPeripheralOptions(peripheral);
+			setDisplayOptions(display);
+			
+			// 同步显示屏和I2C0的启用状态
+			// 如果两者不一致，以显示屏的enabled为准
+			if (display.enabled !== peripheral.peripheral?.i2c0?.enabled) {
+				setPeripheralOptions((prev) => ({
+					...prev,
+					peripheral: {
+						...prev.peripheral,
+						i2c0: {
+							...prev.peripheral?.i2c0,
+							enabled: display.enabled,
+						},
+					},
+				}));
+			}
+			
+			// pledColor is already converted to hex string by WebApi.getLedOptions()
+			setLedOptions({
+				dataPin: led.dataPin !== undefined ? led.dataPin : -1,
+				brightnessMaximum: led.brightnessMaximum || 255,
+				ledColor: led.pledColor || '#00ff00',
+				ledFormat: led.ledFormat || 0,
+				ledLayout: led.ledLayout || 0,
+				ledsPerButton: led.ledsPerButton || 2,
+			});
+		}
+		fetchData();
+	}, []);
+
+	const handleHostSave = async () => {
+		try {
+			// Get current peripheral options to preserve other settings
+			const currentPeripheralOptions = await WebApi.getPeripheralOptions();
+			
+			// Prepare data to save, preserving existing settings and updating usb0.enabled and i2c0.enabled
+			const dataToSave = {
+				...currentPeripheralOptions,
+				peripheral: {
+					...currentPeripheralOptions.peripheral,
+					usb0: {
+						...currentPeripheralOptions.peripheral.usb0,
+						enabled: peripheralOptions.peripheral?.usb0?.enabled || 0,
+					},
+					i2c0: {
+						...currentPeripheralOptions.peripheral.i2c0,
+						enabled: peripheralOptions.peripheral?.i2c0?.enabled || 0,
+					},
+				},
+			};
+			
+			await Promise.all([
+				WebApi.setPeripheralOptions(dataToSave),
+				WebApi.setDisplayOptions(displayOptions),
+			]);
+			setHostSaveMessage('保存成功！请重启设备');
+			setTimeout(() => setHostSaveMessage(''), 5000);
+		} catch (error) {
+			console.error('Failed to save host options:', error);
+			setHostSaveMessage('保存失败');
+			setTimeout(() => setHostSaveMessage(''), 5000);
+		}
+	};
+
+	const handleLedSave = async () => {
+		try {
+			// Get current LED options to preserve other settings
+			const currentLedOptions = await WebApi.getLedOptions();
+			
+			// Prepare data to save, preserving existing settings
+			const dataToSave = {
+				...currentLedOptions,
+				dataPin: ledOptions.dataPin,
+				brightnessMaximum: ledOptions.brightnessMaximum,
+				pledColor: hexToInt(ledOptions.ledColor || '#00ff00'),
+				ledFormat: ledOptions.ledFormat,
+				ledLayout: ledOptions.ledLayout,
+				ledsPerButton: ledOptions.ledsPerButton,
+			};
+			
+			await WebApi.setLedOptions(dataToSave);
+			setLedSaveMessage('保存成功！请重启设备');
+			setTimeout(() => setLedSaveMessage(''), 5000);
+		} catch (error) {
+			console.error('Failed to save LED options:', error);
+			setLedSaveMessage('保存失败');
+			setTimeout(() => setLedSaveMessage(''), 5000);
+		}
+	};
+
+	const handleSplashImage = () => {
+		navigate('/display-config');
+	};
+
+	return (
+		<div>
+			{/* 主机配置栏 */}
+			<Section title="主机配置">
+				<div>
+					<div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start' }}>
+						{/* USB验证器开关 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Check
+								type="switch"
+								id="usb-auth-switch"
+								label="USB验证器"
+								checked={Boolean(peripheralOptions.peripheral?.usb0?.enabled)}
+								onChange={(e) => {
+									setPeripheralOptions((prev) => ({
+										...prev,
+										peripheral: {
+											...prev.peripheral,
+											usb0: {
+												...prev.peripheral?.usb0,
+												enabled: e.target.checked ? 1 : 0,
+											},
+										},
+									}));
+								}}
+							/>
+							<span className="text-muted">
+								当设置Xinput模式且使用主机USB认证，或者设置为PS5General模式时，需要打开本开关并插入验证器
+							</span>
+						</div>
+
+						{/* 显示屏开关 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Check
+								type="switch"
+								id="display-switch"
+								label="显示屏"
+								checked={Boolean(displayOptions.enabled)}
+								onChange={(e) => {
+									const isEnabled = e.target.checked ? 1 : 0;
+									// 同时更新显示屏和I2C0的启用状态
+									setDisplayOptions((prev) => ({
+										...prev,
+										enabled: isEnabled,
+									}));
+									setPeripheralOptions((prev) => ({
+										...prev,
+										peripheral: {
+											...prev.peripheral,
+											i2c0: {
+												...prev.peripheral?.i2c0,
+												enabled: isEnabled,
+											},
+										},
+									}));
+								}}
+							/>
+							<span className="text-muted">
+								将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率
+							</span>
+						</div>
+
+						{/* 屏幕个性化按键 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Button variant="primary" onClick={handleSplashImage} style={{ minWidth: '120px' }}>
+								屏幕个性化
+							</Button>
+						</div>
+
+						{/* 保存按键 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Button variant="primary" onClick={handleHostSave}>
+								{t('Common:button-save-label')}
+							</Button>
+							{hostSaveMessage && (
+								<span
+									className={`ms-3 ${
+										hostSaveMessage.includes('成功') ? 'text-success' : 'text-danger'
+									}`}
+								>
+									{hostSaveMessage}
+								</span>
+							)}
+						</div>
+					</div>
+				</div>
+			</Section>
+
+			{/* 灯光配置栏 */}
+			<Section title="灯光配置">
+				<div>
+					<div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start' }}>
+						{/* LED灯条开关 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Check
+								type="switch"
+								id="led-strip-switch"
+								label="LED灯条"
+								checked={ledOptions.dataPin !== -1}
+								onChange={(e) => {
+									setLedOptions((prev) => ({
+										...prev,
+										dataPin: e.target.checked ? (prev.dataPin === -1 ? 16 : prev.dataPin) : -1,
+									}));
+								}}
+							/>
+							<span className="text-muted">
+								{ledOptions.dataPin === -1 
+									? 'LED灯条已关闭' 
+									: `LED数据引脚: GPIO${ledOptions.dataPin}`}
+							</span>
+						</div>
+
+						{/* 颜色取色框 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<label style={{ minWidth: '80px' }}>颜色：</label>
+							<div
+								ref={(el) => {
+									if (el && !colorPickerTarget) {
+										setColorPickerTarget(el);
+									}
+								}}
+								style={{
+									width: '40px',
+									height: '40px',
+									backgroundColor: ledOptions.ledColor,
+									border: '1px solid #ccc',
+									cursor: 'pointer',
+									borderRadius: '4px',
+								}}
+								onClick={(e) => {
+									e.stopPropagation();
+									e.preventDefault();
+									setColorPickerTarget(e.currentTarget);
+									setShowColorPicker(true);
+								}}
+							></div>
+							{showColorPicker && colorPickerTarget && (
+								<ColorPicker
+									types={[{ label: 'LED Color', value: ledOptions.ledColor }]}
+									onChange={(color) => {
+										setLedOptions((prev) => ({
+											...prev,
+											ledColor: color,
+										}));
+									}}
+									onDismiss={() => setShowColorPicker(false)}
+									placement="top"
+									show={showColorPicker}
+									target={colorPickerTarget}
+								/>
+							)}
+						</div>
+
+						{/* 亮度调节滑块 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+							<label style={{ minWidth: '80px' }}>亮度：</label>
+							<input
+								type="range"
+								min="0"
+								max="255"
+								value={ledOptions.brightnessMaximum}
+								onChange={(e) => {
+									setLedOptions((prev) => ({
+										...prev,
+										brightnessMaximum: parseInt(e.target.value, 10),
+									}));
+								}}
+								style={{ flex: 1 }}
+							/>
+							<span style={{ minWidth: '50px', textAlign: 'right' }}>{ledOptions.brightnessMaximum}</span>
+						</div>
+
+						{/* 保存按键 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Button variant="primary" onClick={handleLedSave}>
+								{t('Common:button-save-label')}
+							</Button>
+							{ledSaveMessage && (
+								<span
+									className={`ms-3 ${
+										ledSaveMessage.includes('成功') ? 'text-success' : 'text-danger'
+									}`}
+								>
+									{ledSaveMessage}
+								</span>
+							)}
+						</div>
+					</div>
+				</div>
+			</Section>
+		</div>
+	);
+}

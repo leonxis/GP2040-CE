@@ -3,64 +3,64 @@ import { Button, Form } from 'react-bootstrap';
 import { Formik, FormikErrors, FormikHandlers, FormikHelpers, useFormikContext } from 'formik';
 import * as yup from 'yup';
 import { useTranslation } from 'react-i18next';
-
 import get from 'lodash/get';
 import set from 'lodash/set';
 
-import { AppContext } from '../Contexts/AppContext';
-
-import { hexToInt } from '../Services/Utilities';
-
-import WebApi from '../Services/WebApi';
-import Analog, { analogScheme, analogState } from '../Addons/Analog';
+import { AppContext } from '../../../Contexts/AppContext';
+import { hexToInt } from '../../../Services/Utilities';
+import WebApi from '../../../Services/WebApi';
+import Section from '../../../Components/Section';
+import JoystickCalibration from './JoystickCalibration';
+import JoystickCurveSettings from './JoystickCurveSettings';
+import Analog, { analogScheme, analogState } from '../../../Addons/Analog';
 import Analog1256, {
 	analog1256Scheme,
 	analog1256State,
-} from '../Addons/Analog1256';
-import Bootsel, { bootselScheme, bootselState } from '../Addons/Bootsel';
-import Buzzer, { buzzerScheme, buzzerState } from '../Addons/Buzzer';
+} from '../../../Addons/Analog1256';
+import Bootsel, { bootselScheme, bootselState } from '../../../Addons/Bootsel';
+import Buzzer, { buzzerScheme, buzzerState } from '../../../Addons/Buzzer';
 import DualDirection, {
 	dualDirectionScheme,
 	dualDirectionState,
-} from '../Addons/DualDirection';
+} from '../../../Addons/DualDirection';
 import I2CAnalog1219, {
 	i2cAnalogScheme,
 	i2cAnalogState,
-} from '../Addons/I2CAnalog1219';
+} from '../../../Addons/I2CAnalog1219';
 import OnBoardLed, {
 	onBoardLedScheme,
 	onBoardLedState,
-} from '../Addons/OnBoardLed';
-import Reverse, { reverseScheme, reverseState } from '../Addons/Reverse';
-import SOCD, { socdScheme, socdState } from '../Addons/SOCD';
-import Tilt, { tiltScheme, tiltState } from '../Addons/Tilt';
-import Turbo, { turboScheme, turboState } from '../Addons/Turbo';
-import Wii, { wiiScheme, wiiState } from '../Addons/Wii';
-import SNES, { snesState } from '../Addons/SNES';
+} from '../../../Addons/OnBoardLed';
+import Reverse, { reverseScheme, reverseState } from '../../../Addons/Reverse';
+import SOCD, { socdScheme, socdState } from '../../../Addons/SOCD';
+import Tilt, { tiltScheme, tiltState } from '../../../Addons/Tilt';
+import Turbo, { turboScheme, turboState } from '../../../Addons/Turbo';
+import Wii, { wiiScheme, wiiState } from '../../../Addons/Wii';
+import SNES, { snesState } from '../../../Addons/SNES';
 import FocusMode, {
 	focusModeScheme,
 	focusModeState,
-} from '../Addons/FocusMode';
-import Keyboard, { keyboardScheme, keyboardState } from '../Addons/Keyboard';
+} from '../../../Addons/FocusMode';
+import Keyboard, { keyboardScheme, keyboardState } from '../../../Addons/Keyboard';
 import GamepadUSBHost, {
 	gamepadUSBHostScheme,
 	gamepadUSBHostState,
-} from '../Addons/GamepadUSBHost';
-import Rotary, { rotaryScheme, rotaryState } from '../Addons/Rotary';
-import PCF8575, { pcf8575Scheme, pcf8575State } from '../Addons/PCF8575';
+} from '../../../Addons/GamepadUSBHost';
+import Rotary, { rotaryScheme, rotaryState } from '../../../Addons/Rotary';
+import PCF8575, { pcf8575Scheme, pcf8575State } from '../../../Addons/PCF8575';
 import DRV8833Rumble, {
 	drv8833RumbleScheme,
 	drv8833RumbleState,
-} from '../Addons/DRV8833';
+} from '../../../Addons/DRV8833';
 import ReactiveLED, {
 	reactiveLEDScheme,
 	reactiveLEDState,
-} from '../Addons/ReactiveLED';
-import TG16, { tg16State } from '../Addons/TG16';
+} from '../../../Addons/ReactiveLED';
+import TG16, { tg16State } from '../../../Addons/TG16';
 import HETrigger, {
 	HETriggerScheme,
 	HETriggerState,
-} from '../Addons/HETrigger';
+} from '../../../Addons/HETrigger';
 
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
@@ -85,11 +85,11 @@ const schema = yup.object().shape({
 	...wiiScheme,
 	...focusModeScheme,
 	...keyboardScheme,
+	...gamepadUSBHostScheme,
 	...rotaryScheme,
 	...pcf8575Scheme,
 	...drv8833RumbleScheme,
 	...reactiveLEDScheme,
-	...gamepadUSBHostScheme,
 	...HETriggerScheme,
 });
 
@@ -117,31 +117,6 @@ export const DEFAULT_VALUES = {
 	...gamepadUSBHostState,
 	...HETriggerState,
 } as const;
-
-const ADDONS = [
-	Bootsel,
-	OnBoardLed,
-	Analog,
-	Turbo,
-	Reverse,
-	I2CAnalog1219,
-	Analog1256,
-	DualDirection,
-	Tilt,
-	Buzzer,
-	SOCD,
-	Wii,
-	SNES,
-	TG16,
-	FocusMode,
-	Keyboard,
-	GamepadUSBHost,
-	Rotary,
-	PCF8575,
-	DRV8833Rumble,
-	ReactiveLED,
-	HETrigger,
-];
 
 const FormContext = ({ setStoredData }) => {
 	const { values, setValues } = useFormikContext();
@@ -199,43 +174,30 @@ function flattenObject(object) {
 	return toReturn;
 }
 
-export default function AddonsConfigPage() {
-	const { updateUsedPins, updatePeripherals } = useContext(AppContext);
+export default function CalibrationSettings() {
+	const { updateUsedPins } = useContext(AppContext);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [storedData, setStoredData] = useState({});
 
 	const { t } = useTranslation();
-
-	useEffect(() => {
-		updatePeripherals();
-	}, []);
 
 	const onSuccess = async (values: typeof DEFAULT_VALUES) => {
 		const flattened = flattenObject(storedData);
 
 		// Convert turbo LED color if available
 		const data = {
-			...values,
-			turboLedColor: hexToInt(values.turboLedColor || '#000000'),
+			...flattened,
+			...flattenObject(values),
 		};
-		const valuesSchema = schema.cast(data); // Strip invalid values
 
-		// Compare what's changed and set it to resultObject
-		let resultObject = {};
-		Object.entries(flattened)?.map((entry) => {
-			const [key, oldVal] = entry;
-			const newVal = get(valuesSchema, key);
-			// For arrays, use deep comparison
-			if (Array.isArray(newVal) && Array.isArray(oldVal)) {
-				if (JSON.stringify(newVal) !== JSON.stringify(oldVal)) {
-					set(resultObject, key, newVal);
-				}
-			} else if (newVal !== oldVal) {
-				set(resultObject, key, newVal);
-			}
-		});
-		// Also check for array fields that might not be in flattened (if they were empty before)
+		if (data.turboLedColor && typeof data.turboLedColor === 'string') {
+			data.turboLedColor = hexToInt(data.turboLedColor);
+		}
+
+		// Handle array fields specially - only update if changed
+		const valuesSchema = flattenObject(values);
 		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2'];
+		const resultObject = { ...data };
 		arrayFields.forEach(field => {
 			const newVal = get(valuesSchema, field);
 			const oldVal = get(flattened, field);
@@ -255,7 +217,8 @@ export default function AddonsConfigPage() {
 	};
 
 	return (
-		<Formik
+		<div>
+			<Formik
 			enableReinitialize={true}
 			validationSchema={schema}
 			onSubmit={onSuccess}
@@ -263,30 +226,31 @@ export default function AddonsConfigPage() {
 		>
 			{({ handleSubmit, handleChange, values, errors, setFieldValue }) => (
 				<Form noValidate onSubmit={handleSubmit}>
-					<h1>{t('AddonsConfig:header-text')}</h1>
-					<p>{t('AddonsConfig:sub-header-text')}</p>
-					{ADDONS.map((Addon, index) => (
-						<Addon
-							key={`addon-${index}`}
-							values={values}
-							errors={errors}
-							handleChange={handleChange}
-							handleCheckbox={(name: keyof typeof DEFAULT_VALUES) => {
-								setFieldValue(name, values[name] === 1 ? 0 : 1);
-							}}
-							setFieldValue={setFieldValue}
-						/>
-					))}
+					<JoystickCalibration
+						values={values}
+						errors={errors}
+						handleChange={handleChange}
+						handleCheckbox={(name: keyof typeof DEFAULT_VALUES) => {
+							setFieldValue(name, values[name] === 1 ? 0 : 1);
+						}}
+						setFieldValue={setFieldValue}
+					/>
 
-					<div className="mt-3">
-						<Button type="submit" id="save">
-							{t('Common:button-save-label')}
-						</Button>
-						{saveMessage ? <span className="alert">{saveMessage}</span> : null}
-					</div>
+					<JoystickCurveSettings
+						values={values}
+						errors={errors}
+						handleChange={handleChange}
+						setFieldValue={setFieldValue}
+					/>
+
+					<Section title="扳机校准">
+						{/* 扳机校准内容占位 */}
+					</Section>
+
 					<FormContext setStoredData={setStoredData} />
 				</Form>
 			)}
 		</Formik>
+		</div>
 	);
 }

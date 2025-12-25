@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import { Button, Form, Modal, Nav, Row, Col, Tab } from 'react-bootstrap';
 import { Formik, useFormikContext } from 'formik';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import * as yup from 'yup';
 import { Trans, useTranslation } from 'react-i18next';
 import JSEncrypt from 'jsencrypt';
@@ -575,6 +575,9 @@ const FormContext = ({ setButtonLabels, setKeyMappings }) => {
 };
 
 export default function SettingsPage() {
+	const location = useLocation();
+	const defaultTab = location.state?.activeTab || 'inputmode';
+	
 	const {
 		buttonLabels,
 		setButtonLabels,
@@ -1524,7 +1527,7 @@ export default function SettingsPage() {
 				console.log('errors', errors) || (
 					<div>
 						<Form noValidate onSubmit={handleSubmit}>
-							<Tab.Container defaultActiveKey="inputmode">
+							<Tab.Container defaultActiveKey={defaultTab}>
 								<Row>
 									<Col md={3}>
 										<Nav variant="pills" className="flex-column">

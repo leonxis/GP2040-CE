@@ -43,7 +43,7 @@
 
 extern struct fsdata_file file__index_html[];
 
-const static char* spaPaths[] = { "/backup", "/display-config", "/led-config", "/pin-mapping", "/settings", "/reset-settings", "/add-ons", "/custom-theme", "/macro", "/peripheral-mapping" };
+const static char* spaPaths[] = { "/backup", "/display-config", "/led-config", "/pin-mapping", "/settings", "/reset-settings", "/add-ons", "/custom-theme", "/macro", "/peripheral-mapping", "/hml-settings" };
 const static char* excludePaths[] = { "/css", "/images", "/js", "/static" };
 const static uint32_t rebootDelayMs = 500;
 static string http_post_uri;
@@ -1831,6 +1831,7 @@ std::string setAddonOptions()
             }
         }
     }
+    readDoc(analogOptions.joystick_curve_enabled, doc, "joystickCurveEnabled");
     // EMA smoothing removed - no longer used
     docToValue(analogOptions.enabled, doc, "AnalogInputEnabled");
 
@@ -2334,6 +2335,7 @@ std::string getAddonOptions()
         point["x"] = analogOptions.joystick_curve_points_2[i].x;
         point["y"] = analogOptions.joystick_curve_points_2[i].y;
     }
+    writeDoc(doc, "joystickCurveEnabled", analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : true);
     // EMA smoothing removed - no longer used
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
 
