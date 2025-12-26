@@ -78,7 +78,9 @@ const drawCurveEditor = (
 	ctx.textBaseline = 'top';
 	ctx.fillText('0', 2, height - 2);
 	
-	// Apply deadzone and anti-deadzone to points
+	// Apply deadzone and anti-deadzone to points (for curve drawing only)
+	// Control points are stored and displayed relative to (0,0) without any mapping
+	// The curve is drawn from (deadzone, anti-deadzone) through mapped control points to (1,1)
 	const applyDeadzones = (x: number, y: number): CurvePoint => {
 		if (x < innerDeadzone) {
 			return { x: -1, y: -1 }; // Invalid point, will be filtered
@@ -88,7 +90,7 @@ const drawCurveEditor = (
 		}
 	};
 	
-	// Build full point list with deadzone/anti-deadzone applied
+	// Build full point list with deadzone/anti-deadzone applied (for curve)
 	const startPoint = { x: innerDeadzone, y: 0 };
 	const verticalEndPoint = { x: innerDeadzone, y: antiDeadzone };
 	const adjustedPoints = points
@@ -323,11 +325,15 @@ const drawCurveEditor = (
 		ctx.stroke();
 	}
 	
+	// Draw control points (use stored coordinates directly, no mapping applied)
+	// Control points are reference points that remain constant regardless of deadzone/anti-deadzone
 	for (let i = 0; i < points.length; i++) {
-		const transformedPoint = applyDeadzones(points[i].x, points[i].y);
-		if (transformedPoint.x >= innerDeadzone && transformedPoint.x >= 0 && transformedPoint.y >= 0) {
-			const px = transformedPoint.x * width;
-			const py = height - transformedPoint.y * height;
+		const point = points[i];
+		// Control points are stored relative to (0,0) and displayed at the same position
+		// They are not affected by deadzone or anti-deadzone adjustments
+		if (point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1) {
+			const px = point.x * width;
+			const py = height - point.y * height;
 			ctx.fillStyle = '#ff0000';
 			ctx.beginPath();
 			ctx.arc(px, py, 6, 0, 2 * Math.PI);
@@ -350,20 +356,102 @@ const drawCurveEditor = (
 };
 
 /**
- * Validates and corrects a point's Y value to ensure strict monotonicity
+ * Validates and corrects a point's X and Y values to ensure strict monotonicity
+ * When dragging a point:
+ * - Cannot be less than 101% of smaller points' X/Y values (smaller_point.x/y + 0.01)
+ * - Cannot be greater than 99% of larger points' X/Y values (larger_point.x/y - 0.01)
+ * - If limit is reached, cannot continue moving in that direction
+ * - Cannot push other points to allow further movement
+ * - Must maintain 1% gap from start point (deadzone, anti-deadzone) and end point (1, 1)
+ * - Cannot skip over other points when dragging
  */
-const validatePointMonotonicity = (point: CurvePoint, allPoints: CurvePoint[]): CurvePoint => {
-	const maxYBefore = allPoints
-		.filter(p => p.x < point.x)
-		.reduce((max, p) => Math.max(max, p.y), 0);
-	const epsilon = 0.01;
-	const correctedY = Math.max(point.y, maxYBefore + epsilon);
-	const clampedY = Math.max(0, Math.min(1, correctedY));
-	return { x: point.x, y: clampedY };
+const validatePointMonotonicity = (
+	point: CurvePoint,
+	allPoints: CurvePoint[],
+	innerDeadzone: number,
+	antiDeadzone: number,
+	currentX?: number // Current X value of the point being dragged (to prevent skipping)
+): CurvePoint => {
+	const epsilon = 0.01; // 1% gap
+	
+	// Calculate start point (deadzone, anti-deadzone) or (0, 0)
+	const startPoint: CurvePoint = innerDeadzone > 0 || antiDeadzone > 0
+		? { x: innerDeadzone, y: antiDeadzone > 0 ? antiDeadzone : 0 }
+		: { x: 0, y: 0 };
+	
+	// End point is always (1, 1)
+	const endPoint: CurvePoint = { x: 1, y: 1 };
+	
+	// Use current X value if provided, otherwise use point.x
+	// This prevents skipping over other points when dragging
+	const referenceX = currentX !== undefined ? currentX : point.x;
+	
+	// Validate X value: must be at least 1% greater than points with smaller X values
+	// and at most 1% less than points with larger X values
+	// Use referenceX to determine which points are smaller/larger, not the new point.x
+	const smallerXPoints = allPoints.filter(p => p.x < referenceX);
+	const largerXPoints = allPoints.filter(p => p.x > referenceX);
+	
+	// X value lower bound: max(smaller_points.x, start_point.x) + 0.01
+	const xLowerBound = Math.max(
+		smallerXPoints.length > 0
+			? smallerXPoints.reduce((max, p) => Math.max(max, p.x), 0) + epsilon
+			: 0,
+		startPoint.x + epsilon
+	);
+	
+	// X value upper bound: min(larger_points.x, end_point.x) - 0.01
+	const xUpperBound = Math.min(
+		largerXPoints.length > 0
+			? largerXPoints.reduce((min, p) => Math.min(min, p.x), 1) - epsilon
+			: 1,
+		endPoint.x - epsilon
+	);
+	
+	// Clamp X value to bounds, but don't allow it to skip over other points
+	let correctedX = point.x;
+	
+	// If trying to move left (decrease X) and new X is less than lower bound, clamp to lower bound
+	if (correctedX < xLowerBound) {
+		correctedX = xLowerBound;
+	}
+	// If trying to move right (increase X) and new X is greater than upper bound, clamp to upper bound
+	else if (correctedX > xUpperBound) {
+		correctedX = xUpperBound;
+	}
+	
+	correctedX = Math.max(0, Math.min(1, correctedX));
+	
+	// Validate Y value: must be at least 1% greater than points with smaller X values
+	// and at most 1% less than points with larger X values
+	// Note: Control points are stored relative to (0,0), not (deadzone, anti-deadzone)
+	// So Y value bounds should only consider other control points, not the start/end points
+	const smallerYPoints = allPoints.filter(p => p.x < correctedX);
+	const largerYPoints = allPoints.filter(p => p.x > correctedX);
+	
+	// Y value lower bound: max(smaller_points.y) + 0.01
+	// Do not include startPoint.y (antiDeadzone) as control points are relative to (0,0)
+	const yLowerBound = smallerYPoints.length > 0
+		? smallerYPoints.reduce((max, p) => Math.max(max, p.y), 0) + epsilon
+		: 0;
+	
+	// Y value upper bound: min(larger_points.y) - 0.01
+	// Do not include endPoint.y (1) as control points are relative to (0,0)
+	const yUpperBound = largerYPoints.length > 0
+		? largerYPoints.reduce((min, p) => Math.min(min, p.y), 1) - epsilon
+		: 1;
+	
+	let correctedY = Math.max(point.y, yLowerBound);
+	correctedY = Math.min(correctedY, yUpperBound);
+	correctedY = Math.max(0, Math.min(1, correctedY));
+	
+	return { x: correctedX, y: correctedY };
 };
+
 
 /**
  * Validates and corrects all points to ensure strict monotonicity
+ * X values must be at least 1% apart, Y values must be strictly increasing
  */
 const validateAllPointsMonotonicity = (points: CurvePoint[]): CurvePoint[] => {
 	const sorted = [...points].sort((a, b) => {
@@ -374,23 +462,37 @@ const validateAllPointsMonotonicity = (points: CurvePoint[]): CurvePoint[] => {
 	});
 	
 	const validated: CurvePoint[] = [];
-	const epsilon = 0.01;
+	const xEpsilon = 0.01; // 1% minimum gap for X values
+	const yEpsilon = 0.01; // 1% minimum gap for Y values
 	
 	for (let i = 0; i < sorted.length; i++) {
 		const point = sorted[i];
-		const maxYBefore = validated.length > 0
-			? validated.reduce((max, p) => Math.max(max, p.y), 0)
+		
+		// Validate X value: must be at least 1% greater than previous point's X
+		const maxXBefore = validated.length > 0
+			? validated.reduce((max, p) => Math.max(max, p.x), 0)
 			: 0;
-		let correctedY = Math.max(point.y, maxYBefore + epsilon);
+		let correctedX = Math.max(point.x, maxXBefore + xEpsilon);
+		correctedX = Math.max(0, Math.min(1, correctedX));
+		
+		// Validate Y value: must be at least 1% greater than points with smaller X values
+		const maxYBefore = validated
+			.filter(p => p.x < correctedX)
+			.reduce((max, p) => Math.max(max, p.y), 0);
+		let correctedY = Math.max(point.y, maxYBefore + yEpsilon);
 		correctedY = Math.max(0, Math.min(1, correctedY));
 		
-		if (validated.length > 0 && point.x === validated[validated.length - 1].x) {
+		// If X value is the same as previous point, ensure Y is at least 1% greater
+		if (validated.length > 0 && Math.abs(correctedX - validated[validated.length - 1].x) < xEpsilon) {
 			const prevY = validated[validated.length - 1].y;
-			correctedY = Math.max(correctedY, prevY + epsilon);
+			correctedY = Math.max(correctedY, prevY + yEpsilon);
 			correctedY = Math.max(0, Math.min(1, correctedY));
+			// Also ensure X is at least 1% greater
+			correctedX = Math.max(correctedX, validated[validated.length - 1].x + xEpsilon);
+			correctedX = Math.max(0, Math.min(1, correctedX));
 		}
 		
-		validated.push({ x: point.x, y: correctedY });
+		validated.push({ x: correctedX, y: correctedY });
 	}
 	
 	return validated;
@@ -520,11 +622,12 @@ const JoystickCurveSettings = ({
 	const [leftCurveInputValues, setLeftCurveInputValues] = useState<CurvePointInput[]>(() => {
 		const saved = values?.joystickCurvePoints1;
 		if (Array.isArray(saved)) {
-			return (saved as CurvePoint[]).map(p => ({ x: p.x.toString(), y: p.y.toString() }));
+			return (saved as CurvePoint[]).map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() }));
 		}
 		return [];
 	});
 	const [leftDraggingPointIndex, setLeftDraggingPointIndex] = useState<number | null>(null);
+	const [leftDragOffset, setLeftDragOffset] = useState<{ x: number; y: number } | null>(null);
 	const leftCurveCanvasRef = useRef<HTMLCanvasElement>(null);
 	const [leftStickProgressRatio, setLeftStickProgressRatio] = useState<number | undefined>(undefined);
 	
@@ -536,11 +639,12 @@ const JoystickCurveSettings = ({
 	const [rightCurveInputValues, setRightCurveInputValues] = useState<CurvePointInput[]>(() => {
 		const saved = values?.joystickCurvePoints2;
 		if (Array.isArray(saved)) {
-			return (saved as CurvePoint[]).map(p => ({ x: p.x.toString(), y: p.y.toString() }));
+			return (saved as CurvePoint[]).map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() }));
 		}
 		return [];
 	});
 	const [rightDraggingPointIndex, setRightDraggingPointIndex] = useState<number | null>(null);
+	const [rightDragOffset, setRightDragOffset] = useState<{ x: number; y: number } | null>(null);
 	const rightCurveCanvasRef = useRef<HTMLCanvasElement>(null);
 	const [rightStickProgressRatio, setRightStickProgressRatio] = useState<number | undefined>(undefined);
 	
@@ -549,7 +653,7 @@ const JoystickCurveSettings = ({
 		const saved = values?.joystickCurvePoints1;
 		if (Array.isArray(saved)) {
 			setLeftCurvePoints(saved as CurvePoint[]);
-			setLeftCurveInputValues((saved as CurvePoint[]).map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+			setLeftCurveInputValues((saved as CurvePoint[]).map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() })));
 		} else {
 			setLeftCurvePoints([]);
 			setLeftCurveInputValues([]);
@@ -560,7 +664,7 @@ const JoystickCurveSettings = ({
 		const saved = values?.joystickCurvePoints2;
 		if (Array.isArray(saved)) {
 			setRightCurvePoints(saved as CurvePoint[]);
-			setRightCurveInputValues((saved as CurvePoint[]).map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+			setRightCurveInputValues((saved as CurvePoint[]).map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() })));
 		} else {
 			setRightCurvePoints([]);
 			setRightCurveInputValues([]);
@@ -700,10 +804,10 @@ const JoystickCurveSettings = ({
 				return !inputVal || Math.abs(parseFloat(inputVal.x || '0') - p.x) > 0.0001 || Math.abs(parseFloat(inputVal.y || '0') - p.y) > 0.0001;
 			});
 			if (needsUpdate) {
-				setLeftCurveInputValues(leftCurvePoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+				setLeftCurveInputValues(leftCurvePoints.map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() })));
 			}
 		} else {
-			setLeftCurveInputValues(leftCurvePoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+			setLeftCurveInputValues(leftCurvePoints.map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() })));
 		}
 	}, [leftCurvePoints]);
 	
@@ -714,10 +818,10 @@ const JoystickCurveSettings = ({
 				return !inputVal || Math.abs(parseFloat(inputVal.x || '0') - p.x) > 0.0001 || Math.abs(parseFloat(inputVal.y || '0') - p.y) > 0.0001;
 			});
 			if (needsUpdate) {
-				setRightCurveInputValues(rightCurvePoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+				setRightCurveInputValues(rightCurvePoints.map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() })));
 			}
 		} else {
-			setRightCurveInputValues(rightCurvePoints.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+			setRightCurveInputValues(rightCurvePoints.map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() })));
 		}
 	}, [rightCurvePoints]);
 	
@@ -731,21 +835,19 @@ const JoystickCurveSettings = ({
 		const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
 		const clickedPoint = inverseApplyDeadzones(mouseX, mouseY, 260, 260, innerDeadzone, antiDeadzone);
 		
-		// Check if clicking on existing point
+		// Check if clicking on existing point (use stored coordinates directly, no mapping)
+		// Control points are displayed at their stored coordinates relative to (0,0)
 		const threshold = 10;
 		for (let i = 0; i < leftCurvePoints.length; i++) {
 			const point = leftCurvePoints[i];
-			const applyDeadzones = (x: number, y: number): CurvePoint => {
-				if (x < innerDeadzone) return { x: -1, y: -1 };
-				const remappedY = antiDeadzone + y * (1 - antiDeadzone);
-				return { x, y: remappedY };
-			};
-			const transformedPoint = applyDeadzones(point.x, point.y);
-			if (transformedPoint.x >= innerDeadzone && transformedPoint.x >= 0 && transformedPoint.y >= 0) {
-				const px = transformedPoint.x * 260;
-				const py = 260 - transformedPoint.y * 260;
+			// Control points are stored and displayed relative to (0,0) without any mapping
+			if (point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1) {
+				const px = point.x * 260;
+				const py = 260 - point.y * 260;
 				const dist = Math.sqrt(Math.pow(mouseX - px, 2) + Math.pow(mouseY - py, 2));
 				if (dist < threshold) {
+					// Record offset between mouse and control point
+					setLeftDragOffset({ x: mouseX - px, y: mouseY - py });
 					setLeftDraggingPointIndex(i);
 					return;
 				}
@@ -754,10 +856,12 @@ const JoystickCurveSettings = ({
 		
 		// Add new point if less than 3 points
 		if (leftCurvePoints.length < 3) {
-			const validatedPoint = validatePointMonotonicity(clickedPoint, leftCurvePoints);
+			const validatedPoint = validatePointMonotonicity(clickedPoint, leftCurvePoints, innerDeadzone, antiDeadzone);
 			const allPoints = [...leftCurvePoints, validatedPoint];
 			const validatedAll = validateAllPointsMonotonicity(allPoints);
 			setLeftCurvePoints(validatedAll);
+			// For new points, no offset needed (point is created at mouse position)
+			setLeftDragOffset({ x: 0, y: 0 });
 			setLeftDraggingPointIndex(validatedAll.length - 1);
 		}
 	};
@@ -769,21 +873,29 @@ const JoystickCurveSettings = ({
 		const mouseY = e.clientY - rect.top;
 		const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
 		const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
-		const newPoint = inverseApplyDeadzones(mouseX, mouseY, 300, 300, innerDeadzone, antiDeadzone);
+		// Apply drag offset to maintain relative position between mouse and control point
+		const adjustedMouseX = leftDragOffset ? mouseX - leftDragOffset.x : mouseX;
+		const adjustedMouseY = leftDragOffset ? mouseY - leftDragOffset.y : mouseY;
+		const newPoint = inverseApplyDeadzones(adjustedMouseX, adjustedMouseY, 260, 260, innerDeadzone, antiDeadzone);
+		
+		// Validate point with upper and lower bounds (no pushing other points)
 		const otherPoints = leftCurvePoints.filter((_, i) => i !== leftDraggingPointIndex);
-		const validatedPoint = validatePointMonotonicity(newPoint, otherPoints);
+		const currentPoint = leftCurvePoints[leftDraggingPointIndex];
+		const validatedPoint = validatePointMonotonicity(newPoint, otherPoints, innerDeadzone, antiDeadzone, currentPoint?.x);
 		const updatedPoints = [...leftCurvePoints];
 		updatedPoints[leftDraggingPointIndex] = validatedPoint;
-		const validatedAll = validateAllPointsMonotonicity(updatedPoints);
-		setLeftCurvePoints(validatedAll);
+		// Don't call validateAllPointsMonotonicity during dragging to avoid pushing other points
+		setLeftCurvePoints(updatedPoints);
 	};
 	
 	const handleLeftMouseUp = () => {
 		setLeftDraggingPointIndex(null);
+		setLeftDragOffset(null);
 	};
 	
 	const handleLeftMouseLeave = () => {
 		setLeftDraggingPointIndex(null);
+		setLeftDragOffset(null);
 	};
 	
 	// Handle mouse events for right stick
@@ -799,17 +911,14 @@ const JoystickCurveSettings = ({
 		const threshold = 10;
 		for (let i = 0; i < rightCurvePoints.length; i++) {
 			const point = rightCurvePoints[i];
-			const applyDeadzones = (x: number, y: number): CurvePoint => {
-				if (x < innerDeadzone) return { x: -1, y: -1 };
-				const remappedY = antiDeadzone + y * (1 - antiDeadzone);
-				return { x, y: remappedY };
-			};
-			const transformedPoint = applyDeadzones(point.x, point.y);
-			if (transformedPoint.x >= innerDeadzone && transformedPoint.x >= 0 && transformedPoint.y >= 0) {
-				const px = transformedPoint.x * 260;
-				const py = 260 - transformedPoint.y * 260;
+			// Control points are stored and displayed relative to (0,0) without any mapping
+			if (point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1) {
+				const px = point.x * 260;
+				const py = 260 - point.y * 260;
 				const dist = Math.sqrt(Math.pow(mouseX - px, 2) + Math.pow(mouseY - py, 2));
 				if (dist < threshold) {
+					// Record offset between mouse and control point
+					setRightDragOffset({ x: mouseX - px, y: mouseY - py });
 					setRightDraggingPointIndex(i);
 					return;
 				}
@@ -817,10 +926,14 @@ const JoystickCurveSettings = ({
 		}
 		
 		if (rightCurvePoints.length < 3) {
-			const validatedPoint = validatePointMonotonicity(clickedPoint, rightCurvePoints);
+			const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+			const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+			const validatedPoint = validatePointMonotonicity(clickedPoint, rightCurvePoints, innerDeadzone, antiDeadzone);
 			const allPoints = [...rightCurvePoints, validatedPoint];
 			const validatedAll = validateAllPointsMonotonicity(allPoints);
 			setRightCurvePoints(validatedAll);
+			// For new points, no offset needed (point is created at mouse position)
+			setRightDragOffset({ x: 0, y: 0 });
 			setRightDraggingPointIndex(validatedAll.length - 1);
 		}
 	};
@@ -832,21 +945,29 @@ const JoystickCurveSettings = ({
 		const mouseY = e.clientY - rect.top;
 		const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
 		const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
-		const newPoint = inverseApplyDeadzones(mouseX, mouseY, 300, 300, innerDeadzone, antiDeadzone);
+		// Apply drag offset to maintain relative position between mouse and control point
+		const adjustedMouseX = rightDragOffset ? mouseX - rightDragOffset.x : mouseX;
+		const adjustedMouseY = rightDragOffset ? mouseY - rightDragOffset.y : mouseY;
+		const newPoint = inverseApplyDeadzones(adjustedMouseX, adjustedMouseY, 260, 260, innerDeadzone, antiDeadzone);
+		
+		// Validate point with upper and lower bounds (no pushing other points)
 		const otherPoints = rightCurvePoints.filter((_, i) => i !== rightDraggingPointIndex);
-		const validatedPoint = validatePointMonotonicity(newPoint, otherPoints);
+		const currentPoint = rightCurvePoints[rightDraggingPointIndex];
+		const validatedPoint = validatePointMonotonicity(newPoint, otherPoints, innerDeadzone, antiDeadzone, currentPoint?.x);
 		const updatedPoints = [...rightCurvePoints];
 		updatedPoints[rightDraggingPointIndex] = validatedPoint;
-		const validatedAll = validateAllPointsMonotonicity(updatedPoints);
-		setRightCurvePoints(validatedAll);
+		// Don't call validateAllPointsMonotonicity during dragging to avoid pushing other points
+		setRightCurvePoints(updatedPoints);
 	};
 	
 	const handleRightMouseUp = () => {
 		setRightDraggingPointIndex(null);
+		setRightDragOffset(null);
 	};
 	
 	const handleRightMouseLeave = () => {
 		setRightDraggingPointIndex(null);
+		setRightDragOffset(null);
 	};
 	
 	// Handle input changes for left stick
@@ -863,11 +984,18 @@ const JoystickCurveSettings = ({
 		const y = Math.max(0, Math.min(1, parseFloat(inputVal.y) || 0));
 		const point: CurvePoint = { x, y };
 		const otherPoints = leftCurvePoints.filter((_, i) => i !== index);
-		const validatedPoint = validatePointMonotonicity(point, otherPoints);
+		const currentPoint = leftCurvePoints[index];
+		const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+		const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+		const validatedPoint = validatePointMonotonicity(point, otherPoints, innerDeadzone, antiDeadzone, currentPoint?.x);
 		const updatedPoints = [...leftCurvePoints];
 		updatedPoints[index] = validatedPoint;
 		const validatedAll = validateAllPointsMonotonicity(updatedPoints);
 		setLeftCurvePoints(validatedAll);
+		// Update input values with formatted display (4 decimal places)
+		const updatedInputValues = [...leftCurveInputValues];
+		updatedInputValues[index] = { x: parseFloat(validatedAll[index].x.toFixed(4)).toString(), y: parseFloat(validatedAll[index].y.toFixed(4)).toString() };
+		setLeftCurveInputValues(updatedInputValues);
 	};
 	
 	// Handle input changes for right stick
@@ -884,25 +1012,32 @@ const JoystickCurveSettings = ({
 		const y = Math.max(0, Math.min(1, parseFloat(inputVal.y) || 0));
 		const point: CurvePoint = { x, y };
 		const otherPoints = rightCurvePoints.filter((_, i) => i !== index);
-		const validatedPoint = validatePointMonotonicity(point, otherPoints);
+		const currentPoint = rightCurvePoints[index];
+		const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+		const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+		const validatedPoint = validatePointMonotonicity(point, otherPoints, innerDeadzone, antiDeadzone, currentPoint?.x);
 		const updatedPoints = [...rightCurvePoints];
 		updatedPoints[index] = validatedPoint;
 		const validatedAll = validateAllPointsMonotonicity(updatedPoints);
 		setRightCurvePoints(validatedAll);
+		// Update input values with formatted display (4 decimal places)
+		const updatedInputValues = [...rightCurveInputValues];
+		updatedInputValues[index] = { x: parseFloat(validatedAll[index].x.toFixed(4)).toString(), y: parseFloat(validatedAll[index].y.toFixed(4)).toString() };
+		setRightCurveInputValues(updatedInputValues);
 	};
 	
 	// Handle delete for left stick
 	const handleLeftDelete = (index: number) => {
 		const updated = leftCurvePoints.filter((_, i) => i !== index);
 		setLeftCurvePoints(updated);
-		setLeftCurveInputValues(updated.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+		setLeftCurveInputValues(updated.map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() })));
 	};
 	
 	// Handle delete for right stick
 	const handleRightDelete = (index: number) => {
 		const updated = rightCurvePoints.filter((_, i) => i !== index);
 		setRightCurvePoints(updated);
-		setRightCurveInputValues(updated.map(p => ({ x: p.x.toString(), y: p.y.toString() })));
+		setRightCurveInputValues(updated.map(p => ({ x: parseFloat(p.x.toFixed(4)).toString(), y: parseFloat(p.y.toFixed(4)).toString() })));
 	};
 	
 	// Handle reset for left stick
@@ -975,26 +1110,40 @@ const JoystickCurveSettings = ({
 					<div style={{ width: '260px', textAlign: 'left', marginBottom: '16px' }}>
 						<div style={{ marginBottom: '6px' }}>
 							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								内部死区: {((values?.inner_deadzone || 0) / 100.0).toFixed(1)}%
+								内部死区: {(values?.inner_deadzone || 0).toFixed(1)}%
 							</Form.Label>
 							<Form.Range
 								min={0}
-								max={15}
-								step={0.1}
+								max={10}
+								step={0.5}
 								value={values?.inner_deadzone || 0}
-								onChange={(e) => setFieldValue('inner_deadzone', Math.round(parseFloat(e.target.value)))}
+								onChange={(e) => setFieldValue('inner_deadzone', Math.round(parseFloat(e.target.value) * 2) / 2)}
 							/>
 						</div>
 						<div style={{ marginBottom: '6px' }}>
-							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								反死区: {((values?.anti_deadzone || 0) / 100.0).toFixed(1)}%
-							</Form.Label>
+							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+								<Form.Label className="mb-0" style={{ textAlign: 'left', fontSize: '0.875rem', marginBottom: '0' }}>
+									反死区: {(values?.anti_deadzone || 0).toFixed(1)}%
+								</Form.Label>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+									<span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
+										{values?.fixed_anti_deadzone ? '固定' : '线性'}
+									</span>
+									<Form.Check
+										type="switch"
+										id="fixed-anti-deadzone-1"
+										label=""
+										checked={values?.fixed_anti_deadzone || false}
+										onChange={(e) => setFieldValue('fixed_anti_deadzone', e.target.checked)}
+									/>
+								</div>
+							</div>
 							<Form.Range
 								min={0}
-								max={15}
-								step={0.1}
+								max={10}
+								step={0.5}
 								value={values?.anti_deadzone || 0}
-								onChange={(e) => setFieldValue('anti_deadzone', Math.round(parseFloat(e.target.value)))}
+								onChange={(e) => setFieldValue('anti_deadzone', Math.round(parseFloat(e.target.value) * 2) / 2)}
 							/>
 						</div>
 					</div>
@@ -1055,26 +1204,40 @@ const JoystickCurveSettings = ({
 					<div style={{ width: '260px', textAlign: 'left', marginBottom: '16px' }}>
 						<div style={{ marginBottom: '6px' }}>
 							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								内部死区: {((values?.inner_deadzone2 || 0) / 100.0).toFixed(1)}%
+								内部死区: {(values?.inner_deadzone2 || 0).toFixed(1)}%
 							</Form.Label>
 							<Form.Range
 								min={0}
-								max={15}
-								step={0.1}
+								max={10}
+								step={0.5}
 								value={values?.inner_deadzone2 || 0}
-								onChange={(e) => setFieldValue('inner_deadzone2', Math.round(parseFloat(e.target.value)))}
+								onChange={(e) => setFieldValue('inner_deadzone2', Math.round(parseFloat(e.target.value) * 2) / 2)}
 							/>
 						</div>
 						<div style={{ marginBottom: '6px' }}>
-							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								反死区: {((values?.anti_deadzone2 || 0) / 100.0).toFixed(1)}%
-							</Form.Label>
+							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+								<Form.Label className="mb-0" style={{ textAlign: 'left', fontSize: '0.875rem', marginBottom: '0' }}>
+									反死区: {(values?.anti_deadzone2 || 0).toFixed(1)}%
+								</Form.Label>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+									<span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
+										{values?.fixed_anti_deadzone2 ? '固定' : '线性'}
+									</span>
+									<Form.Check
+										type="switch"
+										id="fixed-anti-deadzone-2"
+										label=""
+										checked={values?.fixed_anti_deadzone2 || false}
+										onChange={(e) => setFieldValue('fixed_anti_deadzone2', e.target.checked)}
+									/>
+								</div>
+							</div>
 							<Form.Range
 								min={0}
-								max={15}
-								step={0.1}
+								max={10}
+								step={0.5}
 								value={values?.anti_deadzone2 || 0}
-								onChange={(e) => setFieldValue('anti_deadzone2', Math.round(parseFloat(e.target.value)))}
+								onChange={(e) => setFieldValue('anti_deadzone2', Math.round(parseFloat(e.target.value) * 2) / 2)}
 							/>
 						</div>
 					</div>
@@ -1085,7 +1248,7 @@ const JoystickCurveSettings = ({
 								{rightCurvePoints.map((point, originalIndex) => ({ point, originalIndex }))
 									.sort((a, b) => a.point.x - b.point.x)
 									.map(({ point, originalIndex }) => {
-										const inputValue = rightCurveInputValues[originalIndex] || { x: point.x.toString(), y: point.y.toString() };
+										const inputValue = rightCurveInputValues[originalIndex] || { x: parseFloat(point.x.toFixed(4)).toString(), y: parseFloat(point.y.toFixed(4)).toString() };
 										return (
 											<div key={originalIndex} style={{ marginBottom: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
 												<span style={{ minWidth: '16px', fontSize: '0.8rem' }}>X:</span>

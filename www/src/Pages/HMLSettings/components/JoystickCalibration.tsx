@@ -202,7 +202,7 @@ const getInterpolatedScale = (angle: number, rangeData: number[]): number => {
 	// Check if we have calibration data
 	// If no calibration data, return 1.0 for 1:1 native output (matches backend logic)
 	if (!rangeData || rangeData.length === 0 || rangeData.every(v => v <= 0)) {
-		return 1.0;
+		return 0.65;
 	}
 	
 	// Convert angle from [-PI, PI] to [0, 2*PI] then to [0, CIRCULARITY_DATA_SIZE]
@@ -226,16 +226,16 @@ const getInterpolatedScale = (angle: number, rangeData: number[]): number => {
  * @param y Input Y coordinate
  * @returns Trimmed coordinates {x, y}
  */
-const trimToSquare = (x: number, y: number): { x: number; y: number } => {
-	// Trim to -1,-1 to 1,1 square
-	return {
-		x: Math.max(-1.0, Math.min(1.0, x)),
-		y: Math.max(-1.0, Math.min(1.0, y))
-	};
-};
-
 /**
  * Processes joystick data through coordinate transformation pipeline (matches backend logic)
+ * This function implements backend Steps 1-3:
+ * - Step 1: Transform to center-relative coordinates (cx, cy)
+ * - Step 2: Range calibration scaling (sx, sy)
+ * - Step 3: Normalize to [-1, 1] range (nx, ny) - WITHOUT inversion and square trimming
+ * 
+ * Inversion, deadzone/anti-deadzone, square trimming, and curve are applied separately
+ * to match the exact backend processing order.
+ * 
  * @param rawX - Raw ADC X value
  * @param rawY - Raw ADC Y value
  * @param centerX - Calibrated center X value
@@ -250,71 +250,44 @@ const processJoystickData = (
 	centerY: number,
 	rangeData: number[]
 ) => {
-	// Step 2: Coordinate translation (offset transformation)
+	// Step 1: Transform to center-relative coordinates (matches backend Step 1)
+	// Backend: cx = readPin(...) - x_center
+	// Frontend: offset_center_x = (rawX - (centerX - ADC_CENTER)) - ADC_CENTER = rawX - centerX
 	const dX_value = centerX - ADC_CENTER;
 	const dY_value = centerY - ADC_CENTER;
 	const offset_x = rawX - dX_value;
 	const offset_y = rawY - dY_value;
+	const offset_center_x = offset_x - ADC_CENTER;  // Equivalent to rawX - centerX
+	const offset_center_y = offset_y - ADC_CENTER;  // Equivalent to rawY - centerY
 	
-	// Step 3: Move to adc_offset_center coordinate system
-	const offset_center_x = offset_x - ADC_CENTER;
-	const offset_center_y = offset_y - ADC_CENTER;
-	
-	// Step 4: Range calibration scaling (radial scaling) with interpolation
+	// Step 2: Range calibration scaling (matches backend Step 2)
+	// Backend: scale = getInterpolatedScale(i, atan2(cy, cx)); sx = cx / scale
 	const current_distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
 	const angle = Math.atan2(offset_center_y, offset_center_x);
 	const scale = getInterpolatedScale(angle, rangeData);
-	
 	const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
 	
-	let scaled_center_x = 0;
-	let scaled_center_y = 0;
+	// Backend directly divides by scale: sx = cx / scale (no zero distance check needed, as 0/scale = 0)
+	const scaled_center_x = offset_center_x / scale;
+	const scaled_center_y = offset_center_y / scale;
 	
-	// Apply radial scaling (scale is always > 0: 1.0 when uncalibrated, calibrated value when calibrated)
-	if (current_distance > 0.0) {
-		scaled_center_x = offset_center_x / scale;
-		scaled_center_y = offset_center_y / scale;
-	} else {
-		// Zero distance: no scaling needed
-		scaled_center_x = offset_center_x;
-		scaled_center_y = offset_center_y;
-	}
+	// Step 3: Normalize to [-1, 1] range (matches backend Step 3, before inversion)
+	// Backend: nx = sx / ADC_MAX_HALF
+	// Note: Inversion, deadzone/anti-deadzone, square trimming, and curve are applied separately
+	const stickX = scaled_center_x / (ADC_MAX / 2.0);  // Equivalent to scaled_center_x / ADC_MAX_HALF
+	const stickY = scaled_center_y / (ADC_MAX / 2.0);  // Equivalent to scaled_center_y / ADC_MAX_HALF
 	
-	// Step 5: Normalize to [0.0, 1.0] range
-	const normalized_x = scaled_center_x / ADC_MAX + 0.5;
-	const normalized_y = scaled_center_y / ADC_MAX + 0.5;
-	
-	// Step 6: Apply square trimming to prevent output values > 1.0 (DS4-style)
-	// Convert from [0.0, 1.0] range (center 0.5) to [-1, 1] range (center 0) for trimming
-	const x_normalized = (normalized_x - 0.5) * 2.0;  // [0.0, 1.0] -> [-1, 1]
-	const y_normalized = (normalized_y - 0.5) * 2.0;  // [0.0, 1.0] -> [-1, 1]
-	
-	// Trim to square [-1, 1] boundary
-	const trimmed = trimToSquare(x_normalized, y_normalized);
-	
-	// Convert to display format (-1 to 1) - trimmed values are already in [-1, 1] range
-	const stickX = trimmed.x;
-	const stickY = trimmed.y;
-	
-	return {
-		stickX,
-		stickY,
-		detailData: {
-			centerX,
-			centerY,
-			rawAdcX: rawX,
-			rawAdcY: rawY,
-			angleIndex,
-			scale,
-			offsetCenterX: offset_center_x,
-			offsetCenterY: offset_center_y,
-			scaledCenterX: scaled_center_x,
-			scaledCenterY: scaled_center_y,
-			currentDistance: current_distance, // Distance before range calibration scaling
-			normalizedX: trimmed.x * 0.5 + 0.5,
-			normalizedY: trimmed.y * 0.5 + 0.5,
-		}
-	};
+		return {
+			stickX,
+			stickY,
+			detailData: {
+				centerX,
+				centerY,
+				angleIndex,
+				scale,
+				currentDistance: current_distance, // Distance before range calibration scaling
+			}
+		};
 };
 
 /**
@@ -648,6 +621,7 @@ const JoystickCalibration = ({
 	// Load jitter filter values when modal opens
 	useEffect(() => {
 		if (showLeftJitterDataModal) {
+			// @ts-ignore - field exists at runtime
 			const savedValue = values?.joystickJitterFilter1 ?? 0;
 			setLeftJitterFilter(savedValue);
 			setLeftJitterFilterOriginal(savedValue);
@@ -656,6 +630,7 @@ const JoystickCalibration = ({
 	
 	useEffect(() => {
 		if (showRightJitterDataModal) {
+			// @ts-ignore - field exists at runtime
 			const savedValue = values?.joystickJitterFilter2 ?? 0;
 			setRightJitterFilter(savedValue);
 			setRightJitterFilterOriginal(savedValue);
@@ -670,32 +645,16 @@ const JoystickCalibration = ({
 	const [leftStickDetailData, setLeftStickDetailData] = useState({
 		centerX: 0,
 		centerY: 0,
-		rawAdcX: 0,
-		rawAdcY: 0,
 		angleIndex: 0,
 		scale: 0,
-		offsetCenterX: 0,
-		offsetCenterY: 0,
-		scaledCenterX: 0,
-		scaledCenterY: 0,
 		currentDistance: 0,
-		normalizedX: 0,
-		normalizedY: 0,
 	});
 	const [rightStickDetailData, setRightStickDetailData] = useState({
 		centerX: 0,
 		centerY: 0,
-		rawAdcX: 0,
-		rawAdcY: 0,
 		angleIndex: 0,
 		scale: 0,
-		offsetCenterX: 0,
-		offsetCenterY: 0,
-		scaledCenterX: 0,
-		scaledCenterY: 0,
 		currentDistance: 0,
-		normalizedX: 0,
-		normalizedY: 0,
 	});
 
 	// Fetch joystick data periodically and update canvas
@@ -727,6 +686,7 @@ const JoystickCalibration = ({
 							);
 							
 							// Apply jitter filter for visualization using configured threshold
+							// @ts-ignore - field exists at runtime
 							const jitterThreshold1 = values?.joystickJitterFilter1 ?? 0;
 							const filtered1 = applyJitterFilterToAdc(
 								data1.x,
@@ -753,8 +713,6 @@ const JoystickCalibration = ({
 							const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
 							const dist_sq = stickX * stickX + stickY * stickY;
 							const deadzone_sq = innerDeadzone * innerDeadzone;
-							let dist = 0.0;
-							let scale_factor = 0.0;
 							
 							if (dist_sq < deadzone_sq) {
 								// Inside deadzone: set to center (matches backend)
@@ -762,64 +720,59 @@ const JoystickCalibration = ({
 								stickY = 0.0;
 							} else if (antiDeadzone > 0.0) {
 								// Anti-deadzone enabled: compute sqrt and apply if needed
-								dist = Math.sqrt(dist_sq);
+								const dist = Math.sqrt(dist_sq);
 								const baseline = antiDeadzone;
-								if (dist > 0.0 && dist < baseline) {
-									scale_factor = baseline / dist;
-									stickX = stickX * scale_factor;
-									stickY = stickY * scale_factor;
-									dist = dist * scale_factor; // Update dist for curve application
+								const fixedAntiDeadzone = values?.fixed_anti_deadzone || false;
+								
+								if (fixedAntiDeadzone) {
+									// Fixed anti-deadzone mode: scale distance to baseline (fixed output)
+									// Only applies when dist < baseline to provide a fixed minimum output
+									// When dist >= baseline, no anti-deadzone is applied (normal output)
+									if (dist > 0.0 && dist < baseline) {
+										const scale_factor = baseline / dist;
+										stickX = stickX * scale_factor;
+										stickY = stickY * scale_factor;
+									}
 								} else {
-									dist = dist; // Keep original dist
+									// Linear anti-deadzone mode: add baseline to distance across the entire range
+									// This maintains linear feel by adding a constant offset to all movements
+									// Unlike fixed mode, this applies regardless of distance magnitude
+									if (dist > 0.0) {
+										const new_dist = dist + baseline;
+										const scale_factor = new_dist / dist;
+										stickX = stickX * scale_factor;
+										stickY = stickY * scale_factor;
+									}
 								}
-							} else {
-								// No anti-deadzone: dist remains 0, will compute in curve if needed
-								dist = Math.sqrt(dist_sq);
 							}
 							
 							// Step 5: Square trimming (matches backend Step 5)
-							const nx_before = stickX;
-							const ny_before = stickY;
 							stickX = Math.max(-1.0, Math.min(1.0, stickX));
 							stickY = Math.max(-1.0, Math.min(1.0, stickY));
-							const coords_changed = (stickX !== nx_before) || (stickY !== ny_before);
 							
 							// Step 6: Apply response curve if configured (matches backend Step 6)
+							// Backend checks: curve_points_sorted_count > 0 (which is set only when curveEnabled && points_count > 0)
+							// Backend directly calculates magnitude from normalizedX and normalizedY (after square trimming)
+							const curveEnabled = values?.joystickCurveEnabled !== undefined ? values.joystickCurveEnabled : true;
 							const leftCurvePoints: CurvePoint[] = Array.isArray(values?.joystickCurvePoints1) ? values.joystickCurvePoints1 as CurvePoint[] : [];
-							if (leftCurvePoints.length > 0) {
-								let magnitude_sq;
-								let magnitude = -1.0;
-								
-								if (coords_changed) {
-									// Square trimming changed coordinates: recalculate from stickX/stickY
-									magnitude_sq = stickX * stickX + stickY * stickY;
+							if (curveEnabled && leftCurvePoints.length > 0) {
+								// Backend logic: directly calculate magnitude from coordinates (matches applyResponseCurveToCoordinates)
+								if (stickX === 0.0 && stickY === 0.0) {
+									// At center point: no scaling needed (matches backend early return)
 								} else {
-									// Square trimming didn't change coordinates: reuse dist
-									if (antiDeadzone > 0.0 && scale_factor > 0.0) {
-										magnitude_sq = dist_sq * scale_factor * scale_factor;
-										magnitude = dist; // Already updated above
-									} else if (antiDeadzone > 0.0) {
-										magnitude_sq = dist_sq;
-										magnitude = dist;
-									} else {
-										magnitude_sq = dist_sq;
-										// magnitude remains -1.0, will be computed below
-									}
-								}
-								
-								if (magnitude_sq > 0.0) {
-									if (magnitude < 0.0) {
-										magnitude = Math.sqrt(magnitude_sq);
-									}
-									
-									// Apply curve to magnitude
-									const curvedMagnitude = applyResponseCurve(magnitude, leftCurvePoints);
-									
-									// Apply curve to output, preserving direction
-									if (magnitude > 0) {
-										const scale = curvedMagnitude / magnitude;
-										stickX = stickX * scale;
-										stickY = stickY * scale;
+									const magnitude_sq = stickX * stickX + stickY * stickY;
+									if (magnitude_sq > 0.0) {
+										const magnitude = Math.sqrt(magnitude_sq);
+										
+										// Apply curve to magnitude
+										const curvedMagnitude = applyResponseCurve(magnitude, leftCurvePoints);
+										
+										// Apply curve to output, preserving direction
+										if (magnitude > 0) {
+											const scale = curvedMagnitude / magnitude;
+											stickX = stickX * scale;
+											stickY = stickY * scale;
+										}
 									}
 								}
 							}
@@ -888,6 +841,7 @@ const JoystickCalibration = ({
 							);
 							
 							// Apply jitter filter for visualization using configured threshold
+							// @ts-ignore - field exists at runtime
 							const jitterThreshold2 = values?.joystickJitterFilter2 ?? 0;
 							const filtered2 = applyJitterFilterToAdc(
 								data2.x,
@@ -914,8 +868,6 @@ const JoystickCalibration = ({
 							const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
 							const dist_sq = stickX * stickX + stickY * stickY;
 							const deadzone_sq = innerDeadzone * innerDeadzone;
-							let dist = 0.0;
-							let scale_factor = 0.0;
 							
 							if (dist_sq < deadzone_sq) {
 								// Inside deadzone: set to center (matches backend)
@@ -923,64 +875,59 @@ const JoystickCalibration = ({
 								stickY = 0.0;
 							} else if (antiDeadzone > 0.0) {
 								// Anti-deadzone enabled: compute sqrt and apply if needed
-								dist = Math.sqrt(dist_sq);
+								const dist = Math.sqrt(dist_sq);
 								const baseline = antiDeadzone;
-								if (dist > 0.0 && dist < baseline) {
-									scale_factor = baseline / dist;
-									stickX = stickX * scale_factor;
-									stickY = stickY * scale_factor;
-									dist = dist * scale_factor; // Update dist for curve application
+								const fixedAntiDeadzone = values?.fixed_anti_deadzone2 || false;
+								
+								if (fixedAntiDeadzone) {
+									// Fixed anti-deadzone mode: scale distance to baseline (fixed output)
+									// Only applies when dist < baseline to provide a fixed minimum output
+									// When dist >= baseline, no anti-deadzone is applied (normal output)
+									if (dist > 0.0 && dist < baseline) {
+										const scale_factor = baseline / dist;
+										stickX = stickX * scale_factor;
+										stickY = stickY * scale_factor;
+									}
 								} else {
-									dist = dist; // Keep original dist
+									// Linear anti-deadzone mode: add baseline to distance across the entire range
+									// This maintains linear feel by adding a constant offset to all movements
+									// Unlike fixed mode, this applies regardless of distance magnitude
+									if (dist > 0.0) {
+										const new_dist = dist + baseline;
+										const scale_factor = new_dist / dist;
+										stickX = stickX * scale_factor;
+										stickY = stickY * scale_factor;
+									}
 								}
-							} else {
-								// No anti-deadzone: dist remains 0, will compute in curve if needed
-								dist = Math.sqrt(dist_sq);
 							}
 							
 							// Step 5: Square trimming (matches backend Step 5)
-							const nx_before = stickX;
-							const ny_before = stickY;
 							stickX = Math.max(-1.0, Math.min(1.0, stickX));
 							stickY = Math.max(-1.0, Math.min(1.0, stickY));
-							const coords_changed = (stickX !== nx_before) || (stickY !== ny_before);
 							
 							// Step 6: Apply response curve if configured (matches backend Step 6)
+							// Backend checks: curve_points_sorted_count > 0 (which is set only when curveEnabled && points_count > 0)
+							// Backend directly calculates magnitude from normalizedX and normalizedY (after square trimming)
+							const curveEnabled = values?.joystickCurveEnabled !== undefined ? values.joystickCurveEnabled : true;
 							const rightCurvePoints: CurvePoint[] = Array.isArray(values?.joystickCurvePoints2) ? values.joystickCurvePoints2 as CurvePoint[] : [];
-							if (rightCurvePoints.length > 0) {
-								let magnitude_sq;
-								let magnitude = -1.0;
-								
-								if (coords_changed) {
-									// Square trimming changed coordinates: recalculate from stickX/stickY
-									magnitude_sq = stickX * stickX + stickY * stickY;
+							if (curveEnabled && rightCurvePoints.length > 0) {
+								// Backend logic: directly calculate magnitude from coordinates (matches applyResponseCurveToCoordinates)
+								if (stickX === 0.0 && stickY === 0.0) {
+									// At center point: no scaling needed (matches backend early return)
 								} else {
-									// Square trimming didn't change coordinates: reuse dist
-									if (antiDeadzone > 0.0 && scale_factor > 0.0) {
-										magnitude_sq = dist_sq * scale_factor * scale_factor;
-										magnitude = dist; // Already updated above
-									} else if (antiDeadzone > 0.0) {
-										magnitude_sq = dist_sq;
-										magnitude = dist;
-									} else {
-										magnitude_sq = dist_sq;
-										// magnitude remains -1.0, will be computed below
-									}
-								}
-								
-								if (magnitude_sq > 0.0) {
-									if (magnitude < 0.0) {
-										magnitude = Math.sqrt(magnitude_sq);
-									}
-									
-									// Apply curve to magnitude
-									const curvedMagnitude = applyResponseCurve(magnitude, rightCurvePoints);
-									
-									// Apply curve to output, preserving direction
-									if (magnitude > 0) {
-										const scale = curvedMagnitude / magnitude;
-										stickX = stickX * scale;
-										stickY = stickY * scale;
+									const magnitude_sq = stickX * stickX + stickY * stickY;
+									if (magnitude_sq > 0.0) {
+										const magnitude = Math.sqrt(magnitude_sq);
+										
+										// Apply curve to magnitude
+										const curvedMagnitude = applyResponseCurve(magnitude, rightCurvePoints);
+										
+										// Apply curve to output, preserving direction
+										if (magnitude > 0) {
+											const scale = curvedMagnitude / magnitude;
+											stickX = stickX * scale;
+											stickY = stickY * scale;
+										}
 									}
 								}
 							}
@@ -1038,7 +985,41 @@ const JoystickCalibration = ({
 		return () => {
 			clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify, rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify, values?.joystickCurvePoints1, values?.joystickCurvePoints2, values?.inner_deadzone, values?.anti_deadzone, values?.inner_deadzone2, values?.anti_deadzone2]);
+	}, [
+		values.AnalogInputEnabled, 
+		values.analogAdc1PinX, 
+		values.analogAdc1PinY, 
+		values.analogAdc2PinX, 
+		values.analogAdc2PinY, 
+		values.joystickCenterX, 
+		values.joystickCenterY, 
+		values.joystickCenterX2, 
+		values.joystickCenterY2, 
+		values.joystickRangeData1, 
+		values.joystickRangeData2, 
+		leftFinetuneShapeForceCircular, 
+		leftFinetuneShapeAmplify, 
+		rightFinetuneShapeForceCircular, 
+		rightFinetuneShapeAmplify, 
+		values?.joystickCurvePoints1, 
+		values?.joystickCurvePoints2, 
+		values?.joystickCurveEnabled,
+		values?.inner_deadzone, 
+		values?.anti_deadzone, 
+		values?.inner_deadzone2, 
+		values?.anti_deadzone2,
+		values?.fixed_anti_deadzone,
+		values?.fixed_anti_deadzone2,
+		values?.analogAdc1Invert,
+		values?.analogAdc2Invert,
+		// Note: joystickJitterFilter1/2 may not be in type definition, but are used in code
+		// @ts-ignore - field exists at runtime
+		values?.joystickJitterFilter1,
+		// @ts-ignore - field exists at runtime
+		values?.joystickJitterFilter2,
+		leftShowErrorRate,
+		rightShowErrorRate
+	]);
 
 	// Update canvas when stick data changes
 	useEffect(() => {

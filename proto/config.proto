@@ -454,6 +454,9 @@ message AnalogOptions
     repeated CurvePoint joystick_curve_points_1 = 60 [(nanopb).max_count = 3];
     repeated CurvePoint joystick_curve_points_2 = 61 [(nanopb).max_count = 3];
     optional bool joystick_curve_enabled = 62 [default = true];
+    // Fixed anti-deadzone mode (true = fixed, false = linear)
+    optional bool fixed_anti_deadzone = 63 [default = false];
+    optional bool fixed_anti_deadzone2 = 64 [default = false];
 }
 
 message TurboOptions

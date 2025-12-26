@@ -64,19 +64,25 @@ export const analogScheme = {
 	inner_deadzone: yup
 		.number()
 		.label('Inner Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 10),
 	anti_deadzone: yup
 		.number()
 		.label('Inner Anti-Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 10),
+	fixed_anti_deadzone: yup
+		.boolean()
+		.label('Fixed Anti-Deadzone Mode'),
 	inner_deadzone2: yup
 		.number()
 		.label('Inner Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 10),
 	anti_deadzone2: yup
 		.number()
 		.label('Inner Anti-Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 100),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 10),
+	fixed_anti_deadzone2: yup
+		.boolean()
+		.label('Fixed Anti-Deadzone Mode 2'),
 	// Auto calibration removed - deprecated fields
 	// Outer deadzone removed - replaced by range calibration
 	// EMA smoothing removed - deprecated fields
@@ -147,8 +153,10 @@ export const analogState = {
 	// forced_circularity and forced_circularity2 removed - replaced by range calibration
 	inner_deadzone: 5,
 	anti_deadzone: 0,
+	fixed_anti_deadzone: false,
 	inner_deadzone2: 5,
 	anti_deadzone2: 0,
+	fixed_anti_deadzone2: false,
 	// Auto calibration removed - deprecated fields
 	// Outer deadzone removed - replaced by range calibration
 	joystickCenterX: 0,

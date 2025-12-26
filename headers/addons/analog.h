@@ -85,6 +85,7 @@ typedef struct
     float in_deadzone;
     // out_deadzone and forced_circularity removed - replaced by range calibration
     float anti_deadzone;
+    bool fixed_anti_deadzone;  // true = fixed anti-deadzone, false = linear anti-deadzone
     uint32_t joystick_center_x;
     uint32_t joystick_center_y;
     // Jitter filter configuration (ADC units). 0 = disabled.

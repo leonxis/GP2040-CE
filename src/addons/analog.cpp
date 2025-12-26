@@ -38,8 +38,9 @@ void AnalogInput::setup() {
     adc_pairs[0].analog_dpad = analogOptions.analogAdc1Mode;
     adc_pairs[0].in_deadzone = analogOptions.inner_deadzone / 100.0f;
     // Outer deadzone and forced_circularity removed - replaced by range calibration
-    // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-100, but clamp ensures safety)
+    // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-10, but clamp ensures safety)
     adc_pairs[0].anti_deadzone = std::clamp(analogOptions.anti_deadzone / 100.0f, 0.0f, 1.0f);
+    adc_pairs[0].fixed_anti_deadzone = analogOptions.has_fixed_anti_deadzone ? analogOptions.fixed_anti_deadzone : false;
     adc_pairs[0].joystick_center_x = analogOptions.joystick_center_x;
     adc_pairs[0].joystick_center_y = analogOptions.joystick_center_y;
     // Jitter filter (0 = disabled)
@@ -74,8 +75,9 @@ void AnalogInput::setup() {
     adc_pairs[1].analog_dpad = analogOptions.analogAdc2Mode;
     adc_pairs[1].in_deadzone = analogOptions.inner_deadzone2 / 100.0f;
     // Outer deadzone and forced_circularity removed - replaced by range calibration
-    // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-100, but clamp ensures safety)
+    // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-10, but clamp ensures safety)
     adc_pairs[1].anti_deadzone = std::clamp(analogOptions.anti_deadzone2 / 100.0f, 0.0f, 1.0f);
+    adc_pairs[1].fixed_anti_deadzone = analogOptions.has_fixed_anti_deadzone2 ? analogOptions.fixed_anti_deadzone2 : false;
     adc_pairs[1].joystick_center_x = analogOptions.joystick_center_x2;
     adc_pairs[1].joystick_center_y = analogOptions.joystick_center_y2;
     // Jitter filter (0 = disabled)
@@ -196,17 +198,27 @@ void AnalogInput::process() {
             // anti_deadzone is already clamped to [0, 1] during setup, no need to clamp again
             float dist = std::sqrt(dist_sq);
             float baseline = adc_pairs[i].anti_deadzone;
-            // Check dist > 0 to avoid division by zero when at center point with no deadzone
-            // Anti-deadzone: add baseline to distance to boost small movements while preserving linearity
-            // This approach maintains linear feel by adding a constant offset rather than scaling
-            // Step 5 will clamp coordinates to [-1, 1] if they exceed the square boundary
-            if (dist > 0.0f && dist < baseline) {
-                float new_dist = dist + baseline;
-                float scale_factor = new_dist / dist;
-                nx *= scale_factor;
-                ny *= scale_factor;
-                // Note: dist and dist_sq update is deferred to Step 6 (curve application)
-                // to avoid unnecessary computation when curve is not enabled
+            
+            if (adc_pairs[i].fixed_anti_deadzone) {
+                // Fixed anti-deadzone mode: scale distance to baseline (fixed output)
+                // Only applies when dist < baseline to provide a fixed minimum output
+                // When dist >= baseline, no anti-deadzone is applied (normal output)
+                if (dist > 0.0f && dist < baseline) {
+                    float scale_factor = baseline / dist;
+                    nx *= scale_factor;
+                    ny *= scale_factor;
+                }
+            } else {
+                // Linear anti-deadzone mode: add baseline to distance across the entire range
+                // This maintains linear feel by adding a constant offset to all movements
+                // Unlike fixed mode, this applies regardless of distance magnitude
+                // Step 5 will clamp coordinates to [-1, 1] if they exceed the square boundary
+                if (dist > 0.0f) {
+                    float new_dist = dist + baseline;
+                    float scale_factor = new_dist / dist;
+                    nx *= scale_factor;
+                    ny *= scale_factor;
+                }
             }
         }
 
