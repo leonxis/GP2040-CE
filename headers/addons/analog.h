@@ -111,8 +111,6 @@ typedef struct
         float intercept;  // Intercept: p1y - p1x * slope
         float x_start;    // Start x of segment (p1x)
         float x_end;      // End x of segment (p2x)
-        float x_start_sq; // Start x squared (p1x * p1x) for fast comparison without sqrt
-        float x_end_sq;   // End x squared (p2x * p2x) for fast comparison without sqrt
     } curve_segments[4];  // max 4 segments: (0,0)->p1, p1->p2, p2->p3, p3->(1,1)
     uint8_t curve_segments_count;  // Number of segments (0-4, 0 means no curve)
     float curve_extrapolate_slope;  // Slope for extrapolation when magnitude > 1.0
@@ -132,7 +130,7 @@ private:
     float getInterpolatedScale(int stick_num, float angle);
     void applyFinetuneShapeAdjustments(int stick_num);
     void initializeCurveSegments(int stick_num, const AnalogCurvePoint* control_points, int control_points_count);
-    void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, float magnitude_sq, float magnitude = -1.0f);
+    void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num);
     adc_instance adc_pairs[ADC_COUNT];
 };
 

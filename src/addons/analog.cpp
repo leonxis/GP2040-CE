@@ -180,8 +180,6 @@ void AnalogInput::process() {
         // Step 4: Apply deadzone and anti-deadzone (in [-1, 1] coordinate system)
         float dist_sq = nx * nx + ny * ny;
         float deadzone_sq = adc_pairs[i].in_deadzone * adc_pairs[i].in_deadzone;
-        float dist = 0.0f;  // Will be computed only if needed
-        float scale_factor = 0.0f;  // Store scale_factor if anti-deadzone is applied (for Step 6)
         
         if (dist_sq < deadzone_sq) {
             // Inside deadzone: set to center
@@ -191,57 +189,29 @@ void AnalogInput::process() {
         } else if (adc_pairs[i].anti_deadzone > 0.0f) {
             // Only compute sqrt when anti-deadzone is enabled
             // anti_deadzone is already clamped to [0, 1] during setup, no need to clamp again
-            dist = std::sqrt(dist_sq);
+            float dist = std::sqrt(dist_sq);
             float baseline = adc_pairs[i].anti_deadzone;
             // Check dist > 0 to avoid division by zero when at center point with no deadzone
+            // Anti-deadzone: add baseline to distance to boost small movements while preserving linearity
+            // This approach maintains linear feel by adding a constant offset rather than scaling
+            // Step 5 will clamp coordinates to [-1, 1] if they exceed the square boundary
             if (dist > 0.0f && dist < baseline) {
-                scale_factor = baseline / dist;
-                nx = nx * scale_factor;
-                ny = ny * scale_factor;
+                float new_dist = dist + baseline;
+                float scale_factor = new_dist / dist;
+                nx *= scale_factor;
+                ny *= scale_factor;
                 // Note: dist and dist_sq update is deferred to Step 6 (curve application)
                 // to avoid unnecessary computation when curve is not enabled
-                // dist_sq remains as dist_sq_old (before scaling) for now
-                // scale_factor is stored in outer scope variable, will be used in Step 6 if curve enabled
             }
         }
 
         // Step 5: Square trimming (DS4-style) - clamp to [-1, 1] square boundary
-        // Check if square trimming changes the coordinates (if so, we need to recalculate magnitude)
-        float nx_before = nx;
-        float ny_before = ny;
         nx = std::clamp(nx, -1.0f, 1.0f);
         ny = std::clamp(ny, -1.0f, 1.0f);
-        bool coords_changed = (nx != nx_before) || (ny != ny_before);
 
         // Step 6: Apply response curve if configured
         if (adc_pairs[i].curve_points_sorted_count > 0) {
-            float magnitude_sq;
-            float magnitude = -1.0f;
-            
-            if (coords_changed) {
-                // Square trimming changed coordinates: recalculate from nx/ny
-                magnitude_sq = nx * nx + ny * ny;
-            } else {
-                // Square trimming didn't change coordinates: reuse dist/dist_sq
-                if (adc_pairs[i].anti_deadzone > 0.0f) {
-                    // Anti-deadzone enabled: dist and dist_sq are computed
-                    // Update dist/dist_sq if anti-deadzone was applied (scale_factor > 0)
-                    if (scale_factor > 0.0f) {
-                        magnitude_sq = dist_sq * scale_factor * scale_factor;
-                        magnitude = dist * scale_factor;  // Reuse precomputed sqrt
-                    } else {
-                        // Anti-deadzone enabled but not applied (dist >= baseline)
-                        magnitude_sq = dist_sq;
-                        magnitude = dist;  // Reuse precomputed sqrt
-                    }
-                } else {
-                    // Anti-deadzone not enabled: dist = 0, only dist_sq exists
-                    magnitude_sq = dist_sq;
-                    // magnitude remains -1.0f, will be computed in applyResponseCurveToCoordinates
-                }
-            }
-            
-            applyResponseCurveToCoordinates(nx, ny, i, magnitude_sq, magnitude);
+            applyResponseCurveToCoordinates(nx, ny, i);
         }
 
         // Final conversion: Convert from [-1, 1] to [0, 1] range for storage and output
@@ -386,8 +356,8 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
     // Build preprocessed array: start (0,0) + control points + end (1,1)
     adc_pairs[stick_num].curve_points_sorted_count = 0;
     
-    // Add start point (0, 0)
-    adc_pairs[stick_num].curve_points_sorted[adc_pairs[stick_num].curve_points_sorted_count++] = {0.0f, 0.0f};
+    // Add start point (in_deadzone, anti_deadzone)
+    adc_pairs[stick_num].curve_points_sorted[adc_pairs[stick_num].curve_points_sorted_count++] = {adc_pairs[stick_num].in_deadzone, adc_pairs[stick_num].anti_deadzone};
     
     // Add control points (already sorted by x from frontend)
     for (int i = 0; i < control_points_count; i++) {
@@ -418,19 +388,19 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
             adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].intercept = p1y - p1x * slope;
         }
         adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_start = p1x;
-        adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end = p2x;
-        adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_start_sq = p1x * p1x;
-        adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end_sq = p2x * p2x;
+        
+        // For the last segment, extend it to distance 2.0 to avoid extrapolation logic
+        // Calculate the y value at x=2.0 using the segment's slope
+        if (i == adc_pairs[stick_num].curve_points_sorted_count - 2) {
+            // Last segment: extend to x=2.0
+            adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end = 2.0f;
+        } else {
+            adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end = p2x;
+        }
         adc_pairs[stick_num].curve_segments_count++;
     }
     
-    // Precompute extrapolation slope for magnitude > 1.0 (using last segment)
-    int lastIdx = adc_pairs[stick_num].curve_points_sorted_count - 2;
-    const float p1x = adc_pairs[stick_num].curve_points_sorted[lastIdx].x;
-    const float p1y = adc_pairs[stick_num].curve_points_sorted[lastIdx].y;
-    const float p2x = 1.0f;  // Last point is always (1.0, 1.0)
-    const float p2y = 1.0f;
-    adc_pairs[stick_num].curve_extrapolate_slope = (p2x == p1x) ? 1.0f : (p2y - p1y) / (p2x - p1x);
+    // Note: curve_extrapolate_slope is no longer needed since last segment extends to 2.0
 }
 
 /**
@@ -440,48 +410,47 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
  * @param normalizedX Input/output X coordinate in [-1, 1] range
  * @param normalizedY Input/output Y coordinate in [-1, 1] range
  * @param stick_num Stick number (0 or 1)
- * @param magnitude_sq Precomputed magnitude squared (must be >= 0)
- * @param magnitude Optional precomputed magnitude (if < 0, will be calculated from magnitude_sq)
  */
-void AnalogInput::applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, float magnitude_sq, float magnitude) {
-    if (magnitude_sq <= 0.0f) {
+void AnalogInput::applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num) {
+    if (normalizedX == 0.0f && normalizedY == 0.0f) {
         // At center point: no scaling needed (coordinates already 0)
+        // Note: If deadzone is enabled, points within deadzone are set to (0,0) in Step 4
+        //       and this function returns early, so no curve is applied (output remains 0)
         return;
     }
     
     // Note: Caller ensures curve_segments_count > 0, so no need to check here
-    float curvedMagnitude;
+    float clampdist_sq = normalizedX * normalizedX + normalizedY * normalizedY;
+    float clampdist = std::sqrt(clampdist_sq);
     
-    // Use squared values for segment lookup to avoid sqrt (since x >= 0, x_sq comparison is equivalent)
-    // Find the segment containing the input value using squared comparison
+    // Find the segment containing the input distance
+    // Note: Last segment extends to distance 2.0, so no extrapolation logic is needed
     int segmentIdx = -1;
     for (int i = 0; i < adc_pairs[stick_num].curve_segments_count; i++) {
-        if (magnitude_sq >= adc_pairs[stick_num].curve_segments[i].x_start_sq && 
-            magnitude_sq <= adc_pairs[stick_num].curve_segments[i].x_end_sq) {
+        if (clampdist >= adc_pairs[stick_num].curve_segments[i].x_start && 
+            clampdist <= adc_pairs[stick_num].curve_segments[i].x_end) {
             segmentIdx = i;
             break;
         }
     }
     
-    // Calculate magnitude only if not provided (optimization: reuse precomputed sqrt when available)
-    // This saves ~20-30 CPU cycles when dist was already computed in Step 4 (anti-deadzone)
-    if (magnitude < 0.0f) {
-        magnitude = std::sqrt(magnitude_sq);
-    }
-    
+    // Calculate curved magnitude using the segment's precomputed parameters
+    // If clampdist equals x_start[0] (deadzone boundary), the formula will correctly
+    // yield y_start[0] (anti_deadzone), so no special handling is needed
+    float curvedMagnitude;
     if (segmentIdx >= 0) {
-        // Magnitude within curve definition range [0, 1]: use precomputed segment parameters
-        // Use precomputed slope and intercept: curvedMagnitude = intercept + magnitude * slope
+        // Magnitude within curve segment: use precomputed slope and intercept
+        // Formula: curvedMagnitude = intercept + clampdist * slope
         curvedMagnitude = adc_pairs[stick_num].curve_segments[segmentIdx].intercept + 
-                          magnitude * adc_pairs[stick_num].curve_segments[segmentIdx].slope;
+                          clampdist * adc_pairs[stick_num].curve_segments[segmentIdx].slope;
     } else {
-        // Magnitude > 1.0: extrapolate using precomputed slope
-        // Extrapolate: curvedMagnitude = 1.0 + slope * (magnitude - 1.0)
-        curvedMagnitude = 1.0f + adc_pairs[stick_num].curve_extrapolate_slope * (magnitude - 1.0f);
+        // This should not happen since last segment extends to 2.0, but handle defensively
+        // Fallback: use linear mapping
+        curvedMagnitude = clampdist;
     }
     
     // Calculate scale factor and apply to both coordinates (preserving direction)
-    float scale = curvedMagnitude / magnitude;
+    float scale = curvedMagnitude / clampdist;
     normalizedX = normalizedX * scale;
     normalizedY = normalizedY * scale;
 }
