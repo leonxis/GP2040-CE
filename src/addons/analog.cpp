@@ -273,12 +273,12 @@ float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t /* center */, 
  * Note: range_data has already been adjusted by applyFinetuneShapeAdjustments() during initialization
  * @param stick_num Stick number (0 or 1)
  * @param angle Angle in radians (-PI to PI)
- * @return Scale value (ratio of actual outer radius to standard radius), or 1.0 if no calibration data (1:1 native output)
+ * @return Scale value (ratio of actual outer radius to standard radius), or 0.65 if no calibration data (default scaling)
  */
 float AnalogInput::getInterpolatedScale(int stick_num, float angle) {
     // Check if we have calibration data (use flag set during setup to avoid checking all 48 indices)
     if (!adc_pairs[stick_num].has_range_calibration) {
-        return 1.0f;  // No calibration data: use 1:1 scaling (native output)
+        return 0.65f;  // No calibration data: use default scaling (0.65)
     }
     
     // Convert angle from [-PI, PI] to [0, 2*PI] then to [0, CIRCULARITY_DATA_SIZE]
