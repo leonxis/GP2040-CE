@@ -29,12 +29,11 @@ const drawCurveEditor = (
 	innerDeadzone: number = 0,
 	antiDeadzone: number = 0
 ) => {
-	// Clear canvas
-	ctx.fillStyle = '#ffffff';
-	ctx.fillRect(0, 0, width, height);
+	// Clear canvas with transparent background
+	ctx.clearRect(0, 0, width, height);
 	
 	// Draw grid
-	ctx.strokeStyle = '#e0e0e0';
+	ctx.strokeStyle = '#b0b0b0'; // Darker gray for better visibility
 	ctx.lineWidth = 1;
 	const gridSize = 10;
 	for (let i = 0; i <= gridSize; i++) {
@@ -142,9 +141,9 @@ const drawCurveEditor = (
 	
 	ctx.setLineDash([]);
 	
-	// Step 3: Draw light gray mask area
+	// Step 3: Draw purple mask area
 	if (innerDeadzone > 0 || antiDeadzone > 0) {
-		ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
+		ctx.fillStyle = 'rgba(128, 0, 128, 0.2)'; // Purple with 35% opacity
 		ctx.beginPath();
 		const deadzoneX = innerDeadzone * width;
 		const antiDeadzoneY = height - antiDeadzone * height;
@@ -671,7 +670,7 @@ const JoystickCurveSettings = ({
 	
 	// Draw left curve canvas
 	useEffect(() => {
-		if (leftCurveCanvasRef.current) {
+		if (isExpanded && leftCurveCanvasRef.current) {
 			const ctx = leftCurveCanvasRef.current.getContext('2d');
 			if (ctx) {
 				const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
@@ -679,11 +678,11 @@ const JoystickCurveSettings = ({
 				drawCurveEditor(ctx, 260, 260, leftCurvePoints, leftStickProgressRatio, innerDeadzone, antiDeadzone);
 			}
 		}
-	}, [leftCurvePoints, leftStickProgressRatio, values?.inner_deadzone, values?.anti_deadzone]);
+	}, [isExpanded, leftCurvePoints, leftStickProgressRatio, values?.inner_deadzone, values?.anti_deadzone]);
 	
 	// Draw right curve canvas
 	useEffect(() => {
-		if (rightCurveCanvasRef.current) {
+		if (isExpanded && rightCurveCanvasRef.current) {
 			const ctx = rightCurveCanvasRef.current.getContext('2d');
 			if (ctx) {
 				const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
@@ -691,7 +690,7 @@ const JoystickCurveSettings = ({
 				drawCurveEditor(ctx, 260, 260, rightCurvePoints, rightStickProgressRatio, innerDeadzone, antiDeadzone);
 			}
 		}
-	}, [rightCurvePoints, rightStickProgressRatio, values?.inner_deadzone2, values?.anti_deadzone2]);
+	}, [isExpanded, rightCurvePoints, rightStickProgressRatio, values?.inner_deadzone2, values?.anti_deadzone2]);
 	
 	// Sync input values with curve points
 	useEffect(() => {
