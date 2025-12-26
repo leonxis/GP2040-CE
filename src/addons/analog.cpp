@@ -122,16 +122,21 @@ void AnalogInput::setup() {
     }
 
     // Initialize center X/Y for each pair using manual calibration values
+    // If no calibration data (value is 0), use ADC midpoint (2047.5) as default
     for (int i = 0; i < ADC_COUNT; i++) {
         if(isValidPin(adc_pairs[i].x_pin)) {
             adc_gpio_init(adc_pairs[i].x_pin);
-            // Always use stored manual calibration value
-                adc_pairs[i].x_center = adc_pairs[i].joystick_center_x;
+            // Use stored manual calibration value, or ADC midpoint if not calibrated
+            adc_pairs[i].x_center = (adc_pairs[i].joystick_center_x > 0) ? 
+                                    adc_pairs[i].joystick_center_x : 
+                                    static_cast<uint16_t>(ADC_MAX_HALF);
         }
         if(isValidPin(adc_pairs[i].y_pin)) {
             adc_gpio_init(adc_pairs[i].y_pin);
-            // Always use stored manual calibration value
-                adc_pairs[i].y_center = adc_pairs[i].joystick_center_y;
+            // Use stored manual calibration value, or ADC midpoint if not calibrated
+            adc_pairs[i].y_center = (adc_pairs[i].joystick_center_y > 0) ? 
+                                    adc_pairs[i].joystick_center_y : 
+                                    static_cast<uint16_t>(ADC_MAX_HALF);
         }
     }
 }
