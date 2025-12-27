@@ -28,8 +28,8 @@ bool AnalogInput::available() {
 void AnalogInput::setup() {
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     
-    // Check if curve is enabled (default to enabled if not set)
-    bool curveEnabled = analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : true;
+    // Check if curve is enabled (protobuf default is false)
+    bool curveEnabled = analogOptions.joystick_curve_enabled;
     
     // Setup our ADC Pair of Sticks
     adc_pairs[0].x_pin = analogOptions.analogAdc1PinX;
@@ -40,11 +40,11 @@ void AnalogInput::setup() {
     // Outer deadzone and forced_circularity removed - replaced by range calibration
     // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-10, but clamp ensures safety)
     adc_pairs[0].anti_deadzone = std::clamp(analogOptions.anti_deadzone / 100.0f, 0.0f, 1.0f);
-    adc_pairs[0].fixed_anti_deadzone = analogOptions.has_fixed_anti_deadzone ? analogOptions.fixed_anti_deadzone : false;
+    adc_pairs[0].fixed_anti_deadzone = analogOptions.fixed_anti_deadzone;
     adc_pairs[0].joystick_center_x = analogOptions.joystick_center_x;
     adc_pairs[0].joystick_center_y = analogOptions.joystick_center_y;
-    // Jitter filter (0 = disabled)
-    adc_pairs[0].jitter_filter = analogOptions.has_joystick_jitter_filter_1 ? analogOptions.joystick_jitter_filter_1 : 0;
+    // Jitter filter (0 = disabled, protobuf default is 0)
+    adc_pairs[0].jitter_filter = analogOptions.joystick_jitter_filter_1;
     // Initialize range calibration data (48 angular positions)
     adc_pairs[0].has_range_calibration = (analogOptions.joystick_range_data_1_count > 0);
     for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
@@ -55,10 +55,8 @@ void AnalogInput::setup() {
         }
     }
     // Initialize finetune shape adjustment settings
-    adc_pairs[0].finetune_shape_force_circular = analogOptions.has_joystick_finetune_shape_force_circular_1 ? 
-        analogOptions.joystick_finetune_shape_force_circular_1 : false;
-    adc_pairs[0].finetune_shape_amplify = analogOptions.has_joystick_finetune_shape_amplify_1 ? 
-        analogOptions.joystick_finetune_shape_amplify_1 : 0.0f;
+    adc_pairs[0].finetune_shape_force_circular = analogOptions.joystick_finetune_shape_force_circular_1;
+    adc_pairs[0].finetune_shape_amplify = analogOptions.joystick_finetune_shape_amplify_1;
     // Initialize response curve points: build preprocessed array with start (0,0) + control points + end (1,1)
     // Note: Frontend saves control points sorted by x coordinate, so no sorting needed here
     // Frontend limits to max 3 points, protobuf also limits to max 3, so no need to check > 3
@@ -77,11 +75,11 @@ void AnalogInput::setup() {
     // Outer deadzone and forced_circularity removed - replaced by range calibration
     // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-10, but clamp ensures safety)
     adc_pairs[1].anti_deadzone = std::clamp(analogOptions.anti_deadzone2 / 100.0f, 0.0f, 1.0f);
-    adc_pairs[1].fixed_anti_deadzone = analogOptions.has_fixed_anti_deadzone2 ? analogOptions.fixed_anti_deadzone2 : false;
+    adc_pairs[1].fixed_anti_deadzone = analogOptions.fixed_anti_deadzone2;
     adc_pairs[1].joystick_center_x = analogOptions.joystick_center_x2;
     adc_pairs[1].joystick_center_y = analogOptions.joystick_center_y2;
-    // Jitter filter (0 = disabled)
-    adc_pairs[1].jitter_filter = analogOptions.has_joystick_jitter_filter_2 ? analogOptions.joystick_jitter_filter_2 : 0;
+    // Jitter filter (0 = disabled, protobuf default is 0)
+    adc_pairs[1].jitter_filter = analogOptions.joystick_jitter_filter_2;
     // Initialize range calibration data (48 angular positions)
     adc_pairs[1].has_range_calibration = (analogOptions.joystick_range_data_2_count > 0);
     for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
@@ -92,10 +90,8 @@ void AnalogInput::setup() {
         }
     }
     // Initialize finetune shape adjustment settings
-    adc_pairs[1].finetune_shape_force_circular = analogOptions.has_joystick_finetune_shape_force_circular_2 ? 
-        analogOptions.joystick_finetune_shape_force_circular_2 : false;
-    adc_pairs[1].finetune_shape_amplify = analogOptions.has_joystick_finetune_shape_amplify_2 ? 
-        analogOptions.joystick_finetune_shape_amplify_2 : 0.0f;
+    adc_pairs[1].finetune_shape_force_circular = analogOptions.joystick_finetune_shape_force_circular_2;
+    adc_pairs[1].finetune_shape_amplify = analogOptions.joystick_finetune_shape_amplify_2;
     // Initialize response curve points: build preprocessed array with start (0,0) + control points + end (1,1)
     // Note: Frontend saves control points sorted by x coordinate, so no sorting needed here
     // Frontend limits to max 3 points, protobuf also limits to max 3, so no need to check > 3

@@ -753,7 +753,7 @@ const JoystickCalibration = ({
 							// Step 6: Apply response curve if configured (matches backend Step 6)
 							// Backend checks: curve_points_sorted_count > 0 (which is set only when curveEnabled && points_count > 0)
 							// Backend directly calculates magnitude from normalizedX and normalizedY (after square trimming)
-							const curveEnabled = values?.joystickCurveEnabled !== undefined ? values.joystickCurveEnabled : true;
+							const curveEnabled = values?.joystickCurveEnabled ?? false;
 							const leftCurvePoints: CurvePoint[] = Array.isArray(values?.joystickCurvePoints1) ? values.joystickCurvePoints1 as CurvePoint[] : [];
 							if (curveEnabled && leftCurvePoints.length > 0) {
 								// Backend logic: directly calculate magnitude from coordinates (matches applyResponseCurveToCoordinates)
@@ -908,7 +908,7 @@ const JoystickCalibration = ({
 							// Step 6: Apply response curve if configured (matches backend Step 6)
 							// Backend checks: curve_points_sorted_count > 0 (which is set only when curveEnabled && points_count > 0)
 							// Backend directly calculates magnitude from normalizedX and normalizedY (after square trimming)
-							const curveEnabled = values?.joystickCurveEnabled !== undefined ? values.joystickCurveEnabled : true;
+							const curveEnabled = values?.joystickCurveEnabled ?? false;
 							const rightCurvePoints: CurvePoint[] = Array.isArray(values?.joystickCurvePoints2) ? values.joystickCurvePoints2 as CurvePoint[] : [];
 							if (curveEnabled && rightCurvePoints.length > 0) {
 								// Backend logic: directly calculate magnitude from coordinates (matches applyResponseCurveToCoordinates)

@@ -446,20 +446,20 @@ message AnalogOptions
     optional float joystick_finetune_shape_x_bottom_percent_1 = 47 [deprecated = true];
     optional float joystick_finetune_shape_y_left_percent_1 = 48 [deprecated = true];
     optional float joystick_finetune_shape_y_right_percent_1 = 49 [deprecated = true];
-    optional bool joystick_finetune_shape_force_circular_1 = 50;
-    optional float joystick_finetune_shape_amplify_1 = 51;
+    optional bool joystick_finetune_shape_force_circular_1 = 50 [default = false];
+    optional float joystick_finetune_shape_amplify_1 = 51 [default = 0];
     optional float joystick_finetune_shape_x_top_percent_2 = 52 [deprecated = true];
     optional float joystick_finetune_shape_x_bottom_percent_2 = 53 [deprecated = true];
     optional float joystick_finetune_shape_y_left_percent_2 = 54 [deprecated = true];
     optional float joystick_finetune_shape_y_right_percent_2 = 55 [deprecated = true];
-    optional bool joystick_finetune_shape_force_circular_2 = 56;
-    optional float joystick_finetune_shape_amplify_2 = 57;
-    optional uint32 joystick_jitter_filter_1 = 58;
-    optional uint32 joystick_jitter_filter_2 = 59;
+    optional bool joystick_finetune_shape_force_circular_2 = 56 [default = false];
+    optional float joystick_finetune_shape_amplify_2 = 57 [default = 0];
+    optional uint32 joystick_jitter_filter_1 = 58 [default = 0];
+    optional uint32 joystick_jitter_filter_2 = 59 [default = 0];
     // Response curve control points (max 3 points per stick)
     repeated CurvePoint joystick_curve_points_1 = 60 [(nanopb).max_count = 3];
     repeated CurvePoint joystick_curve_points_2 = 61 [(nanopb).max_count = 3];
-    optional bool joystick_curve_enabled = 62 [default = true];
+    optional bool joystick_curve_enabled = 62 [default = false];
     // Fixed anti-deadzone mode (true = fixed, false = linear)
     optional bool fixed_anti_deadzone = 63 [default = false];
     optional bool fixed_anti_deadzone2 = 64 [default = false];

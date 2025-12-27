@@ -196,7 +196,7 @@ export const analogState = {
 	joystickRangeData2: [],
 	joystickCurvePoints1: [],
 	joystickCurvePoints2: [],
-	joystickCurveEnabled: true,
+	joystickCurveEnabled: false,
 	// Curve point presets (default: empty array)
 	joystickCurvePresets: [],
 };

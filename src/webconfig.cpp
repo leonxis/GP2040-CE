@@ -2367,12 +2367,12 @@ std::string getAddonOptions()
         rangeData2.add(analogOptions.joystick_range_data_2[i]);
     }
     // Write finetune shape adjustment settings (always write, use defaults if not set)
-    writeDoc(doc, "joystickFinetuneShapeForceCircular1", analogOptions.has_joystick_finetune_shape_force_circular_1 ? analogOptions.joystick_finetune_shape_force_circular_1 : false);
-    writeDoc(doc, "joystickFinetuneShapeAmplify1", analogOptions.has_joystick_finetune_shape_amplify_1 ? analogOptions.joystick_finetune_shape_amplify_1 : 0.0f);
-    writeDoc(doc, "joystickFinetuneShapeForceCircular2", analogOptions.has_joystick_finetune_shape_force_circular_2 ? analogOptions.joystick_finetune_shape_force_circular_2 : false);
-    writeDoc(doc, "joystickFinetuneShapeAmplify2", analogOptions.has_joystick_finetune_shape_amplify_2 ? analogOptions.joystick_finetune_shape_amplify_2 : 0.0f);
-    writeDoc(doc, "joystickJitterFilter1", analogOptions.has_joystick_jitter_filter_1 ? analogOptions.joystick_jitter_filter_1 : 0);
-    writeDoc(doc, "joystickJitterFilter2", analogOptions.has_joystick_jitter_filter_2 ? analogOptions.joystick_jitter_filter_2 : 0);
+    writeDoc(doc, "joystickFinetuneShapeForceCircular1", analogOptions.joystick_finetune_shape_force_circular_1);
+    writeDoc(doc, "joystickFinetuneShapeAmplify1", analogOptions.joystick_finetune_shape_amplify_1);
+    writeDoc(doc, "joystickFinetuneShapeForceCircular2", analogOptions.joystick_finetune_shape_force_circular_2);
+    writeDoc(doc, "joystickFinetuneShapeAmplify2", analogOptions.joystick_finetune_shape_amplify_2);
+    writeDoc(doc, "joystickJitterFilter1", analogOptions.joystick_jitter_filter_1);
+    writeDoc(doc, "joystickJitterFilter2", analogOptions.joystick_jitter_filter_2);
     // Write curve points
     JsonArray curvePoints1 = doc.createNestedArray("joystickCurvePoints1");
     for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_1_count && i < 3; i++) {
@@ -2386,7 +2386,7 @@ std::string getAddonOptions()
         point["x"] = analogOptions.joystick_curve_points_2[i].x;
         point["y"] = analogOptions.joystick_curve_points_2[i].y;
     }
-    writeDoc(doc, "joystickCurveEnabled", analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : true);
+    writeDoc(doc, "joystickCurveEnabled", analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : false);
     // Write preset schemes (stored in protobuf, max 4 presets)
     JsonArray presets = doc.createNestedArray("joystickCurvePresets");
     for (pb_size_t i = 0; i < analogOptions.joystick_curve_presets_count && i < 4; i++) {

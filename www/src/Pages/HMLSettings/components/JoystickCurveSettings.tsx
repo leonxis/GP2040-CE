@@ -482,15 +482,13 @@ const JoystickCurveSettings = ({
 	const { t } = useTranslation();
 	const { handleSubmit } = useFormikContext();
 	const [isExpanded, setIsExpanded] = useState(() => {
-		// Default to enabled (expanded) if not set
-		return values?.joystickCurveEnabled !== undefined ? Boolean(values.joystickCurveEnabled) : true;
+		// Default to disabled (collapsed) if not set
+		return Boolean(values?.joystickCurveEnabled ?? false);
 	});
 
 	// Sync isExpanded with values when they change
 	useEffect(() => {
-		if (values?.joystickCurveEnabled !== undefined) {
-			setIsExpanded(Boolean(values.joystickCurveEnabled));
-		}
+		setIsExpanded(Boolean(values?.joystickCurveEnabled ?? false));
 	}, [values?.joystickCurveEnabled]);
 	
 	// State for left stick
@@ -629,7 +627,7 @@ const JoystickCurveSettings = ({
 							
 							// Step 6: Apply response curve if configured
 							// Use current state leftCurvePoints instead of values to reflect real-time editing
-							const curveEnabled = values?.joystickCurveEnabled !== undefined ? values.joystickCurveEnabled : true;
+							const curveEnabled = values?.joystickCurveEnabled ?? false;
 							if (curveEnabled && leftCurvePoints.length > 0) {
 								if (stickX !== 0.0 || stickY !== 0.0) {
 									const magnitude_sq = stickX * stickX + stickY * stickY;
@@ -727,7 +725,7 @@ const JoystickCurveSettings = ({
 							
 							// Step 6: Apply response curve if configured
 							// Use current state rightCurvePoints instead of values to reflect real-time editing
-							const curveEnabled = values?.joystickCurveEnabled !== undefined ? values.joystickCurveEnabled : true;
+							const curveEnabled = values?.joystickCurveEnabled ?? false;
 							if (curveEnabled && rightCurvePoints.length > 0) {
 								if (stickX !== 0.0 || stickY !== 0.0) {
 									const magnitude_sq = stickX * stickX + stickY * stickY;
