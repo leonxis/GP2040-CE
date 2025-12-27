@@ -402,6 +402,12 @@ message CurvePoint
     optional float y = 2;
 }
 
+message CurvePreset
+{
+    optional string name = 1 [(nanopb).max_length = 64];
+    repeated CurvePoint points = 2 [(nanopb).max_count = 3];
+}
+
 message AnalogOptions
 {
     optional bool enabled = 1;
@@ -457,6 +463,8 @@ message AnalogOptions
     // Fixed anti-deadzone mode (true = fixed, false = linear)
     optional bool fixed_anti_deadzone = 63 [default = false];
     optional bool fixed_anti_deadzone2 = 64 [default = false];
+    // Curve preset schemes (frontend-only, max 4 presets)
+    repeated CurvePreset joystick_curve_presets = 65 [(nanopb).max_count = 4];
 }
 
 message TurboOptions

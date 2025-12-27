@@ -50,6 +50,8 @@ static string http_post_uri;
 static char http_post_payload[LWIP_HTTPD_POST_MAX_PAYLOAD_LEN];
 static uint16_t http_post_payload_len = 0;
 
+// Preset fields are now stored in protobuf, no need for static storage
+
 // Don't inline this function, we do not want to consume stack space in the calling function
 template <typename T, typename K>
 static void __attribute__((noinline)) readDoc(T& var, const DynamicJsonDocument& doc, const K& key)
@@ -1834,6 +1836,51 @@ std::string setAddonOptions()
         }
     }
     readDoc(analogOptions.joystick_curve_enabled, doc, "joystickCurveEnabled");
+    // Read preset schemes (stored in protobuf, max 4 presets)
+    if (doc.containsKey("joystickCurvePresets") && doc["joystickCurvePresets"].is<JsonArray>()) {
+        JsonArray presets = doc["joystickCurvePresets"];
+        analogOptions.joystick_curve_presets_count = 0;
+        for (size_t i = 0; i < presets.size() && i < 4; i++) {
+            if (presets[i].is<JsonObject>()) {
+                JsonObject preset = presets[i];
+                CurvePreset& curvePreset = analogOptions.joystick_curve_presets[i];
+                
+                // Read preset name
+                if (preset.containsKey("name") && preset["name"].is<const char*>()) {
+                    const char* name = preset["name"].as<const char*>();
+                    size_t nameLen = strlen(name);
+                    if (nameLen < sizeof(curvePreset.name)) {
+                        strncpy(curvePreset.name, name, sizeof(curvePreset.name) - 1);
+                        curvePreset.name[sizeof(curvePreset.name) - 1] = '\0';
+                        curvePreset.has_name = true;
+                    }
+                }
+                
+                // Read preset points
+                if (preset.containsKey("points") && preset["points"].is<JsonArray>()) {
+                    JsonArray points = preset["points"];
+                    curvePreset.points_count = 0;
+                    for (size_t j = 0; j < points.size() && j < 3; j++) {
+                        if (points[j].is<JsonObject>()) {
+                            JsonObject point = points[j];
+                            if (point.containsKey("x") && point.containsKey("y")) {
+                                curvePreset.points[j].x = point["x"].as<float>();
+                                curvePreset.points[j].y = point["y"].as<float>();
+                                curvePreset.points[j].has_x = true;
+                                curvePreset.points[j].has_y = true;
+                                curvePreset.points_count++;
+                            }
+                        }
+                    }
+                }
+                
+                // Only add preset if it has a name or points
+                if (curvePreset.has_name || curvePreset.points_count > 0) {
+                    analogOptions.joystick_curve_presets_count++;
+                }
+            }
+        }
+    }
     // EMA smoothing removed - no longer used
     docToValue(analogOptions.enabled, doc, "AnalogInputEnabled");
 
@@ -2340,6 +2387,27 @@ std::string getAddonOptions()
         point["y"] = analogOptions.joystick_curve_points_2[i].y;
     }
     writeDoc(doc, "joystickCurveEnabled", analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : true);
+    // Write preset schemes (stored in protobuf, max 4 presets)
+    JsonArray presets = doc.createNestedArray("joystickCurvePresets");
+    for (pb_size_t i = 0; i < analogOptions.joystick_curve_presets_count && i < 4; i++) {
+        const CurvePreset& curvePreset = analogOptions.joystick_curve_presets[i];
+        JsonObject preset = presets.createNestedObject();
+        
+        // Write preset name
+        if (curvePreset.has_name) {
+            preset["name"] = curvePreset.name;
+        } else {
+            preset["name"] = "";
+        }
+        
+        // Write preset points
+        JsonArray points = preset.createNestedArray("points");
+        for (pb_size_t j = 0; j < curvePreset.points_count && j < 3; j++) {
+            JsonObject point = points.createNestedObject();
+            point["x"] = curvePreset.points[j].x;
+            point["y"] = curvePreset.points[j].y;
+        }
+    }
     // EMA smoothing removed - no longer used
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
 

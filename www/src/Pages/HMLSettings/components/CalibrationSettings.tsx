@@ -196,7 +196,7 @@ export default function CalibrationSettings() {
 
 		// Handle array fields specially - only update if changed
 		const valuesSchema = flattenObject(values);
-		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2'];
+		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2', 'joystickCurvePresets'];
 		const resultObject = { ...data };
 		arrayFields.forEach(field => {
 			const newVal = get(valuesSchema, field);

@@ -607,8 +607,8 @@ const JoystickCalibration = ({
 	const [rightFinetuneShapeAmplify, setRightFinetuneShapeAmplify] = useState(values?.joystickFinetuneShapeAmplify2 ?? 0.0);
 	
 	// Error rate display toggle state
-	const [leftShowErrorRate, setLeftShowErrorRate] = useState(true);
-	const [rightShowErrorRate, setRightShowErrorRate] = useState(true);
+	const [leftShowErrorRate, setLeftShowErrorRate] = useState(false);
+	const [rightShowErrorRate, setRightShowErrorRate] = useState(false);
 	
 	// Update state when values change
 	useEffect(() => {

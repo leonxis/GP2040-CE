@@ -138,6 +138,22 @@ export const analogScheme = {
 		}))
 		.label('Joystick Curve Points 2'),
 	joystickCurveEnabled: yup.boolean().label('Joystick Curve Enabled'),
+	// Curve point presets (array of presets, max 4 presets, each with name and up to 3 points)
+	joystickCurvePresets: yup
+		.array()
+		.of(yup.object().shape({
+			name: yup.string().label('Preset Name'),
+			points: yup
+				.array()
+				.of(yup.object().shape({
+					x: yup.number().min(0).max(1),
+					y: yup.number().min(0).max(1)
+				}))
+				.max(3)
+				.label('Preset Points')
+		}))
+		.max(4)
+		.label('Joystick Curve Presets'),
 };
 
 export const analogState = {
@@ -181,6 +197,8 @@ export const analogState = {
 	joystickCurvePoints1: [],
 	joystickCurvePoints2: [],
 	joystickCurveEnabled: true,
+	// Curve point presets (default: empty array)
+	joystickCurvePresets: [],
 };
 
 // errorRateToPercent and percentToErrorRate removed - no longer used after removing forced_circularity
