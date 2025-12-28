@@ -235,7 +235,7 @@ export default function BackButtonMapping() {
 	const getPinKey = (pin: number) => `pin${pin < 10 ? '0' : ''}${pin}`;
 
 	// 背键映射的GPIO引脚列表
-	const gpioPins = [14, 15, 22, 25];
+	const gpioPins = [15, 14, 22, 25];
 	
 	// 背键GPIO引脚标签映射
 	const backButtonLabels: Record<number, string> = {
