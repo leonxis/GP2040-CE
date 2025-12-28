@@ -235,7 +235,15 @@ export default function BackButtonMapping() {
 	const getPinKey = (pin: number) => `pin${pin < 10 ? '0' : ''}${pin}`;
 
 	// 背键映射的GPIO引脚列表
-	const gpioPins = [14, 15, 20, 21, 22, 23, 24, 25];
+	const gpioPins = [14, 15, 22, 25];
+	
+	// 背键GPIO引脚标签映射
+	const backButtonLabels: Record<number, string> = {
+		14: '右背键1（GPIO14）',
+		15: '左背键1（GPIO15）',
+		22: '左背键2（GPIO22）',
+		25: '右背键2（GPIO25）',
+	};
 	
 	// 按键交换的GPIO引脚列表
 	const swapGpioPins = [
@@ -288,11 +296,12 @@ export default function BackButtonMapping() {
 						{gpioPins.map((pin) => {
 							const pinKey = getPinKey(pin);
 							const pinData = pins[pinKey] || defaultPinData;
+							const label = backButtonLabels[pin] || `GPIO${pin}`;
 							return (
 								<Col sm={6} md={6} key={`gpio-${pin}`}>
 									<div className="d-flex align-items-center">
-										<div className="d-flex flex-shrink-0" style={{ width: '5rem' }}>
-											<label>GPIO{pin}</label>
+										<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
+											<label>{label}</label>
 										</div>
 										<CustomSelect
 											isClearable
