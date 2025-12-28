@@ -21,6 +21,20 @@
 #define ANALOG_MINIMUM 0.0f
 #define CIRCULARITY_DATA_SIZE 48
 
+/**
+ * Convert protobuf CurvePoint array to AnalogCurvePoint array
+ * This function explicitly copies data to avoid relying on memory layout compatibility
+ * @param protobuf_points Source array of protobuf CurvePoint structures
+ * @param count Number of points to convert (max 3)
+ * @param output Array to store converted AnalogCurvePoint structures (must have space for at least count elements)
+ */
+static void convertCurvePoints(const CurvePoint* protobuf_points, int count, AnalogCurvePoint* output) {
+    for (int i = 0; i < count && i < 3; i++) {
+        output[i].x = protobuf_points[i].x;
+        output[i].y = protobuf_points[i].y;
+    }
+}
+
 bool AnalogInput::available() {
     return Storage::getInstance().getAddonOptions().analogOptions.enabled;
 }
@@ -65,7 +79,10 @@ void AnalogInput::setup() {
     adc_pairs[0].curve_points_sorted_count = 0;
     adc_pairs[0].curve_segments_count = 0;
     if (curveEnabled && analogOptions.joystick_curve_points_1_count > 0) {
-        initializeCurveSegments(0, reinterpret_cast<const AnalogCurvePoint*>(analogOptions.joystick_curve_points_1), analogOptions.joystick_curve_points_1_count);
+        // Convert protobuf CurvePoint array to AnalogCurvePoint array
+        AnalogCurvePoint converted_points[3];
+        convertCurvePoints(analogOptions.joystick_curve_points_1, analogOptions.joystick_curve_points_1_count, converted_points);
+        initializeCurveSegments(0, converted_points, analogOptions.joystick_curve_points_1_count);
     }
     adc_pairs[1].x_pin = analogOptions.analogAdc2PinX;
     adc_pairs[1].y_pin = analogOptions.analogAdc2PinY;
@@ -100,7 +117,10 @@ void AnalogInput::setup() {
     adc_pairs[1].curve_points_sorted_count = 0;
     adc_pairs[1].curve_segments_count = 0;
     if (curveEnabled && analogOptions.joystick_curve_points_2_count > 0) {
-        initializeCurveSegments(1, reinterpret_cast<const AnalogCurvePoint*>(analogOptions.joystick_curve_points_2), analogOptions.joystick_curve_points_2_count);
+        // Convert protobuf CurvePoint array to AnalogCurvePoint array
+        AnalogCurvePoint converted_points[3];
+        convertCurvePoints(analogOptions.joystick_curve_points_2, analogOptions.joystick_curve_points_2_count, converted_points);
+        initializeCurveSegments(1, converted_points, analogOptions.joystick_curve_points_2_count);
     }
     
     // Apply finetune shape adjustments to range_data for both sticks
