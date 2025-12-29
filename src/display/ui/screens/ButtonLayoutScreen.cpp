@@ -5,6 +5,7 @@
 #include "drivers/xbone/XBOneDriver.h"
 #include "drivers/xinput/XInputDriver.h"
 #include "drivers/p5general/P5GeneralDriver.h"
+#include "events/GPCurvePresetEvent.h"
 
 // Display names for input history
 static const char * displayNames[INPUT_HISTORY_MAX_MODES][INPUT_HISTORY_MAX_INPUTS] = {
@@ -106,6 +107,7 @@ void ButtonLayoutScreen::init() {
     EventManager::getInstance().registerEventHandler(GP_EVENT_PROFILE_CHANGE, GPEVENT_CALLBACK(this->handleProfileChange(event)));
     EventManager::getInstance().registerEventHandler(GP_EVENT_USBHOST_MOUNT, GPEVENT_CALLBACK(this->handleUSB(event)));
     EventManager::getInstance().registerEventHandler(GP_EVENT_USBHOST_UNMOUNT, GPEVENT_CALLBACK(this->handleUSB(event)));
+    EventManager::getInstance().registerEventHandler(GP_EVENT_CURVE_PRESET_CHANGE, GPEVENT_CALLBACK(this->handleCurvePresetChange(event)));
 
     footer = "";
     historyString = "";
@@ -178,6 +180,7 @@ void ButtonLayoutScreen::shutdown() {
     EventManager::getInstance().unregisterEventHandler(GP_EVENT_PROFILE_CHANGE, GPEVENT_CALLBACK(this->handleProfileChange(event)));
     EventManager::getInstance().unregisterEventHandler(GP_EVENT_USBHOST_MOUNT, GPEVENT_CALLBACK(this->handleUSB(event)));
     EventManager::getInstance().unregisterEventHandler(GP_EVENT_USBHOST_UNMOUNT, GPEVENT_CALLBACK(this->handleUSB(event)));
+    EventManager::getInstance().unregisterEventHandler(GP_EVENT_CURVE_PRESET_CHANGE, GPEVENT_CALLBACK(this->handleCurvePresetChange(event)));
 }
 
 int8_t ButtonLayoutScreen::update() {
@@ -648,6 +651,26 @@ void ButtonLayoutScreen::handleUSB(GPEvent* e) {
     } else if (e->eventType() == GP_EVENT_USBHOST_UNMOUNT) {
         bannerMessage = "  USB Disconnnected";
     }
+    bannerDisplay = true;
+}
+
+void ButtonLayoutScreen::handleCurvePresetChange(GPEvent* e) {
+    GPCurvePresetChangeEvent* event = (GPCurvePresetChangeEvent*)e;
+    bannerDelayStart = getMillis();
+    prevProfileNumber = profileNumber;
+
+    // Build message: "Curve Preset #X (L/R)"
+    bannerMessage = "Curve Preset #";
+    bannerMessage += std::to_string(event->presetIndex + 1);
+    bannerMessage += " (";
+    bannerMessage += event->isLeftStick ? "L" : "R";
+    bannerMessage += ")";
+    
+    // Center the message (max 21 chars)
+    if (bannerMessage.length() < 21) {
+        bannerMessage.insert(bannerMessage.begin(), (21 - bannerMessage.length()) / 2, ' ');
+    }
+    
     bannerDisplay = true;
 }
 

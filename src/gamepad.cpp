@@ -15,6 +15,8 @@
 #include "drivermanager.h"
 #include "storagemanager.h"
 #include "system.h"
+#include "eventmanager.h"
+#include "events/GPCurvePresetEvent.h"
 
 // MUST BE DEFINED for mpgs
 uint32_t getMillis() {
@@ -298,7 +300,9 @@ void Gamepad::process()
 	// clean up after yourself. nobody likes bad inputs.
 	state.dpad = runSOCDCleaner(resolveSOCDMode(options), state.dpad);
 
-	// since analog modes only care about the dpad mode inputs, set the dpad state to digital only dpad values
+	// For analog modes, we will perform bidirectional swap after addons process
+	// Here we only convert dpad to analog, the reverse conversion (analog to dpad) 
+	// will be done after addons.ProcessAddons() in gp2040.cpp
 	switch (activeDpadMode)
 	{
 		case DpadMode::DPAD_MODE_LEFT_ANALOG:
@@ -724,6 +728,71 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 		case HOTKEY_MENU_NAV_TOGGLE:
 			if (action != lastAction) {
 				EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_TOGGLE));
+			}
+			break;
+		case HOTKEY_APPLY_CURVE_PRESET_1_LEFT:
+		case HOTKEY_APPLY_CURVE_PRESET_1_RIGHT:
+		case HOTKEY_APPLY_CURVE_PRESET_2_LEFT:
+		case HOTKEY_APPLY_CURVE_PRESET_2_RIGHT:
+		case HOTKEY_APPLY_CURVE_PRESET_3_LEFT:
+		case HOTKEY_APPLY_CURVE_PRESET_3_RIGHT:
+		case HOTKEY_APPLY_CURVE_PRESET_4_LEFT:
+		case HOTKEY_APPLY_CURVE_PRESET_4_RIGHT:
+			if (action != lastAction) {
+				AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+				
+				// Determine preset index and stick (0 = left, 1 = right)
+				uint32_t presetIndex = 0;
+				uint32_t stickNum = 0; // 0 = left (stick 1), 1 = right (stick 2)
+				
+				if (action == HOTKEY_APPLY_CURVE_PRESET_1_LEFT) { presetIndex = 0; stickNum = 0; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_1_RIGHT) { presetIndex = 0; stickNum = 1; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_2_LEFT) { presetIndex = 1; stickNum = 0; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_2_RIGHT) { presetIndex = 1; stickNum = 1; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_3_LEFT) { presetIndex = 2; stickNum = 0; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_3_RIGHT) { presetIndex = 2; stickNum = 1; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_4_LEFT) { presetIndex = 3; stickNum = 0; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_4_RIGHT) { presetIndex = 3; stickNum = 1; }
+				
+				// Check if preset exists and has points
+				if (presetIndex < analogOptions.joystick_curve_presets_count &&
+				    analogOptions.joystick_curve_presets[presetIndex].points_count > 0) {
+					const CurvePreset& preset = analogOptions.joystick_curve_presets[presetIndex];
+					
+					// Apply preset points to the specified stick only
+					if (stickNum == 0) {
+						// Left stick (stick 1)
+						analogOptions.joystick_curve_points_1_count = 0;
+						for (pb_size_t i = 0; i < preset.points_count && i < 3; i++) {
+							analogOptions.joystick_curve_points_1[i].x = preset.points[i].x;
+							analogOptions.joystick_curve_points_1[i].y = preset.points[i].y;
+							analogOptions.joystick_curve_points_1[i].has_x = true;
+							analogOptions.joystick_curve_points_1[i].has_y = true;
+							analogOptions.joystick_curve_points_1_count++;
+						}
+					} else {
+						// Right stick (stick 2)
+						analogOptions.joystick_curve_points_2_count = 0;
+						for (pb_size_t i = 0; i < preset.points_count && i < 3; i++) {
+							analogOptions.joystick_curve_points_2[i].x = preset.points[i].x;
+							analogOptions.joystick_curve_points_2[i].y = preset.points[i].y;
+							analogOptions.joystick_curve_points_2[i].has_x = true;
+							analogOptions.joystick_curve_points_2[i].has_y = true;
+							analogOptions.joystick_curve_points_2_count++;
+						}
+					}
+					
+					// Enable curve if not already enabled
+					if (!analogOptions.joystick_curve_enabled) {
+						analogOptions.joystick_curve_enabled = true;
+						analogOptions.has_joystick_curve_enabled = true;
+					}
+					
+					// Trigger curve preset change event to display on screen
+					EventManager::getInstance().triggerEvent(new GPCurvePresetChangeEvent(presetIndex, stickNum == 0));
+					
+					reqSave = true;
+				}
 			}
 			break;
 		case HOTKEY_FOCUS_MODE_TOGGLE:

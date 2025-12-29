@@ -16,6 +16,7 @@
 #include "GPEncoderEvent.h"
 #include "GPMenuNavigateEvent.h"
 #include "GPProfileEvent.h"
+#include "GPCurvePresetEvent.h"
 #include "GPRestartEvent.h"
 #include "GPStorageSaveEvent.h"
 #include "GPSystemErrorEvent.h"

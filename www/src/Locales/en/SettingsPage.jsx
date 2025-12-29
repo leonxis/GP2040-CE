@@ -150,6 +150,14 @@ export default {
 		'focus-mode-toggle': 'Focus Mode Toggle',
 		'turbo-count-up': 'Turbo Count Up',
 		'turbo-count-down': 'Turbo Count Down',
+		'apply-curve-preset-1-left': 'Apply Joystick Curve Preset #1 (Left Stick)',
+		'apply-curve-preset-1-right': 'Apply Joystick Curve Preset #1 (Right Stick)',
+		'apply-curve-preset-2-left': 'Apply Joystick Curve Preset #2 (Left Stick)',
+		'apply-curve-preset-2-right': 'Apply Joystick Curve Preset #2 (Right Stick)',
+		'apply-curve-preset-3-left': 'Apply Joystick Curve Preset #3 (Left Stick)',
+		'apply-curve-preset-3-right': 'Apply Joystick Curve Preset #3 (Right Stick)',
+		'apply-curve-preset-4-left': 'Apply Joystick Curve Preset #4 (Left Stick)',
+		'apply-curve-preset-4-right': 'Apply Joystick Curve Preset #4 (Right Stick)',
 	},
 	'forced-setup-mode-label': 'Forced Setup Mode',
 	'forced-setup-mode-options': {
@@ -162,6 +170,8 @@ export default {
 	'forced-setup-mode-modal-body':
 		'If you reboot to Controller mode after saving, you will no longer have access to the web-config. Please type "<strong>{{warningCheckText}}</strong>" below to unlock the Save button if you fully acknowledge this and intend it. Clicking on Dismiss will revert this setting which then is to be saved.',
 	'4-way-joystick-mode-label': '4-Way Joystick Mode',
+	'dpad-trigger-threshold-label': 'D-Pad Diagonal Trigger Threshold',
+	'dpad-deadzone-label': 'D-Pad Deadzone',
 	'lock-hotkeys-label': 'Lock Hotkeys',
 	'keyboard-mapping-header-text': 'Keyboard Mapping',
 	'keyboard-mapping-sub-header-text':

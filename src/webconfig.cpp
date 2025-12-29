@@ -750,6 +750,8 @@ std::string setGamepadOptions()
     readDoc(gamepadOptions.switchTpShareForDs4, doc, "switchTpShareForDs4");
     readDoc(gamepadOptions.lockHotkeys, doc, "lockHotkeys");
     readDoc(gamepadOptions.fourWayMode, doc, "fourWayMode");
+    readDoc(gamepadOptions.dpadTriggerThreshold, doc, "dpadTriggerThreshold");
+    readDoc(gamepadOptions.dpadDeadzone, doc, "dpadDeadzone");
     readDoc(gamepadOptions.profileNumber, doc, "profileNumber");
     readDoc(gamepadOptions.debounceDelay, doc, "debounceDelay");
     readDoc(gamepadOptions.inputModeB1, doc, "inputModeB1");
@@ -820,6 +822,8 @@ std::string getGamepadOptions()
     writeDoc(doc, "switchTpShareForDs4", gamepadOptions.switchTpShareForDs4 ? 1 : 0);
     writeDoc(doc, "lockHotkeys", gamepadOptions.lockHotkeys ? 1 : 0);
     writeDoc(doc, "fourWayMode", gamepadOptions.fourWayMode ? 1 : 0);
+    writeDoc(doc, "dpadTriggerThreshold", gamepadOptions.dpadTriggerThreshold);
+    writeDoc(doc, "dpadDeadzone", gamepadOptions.dpadDeadzone);
     writeDoc(doc, "profileNumber", gamepadOptions.profileNumber);
     writeDoc(doc, "debounceDelay", gamepadOptions.debounceDelay);
     writeDoc(doc, "inputModeB1", gamepadOptions.inputModeB1);

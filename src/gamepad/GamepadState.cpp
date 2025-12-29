@@ -39,6 +39,54 @@ uint16_t dpadToAnalogY(uint8_t dpad)
 	}
 }
 
+// Convert analog joystick values to dpad digital directions
+// Uses deadzone for distance check and threshold for direction component check
+// deadzone: distance from center (0.0-1.0), must exceed this to trigger any direction
+// threshold: X/Y axis component threshold (0.0-1.0), used to determine which directions to trigger
+uint8_t analogToDpad(uint16_t lx, uint16_t ly, uint16_t joystickMid, float deadzone, float threshold)
+{
+	uint8_t dpad = 0;
+	
+	// Calculate offset from center
+	int32_t dx = (int32_t)lx - (int32_t)joystickMid;
+	int32_t dy = (int32_t)ly - (int32_t)joystickMid;
+	
+	// Normalize to [-1, 1] range
+	float range = (float)joystickMid;
+	if (range <= 0.0f) {
+		return 0; // Invalid range
+	}
+	
+	float nx = (float)dx / range;
+	float ny = (float)dy / range;
+	
+	// Use deadzone to determine if joystick is far enough from center
+	// Reference: Analog addon deadzone processing logic
+	float dist_sq = nx * nx + ny * ny;
+	float deadzone_sq = deadzone * deadzone;
+	
+	// If joystick is within deadzone, return no direction
+	if (dist_sq < deadzone_sq) {
+		return 0;
+	}
+	
+	// Determine direction based on normalized coordinates using threshold
+	// threshold is used for X/Y axis component check (angle component)
+	if (nx < -threshold) {
+		dpad |= GAMEPAD_MASK_LEFT;
+	} else if (nx > threshold) {
+		dpad |= GAMEPAD_MASK_RIGHT;
+	}
+	
+	if (ny < -threshold) {
+		dpad |= GAMEPAD_MASK_UP;
+	} else if (ny > threshold) {
+		dpad |= GAMEPAD_MASK_DOWN;
+	}
+	
+	return dpad;
+}
+
 uint8_t getMaskFromDirection(DpadDirection direction)
 {
 	return dpadMasks[direction-1];

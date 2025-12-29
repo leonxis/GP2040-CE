@@ -28,6 +28,7 @@ class ButtonLayoutScreen : public GPScreen {
 
         void handleProfileChange(GPEvent* e);
         void handleUSB(GPEvent* e);
+        void handleCurvePresetChange(GPEvent* e);
     protected:
         virtual void drawScreen();
     private:

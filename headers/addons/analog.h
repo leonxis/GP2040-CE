@@ -124,7 +124,7 @@ public:
     virtual void process();     // Analog Process
     virtual void preprocess() {}
     virtual void postprocess(bool sent) {}
-    virtual void reinit() {}
+    virtual void reinit();
     virtual std::string name() { return AnalogName; }
 private:
     float readPin(int stick_num, Pin_t pin, uint16_t center, bool isXAxis);

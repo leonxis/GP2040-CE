@@ -8,6 +8,7 @@
 #include "peripheralmanager.h"
 #include "storagemanager.h"
 #include "addonmanager.h"
+#include "config.pb.h"
 #include "types.h"
 #include "usbhostmanager.h"
 
@@ -328,6 +329,70 @@ void GP2040::run() {
 
 		// (Post) Process for add-ons
 		addons.ProcessAddons();
+
+		// Perform bidirectional swap for analog modes (after addons process)
+		// This ensures we use the physical joystick values updated by AnalogInput::process()
+		// Left/Right Analog modes now support bidirectional swap:
+		// - Dpad input → Joystick output (already done in gamepad->process())
+		// - Joystick input → Dpad output (done here)
+		DpadMode activeDpadMode = gamepad->getActiveDpadMode();
+		if (activeDpadMode == DpadMode::DPAD_MODE_LEFT_ANALOG || activeDpadMode == DpadMode::DPAD_MODE_RIGHT_ANALOG) {
+			// Get joystick midpoint value
+			uint16_t joystickMid = GAMEPAD_JOYSTICK_MID;
+			if ( DriverManager::getInstance().getDriver() != nullptr ) {
+				joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+			}
+			
+			// Get deadzone (distance from center)
+			// Use dpadDeadzone if set, otherwise use Analog addon's inner_deadzone, or default 10%
+			float deadzone = 0.1f; // Default 10%
+			if (gamepad->getOptions().dpadDeadzone > 0 && gamepad->getOptions().dpadDeadzone <= 90) {
+				deadzone = gamepad->getOptions().dpadDeadzone / 100.0f;
+			} else {
+				// Try to use Analog addon's inner_deadzone if available
+				const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+				if (analogOptions.enabled && analogOptions.inner_deadzone > 0) {
+					deadzone = analogOptions.inner_deadzone / 100.0f;
+				}
+			}
+			
+			// Get threshold (X/Y axis component threshold for direction determination)
+			// Use dpadTriggerThreshold if set, otherwise default 10%
+			float threshold = 0.1f; // Default 10%
+			if (gamepad->getOptions().dpadTriggerThreshold > 0 && gamepad->getOptions().dpadTriggerThreshold <= 90) {
+				threshold = gamepad->getOptions().dpadTriggerThreshold / 100.0f;
+			}
+			
+			// Get the original dpad value before mode conversion
+			// dpadOriginal contains the processed dpad value before mode-specific conversion
+			uint8_t originalDpad = gamepad->state.dpadOriginal & 0x0F; // Get mode-specific dpad mask
+			
+			if (activeDpadMode == DpadMode::DPAD_MODE_LEFT_ANALOG) {
+				// Save current physical joystick values (after addons processing)
+				uint16_t savedLx = gamepad->state.lx;
+				uint16_t savedLy = gamepad->state.ly;
+				
+				// Convert physical joystick (left stick) to dpad
+				gamepad->state.dpad = analogToDpad(savedLx, savedLy, joystickMid, deadzone, threshold);
+				
+				// Convert original dpad input to joystick (left stick)
+				// This overwrites the physical joystick value, completing the bidirectional swap
+				gamepad->state.lx = dpadToAnalogX(originalDpad);
+				gamepad->state.ly = dpadToAnalogY(originalDpad);
+			} else if (activeDpadMode == DpadMode::DPAD_MODE_RIGHT_ANALOG) {
+				// Save current physical joystick values (after addons processing)
+				uint16_t savedRx = gamepad->state.rx;
+				uint16_t savedRy = gamepad->state.ry;
+				
+				// Convert physical joystick (right stick) to dpad
+				gamepad->state.dpad = analogToDpad(savedRx, savedRy, joystickMid, deadzone, threshold);
+				
+				// Convert original dpad input to joystick (right stick)
+				// This overwrites the physical joystick value, completing the bidirectional swap
+				gamepad->state.rx = dpadToAnalogX(originalDpad);
+				gamepad->state.ry = dpadToAnalogY(originalDpad);
+			}
+		}
 
 		checkProcessedState(processedGamepad->state, gamepad->state);
 

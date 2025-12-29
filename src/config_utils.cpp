@@ -348,6 +348,8 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.gamepadOptions, ps4AuthType, DEFAULT_PS4AUTHENTICATION_TYPE);
     INIT_UNSET_PROPERTY(config.gamepadOptions, ps5AuthType, DEFAULT_PS5AUTHENTICATION_TYPE);
     INIT_UNSET_PROPERTY(config.gamepadOptions, xinputAuthType, DEFAULT_XINPUTAUTHENTICATION_TYPE);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, dpadTriggerThreshold, 10);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, dpadDeadzone, 10);
     INIT_UNSET_PROPERTY(config.gamepadOptions, ps4ControllerIDMode, DEFAULT_PS4_ID_MODE);
     INIT_UNSET_PROPERTY(config.gamepadOptions, usbDescOverride, DEFAULT_USB_DESC_OVERRIDE);
     INIT_UNSET_PROPERTY_STR(config.gamepadOptions, usbDescProduct, DEFAULT_USB_DESC_PRODUCT);

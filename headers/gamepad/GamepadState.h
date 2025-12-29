@@ -158,6 +158,11 @@ uint16_t dpadToAnalogX(uint8_t dpad);
 // Convert the vertical GamepadState dpad axis value into an analog value
 uint16_t dpadToAnalogY(uint8_t dpad);
 
+// Convert analog joystick values to dpad digital directions
+// deadzone: distance from center (0.0-1.0), must exceed this to trigger any direction
+// threshold: X/Y axis component threshold (0.0-1.0), used to determine which directions to trigger
+uint8_t analogToDpad(uint16_t lx, uint16_t ly, uint16_t joystickMid, float deadzone, float threshold);
+
 uint8_t getMaskFromDirection(DpadDirection direction);
 
 uint8_t updateDpad(uint8_t dpad, DpadDirection direction);

@@ -126,6 +126,28 @@ void AnalogInput::setup() {
     // Apply finetune shape adjustments to range_data for both sticks
     applyFinetuneShapeAdjustments(0);
     applyFinetuneShapeAdjustments(1);
+}
+
+void AnalogInput::reinit() {
+    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    bool curveEnabled = analogOptions.joystick_curve_enabled;
+    
+    // Reinitialize curve segments for both sticks if curve is enabled
+    adc_pairs[0].curve_points_sorted_count = 0;
+    adc_pairs[0].curve_segments_count = 0;
+    if (curveEnabled && analogOptions.joystick_curve_points_1_count > 0) {
+        AnalogCurvePoint converted_points[3];
+        convertCurvePoints(analogOptions.joystick_curve_points_1, analogOptions.joystick_curve_points_1_count, converted_points);
+        initializeCurveSegments(0, converted_points, analogOptions.joystick_curve_points_1_count);
+    }
+    
+    adc_pairs[1].curve_points_sorted_count = 0;
+    adc_pairs[1].curve_segments_count = 0;
+    if (curveEnabled && analogOptions.joystick_curve_points_2_count > 0) {
+        AnalogCurvePoint converted_points[3];
+        convertCurvePoints(analogOptions.joystick_curve_points_2, analogOptions.joystick_curve_points_2_count, converted_points);
+        initializeCurveSegments(1, converted_points, analogOptions.joystick_curve_points_2_count);
+    }
 
     // Setup defaults and helpers
     for (int i = 0; i < ADC_COUNT; i++) {
@@ -160,6 +182,36 @@ void AnalogInput::setup() {
 }
 
 void AnalogInput::process() {
+    // Check if curve points have changed and reinitialize if needed
+    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    bool curveEnabled = analogOptions.joystick_curve_enabled;
+    
+    // Check if curve points for stick 1 have changed
+    static pb_size_t last_curve_points_1_count = 0;
+    static bool last_curve_enabled = false;
+    bool curveChanged = false;
+    
+    if (last_curve_enabled != curveEnabled || 
+        last_curve_points_1_count != analogOptions.joystick_curve_points_1_count) {
+        curveChanged = true;
+    } else if (curveEnabled && analogOptions.joystick_curve_points_1_count > 0) {
+        // Check if any curve point values have changed
+        for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_1_count && i < 3; i++) {
+            static float last_points_1[3][2] = {{0}};
+            if (last_points_1[i][0] != analogOptions.joystick_curve_points_1[i].x ||
+                last_points_1[i][1] != analogOptions.joystick_curve_points_1[i].y) {
+                curveChanged = true;
+                last_points_1[i][0] = analogOptions.joystick_curve_points_1[i].x;
+                last_points_1[i][1] = analogOptions.joystick_curve_points_1[i].y;
+            }
+        }
+    }
+    
+    if (curveChanged) {
+        reinit();
+        last_curve_points_1_count = analogOptions.joystick_curve_points_1_count;
+        last_curve_enabled = curveEnabled;
+    }
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
     
     uint32_t joystickMax = GAMEPAD_JOYSTICK_MAX;
