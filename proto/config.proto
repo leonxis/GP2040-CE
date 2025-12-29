@@ -467,6 +467,10 @@ message AnalogOptions
     optional bool fixed_anti_deadzone2 = 64 [default = false];
     // Curve preset schemes (frontend-only, max 4 presets)
     repeated CurvePreset joystick_curve_presets = 65 [(nanopb).max_count = 4];
+    // Current curve profile in use (0 = custom/no preset, 1-4 = preset 1-4)
+    // Used to detect hotkey preset switching for efficient reinitialization
+    optional uint32 curve_profile_1 = 66 [default = 0];  // Left stick (stick 1)
+    optional uint32 curve_profile_2 = 67 [default = 0];  // Right stick (stick 2)
 }
 
 message TurboOptions

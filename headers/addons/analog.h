@@ -127,6 +127,9 @@ public:
     virtual void reinit();
     virtual std::string name() { return AnalogName; }
 private:
+    // Track current curve profile in use for both sticks (0 = custom, 1-4 = preset 1-4)
+    uint32_t usage_curve_profile_1;
+    uint32_t usage_curve_profile_2;
     float readPin(int stick_num, Pin_t pin, uint16_t center, bool isXAxis);
     float getInterpolatedScale(int stick_num, float angle);
     void applyFinetuneShapeAdjustments(int stick_num);

@@ -42,6 +42,11 @@ bool AnalogInput::available() {
 void AnalogInput::setup() {
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     
+    // Initialize curve profile tracking from saved config (0 = custom, 1-4 = preset 1-4)
+    // Default value is 0, so no need to check has_curve_profile
+    usage_curve_profile_1 = analogOptions.curve_profile_1;
+    usage_curve_profile_2 = analogOptions.curve_profile_2;
+    
     // Check if curve is enabled (protobuf default is false)
     bool curveEnabled = analogOptions.joystick_curve_enabled;
     
@@ -126,29 +131,8 @@ void AnalogInput::setup() {
     // Apply finetune shape adjustments to range_data for both sticks
     applyFinetuneShapeAdjustments(0);
     applyFinetuneShapeAdjustments(1);
-}
-
-void AnalogInput::reinit() {
-    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-    bool curveEnabled = analogOptions.joystick_curve_enabled;
     
-    // Reinitialize curve segments for both sticks if curve is enabled
-    adc_pairs[0].curve_points_sorted_count = 0;
-    adc_pairs[0].curve_segments_count = 0;
-    if (curveEnabled && analogOptions.joystick_curve_points_1_count > 0) {
-        AnalogCurvePoint converted_points[3];
-        convertCurvePoints(analogOptions.joystick_curve_points_1, analogOptions.joystick_curve_points_1_count, converted_points);
-        initializeCurveSegments(0, converted_points, analogOptions.joystick_curve_points_1_count);
-    }
-    
-    adc_pairs[1].curve_points_sorted_count = 0;
-    adc_pairs[1].curve_segments_count = 0;
-    if (curveEnabled && analogOptions.joystick_curve_points_2_count > 0) {
-        AnalogCurvePoint converted_points[3];
-        convertCurvePoints(analogOptions.joystick_curve_points_2, analogOptions.joystick_curve_points_2_count, converted_points);
-        initializeCurveSegments(1, converted_points, analogOptions.joystick_curve_points_2_count);
-    }
-
+    // Initialize hardware-related variables (GPIO, calibration centers, jitter filter state)
     // Setup defaults and helpers
     for (int i = 0; i < ADC_COUNT; i++) {
         adc_pairs[i].x_pin_adc = adc_pairs[i].x_pin - ADC_PIN_OFFSET;
@@ -158,7 +142,6 @@ void AnalogInput::reinit() {
         // Initialize jitter filter state (0 = no previous sample yet)
         adc_pairs[i].last_x_adc = 0;
         adc_pairs[i].last_y_adc = 0;
-        // Note: has_range_calibration is set during range data initialization above
     }
 
     // Initialize center X/Y for each pair using manual calibration values
@@ -181,36 +164,57 @@ void AnalogInput::reinit() {
     }
 }
 
-void AnalogInput::process() {
-    // Check if curve points have changed and reinitialize if needed
+void AnalogInput::reinit() {
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-    bool curveEnabled = analogOptions.joystick_curve_enabled;
     
-    // Check if curve points for stick 1 have changed
-    static pb_size_t last_curve_points_1_count = 0;
-    static bool last_curve_enabled = false;
-    bool curveChanged = false;
-    
-    if (last_curve_enabled != curveEnabled || 
-        last_curve_points_1_count != analogOptions.joystick_curve_points_1_count) {
-        curveChanged = true;
-    } else if (curveEnabled && analogOptions.joystick_curve_points_1_count > 0) {
-        // Check if any curve point values have changed
-        for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_1_count && i < 3; i++) {
-            static float last_points_1[3][2] = {{0}};
-            if (last_points_1[i][0] != analogOptions.joystick_curve_points_1[i].x ||
-                last_points_1[i][1] != analogOptions.joystick_curve_points_1[i].y) {
-                curveChanged = true;
-                last_points_1[i][0] = analogOptions.joystick_curve_points_1[i].x;
-                last_points_1[i][1] = analogOptions.joystick_curve_points_1[i].y;
-            }
-        }
+    // Reinitialize curve segments for both sticks (only data reinitialization, no hardware changes)
+    // This is called when curve preset changes via hotkey, which only affects curve data
+    adc_pairs[0].curve_points_sorted_count = 0;
+    adc_pairs[0].curve_segments_count = 0;
+    if (analogOptions.joystick_curve_points_1_count > 0) {
+        AnalogCurvePoint converted_points[3];
+        convertCurvePoints(analogOptions.joystick_curve_points_1, analogOptions.joystick_curve_points_1_count, converted_points);
+        initializeCurveSegments(0, converted_points, analogOptions.joystick_curve_points_1_count);
     }
     
-    if (curveChanged) {
-        reinit();
-        last_curve_points_1_count = analogOptions.joystick_curve_points_1_count;
-        last_curve_enabled = curveEnabled;
+    adc_pairs[1].curve_points_sorted_count = 0;
+    adc_pairs[1].curve_segments_count = 0;
+    if (analogOptions.joystick_curve_points_2_count > 0) {
+        AnalogCurvePoint converted_points[3];
+        convertCurvePoints(analogOptions.joystick_curve_points_2, analogOptions.joystick_curve_points_2_count, converted_points);
+        initializeCurveSegments(1, converted_points, analogOptions.joystick_curve_points_2_count);
+    }
+
+    // Note: Hardware initialization (GPIO, calibration, jitter filter) is NOT performed here
+    // because curve preset switching only changes curve data, not hardware configuration.
+    // Hardware initialization is only done in setup() when the addon is first initialized,
+    // or when profile changes (handled by gp2040.cpp which may reload configuration).
+}
+
+void AnalogInput::process() {
+    // Check if curve profile has changed (only identifier for hotkey preset switching)
+    // Reinitialize curve data only when curve profile changes, not when curve enabled state changes
+    // The reinit() function will check curve enabled state to decide whether to initialize curve segments
+    
+    // Only check curve profile changes when curve is enabled
+    // If curve is disabled, no need to check profile changes as reinit() won't initialize curve segments anyway
+    if (curveEnabled) {
+
+        const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+        // Get current curve profile values from config (0 = custom, 1-4 = preset 1-4)
+        // Default value is 0, so no need to check has_curve_profile
+        uint32_t current_profile_1 = analogOptions.curve_profile_1;
+        uint32_t current_profile_2 = analogOptions.curve_profile_2;
+        
+        // Check if curve profile has changed for either stick (hotkey preset switching)
+        // Reinitialize only when curve profile changes
+        // reinit() will check curve enabled state to decide whether to initialize curve segments
+        if (usage_curve_profile_1 != current_profile_1 || usage_curve_profile_2 != current_profile_2) {
+            // Update tracking variables
+            usage_curve_profile_1 = current_profile_1;
+            usage_curve_profile_2 = current_profile_2;
+            reinit();
+        }
     }
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
     

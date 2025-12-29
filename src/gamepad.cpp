@@ -782,11 +782,19 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 						}
 					}
 					
-					// Enable curve if not already enabled
-					if (!analogOptions.joystick_curve_enabled) {
-						analogOptions.joystick_curve_enabled = true;
-						analogOptions.has_joystick_curve_enabled = true;
+					// Update curve profile to indicate which preset is now in use (1-4, or 0 for custom)
+					// This allows process() to efficiently detect preset switching by comparing profile values
+					// Default value is 0, so no need to set has_curve_profile
+					if (stickNum == 0) {
+						// Left stick (stick 1)
+						analogOptions.curve_profile_1 = presetIndex + 1;  // presetIndex is 0-3, profile is 1-4
+					} else {
+						// Right stick (stick 2)
+						analogOptions.curve_profile_2 = presetIndex + 1;  // presetIndex is 0-3, profile is 1-4
 					}
+					
+					// Note: Do not modify joystick_curve_enabled state - keep it as user configured
+					// Only replace the curve point data, initialization will be handled in process() based on curve enabled state
 					
 					// Trigger curve preset change event to display on screen
 					EventManager::getInstance().triggerEvent(new GPCurvePresetChangeEvent(presetIndex, stickNum == 0));
