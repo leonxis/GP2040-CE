@@ -639,7 +639,8 @@ void MainMenuScreen::openDeadzoneMenu() {
     exitToScreenBeforePrompt = DisplayMode::ANALOG_DEADZONE;
 }
 
-void MainMenuScreen::openAPMTest() {
-    exitToScreen = DisplayMode::APM_TEST;
-    exitToScreenBeforePrompt = DisplayMode::APM_TEST;
+void MainMenuScreen::openDpadSwap() {
+    exitToScreen = DisplayMode::DPAD_SWAP;
+    exitToScreenBeforePrompt = DisplayMode::DPAD_SWAP;
 }
+

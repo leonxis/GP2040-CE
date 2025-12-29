@@ -172,7 +172,7 @@ export default function FunctionButtons() {
 								/>
 							</div>
 						</Col>
-					</div>
+			</div>
 				</Form.Group>
 				<Form.Group className="row mb-3">
 					<Col sm={4}>
@@ -190,7 +190,7 @@ export default function FunctionButtons() {
 						)}
 					</Col>
 				</Form.Group>
-			</Section>
+		</Section>
 		</div>
 	);
 }

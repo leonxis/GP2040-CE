@@ -252,7 +252,7 @@ src/display/ui/screens/RestartScreen.cpp
 src/display/ui/screens/StickCalibrationScreen.cpp
 src/display/ui/screens/BackStickMappingScreen.cpp
 src/display/ui/screens/AnalogDeadzoneScreen.cpp
-src/display/ui/screens/APMTestScreen.cpp
+src/display/ui/screens/DpadSwapScreen.cpp
 src/display/ui/screens/StatsScreen.cpp
 src/display/ui/screens/SplashScreen.cpp
 src/display/ui/screens/DisplaySaverScreen.cpp
