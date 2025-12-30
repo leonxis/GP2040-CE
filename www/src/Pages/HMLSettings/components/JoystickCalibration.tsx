@@ -299,75 +299,128 @@ const ccToColor = (cc: number): number => {
 };
 
 /**
- * Draws analog stick position on a canvas
- * Based on stick-renderer.js from ds4 project
+ * Pre-computed angle values for circularity visualization (performance optimization)
  */
-const drawStickPosition = (
-	ctx: CanvasRenderingContext2D,
+const CIRCULARITY_ANGLES: { cos: number; sin: number }[] = (() => {
+	const angles: { cos: number; sin: number }[] = [];
+	const MAX_N = CIRCULARITY_DATA_SIZE;
+	for (let i = 0; i < MAX_N; i++) {
+		const ka = i * Math.PI * 2 / MAX_N;
+		angles.push({ cos: Math.cos(ka), sin: Math.sin(ka) });
+	}
+	return angles;
+})();
+
+/**
+ * Cache for static background canvas (performance optimization)
+ */
+interface StaticCanvasCache {
+	canvas: HTMLCanvasElement;
+	ctx: CanvasRenderingContext2D;
+	key: string;
+}
+
+const staticCanvasCache = new Map<string, StaticCanvasCache>();
+
+/**
+ * Generates a cache key for static canvas
+ */
+const getStaticCanvasKey = (
+	width: number,
+	height: number,
 	centerX: number,
 	centerY: number,
 	radius: number,
-	stickX: number, // -1 to 1
-	stickY: number, // -1 to 1
-	circularityData?: number[] | null,
-	zoom10x?: boolean, // If true, zoom to -0.1 to 0.1 range
-	showErrorRate?: boolean, // If true, show coverage range and error rate
-) => {
-	// Clear canvas with transparent background
-	ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+	zoom10x: boolean,
+	circularityData: number[] | null | undefined,
+	showErrorRate: boolean,
+): string => {
+	const circularityHash = circularityData ? circularityData.join(',') : 'null';
+	return `${width}x${height}_${centerX}_${centerY}_${radius}_${zoom10x}_${showErrorRate}_${circularityHash}`;
+};
 
-	// Calculate effective radius and scale based on zoom mode
-	let effectiveRadius = radius;
-	let scale = 1.0;
-	if (zoom10x) {
-		// In zoom mode, map -0.1 to 0.1 range to full canvas
-		scale = 0.1; // Scale factor: 0.1 range maps to full radius
-		effectiveRadius = radius; // Keep full radius for drawing
+/**
+ * Draws static background on offscreen canvas (cached for performance)
+ */
+const drawStaticBackground = (
+	width: number,
+	height: number,
+	centerX: number,
+	centerY: number,
+	radius: number,
+	zoom10x: boolean,
+	circularityData: number[] | null | undefined,
+	showErrorRate: boolean,
+): HTMLCanvasElement => {
+	const cacheKey = getStaticCanvasKey(width, height, centerX, centerY, radius, zoom10x, circularityData, showErrorRate);
+	
+	// Check cache
+	if (staticCanvasCache.has(cacheKey)) {
+		return staticCanvasCache.get(cacheKey)!.canvas;
 	}
 
-	// Draw base circle (outer boundary) - scaled for zoom mode
+	// Create new offscreen canvas
+	const canvas = document.createElement('canvas');
+	canvas.width = width;
+	canvas.height = height;
+	const ctx = canvas.getContext('2d')!;
+
+	// Use integer coordinates for better performance
+	const intCenterX = Math.round(centerX);
+	const intCenterY = Math.round(centerY);
+	const intRadius = Math.round(radius);
+
+	// Calculate effective radius and scale based on zoom mode
+	let effectiveRadius = intRadius;
+	let scale = 1.0;
+	if (zoom10x) {
+		scale = 0.1;
+		effectiveRadius = intRadius;
+	}
+
+	// Draw base circle (outer boundary)
 	ctx.lineWidth = 2;
-	ctx.strokeStyle = '#d0d0d0'; // Changed from black to light gray
+	ctx.strokeStyle = '#d0d0d0';
 	ctx.beginPath();
-	ctx.arc(centerX, centerY, effectiveRadius, 0, 2 * Math.PI);
+	ctx.arc(intCenterX, intCenterY, effectiveRadius, 0, 2 * Math.PI);
 	ctx.closePath();
 	ctx.stroke();
 
 	// Draw red dashed circle at 0.03528 radius in zoom mode
 	if (zoom10x) {
-		const redCircleRadius = (0.03528 / scale) * effectiveRadius;
+		const redCircleRadius = Math.round((0.03528 / scale) * effectiveRadius);
 		ctx.strokeStyle = '#ff0000';
 		ctx.lineWidth = 1;
 		ctx.setLineDash([5, 5]);
 		ctx.beginPath();
-		ctx.arc(centerX, centerY, redCircleRadius, 0, 2 * Math.PI);
+		ctx.arc(intCenterX, intCenterY, redCircleRadius, 0, 2 * Math.PI);
 		ctx.closePath();
 		ctx.stroke();
 		ctx.setLineDash([]);
 	}
 
-	// Draw circularity visualization if data provided and error rate is enabled (draw before stick position)
+	// Draw circularity visualization if data provided
 	if (showErrorRate !== false && circularityData && circularityData.length > 0) {
 		const MAX_N = CIRCULARITY_DATA_SIZE;
-
 		for (let i = 0; i < MAX_N; i++) {
 			const kd = circularityData[i];
 			const kd1 = circularityData[(i + 1) % CIRCULARITY_DATA_SIZE];
 			if (kd === undefined || kd1 === undefined || kd === 0) continue;
 			
-			const ka = i * Math.PI * 2 / MAX_N;
-			const ka1 = ((i + 1) % MAX_N) * 2 * Math.PI / MAX_N;
+			const angle = CIRCULARITY_ANGLES[i];
+			const angle1 = CIRCULARITY_ANGLES[(i + 1) % MAX_N];
 
-			const kx = Math.cos(ka) * kd;
-			const ky = Math.sin(ka) * kd;
-			const kx1 = Math.cos(ka1) * kd1;
-			const ky1 = Math.sin(ka1) * kd1;
+			// Use pre-computed cos/sin values
+			const kx = angle.cos * kd;
+			const ky = angle.sin * kd;
+			const kx1 = angle1.cos * kd1;
+			const ky1 = angle1.sin * kd1;
 
 			ctx.beginPath();
-			ctx.moveTo(centerX, centerY);
-			ctx.lineTo(centerX + kx * radius, centerY + ky * radius);
-			ctx.lineTo(centerX + kx1 * radius, centerY + ky1 * radius);
-			ctx.lineTo(centerX, centerY);
+			ctx.moveTo(intCenterX, intCenterY);
+			ctx.lineTo(Math.round(intCenterX + kx * intRadius), Math.round(intCenterY + ky * intRadius));
+			ctx.lineTo(Math.round(intCenterX + kx1 * intRadius), Math.round(intCenterY + ky1 * intRadius));
+			ctx.lineTo(intCenterX, intCenterY);
 			ctx.closePath();
 
 			const cc = (kd + kd1) / 2;
@@ -381,40 +434,18 @@ const drawStickPosition = (
 	ctx.strokeStyle = '#aaaaaa';
 	ctx.lineWidth = 1;
 	ctx.beginPath();
-	ctx.moveTo(centerX - radius, centerY);
-	ctx.lineTo(centerX + radius, centerY);
+	ctx.moveTo(intCenterX - intRadius, intCenterY);
+	ctx.lineTo(intCenterX + intRadius, intCenterY);
 	ctx.closePath();
 	ctx.stroke();
 
 	ctx.beginPath();
-	ctx.moveTo(centerX, centerY - radius);
-	ctx.lineTo(centerX, centerY + radius);
+	ctx.moveTo(intCenterX, intCenterY - intRadius);
+	ctx.lineTo(intCenterX, intCenterY + intRadius);
 	ctx.closePath();
 	ctx.stroke();
 
-	// Draw stick line from center to position (scaled for zoom mode)
-	const scaledStickX = zoom10x ? stickX / scale : stickX;
-	const scaledStickY = zoom10x ? stickY / scale : stickY;
-	ctx.strokeStyle = '#d0d0d0'; // Changed from black to light gray
-	ctx.lineWidth = 2;
-	ctx.beginPath();
-	ctx.moveTo(centerX, centerY);
-	ctx.lineTo(centerX + scaledStickX * effectiveRadius, centerY + scaledStickY * effectiveRadius);
-	ctx.stroke();
-
-	// Draw filled circle at stick position
-	ctx.beginPath();
-	ctx.arc(
-		centerX + scaledStickX * effectiveRadius,
-		centerY + scaledStickY * effectiveRadius,
-		4,
-		0,
-		2 * Math.PI,
-	);
-	ctx.fillStyle = '#ffa500'; // Changed from blue to orange-yellow
-	ctx.fill();
-
-	// Draw circularity error text if enough data provided and error rate is enabled
+	// Draw circularity error text if enough data provided
 	if (showErrorRate !== false && circularityData && circularityData.filter(n => n > 0.3).length > 10) {
 		const circularityError = calculateCircularityError(circularityData);
 
@@ -425,12 +456,89 @@ const drawStickPosition = (
 		ctx.textBaseline = 'middle';
 
 		ctx.font = '24px Arial';
-		const textY = centerY + radius * 0.5;
+		const textY = Math.round(intCenterY + intRadius * 0.5);
 		const text = `${circularityError.toFixed(1)} %`;
 
-		ctx.strokeText(text, centerX, textY);
-		ctx.fillText(text, centerX, textY);
+		ctx.strokeText(text, intCenterX, textY);
+		ctx.fillText(text, intCenterX, textY);
 	}
+
+	// Cache the result
+	staticCanvasCache.set(cacheKey, { canvas, ctx, key: cacheKey });
+
+	// Limit cache size to prevent memory issues
+	if (staticCanvasCache.size > 10) {
+		const firstKey = staticCanvasCache.keys().next().value;
+		staticCanvasCache.delete(firstKey);
+	}
+
+	return canvas;
+};
+
+/**
+ * Draws analog stick position on a canvas (optimized version)
+ * Uses offscreen canvas caching for static background
+ */
+const drawStickPosition = (
+	ctx: CanvasRenderingContext2D,
+	centerX: number,
+	centerY: number,
+	radius: number,
+	stickX: number, // -1 to 1
+	stickY: number, // -1 to 1
+	circularityData?: number[] | null,
+	zoom10x?: boolean, // If true, zoom to -0.1 to 0.1 range
+	showErrorRate?: boolean, // If true, show coverage range and error rate
+) => {
+	const canvas = ctx.canvas;
+	const width = canvas.width;
+	const height = canvas.height;
+
+	// Draw cached static background
+	const staticCanvas = drawStaticBackground(
+		width,
+		height,
+		centerX,
+		centerY,
+		radius,
+		zoom10x || false,
+		circularityData,
+		showErrorRate !== false,
+	);
+	ctx.clearRect(0, 0, width, height);
+	ctx.drawImage(staticCanvas, 0, 0);
+
+	// Use integer coordinates for better performance
+	const intCenterX = Math.round(centerX);
+	const intCenterY = Math.round(centerY);
+	const intRadius = Math.round(radius);
+
+	// Calculate effective radius and scale based on zoom mode
+	let effectiveRadius = intRadius;
+	let scale = 1.0;
+	if (zoom10x) {
+		scale = 0.1;
+		effectiveRadius = intRadius;
+	}
+
+	// Draw stick line from center to position (scaled for zoom mode) - dynamic part only
+	const scaledStickX = zoom10x ? stickX / scale : stickX;
+	const scaledStickY = zoom10x ? stickY / scale : stickY;
+	const stickPosX = Math.round(intCenterX + scaledStickX * effectiveRadius);
+	const stickPosY = Math.round(intCenterY + scaledStickY * effectiveRadius);
+
+	ctx.strokeStyle = '#d0d0d0';
+	ctx.lineWidth = 2;
+	ctx.beginPath();
+	ctx.moveTo(intCenterX, intCenterY);
+	ctx.lineTo(stickPosX, stickPosY);
+	ctx.stroke();
+
+	// Draw filled circle at stick position
+	ctx.beginPath();
+	ctx.arc(stickPosX, stickPosY, 4, 0, 2 * Math.PI);
+	ctx.fillStyle = '#ffa500';
+	ctx.fill();
 };
 
 /**
@@ -1021,19 +1129,40 @@ const JoystickCalibration = ({
 		rightShowErrorRate
 	]);
 
-	// Update canvas when stick data changes
+	// Cache canvas dimensions and center/radius calculations (performance optimization)
+	const leftCanvasMetricsRef = useRef<{ centerX: number; centerY: number; radius: number } | null>(null);
+	const rightCanvasMetricsRef = useRef<{ centerX: number; centerY: number; radius: number } | null>(null);
+
+	// Update canvas when stick data changes (optimized with requestAnimationFrame throttling)
 	useEffect(() => {
 		let animationFrameId: number | null = null;
+		let lastUpdateTime = 0;
+		const TARGET_FPS = 60; // Target 60 FPS
+		const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
-		const updateCanvas = () => {
+		const updateCanvas = (currentTime: number) => {
+			// Throttle updates to target FPS
+			if (currentTime - lastUpdateTime < FRAME_INTERVAL) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+				return;
+			}
+			lastUpdateTime = currentTime;
+
 			// Draw left stick
 			if (leftStickCanvasRef.current) {
-				const ctx = leftStickCanvasRef.current.getContext('2d');
+				const ctx = leftStickCanvasRef.current.getContext('2d', { alpha: false }); // Disable alpha for better performance
 				if (ctx) {
 					const canvas = leftStickCanvasRef.current;
-					const centerX = canvas.width / 2;
-					const centerY = canvas.height / 2;
-					const radius = Math.min(centerX, centerY) - 10;
+					
+					// Cache dimensions calculation
+					if (!leftCanvasMetricsRef.current) {
+						const centerX = canvas.width / 2;
+						const centerY = canvas.height / 2;
+						const radius = Math.min(centerX, centerY) - 10;
+						leftCanvasMetricsRef.current = { centerX, centerY, radius };
+					}
+					
+					const { centerX, centerY, radius } = leftCanvasMetricsRef.current;
 					
 					drawStickPosition(
 						ctx,
@@ -1044,19 +1173,26 @@ const JoystickCalibration = ({
 						leftStickData.y,
 						leftFinetuneShapeCircularityData,
 						leftFinetuneCenterActive,
-						leftShowErrorRate, // Show error rate based on toggle
+						leftShowErrorRate,
 					);
 				}
 			}
 
 			// Draw right stick
 			if (rightStickCanvasRef.current) {
-				const ctx = rightStickCanvasRef.current.getContext('2d');
+				const ctx = rightStickCanvasRef.current.getContext('2d', { alpha: false }); // Disable alpha for better performance
 				if (ctx) {
 					const canvas = rightStickCanvasRef.current;
-					const centerX = canvas.width / 2;
-					const centerY = canvas.height / 2;
-					const radius = Math.min(centerX, centerY) - 10;
+					
+					// Cache dimensions calculation
+					if (!rightCanvasMetricsRef.current) {
+						const centerX = canvas.width / 2;
+						const centerY = canvas.height / 2;
+						const radius = Math.min(centerX, centerY) - 10;
+						rightCanvasMetricsRef.current = { centerX, centerY, radius };
+					}
+					
+					const { centerX, centerY, radius } = rightCanvasMetricsRef.current;
 					
 					drawStickPosition(
 						ctx,
@@ -1067,13 +1203,15 @@ const JoystickCalibration = ({
 						rightStickData.y,
 						rightFinetuneShapeCircularityData,
 						rightFinetuneCenterActive,
-						rightShowErrorRate, // Show error rate based on toggle
+						rightShowErrorRate,
 					);
 				}
 			}
+
+			animationFrameId = requestAnimationFrame(updateCanvas);
 		};
 
-		// Use requestAnimationFrame to throttle canvas updates
+		// Start animation loop
 		animationFrameId = requestAnimationFrame(updateCanvas);
 
 		return () => {
@@ -1081,7 +1219,15 @@ const JoystickCalibration = ({
 				cancelAnimationFrame(animationFrameId);
 			}
 		};
-	}, [leftStickData, rightStickData, leftFinetuneCenterActive, rightFinetuneCenterActive, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData]);
+	}, [leftStickData, rightStickData, leftFinetuneCenterActive, rightFinetuneCenterActive, leftFinetuneShapeCircularityData, rightFinetuneShapeCircularityData, leftShowErrorRate, rightShowErrorRate]);
+
+	// Clear canvas metrics cache when canvas size changes
+	useEffect(() => {
+		leftCanvasMetricsRef.current = null;
+		rightCanvasMetricsRef.current = null;
+		// Clear static canvas cache when dimensions might change
+		staticCanvasCache.clear();
+	}, []);
 
 
 

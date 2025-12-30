@@ -105,7 +105,161 @@ const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
 };
 
 /**
- * Draws curve editor on canvas
+ * Cache for static background canvas (performance optimization)
+ */
+interface CurveStaticCanvasCache {
+	canvas: HTMLCanvasElement;
+	ctx: CanvasRenderingContext2D;
+	key: string;
+}
+
+const curveStaticCanvasCache = new Map<string, CurveStaticCanvasCache>();
+
+/**
+ * Generates a cache key for static curve canvas
+ */
+const getCurveStaticCanvasKey = (
+	width: number,
+	height: number,
+	innerDeadzone: number,
+	antiDeadzone: number,
+): string => {
+	return `${width}x${height}_${innerDeadzone}_${antiDeadzone}`;
+};
+
+/**
+ * Draws static background on offscreen canvas (cached for performance)
+ */
+const drawCurveStaticBackground = (
+	width: number,
+	height: number,
+	innerDeadzone: number,
+	antiDeadzone: number,
+): HTMLCanvasElement => {
+	const cacheKey = getCurveStaticCanvasKey(width, height, innerDeadzone, antiDeadzone);
+	
+	// Check cache
+	if (curveStaticCanvasCache.has(cacheKey)) {
+		return curveStaticCanvasCache.get(cacheKey)!.canvas;
+	}
+
+	// Create new offscreen canvas
+	const canvas = document.createElement('canvas');
+	canvas.width = width;
+	canvas.height = height;
+	const ctx = canvas.getContext('2d', { alpha: false })!;
+
+	// Use integer coordinates for better performance
+	const intWidth = Math.round(width);
+	const intHeight = Math.round(height);
+
+	// Draw border
+	ctx.strokeStyle = '#000000';
+	ctx.lineWidth = 1;
+	ctx.strokeRect(0, 0, intWidth, intHeight);
+	
+	// Draw light gray grid
+	ctx.strokeStyle = '#b0b0b0';
+	ctx.lineWidth = 1;
+	const gridSize = 10;
+	for (let i = 0; i <= gridSize; i++) {
+		const pos = Math.round((i / gridSize) * intWidth);
+		// Vertical lines
+		ctx.beginPath();
+		ctx.moveTo(pos, 0);
+		ctx.lineTo(pos, intHeight);
+		ctx.stroke();
+		// Horizontal lines
+		ctx.beginPath();
+		ctx.moveTo(0, pos);
+		ctx.lineTo(intWidth, pos);
+		ctx.stroke();
+	}
+	
+	// Draw red dots at origin (0,0) and (1,1)
+	ctx.fillStyle = '#ff0000';
+	// Origin (0,0) at bottom-left
+	ctx.beginPath();
+	ctx.arc(0, intHeight, 6, 0, 2 * Math.PI);
+	ctx.fill();
+	// End point (1,1) at top-right
+	ctx.beginPath();
+	ctx.arc(intWidth, 0, 6, 0, 2 * Math.PI);
+	ctx.fill();
+	
+	// Draw gray start point at (deadzone, anti-deadzone)
+	const startPoint = { x: innerDeadzone, y: antiDeadzone };
+	if (innerDeadzone > 0 || antiDeadzone > 0) {
+		const startPx = Math.round(startPoint.x * intWidth);
+		const startPy = Math.round(intHeight - startPoint.y * intHeight);
+		ctx.fillStyle = '#808080';
+		ctx.beginPath();
+		ctx.arc(startPx, startPy, 6, 0, 2 * Math.PI);
+		ctx.fill();
+		ctx.strokeStyle = '#ffffff';
+		ctx.lineWidth = 2;
+		ctx.stroke();
+	}
+	
+	// Draw dashed reference lines and purple mask
+	ctx.strokeStyle = '#999999';
+	ctx.lineWidth = 1;
+	ctx.setLineDash([5, 5]);
+	
+	if (innerDeadzone > 0 || antiDeadzone > 0) {
+		const startPx = Math.round(startPoint.x * intWidth);
+		const startPy = Math.round(intHeight - startPoint.y * intHeight);
+		
+		// Vertical line (deadzone boundary)
+		if (innerDeadzone > 0) {
+			ctx.beginPath();
+			ctx.moveTo(startPx, 0);
+			ctx.lineTo(startPx, intHeight);
+			ctx.stroke();
+		}
+		
+		// Horizontal line (anti-deadzone boundary)
+		if (antiDeadzone > 0) {
+			ctx.beginPath();
+			ctx.moveTo(0, startPy);
+			ctx.lineTo(intWidth, startPy);
+			ctx.stroke();
+		}
+		
+		// Dashed line from start point to (1,1)
+		ctx.beginPath();
+		ctx.moveTo(startPx, startPy);
+		ctx.lineTo(intWidth, 0);
+		ctx.stroke();
+		
+		// Purple mask: (deadzone, anti-deadzone) - (deadzone, 1) - (1,1) - (1, anti-deadzone)
+		ctx.fillStyle = 'rgba(128, 0, 128, 0.15)';
+		ctx.beginPath();
+		ctx.moveTo(startPx, startPy);
+		ctx.lineTo(startPx, 0); // (deadzone, 1)
+		ctx.lineTo(intWidth, 0); // (1, 1)
+		ctx.lineTo(intWidth, startPy); // (1, anti-deadzone)
+		ctx.closePath();
+		ctx.fill();
+	}
+	
+	ctx.setLineDash([]);
+
+	// Cache the result
+	curveStaticCanvasCache.set(cacheKey, { canvas, ctx, key: cacheKey });
+
+	// Limit cache size to prevent memory issues
+	if (curveStaticCanvasCache.size > 10) {
+		const firstKey = curveStaticCanvasCache.keys().next().value;
+		curveStaticCanvasCache.delete(firstKey);
+	}
+
+	return canvas;
+};
+
+/**
+ * Draws curve editor on canvas (optimized version)
+ * Uses offscreen canvas caching for static background
  * @param ctx Canvas context
  * @param width Canvas width
  * @param height Canvas height
@@ -123,107 +277,23 @@ const drawCurveEditor = (
 	innerDeadzone: number = 0,
 	antiDeadzone: number = 0
 ) => {
-	// Step 1: Clear canvas with transparent background, draw border and grid
+	// Draw cached static background
+	const staticCanvas = drawCurveStaticBackground(width, height, innerDeadzone, antiDeadzone);
 	ctx.clearRect(0, 0, width, height);
-	
-	// Draw border
-	ctx.strokeStyle = '#000000';
-	ctx.lineWidth = 1;
-	ctx.strokeRect(0, 0, width, height);
-	
-	// Draw light gray grid
-	ctx.strokeStyle = '#b0b0b0';
-	ctx.lineWidth = 1;
-	const gridSize = 10;
-	for (let i = 0; i <= gridSize; i++) {
-		const pos = (i / gridSize) * width;
-		// Vertical lines
-		ctx.beginPath();
-		ctx.moveTo(pos, 0);
-		ctx.lineTo(pos, height);
-		ctx.stroke();
-		// Horizontal lines
-		ctx.beginPath();
-		ctx.moveTo(0, pos);
-		ctx.lineTo(width, pos);
-		ctx.stroke();
-	}
-	
-	// Draw red dots at origin (0,0) and (1,1) - all coordinates relative to origin
-	ctx.fillStyle = '#ff0000';
-	// Origin (0,0) at bottom-left
-	ctx.beginPath();
-	ctx.arc(0, height, 6, 0, 2 * Math.PI);
-	ctx.fill();
-	// End point (1,1) at top-right
-	ctx.beginPath();
-	ctx.arc(width, 0, 6, 0, 2 * Math.PI);
-	ctx.fill();
-	
-	// Step 2: Draw gray start point at (deadzone, anti-deadzone)
-	const startPoint = { x: innerDeadzone, y: antiDeadzone };
-	if (innerDeadzone > 0 || antiDeadzone > 0) {
-		const startPx = startPoint.x * width;
-		const startPy = height - startPoint.y * height;
-		ctx.fillStyle = '#808080';
-		ctx.beginPath();
-		ctx.arc(startPx, startPy, 6, 0, 2 * Math.PI);
-		ctx.fill();
-		ctx.strokeStyle = '#ffffff';
-		ctx.lineWidth = 2;
-		ctx.stroke();
-	}
-	
-	// Step 3: Draw dashed reference lines and purple mask
-	ctx.strokeStyle = '#999999';
-	ctx.lineWidth = 1;
-	ctx.setLineDash([5, 5]);
-	
-	if (innerDeadzone > 0 || antiDeadzone > 0) {
-		const startPx = startPoint.x * width;
-		const startPy = height - startPoint.y * height;
-		
-		// Vertical line (deadzone boundary)
-		if (innerDeadzone > 0) {
-			ctx.beginPath();
-			ctx.moveTo(startPx, 0);
-			ctx.lineTo(startPx, height);
-			ctx.stroke();
-		}
-		
-		// Horizontal line (anti-deadzone boundary)
-		if (antiDeadzone > 0) {
-			ctx.beginPath();
-			ctx.moveTo(0, startPy);
-			ctx.lineTo(width, startPy);
-			ctx.stroke();
-		}
-		
-		// Dashed line from start point to (1,1)
-		ctx.beginPath();
-		ctx.moveTo(startPx, startPy);
-		ctx.lineTo(width, 0);
-		ctx.stroke();
-		
-		// Purple mask: (deadzone, anti-deadzone) - (deadzone, 1) - (1,1) - (1, anti-deadzone)
-		ctx.fillStyle = 'rgba(128, 0, 128, 0.15)';
-		ctx.beginPath();
-		ctx.moveTo(startPx, startPy);
-		ctx.lineTo(startPx, 0); // (deadzone, 1)
-		ctx.lineTo(width, 0); // (1, 1)
-		ctx.lineTo(width, startPy); // (1, anti-deadzone)
-		ctx.closePath();
-		ctx.fill();
-	}
-	
-	ctx.setLineDash([]);
-	
+	ctx.drawImage(staticCanvas, 0, 0);
+
+	// Use integer coordinates for better performance
+	const intWidth = Math.round(width);
+	const intHeight = Math.round(height);
+
 	// Step 4: Draw black curve from start point - control points (if any) - (1,1)
 	// All coordinates relative to origin
+	// Cache sorted points to avoid repeated sorting
 	const sortedPoints = [...points].sort((a, b) => a.x - b.x);
 	const curvePoints: CurvePoint[] = [];
 	
 	// Add start point
+	const startPoint = { x: innerDeadzone, y: antiDeadzone };
 	if (innerDeadzone > 0 || antiDeadzone > 0) {
 		curvePoints.push(startPoint);
 	} else {
@@ -242,8 +312,8 @@ const drawCurveEditor = (
 	ctx.beginPath();
 	for (let i = 0; i < curvePoints.length; i++) {
 		const point = curvePoints[i];
-		const px = point.x * width;
-		const py = height - point.y * height;
+		const px = Math.round(point.x * intWidth);
+		const py = Math.round(intHeight - point.y * intHeight);
 		if (i === 0) {
 			ctx.moveTo(px, py);
 		} else {
@@ -266,8 +336,8 @@ const drawCurveEditor = (
 			ctx.beginPath();
 			
 			// Start from start point
-			const startPx = startPointX * width;
-			const startPy = height - curvePoints[0].y * height;
+			const startPx = Math.round(startPointX * intWidth);
+			const startPy = Math.round(intHeight - curvePoints[0].y * intHeight);
 			ctx.moveTo(startPx, startPy);
 			
 			// Traverse curve segments until we reach X=targetX
@@ -284,15 +354,15 @@ const drawCurveEditor = (
 					const curveY = p1.y + t * (p2.y - p1.y);
 					
 					// Draw to (targetX, curveY) on the curve
-					const targetPx = targetX * width;
-					const targetPy = height - curveY * height;
+					const targetPx = Math.round(targetX * intWidth);
+					const targetPy = Math.round(intHeight - curveY * intHeight);
 					ctx.lineTo(targetPx, targetPy);
 					found = true;
 					break;
 				} else if (targetX > p2.x) {
 					// Draw to end of this segment
-					const px2 = p2.x * width;
-					const py2 = height - p2.y * height;
+					const px2 = Math.round(p2.x * intWidth);
+					const py2 = Math.round(intHeight - p2.y * intHeight);
 					ctx.lineTo(px2, py2);
 				} else {
 					// targetX < p1.x, should not happen if targetX >= startPointX
@@ -302,7 +372,7 @@ const drawCurveEditor = (
 			
 			// If targetX >= 1.0 and not found, draw to end point
 			if (targetX >= 1.0 && !found) {
-				ctx.lineTo(width, 0);
+				ctx.lineTo(intWidth, 0);
 			}
 			
 			ctx.stroke();
@@ -315,8 +385,8 @@ const drawCurveEditor = (
 	for (let i = 0; i < sortedPoints.length; i++) {
 		const point = sortedPoints[i];
 		if (point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1) {
-			const px = point.x * width;
-			const py = height - point.y * height;
+			const px = Math.round(point.x * intWidth);
+			const py = Math.round(intHeight - point.y * intHeight);
 			ctx.fillStyle = '#FFA500'; // Orange
 			ctx.beginPath();
 			ctx.arc(px, py, 6, 0, 2 * Math.PI);
@@ -761,28 +831,84 @@ const JoystickCurveSettings = ({
 		};
 	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, leftCurvePoints, rightCurvePoints]);
 	
-	// Draw left curve canvas
+	// Draw left curve canvas (optimized with requestAnimationFrame throttling)
 	useEffect(() => {
-		if (isExpanded && leftCurveCanvasRef.current) {
-			const ctx = leftCurveCanvasRef.current.getContext('2d');
+		if (!isExpanded || !leftCurveCanvasRef.current) return;
+
+		let animationFrameId: number | null = null;
+		let lastUpdateTime = 0;
+		const TARGET_FPS = 60; // Target 60 FPS
+		const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+		const updateCanvas = (currentTime: number) => {
+			// Throttle updates to target FPS (only when lightX/lightY changes frequently)
+			if (currentTime - lastUpdateTime < FRAME_INTERVAL && (leftLightX !== undefined || leftLightY !== undefined)) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+				return;
+			}
+			lastUpdateTime = currentTime;
+
+			const ctx = leftCurveCanvasRef.current?.getContext('2d', { alpha: false });
 			if (ctx) {
 				const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
 				const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
 				drawCurveEditor(ctx, 260, 260, leftCurvePoints, leftLightX, leftLightY, innerDeadzone, antiDeadzone);
 			}
-		}
+
+			// Only continue animation loop if light indicators are active
+			if (leftLightX !== undefined || leftLightY !== undefined) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+			}
+		};
+
+		// Update immediately, then continue if needed
+		animationFrameId = requestAnimationFrame(updateCanvas);
+
+		return () => {
+			if (animationFrameId !== null) {
+				cancelAnimationFrame(animationFrameId);
+			}
+		};
 	}, [isExpanded, leftCurvePoints, leftLightX, leftLightY, values?.inner_deadzone, values?.anti_deadzone]);
 	
-	// Draw right curve canvas
+	// Draw right curve canvas (optimized with requestAnimationFrame throttling)
 	useEffect(() => {
-		if (isExpanded && rightCurveCanvasRef.current) {
-			const ctx = rightCurveCanvasRef.current.getContext('2d');
+		if (!isExpanded || !rightCurveCanvasRef.current) return;
+
+		let animationFrameId: number | null = null;
+		let lastUpdateTime = 0;
+		const TARGET_FPS = 60; // Target 60 FPS
+		const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+		const updateCanvas = (currentTime: number) => {
+			// Throttle updates to target FPS (only when lightX/lightY changes frequently)
+			if (currentTime - lastUpdateTime < FRAME_INTERVAL && (rightLightX !== undefined || rightLightY !== undefined)) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+				return;
+			}
+			lastUpdateTime = currentTime;
+
+			const ctx = rightCurveCanvasRef.current?.getContext('2d', { alpha: false });
 			if (ctx) {
 				const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
 				const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
 				drawCurveEditor(ctx, 260, 260, rightCurvePoints, rightLightX, rightLightY, innerDeadzone, antiDeadzone);
 			}
-		}
+
+			// Only continue animation loop if light indicators are active
+			if (rightLightX !== undefined || rightLightY !== undefined) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+			}
+		};
+
+		// Update immediately, then continue if needed
+		animationFrameId = requestAnimationFrame(updateCanvas);
+
+		return () => {
+			if (animationFrameId !== null) {
+				cancelAnimationFrame(animationFrameId);
+			}
+		};
 	}, [isExpanded, rightCurvePoints, rightLightX, rightLightY, values?.inner_deadzone2, values?.anti_deadzone2]);
 	
 	// Sync input values with curve points
