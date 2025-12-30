@@ -275,7 +275,7 @@ void AnalogDeadzoneScreen::exitEdit(bool discardChanges) {
     if (!discardChanges && changesPending) {
         applyChanges();
         restartPending = true;
-        MainMenuScreen::flagHMLConfigRestartPending();
+        // Don't set restart flag here - it will be set when exiting the menu
     }
 
     currentState = State::SELECT_STICK;

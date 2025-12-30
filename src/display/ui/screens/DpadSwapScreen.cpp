@@ -17,6 +17,7 @@ void DpadSwapScreen::init() {
 
     currentState = State::SELECT_MODE;
     changesPending = false;
+    restartPending = false;
     exitToScreen = -1;
 
     if (gpMenu == nullptr) {
@@ -72,11 +73,13 @@ void DpadSwapScreen::init() {
 void DpadSwapScreen::buildMenus() {
     modeSelectionMenu.clear();
     modeSelectionMenu.push_back({"Dpad", nullptr, nullptr,
-        std::bind(&DpadSwapScreen::currentMode, this), std::bind(&DpadSwapScreen::enterEdit, this, 0), 0});
+        std::bind(&DpadSwapScreen::currentMode, this), nullptr, 0});
     modeSelectionMenu.push_back({"LeftJoystick", nullptr, nullptr,
-        std::bind(&DpadSwapScreen::currentMode, this), std::bind(&DpadSwapScreen::enterEdit, this, 1), 1});
+        std::bind(&DpadSwapScreen::currentMode, this), nullptr, 1});
     modeSelectionMenu.push_back({"RightJoystick", nullptr, nullptr,
-        std::bind(&DpadSwapScreen::currentMode, this), std::bind(&DpadSwapScreen::enterEdit, this, 2), 2});
+        std::bind(&DpadSwapScreen::currentMode, this), nullptr, 2});
+    modeSelectionMenu.push_back({"ActiveZone", nullptr, nullptr,
+        nullptr, nullptr, 3});
 }
 
 void DpadSwapScreen::resetInputState() {
@@ -162,14 +165,8 @@ void DpadSwapScreen::drawScreen() {
     getRenderer()->clearScreen();
     if (gpMenu) gpMenu->setVisibility(false);
 
-    const char* modeLabel = "";
-    switch (editingMode) {
-        case 0: modeLabel = "Dpad"; break;
-        case 1: modeLabel = "LeftJoystick"; break;
-        case 2: modeLabel = "RightJoystick"; break;
-    }
     getRenderer()->drawText(3, 0, "[Dpad Swap]");
-    getRenderer()->drawText(2, 1, modeLabel);
+    getRenderer()->drawText(2, 1, "ActiveZone");
 
     struct RowInfo {
         const char* label;
@@ -217,11 +214,22 @@ void DpadSwapScreen::updateMenuNavigation(GpioAction action) {
             break;
         case GpioAction::MENU_NAVIGATION_SELECT:
             if (menuSize == 0) break;
-            // Set dpadMode immediately when selecting a menu item
-            setDpadMode(gpMenu->getIndex());
-            enterEdit(gpMenu->getIndex());
+            {
+                uint16_t selectedIndex = gpMenu->getIndex();
+                if (selectedIndex < 3) {
+                    // Dpad, LeftJoystick, or RightJoystick: only set dpadMode
+                    setDpadMode(selectedIndex);
+                } else if (selectedIndex == 3) {
+                    // ActiveZone: enter edit mode
+                    enterEdit();
+                }
+            }
             break;
         case GpioAction::MENU_NAVIGATION_BACK:
+            if (restartPending) {
+                MainMenuScreen::flagHMLConfigRestartPending();
+                restartPending = false;
+            }
             // Return to HML Config menu instead of main menu
             MainMenuScreen::flagOpenHMLConfigMenu();
             exitToScreen = DisplayMode::MAIN_MENU;
@@ -254,8 +262,7 @@ void DpadSwapScreen::updateEditNavigation(GpioAction action) {
     }
 }
 
-void DpadSwapScreen::enterEdit(int modeIndex) {
-    editingMode = modeIndex;
+void DpadSwapScreen::enterEdit() {
     selectedRow = 0;
     changesPending = false;
     currentState = State::EDIT_VALUES;
@@ -279,7 +286,7 @@ void DpadSwapScreen::exitEdit(bool discardChanges) {
     if (gpMenu) {
         gpMenu->setMenuData(&modeSelectionMenu);
         gpMenu->setMenuTitle("[Dpad Swap]");
-        gpMenu->setIndex(static_cast<uint16_t>(editingMode));
+        gpMenu->setIndex(3); // Return to ActiveZone menu item
         gpMenu->setVisibility(true);
     }
     resetInputState();
@@ -298,6 +305,7 @@ void DpadSwapScreen::adjustCurrentValue(int delta) {
     if (newValue != *target) {
         *target = newValue;
         changesPending = true;
+        restartPending = true;
     }
 }
 
@@ -309,14 +317,20 @@ int32_t DpadSwapScreen::currentMode() {
 void DpadSwapScreen::setDpadMode(int modeIndex) {
     GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
 
-    // Set dpadMode based on modeIndex
+    // Check if mode is actually changing
+    DpadMode newMode;
     switch (modeIndex) {
-        case 0: gamepadOptions.dpadMode = DpadMode::DPAD_MODE_DIGITAL; break;
-        case 1: gamepadOptions.dpadMode = DpadMode::DPAD_MODE_LEFT_ANALOG; break;
-        case 2: gamepadOptions.dpadMode = DpadMode::DPAD_MODE_RIGHT_ANALOG; break;
+        case 0: newMode = DpadMode::DPAD_MODE_DIGITAL; break;
+        case 1: newMode = DpadMode::DPAD_MODE_LEFT_ANALOG; break;
+        case 2: newMode = DpadMode::DPAD_MODE_RIGHT_ANALOG; break;
+        default: return;
     }
 
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
+    if (gamepadOptions.dpadMode != newMode) {
+        gamepadOptions.dpadMode = newMode;
+        restartPending = true;
+        EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
+    }
 }
 
 void DpadSwapScreen::applyChanges() {

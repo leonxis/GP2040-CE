@@ -34,7 +34,7 @@ private:
 
 	void updateMenuNavigation(GpioAction action);
 	void updateEditNavigation(GpioAction action);
-	void enterEdit(int modeIndex);
+	void enterEdit();
 	void exitEdit(bool discardChanges);
 	void adjustCurrentValue(int delta);
 	void applyChanges();
@@ -62,8 +62,8 @@ private:
 	int8_t exitToScreen = -1;
 	bool isMenuReady = false;
 	bool changesPending = false;
+	bool restartPending = false;
 
-	int editingMode = 0;  // 0=Dpad, 1=LeftJoystick, 2=RightJoystick
 	int selectedRow = 0;
 	int angleValue = 10;      // dpadTriggerThreshold (0-90)
 	int deadzoneValue = 10;   // dpadDeadzone (0-90)

@@ -475,19 +475,9 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
             adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].intercept = p1y - p1x * slope;
         }
         adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_start = p1x;
-        
-        // For the last segment, extend it to distance 2.0 to avoid extrapolation logic
-        // Calculate the y value at x=2.0 using the segment's slope
-        if (i == adc_pairs[stick_num].curve_points_sorted_count - 2) {
-            // Last segment: extend to x=2.0
-            adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end = 2.0f;
-        } else {
-            adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end = p2x;
-        }
+        adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end = p2x;
         adc_pairs[stick_num].curve_segments_count++;
     }
-    
-    // Note: curve_extrapolate_slope is no longer needed since last segment extends to 2.0
 }
 
 /**
@@ -510,8 +500,12 @@ void AnalogInput::applyResponseCurveToCoordinates(float& normalizedX, float& nor
     float clampdist_sq = normalizedX * normalizedX + normalizedY * normalizedY;
     float clampdist = std::sqrt(clampdist_sq);
     
+    // For distances greater than 1.0, do not apply curve - output directly
+    if (clampdist > 1.0f) {
+        return;  // Coordinates remain unchanged (direct output)
+    }
+    
     // Find the segment containing the input distance
-    // Note: Last segment extends to distance 2.0, so no extrapolation logic is needed
     int segmentIdx = -1;
     for (int i = 0; i < adc_pairs[stick_num].curve_segments_count; i++) {
         if (clampdist >= adc_pairs[stick_num].curve_segments[i].x_start && 
@@ -531,7 +525,7 @@ void AnalogInput::applyResponseCurveToCoordinates(float& normalizedX, float& nor
         curvedMagnitude = adc_pairs[stick_num].curve_segments[segmentIdx].intercept + 
                           clampdist * adc_pairs[stick_num].curve_segments[segmentIdx].slope;
     } else {
-        // This should not happen since last segment extends to 2.0, but handle defensively
+        // Distance is within [0, 1] but not found in any segment (should not happen)
         // Fallback: use linear mapping
         curvedMagnitude = clampdist;
     }
