@@ -16,9 +16,7 @@
 #define ADC_MAX ((1 << 12) - 1) // 4095
 #define ADC_MAX_HALF (ADC_MAX * 0.5f) // Precomputed: 2047.5, used for normalization
 #define ADC_PIN_OFFSET 26
-#define ANALOG_MAX 1.0f
 #define ANALOG_CENTER 0.5f
-#define ANALOG_MINIMUM 0.0f
 #define CIRCULARITY_DATA_SIZE 48
 
 /**
@@ -196,11 +194,11 @@ void AnalogInput::process() {
     // Reinitialize curve data only when curve profile changes, not when curve enabled state changes
     // The reinit() function will check curve enabled state to decide whether to initialize curve segments
     
+    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    
     // Only check curve profile changes when curve is enabled
     // If curve is disabled, no need to check profile changes as reinit() won't initialize curve segments anyway
-    if (curveEnabled) {
-
-        const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    if (analogOptions.joystick_curve_enabled) {
         // Get current curve profile values from config (0 = custom, 1-4 = preset 1-4)
         // Default value is 0, so no need to check has_curve_profile
         uint32_t current_profile_1 = analogOptions.curve_profile_1;
