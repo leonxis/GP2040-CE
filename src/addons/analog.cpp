@@ -168,7 +168,10 @@ void AnalogInput::setup() {
 
 void AnalogInput::reinit() {
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-    
+    // Release old control point buttons before resetting data
+    Gamepad * gamepad = Storage::getInstance().GetGamepad();
+    forceReleaseActiveControlPoints(0, gamepad); // Release stick 1 virtual buttons
+    forceReleaseActiveControlPoints(1, gamepad); // Release stick 2 virtual buttons
     // Reinitialize curve segments for both sticks (only data reinitialization, no hardware changes)
     // This is called when curve preset changes via hotkey, which only affects curve data
     adc_pairs[0].curve_points_sorted_count = 0;
@@ -343,20 +346,20 @@ float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t /* center */, 
     uint16_t* last_adc = isXAxis ? &adc_pairs[stick_num].last_x_adc : &adc_pairs[stick_num].last_y_adc;
 
     if (threshold > 0) {
-        // If last_adc still 0,第一次 diff≈adc_value，大概率>=threshold，直接通过并更新 last_adc
+        // If last_adc is still 0 (first read), diff ≈ adc_value, likely >= threshold, pass through and update last_adc
         uint32_t diff = (adc_value > *last_adc) ? (adc_value - *last_adc) : (*last_adc - adc_value);
         if (diff < threshold) {
-            // 差值小于抖动过滤值，输出上次 ADC 值
+            // Difference is smaller than jitter filter threshold, return last ADC value
             return static_cast<float>(*last_adc);
         }
-        // 差值大于等于阈值，接受新值并更新 last_adc
+        // Difference is greater than or equal to threshold, accept new value and update last_adc
         *last_adc = adc_value;
     } else {
-        // 阈值为 0：不做防抖，但仍然更新 last_adc，方便以后启用时使用
+        // Threshold is 0: no jitter filtering, but still update last_adc for potential future use
         *last_adc = adc_value;
     }
 
-    // 返回（可能已防抖后的）ADC 值
+    // Return (possibly jitter-filtered) ADC value
     return static_cast<float>(adc_value);
 }
 
@@ -505,124 +508,114 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
  * @param stick_num Stick number (0 or 1)
  * @param gamepad Gamepad instance for button state updates
  */
-void AnalogInput::applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, Gamepad* gamepad) {
+ void AnalogInput::applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, Gamepad* gamepad) {
+    // 1. Center deadzone handling
     if (normalizedX == 0.0f && normalizedY == 0.0f) {
-        // At center point: no scaling needed (coordinates already 0)
-        // Note: If deadzone is enabled, points within deadzone are set to (0,0) in Step 4
-        //       and this function returns early, so no curve is applied (output remains 0)
-        // Also release all active control point buttons when returning to center
-        if (gamepad != nullptr && adc_pairs[stick_num].active_control_points_mask != 0) {
-            // Release all previously active control point buttons
-            for (int j = 1; j < adc_pairs[stick_num].curve_points_sorted_count - 1; j++) {
-                uint8_t control_point_index = j - 1;  // Convert to control point index (0-based)
-                uint8_t bit_mask = 1U << control_point_index;
-                if ((adc_pairs[stick_num].active_control_points_mask & bit_mask) != 0) {
-                    uint32_t button_mask = adc_pairs[stick_num].curve_points_sorted[j].buttonMask;
-                    if (button_mask != 0) {
-                        gamepad->state.buttons &= ~button_mask;
-                    }
-                }
-            }
-            adc_pairs[stick_num].active_control_points_mask = 0;
-        }
+        forceReleaseActiveControlPoints(stick_num, gamepad);
         return;
     }
     
-    // Note: Caller ensures curve_segments_count > 0, so no need to check here
     float clampdist_sq = normalizedX * normalizedX + normalizedY * normalizedY;
     float clampdist = std::sqrt(clampdist_sq);
 
-    // For distances greater than 1.0, do not apply curve - output directly
-    if (clampdist > 1.0f) {
-        return;  // Coordinates remain unchanged (direct output)
-    }
-    // Check for control point button triggers (before applying response curve)
-    // Control point x coordinate represents input magnitude (before curve application)
-    // Simple trigger logic: if input distance >= control point x, trigger the button
-    // Trigger ALL control points that satisfy the condition, not just the highest one
-    // This avoids jitter at tolerance boundaries and is more reliable in practice
-    // Caller ensures curve_points_sorted_count > 0, so no need to check here
-    if (gamepad != nullptr) {
-        uint8_t new_active_mask = 0;
-        
-        // Check all control points (skip start point at index 0 and end point at last index)
-        // Control points are at indices 1 to curve_points_sorted_count-2
-        // Build mask of all control points that should be active
-        for (int j = 1; j < adc_pairs[stick_num].curve_points_sorted_count - 1; j++) {
-            float point_x = adc_pairs[stick_num].curve_points_sorted[j].x;
-            uint8_t control_point_index = j - 1;  // Convert to control point index (0-based)
-            
-            // If input distance >= control point x and point has buttonMask, mark as active
-            if (clampdist >= point_x && adc_pairs[stick_num].curve_points_sorted[j].buttonMask != 0) {
-                new_active_mask |= (1U << control_point_index);
-            }
-        }
-        
-        // Update button state based on control point changes
-        uint8_t changed_mask = new_active_mask ^ adc_pairs[stick_num].active_control_points_mask;
-        if (changed_mask != 0) {
-            // Release buttons for control points that are no longer active
-            for (int j = 1; j < adc_pairs[stick_num].curve_points_sorted_count - 1; j++) {
-                uint8_t control_point_index = j - 1;
-                uint8_t bit_mask = 1U << control_point_index;
-                
-                // If this point was active but is no longer active, release its button
-                if ((changed_mask & bit_mask) != 0 && (adc_pairs[stick_num].active_control_points_mask & bit_mask) != 0) {
-                    uint32_t button_mask = adc_pairs[stick_num].curve_points_sorted[j].buttonMask;
-                    if (button_mask != 0) {
-                        gamepad->state.buttons &= ~button_mask;
-                    }
-                }
-            }
-            
-            // Press buttons for control points that are newly active
-            for (int j = 1; j < adc_pairs[stick_num].curve_points_sorted_count - 1; j++) {
-                uint8_t control_point_index = j - 1;
-                uint8_t bit_mask = 1U << control_point_index;
-                
-                // If this point is newly active, press its button
-                if ((changed_mask & bit_mask) != 0 && (new_active_mask & bit_mask) != 0) {
-                    uint32_t button_mask = adc_pairs[stick_num].curve_points_sorted[j].buttonMask;
-                    if (button_mask != 0) {
-                        gamepad->state.buttons |= button_mask;
-                    }
-                }
-            }
-            
-            adc_pairs[stick_num].active_control_points_mask = new_active_mask;
-        }
-    }
+    // ================== Button Logic (Optimized) ==================
     
-
-    
-    // Find the segment containing the input distance
+    // Determine current segment index
     int segmentIdx = -1;
-    for (int i = 0; i < adc_pairs[stick_num].curve_segments_count; i++) {
-        if (clampdist >= adc_pairs[stick_num].curve_segments[i].x_start && 
-            clampdist < adc_pairs[stick_num].curve_segments[i].x_end) {
-            segmentIdx = i;
-            break;
-        }
-    }
-    
-    // Calculate curved magnitude using the segment's precomputed parameters
-    // If clampdist equals x_start[0] (deadzone boundary), the formula will correctly
-    // yield y_start[0] (anti_deadzone), so no special handling is needed
-    float curvedMagnitude;
-    if (segmentIdx >= 0) {
-        // Magnitude within curve segment: use precomputed slope and intercept
-        // Formula: curvedMagnitude = intercept + clampdist * slope
-        curvedMagnitude = adc_pairs[stick_num].curve_segments[segmentIdx].intercept + 
-                          clampdist * adc_pairs[stick_num].curve_segments[segmentIdx].slope;
+    if (clampdist > 1.0f) {
+        segmentIdx = adc_pairs[stick_num].curve_segments_count; 
     } else {
-        // Distance is within [0, 1] but not found in any segment (should not happen)
-        // Fallback: use linear mapping
+        for (int i = 0; i < adc_pairs[stick_num].curve_segments_count; i++) {
+            if (clampdist >= adc_pairs[stick_num].curve_segments[i].x_start && 
+                clampdist < adc_pairs[stick_num].curve_segments[i].x_end) {
+                segmentIdx = i;
+                break;
+            }
+        }
+        if (segmentIdx == -1) segmentIdx = adc_pairs[stick_num].curve_segments_count - 1;
+    }
+
+    if (gamepad != nullptr) {
+        uint8_t old_active_points_mask = adc_pairs[stick_num].active_control_points_mask;
+        uint8_t new_active_points_mask = 0;
+        
+        uint32_t buttons_active_now = 0;    // Combined button mask for all active points this frame
+        uint32_t buttons_active_prev = 0;   // Combined button mask for all active points previous frame
+
+        // Iterate through all control points (single loop completes all calculations)
+        for (int j = 1; j < adc_pairs[stick_num].curve_points_sorted_count - 1; j++) {
+            uint32_t btn = adc_pairs[stick_num].curve_points_sorted[j].buttonMask;
+            uint8_t point_bit = 1U << (j - 1);
+            bool is_active_now = (segmentIdx >= j);
+            bool was_active_prev = ((old_active_points_mask & point_bit) != 0);
+
+            // 1. Calculate current frame point status
+            if (is_active_now) {
+                new_active_points_mask |= point_bit;
+                if (btn != 0) buttons_active_now |= btn;
+            }
+
+            // 2. Calculate previous frame point button status
+            if (was_active_prev && btn != 0) {
+                buttons_active_prev |= btn;
+            }
+        }
+
+        // Update button state:
+        // A. Press buttons that should be active (bitwise OR automatically handles duplicates:
+        //    if multiple points trigger the same button, OR operation only keeps one 1)
+        //    Note: |= 0 doesn't change state, so no conditional check needed
+        gamepad->state.buttons |= buttons_active_now;
+
+        // B. Release buttons: logic is (previous frame had) AND (this frame doesn't have)
+        //    This perfectly resolves conflicts: if point1 and point2 both use the same button,
+        //    and point2 deactivates but point1 is still active, (~buttons_active_now) protects
+        //    this bit from being cleared
+        //    Note: &= ~0 doesn't change state, so no conditional check needed
+        gamepad->state.buttons &= ~(buttons_active_prev & ~buttons_active_now);
+
+        // Save new control points mask
+        adc_pairs[stick_num].active_control_points_mask = new_active_points_mask;
+    }
+
+    // ================== Coordinate Curve Logic ==================
+
+    if (clampdist > 1.0f) {
+        return; 
+    }
+
+    float curvedMagnitude;
+    int validSegIdx = std::min(segmentIdx, (int)adc_pairs[stick_num].curve_segments_count - 1);
+    
+    if (validSegIdx >= 0) {
+        curvedMagnitude = adc_pairs[stick_num].curve_segments[validSegIdx].intercept + 
+                          clampdist * adc_pairs[stick_num].curve_segments[validSegIdx].slope;
+    } else {
         curvedMagnitude = clampdist;
     }
     
-    // Calculate scale factor and apply to both coordinates (preserving direction)
     float scale = curvedMagnitude / clampdist;
     normalizedX = normalizedX * scale;
     normalizedY = normalizedY * scale;
+}
+
+// 在 AnalogInput 类中添加此私有辅助函数
+void AnalogInput::forceReleaseActiveControlPoints(int stick_num, Gamepad* gamepad) {
+    if (adc_pairs[stick_num].active_control_points_mask == 0) return;
+    
+    // Iterate through all possible control points (indices 1 to count-2)
+    for (int j = 1; j < adc_pairs[stick_num].curve_points_sorted_count - 1; j++) {
+        uint8_t control_point_index = j - 1;
+        uint8_t bit_mask = 1U << control_point_index;
+        
+        // Check if this bit is marked as active
+        if ((adc_pairs[stick_num].active_control_points_mask & bit_mask) != 0) {
+            uint32_t button_mask = adc_pairs[stick_num].curve_points_sorted[j].buttonMask;
+            if (button_mask != 0 && gamepad != nullptr) {
+                gamepad->state.buttons &= ~button_mask; // Clear button
+            }
+        }
+    }
+    adc_pairs[stick_num].active_control_points_mask = 0;
 }
 

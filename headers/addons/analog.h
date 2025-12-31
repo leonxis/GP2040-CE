@@ -143,6 +143,7 @@ private:
     void applyFinetuneShapeAdjustments(int stick_num);
     void initializeCurveSegments(int stick_num, const AnalogCurvePoint* control_points, int control_points_count);
     void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, Gamepad* gamepad);
+    void forceReleaseActiveControlPoints(int stick_num, Gamepad* gamepad);
     adc_instance adc_pairs[ADC_COUNT];
 };
 
