@@ -5,6 +5,7 @@
 #include "helper.h"
 #include "storagemanager.h"
 #include "drivermanager.h"
+#include "gamepad/GamepadState.h"
 
 #include <algorithm>
 #include <cmath>
@@ -57,7 +58,7 @@ void AnalogInput::setup() {
     adc_pairs[0].analog_dpad = analogOptions.analogAdc1Mode;
     adc_pairs[0].in_deadzone = analogOptions.inner_deadzone / 100.0f;
     // Outer deadzone and forced_circularity removed - replaced by range calibration
-    // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-10, but clamp ensures safety)
+    // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-20, but clamp ensures safety)
     adc_pairs[0].anti_deadzone = std::clamp(analogOptions.anti_deadzone / 100.0f, 0.0f, 1.0f);
     adc_pairs[0].fixed_anti_deadzone = analogOptions.fixed_anti_deadzone;
     adc_pairs[0].joystick_center_x = analogOptions.joystick_center_x;
@@ -96,7 +97,7 @@ void AnalogInput::setup() {
     adc_pairs[1].analog_dpad = analogOptions.analogAdc2Mode;
     adc_pairs[1].in_deadzone = analogOptions.inner_deadzone2 / 100.0f;
     // Outer deadzone and forced_circularity removed - replaced by range calibration
-    // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-10, but clamp ensures safety)
+    // Clamp anti_deadzone to [0, 1] range (defensive: frontend validates 0-20, but clamp ensures safety)
     adc_pairs[1].anti_deadzone = std::clamp(analogOptions.anti_deadzone2 / 100.0f, 0.0f, 1.0f);
     adc_pairs[1].fixed_anti_deadzone = analogOptions.fixed_anti_deadzone2;
     adc_pairs[1].joystick_center_x = analogOptions.joystick_center_x2;
@@ -561,20 +562,54 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
             }
         }
 
-        // Update button state:
+        // Separate D-pad buttons from regular buttons
+        uint32_t dpad_active_now = buttons_active_now & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+        uint32_t dpad_active_prev = buttons_active_prev & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+        uint32_t regular_buttons_active_now = buttons_active_now & ~(GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+        uint32_t regular_buttons_active_prev = buttons_active_prev & ~(GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+
+        // Update D-pad state (convert button masks to dpad masks)
+        if (dpad_active_now & GAMEPAD_MASK_DU) {
+            gamepad->state.dpad |= GAMEPAD_MASK_UP;
+        }
+        if (dpad_active_now & GAMEPAD_MASK_DD) {
+            gamepad->state.dpad |= GAMEPAD_MASK_DOWN;
+        }
+        if (dpad_active_now & GAMEPAD_MASK_DL) {
+            gamepad->state.dpad |= GAMEPAD_MASK_LEFT;
+        }
+        if (dpad_active_now & GAMEPAD_MASK_DR) {
+            gamepad->state.dpad |= GAMEPAD_MASK_RIGHT;
+        }
+
+        // Release D-pad buttons: logic is (previous frame had) AND (this frame doesn't have)
+        uint32_t dpad_to_release = dpad_active_prev & ~dpad_active_now;
+        if (dpad_to_release & GAMEPAD_MASK_DU) {
+            gamepad->state.dpad &= ~GAMEPAD_MASK_UP;
+        }
+        if (dpad_to_release & GAMEPAD_MASK_DD) {
+            gamepad->state.dpad &= ~GAMEPAD_MASK_DOWN;
+        }
+        if (dpad_to_release & GAMEPAD_MASK_DL) {
+            gamepad->state.dpad &= ~GAMEPAD_MASK_LEFT;
+        }
+        if (dpad_to_release & GAMEPAD_MASK_DR) {
+            gamepad->state.dpad &= ~GAMEPAD_MASK_RIGHT;
+        }
+
+        // Update regular button state:
         // A. Press buttons that should be active (bitwise OR automatically handles duplicates:
         //    if multiple points trigger the same button, OR operation only keeps one 1)
         //    Note: |= 0 doesn't change state, so no conditional check needed
-        gamepad->state.buttons |= buttons_active_now;
+        gamepad->state.buttons |= regular_buttons_active_now;
 
         // B. Release buttons: logic is (previous frame had) AND (this frame doesn't have)
         //    This perfectly resolves conflicts: if point1 and point2 both use the same button,
-        //    and point2 deactivates but point1 is still active, (~buttons_active_now) protects
+        //    and point2 deactivates but point1 is still active, (~regular_buttons_active_now) protects
         //    this bit from being cleared
         //    Note: &= ~0 doesn't change state, so no conditional check needed
-        gamepad->state.buttons &= ~(buttons_active_prev & ~buttons_active_now);
+        gamepad->state.buttons &= ~(regular_buttons_active_prev & ~regular_buttons_active_now);
 
-        // Save new control points mask
         adc_pairs[stick_num].active_control_points_mask = new_active_points_mask;
     }
 
@@ -599,23 +634,51 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
     normalizedY = normalizedY * scale;
 }
 
-// 在 AnalogInput 类中添加此私有辅助函数
+// Private helper function to force release all active control point buttons
+// This is called when joystick returns to center or when curve data is reinitialized
 void AnalogInput::forceReleaseActiveControlPoints(int stick_num, Gamepad* gamepad) {
-    if (adc_pairs[stick_num].active_control_points_mask == 0) return;
+    if (gamepad == nullptr || adc_pairs[stick_num].active_control_points_mask == 0) {
+        adc_pairs[stick_num].active_control_points_mask = 0;
+        return;
+    }
     
-    // Iterate through all possible control points (indices 1 to count-2)
+    uint32_t total_buttons_to_release = 0;
+    
+    // Step 1: Collect all button masks from active control points
+    // Iterate through control points (indices 1 to count-2, excluding start and end points)
     for (int j = 1; j < adc_pairs[stick_num].curve_points_sorted_count - 1; j++) {
-        uint8_t control_point_index = j - 1;
+        uint8_t control_point_index = j - 1;  // Control point index (0-based)
         uint8_t bit_mask = 1U << control_point_index;
         
-        // Check if this bit is marked as active
+        // Check if this control point is currently active
         if ((adc_pairs[stick_num].active_control_points_mask & bit_mask) != 0) {
-            uint32_t button_mask = adc_pairs[stick_num].curve_points_sorted[j].buttonMask;
-            if (button_mask != 0 && gamepad != nullptr) {
-                gamepad->state.buttons &= ~button_mask; // Clear button
-            }
+            total_buttons_to_release |= adc_pairs[stick_num].curve_points_sorted[j].buttonMask;
         }
     }
+    
+    // Step 2: Release D-pad buttons (convert button masks to dpad masks)
+    uint32_t dpad_mask = total_buttons_to_release & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+    if (dpad_mask != 0) {
+        if (dpad_mask & GAMEPAD_MASK_DU) {
+            gamepad->state.dpad &= ~GAMEPAD_MASK_UP;
+        }
+        if (dpad_mask & GAMEPAD_MASK_DD) {
+            gamepad->state.dpad &= ~GAMEPAD_MASK_DOWN;
+        }
+        if (dpad_mask & GAMEPAD_MASK_DL) {
+            gamepad->state.dpad &= ~GAMEPAD_MASK_LEFT;
+        }
+        if (dpad_mask & GAMEPAD_MASK_DR) {
+            gamepad->state.dpad &= ~GAMEPAD_MASK_RIGHT;
+        }
+    }
+    
+    // Step 3: Release regular buttons (exclude D-pad button masks)
+    uint32_t regular_mask = total_buttons_to_release & ~(GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+    if (regular_mask != 0) {
+        gamepad->state.buttons &= ~regular_mask;
+    }
+
+    // Reset active control points mask
     adc_pairs[stick_num].active_control_points_mask = 0;
 }
-

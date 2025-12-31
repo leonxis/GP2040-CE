@@ -1846,10 +1846,10 @@ const JoystickCurveSettings = ({
 							</Form.Label>
 							<Form.Range
 								min={0}
-								max={10}
-								step={0.5}
+								max={20}
+								step={1}
 								value={values?.inner_deadzone || 0}
-								onChange={(e) => setFieldValue('inner_deadzone', Math.round(parseFloat(e.target.value) * 2) / 2)}
+								onChange={(e) => setFieldValue('inner_deadzone', parseFloat(e.target.value))}
 							/>
 						</div>
 						<div style={{ marginBottom: '6px' }}>
@@ -1872,10 +1872,10 @@ const JoystickCurveSettings = ({
 							</div>
 							<Form.Range
 								min={0}
-								max={10}
-								step={0.5}
+								max={20}
+								step={1}
 								value={values?.anti_deadzone || 0}
-								onChange={(e) => setFieldValue('anti_deadzone', Math.round(parseFloat(e.target.value) * 2) / 2)}
+								onChange={(e) => setFieldValue('anti_deadzone', parseFloat(e.target.value))}
 							/>
 						</div>
 					</div>
@@ -1890,10 +1890,10 @@ const JoystickCurveSettings = ({
 							</Form.Label>
 							<Form.Range
 								min={0}
-								max={10}
-								step={0.5}
+								max={20}
+								step={1}
 								value={values?.inner_deadzone2 || 0}
-								onChange={(e) => setFieldValue('inner_deadzone2', Math.round(parseFloat(e.target.value) * 2) / 2)}
+								onChange={(e) => setFieldValue('inner_deadzone2', parseFloat(e.target.value))}
 							/>
 						</div>
 						<div style={{ marginBottom: '6px' }}>
@@ -1916,10 +1916,10 @@ const JoystickCurveSettings = ({
 							</div>
 							<Form.Range
 								min={0}
-								max={10}
-								step={0.5}
+								max={20}
+								step={1}
 								value={values?.anti_deadzone2 || 0}
-								onChange={(e) => setFieldValue('anti_deadzone2', Math.round(parseFloat(e.target.value) * 2) / 2)}
+								onChange={(e) => setFieldValue('anti_deadzone2', parseFloat(e.target.value))}
 							/>
 						</div>
 					</div>

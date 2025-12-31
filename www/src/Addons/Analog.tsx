@@ -64,22 +64,22 @@ export const analogScheme = {
 	inner_deadzone: yup
 		.number()
 		.label('Inner Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 10),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 20),
 	anti_deadzone: yup
 		.number()
 		.label('Inner Anti-Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 10),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 20),
 	fixed_anti_deadzone: yup
 		.boolean()
 		.label('Fixed Anti-Deadzone Mode'),
 	inner_deadzone2: yup
 		.number()
 		.label('Inner Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 10),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 20),
 	anti_deadzone2: yup
 		.number()
 		.label('Inner Anti-Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 10),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 20),
 	fixed_anti_deadzone2: yup
 		.boolean()
 		.label('Fixed Anti-Deadzone Mode 2'),

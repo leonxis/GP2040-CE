@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Button, Spinner, ListGroup } from 'react-bootstrap';
+import { Modal, Button, Spinner } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 
 interface StickCalibrationModalProps {
@@ -18,247 +18,144 @@ const StickCalibrationModal = ({
 	stickLabel,
 }: StickCalibrationModalProps) => {
 	const { t } = useTranslation();
-	const [currentStep, setCurrentStep] = useState(1); // 1=welcome, 2-5=steps, 6=completed
 	const [isLoading, setIsLoading] = useState(false);
-	const [calibrationValues, setCalibrationValues] = useState<Array<{ x: number; y: number }>>([]);
+	const [isCompleted, setIsCompleted] = useState(false);
+	const [calibrationResult, setCalibrationResult] = useState<{ x: number; y: number } | null>(null);
+	const [sampleCount, setSampleCount] = useState(0);
 	const [buttonText, setButtonText] = useState('');
 
 	// Reset state when modal opens/closes
 	useEffect(() => {
 		if (show) {
-			setCurrentStep(1);
-			setCalibrationValues([]);
+			setIsCompleted(false);
+			setCalibrationResult(null);
 			setIsLoading(false);
+			setSampleCount(0);
 			setButtonText(t('AddonsConfig:joystick-calibration-modal-start'));
 		}
 	}, [show, t]);
 
-	// Update button text based on current step
-	useEffect(() => {
-		if (currentStep === 1) {
-			setButtonText(t('AddonsConfig:joystick-calibration-modal-start'));
-		} else if (currentStep === 6) {
-			setButtonText(t('AddonsConfig:joystick-calibration-modal-done'));
-		} else {
-			setButtonText(t('AddonsConfig:joystick-calibration-modal-continue'));
-		}
-	}, [currentStep, t]);
-
-	const handleNext = async () => {
-		if (currentStep === 1) {
-			// Start calibration
-			setCurrentStep(2);
-			setIsLoading(true);
-			await new Promise(resolve => setTimeout(resolve, 100));
-			setIsLoading(false);
-		} else if (currentStep >= 2 && currentStep <= 5) {
-			// Sample calibration data with multiple readings to average out jitter
-			setIsLoading(true);
-			setButtonText(t('AddonsConfig:joystick-calibration-modal-sampling'));
-			
-			try {
-				await new Promise(resolve => setTimeout(resolve, 150));
-				
-				const apiEndpoint = stickNumber === 1 ? '/api/getJoystickCenter' : '/api/getJoystickCenter2';
-				const SAMPLE_COUNT = 20; // Number of samples to take for averaging
-				const SAMPLE_INTERVAL = 50; // Milliseconds between samples
-				
-				// Collect multiple samples
-				const samples: Array<{ x: number; y: number }> = [];
-				for (let i = 0; i < SAMPLE_COUNT; i++) {
-					const res = await fetch(apiEndpoint);
-					
-					if (!res.ok) {
-						throw new Error(`HTTP error! status: ${res.status}`);
-					}
-					
-					const data = await res.json();
-					
-					if (!data.success || data.error) {
-						throw new Error(data.error || 'Unknown error');
-					}
-					
-					samples.push({ x: data.x || 0, y: data.y || 0 });
-					
-					// Wait between samples (except for the last one)
-					if (i < SAMPLE_COUNT - 1) {
-						await new Promise(resolve => setTimeout(resolve, SAMPLE_INTERVAL));
-					}
-				}
-				
-				// Calculate average of all samples
-				const avgX = Math.round(samples.reduce((sum, sample) => sum + sample.x, 0) / samples.length);
-				const avgY = Math.round(samples.reduce((sum, sample) => sum + sample.y, 0) / samples.length);
-				
-				const newValue = { x: avgX, y: avgY };
-				const newValues = [...calibrationValues, newValue];
-				setCalibrationValues(newValues);
-				
-				if (currentStep === 5) {
-					// Last step, calculate and complete
-					setButtonText(t('AddonsConfig:joystick-calibration-modal-storing'));
-					await new Promise(resolve => setTimeout(resolve, 500));
-					
-					// Calculate center value from four points
-					const finalAvgX = Math.round(newValues.reduce((sum, val) => sum + val.x, 0) / newValues.length);
-					const finalAvgY = Math.round(newValues.reduce((sum, val) => sum + val.y, 0) / newValues.length);
-					
-					setCurrentStep(6);
-					onComplete(finalAvgX, finalAvgY);
-				} else {
-					setCurrentStep(currentStep + 1);
-				}
-			} catch (error) {
-				console.error('Calibration error:', error);
-				alert(t('AddonsConfig:analog-calibration-failed', { error: error instanceof Error ? error.message : String(error) }));
-				onHide();
-				return;
-			} finally {
-				setIsLoading(false);
-			}
-		} else if (currentStep === 6) {
-			// Completed
+	const handleStart = async () => {
+		if (isCompleted) {
+			// Completed, close modal
 			onHide();
+			return;
+		}
+
+		// Start calibration - sample 10 times and calculate average
+		setIsLoading(true);
+		setButtonText(t('AddonsConfig:joystick-calibration-modal-sampling'));
+		
+		try {
+			const apiEndpoint = stickNumber === 1 ? '/api/getJoystickCenter' : '/api/getJoystickCenter2';
+			const SAMPLE_COUNT = 10; // Number of samples to take for averaging
+			const SAMPLE_INTERVAL = 50; // Milliseconds between samples
+			
+			// Collect multiple samples
+			const samples: Array<{ x: number; y: number }> = [];
+			for (let i = 0; i < SAMPLE_COUNT; i++) {
+				const res = await fetch(apiEndpoint);
+				
+				if (!res.ok) {
+					throw new Error(`HTTP error! status: ${res.status}`);
+				}
+				
+				const data = await res.json();
+				
+				if (!data.success || data.error) {
+					throw new Error(data.error || 'Unknown error');
+				}
+				
+				samples.push({ x: data.x || 0, y: data.y || 0 });
+				setSampleCount(i + 1);
+				
+				// Wait between samples (except for the last one)
+				if (i < SAMPLE_COUNT - 1) {
+					await new Promise(resolve => setTimeout(resolve, SAMPLE_INTERVAL));
+				}
+			}
+			
+			// Calculate average of all samples
+			const avgX = Math.round(samples.reduce((sum, sample) => sum + sample.x, 0) / samples.length);
+			const avgY = Math.round(samples.reduce((sum, sample) => sum + sample.y, 0) / samples.length);
+			
+			setCalibrationResult({ x: avgX, y: avgY });
+			setButtonText(t('AddonsConfig:joystick-calibration-modal-storing'));
+			await new Promise(resolve => setTimeout(resolve, 300));
+			
+			// Complete calibration
+			setIsCompleted(true);
+			setButtonText(t('AddonsConfig:joystick-calibration-modal-done'));
+			onComplete(avgX, avgY);
+		} catch (error) {
+			console.error('Calibration error:', error);
+			alert(t('AddonsConfig:analog-calibration-failed', { error: error instanceof Error ? error.message : String(error) }));
+			onHide();
+			return;
+		} finally {
+			setIsLoading(false);
 		}
 	};
 
-	const getStepContent = () => {
-		switch (currentStep) {
-			case 1:
-				return (
-					<div>
-						<h4>{t('AddonsConfig:joystick-calibration-modal-welcome-title')}</h4>
-						<p>{t('AddonsConfig:joystick-calibration-modal-welcome-text', { stick: stickLabel })}</p>
-						<p>
-							<em>{t('AddonsConfig:joystick-calibration-modal-warning')}</em>
-						</p>
-						<p>{t('AddonsConfig:joystick-calibration-modal-welcome-instruction')}</p>
-					</div>
-				);
-			case 2:
-				return (
-					<div>
-						<p>
-							{t('AddonsConfig:joystick-calibration-modal-step-instruction', {
-								stick: stickLabel,
-								direction: t('AddonsConfig:analog-calibration-direction-top-left'),
-							})}
-						</p>
-						<p>{t('AddonsConfig:joystick-calibration-modal-step-confirm')}</p>
-					</div>
-				);
-			case 3:
-				return (
-					<div>
-						<p>
-							{t('AddonsConfig:joystick-calibration-modal-step-instruction', {
-								stick: stickLabel,
-								direction: t('AddonsConfig:analog-calibration-direction-top-right'),
-							})}
-						</p>
-						<p>{t('AddonsConfig:joystick-calibration-modal-step-confirm')}</p>
-					</div>
-				);
-			case 4:
-				return (
-					<div>
-						<p>
-							{t('AddonsConfig:joystick-calibration-modal-step-instruction', {
-								stick: stickLabel,
-								direction: t('AddonsConfig:analog-calibration-direction-bottom-left'),
-							})}
-						</p>
-						<p>{t('AddonsConfig:joystick-calibration-modal-step-confirm')}</p>
-					</div>
-				);
-			case 5:
-				return (
-					<div>
-						<p>
-							{t('AddonsConfig:joystick-calibration-modal-step-instruction', {
-								stick: stickLabel,
-								direction: t('AddonsConfig:analog-calibration-direction-bottom-right'),
-							})}
-						</p>
-						<p>{t('AddonsConfig:joystick-calibration-modal-step-confirm')}</p>
-					</div>
-				);
-			case 6:
-				return (
-					<div>
-						<h4>{t('AddonsConfig:joystick-calibration-modal-completed-title')}</h4>
-						<p>{t('AddonsConfig:joystick-calibration-modal-completed-text')}</p>
-						{calibrationValues.length === 4 && (
-							<div className="mt-3">
-								<p className="small text-muted">{t('AddonsConfig:analog-calibration-data')}</p>
-								<ul className="small">
-									<li>
-										{t('AddonsConfig:analog-calibration-direction-top-left')}: X={calibrationValues[0].x}, Y={calibrationValues[0].y}
-									</li>
-									<li>
-										{t('AddonsConfig:analog-calibration-direction-top-right')}: X={calibrationValues[1].x}, Y={calibrationValues[1].y}
-									</li>
-									<li>
-										{t('AddonsConfig:analog-calibration-direction-bottom-left')}: X={calibrationValues[2].x}, Y={calibrationValues[2].y}
-									</li>
-									<li>
-										{t('AddonsConfig:analog-calibration-direction-bottom-right')}: X={calibrationValues[3].x}, Y={calibrationValues[3].y}
-									</li>
-								</ul>
-							</div>
-						)}
-					</div>
-				);
-			default:
-				return null;
+	const getContent = () => {
+		if (isCompleted) {
+			return (
+				<div>
+					<h4>{t('AddonsConfig:joystick-calibration-modal-completed-title')}</h4>
+					<p>{t('AddonsConfig:joystick-calibration-modal-completed-text')}</p>
+					{calibrationResult && (
+						<div className="mt-3">
+							<p className="small text-muted">{t('AddonsConfig:analog-calibration-data')}</p>
+							<p className="small">
+								中心值: X={calibrationResult.x}, Y={calibrationResult.y}
+							</p>
+						</div>
+					)}
+				</div>
+			);
+		} else if (isLoading) {
+			return (
+				<div>
+					<h4>{t('AddonsConfig:joystick-calibration-modal-welcome-title')}</h4>
+					<p>正在采样中... ({sampleCount}/10)</p>
+					<p>
+						<em>请保持摇杆在中心位置不动</em>
+					</p>
+				</div>
+			);
+		} else {
+			return (
+				<div>
+					<h4>{t('AddonsConfig:joystick-calibration-modal-welcome-title')}</h4>
+					<p>此工具将引导您重新校准{stickLabel}的中心位置，请拨动一次摇杆使其正确回中。</p>
+					<p>
+						<em>{t('AddonsConfig:joystick-calibration-modal-warning')}</em>
+					</p>
+					<p>请将摇杆保持在中心位置，然后点击开始按钮。系统将自动采样10次并计算平均值。</p>
+				</div>
+			);
 		}
 	};
 
 	return (
 		<Modal
 			show={show}
-			onHide={currentStep === 1 || currentStep === 6 ? onHide : undefined}
-			backdrop={currentStep === 1 || currentStep === 6 ? true : 'static'}
-			keyboard={currentStep === 1 || currentStep === 6}
+			onHide={!isLoading ? onHide : undefined}
+			backdrop={!isLoading ? true : 'static'}
+			keyboard={!isLoading}
 			size="lg"
 			centered
 		>
-			<Modal.Header closeButton={currentStep === 1 || currentStep === 6}>
+			<Modal.Header closeButton={!isLoading}>
 				<Modal.Title>{t('AddonsConfig:joystick-calibration-modal-title', { stick: stickLabel })}</Modal.Title>
 			</Modal.Header>
 			<Modal.Body>
-				<div className="row">
-					<div className="col-4">
-						<ListGroup>
-							<ListGroup.Item action active={currentStep === 1}>
-								{t('AddonsConfig:joystick-calibration-modal-step-welcome')}
-							</ListGroup.Item>
-							<ListGroup.Item action active={currentStep === 2}>
-								{t('AddonsConfig:joystick-calibration-modal-step', { step: 1 })}
-							</ListGroup.Item>
-							<ListGroup.Item action active={currentStep === 3}>
-								{t('AddonsConfig:joystick-calibration-modal-step', { step: 2 })}
-							</ListGroup.Item>
-							<ListGroup.Item action active={currentStep === 4}>
-								{t('AddonsConfig:joystick-calibration-modal-step', { step: 3 })}
-							</ListGroup.Item>
-							<ListGroup.Item action active={currentStep === 5}>
-								{t('AddonsConfig:joystick-calibration-modal-step', { step: 4 })}
-							</ListGroup.Item>
-							<ListGroup.Item action active={currentStep === 6}>
-								{t('AddonsConfig:joystick-calibration-modal-step-completed')}
-							</ListGroup.Item>
-						</ListGroup>
-					</div>
-					<div className="col-8">
-						{getStepContent()}
-					</div>
-				</div>
+				{getContent()}
 			</Modal.Body>
 			<Modal.Footer>
 				<Button
 					variant="primary"
-					onClick={handleNext}
+					onClick={handleStart}
 					disabled={isLoading}
 				>
 					{isLoading && (
