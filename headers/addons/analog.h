@@ -7,6 +7,9 @@
 #include "enums.pb.h"
 #include "types.h"
 
+// Forward declaration
+class Gamepad;
+
 #ifndef ANALOG_INPUT_ENABLED
 #define ANALOG_INPUT_ENABLED 0
 #endif
@@ -68,6 +71,7 @@
 typedef struct {
     float x;
     float y;
+    uint32_t buttonMask;  // Button mask to trigger when joystick reaches this control point
 } AnalogCurvePoint;
 
 typedef struct
@@ -103,6 +107,7 @@ typedef struct
     struct {
         float x;
         float y;
+        uint32_t buttonMask;  // Button mask to trigger when joystick reaches this control point
     } curve_points_sorted[5];  // max 5 points: (0,0) + 3 control + (1,1)
     uint8_t curve_points_sorted_count;  // Total number of points in sorted array (0-5, 0 means no curve)
     // Precomputed curve segment parameters for fast lookup: slope and intercept for each segment
@@ -115,6 +120,9 @@ typedef struct
     } curve_segments[4];  // max 4 segments: (0,0)->p1, p1->p2, p2->p3, p3->(1,1)
     uint8_t curve_segments_count;  // Number of segments (0-4, 0 means no curve)
     float curve_extrapolate_slope;  // Slope for extrapolation when magnitude > 1.0
+    // Track which control points are currently active (for button triggering)
+    // Bitmask: bit 0 = control point 0, bit 1 = control point 1, bit 2 = control point 2
+    uint8_t active_control_points_mask;  // 0 = no active points, bits set indicate active points
 } adc_instance;
 
 class AnalogInput : public GPAddon {
@@ -134,7 +142,7 @@ private:
     float getInterpolatedScale(int stick_num, float angle);
     void applyFinetuneShapeAdjustments(int stick_num);
     void initializeCurveSegments(int stick_num, const AnalogCurvePoint* control_points, int control_points_count);
-    void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num);
+    void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, Gamepad* gamepad);
     adc_instance adc_pairs[ADC_COUNT];
 };
 

@@ -768,6 +768,9 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 							analogOptions.joystick_curve_points_1[i].y = preset.points[i].y;
 							analogOptions.joystick_curve_points_1[i].has_x = true;
 							analogOptions.joystick_curve_points_1[i].has_y = true;
+							// buttonMask always has a default value (0) set during preset loading
+							analogOptions.joystick_curve_points_1[i].buttonMask = preset.points[i].buttonMask;
+							analogOptions.joystick_curve_points_1[i].has_buttonMask = true;
 							analogOptions.joystick_curve_points_1_count++;
 						}
 					} else {
@@ -778,6 +781,9 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 							analogOptions.joystick_curve_points_2[i].y = preset.points[i].y;
 							analogOptions.joystick_curve_points_2[i].has_x = true;
 							analogOptions.joystick_curve_points_2[i].has_y = true;
+							// buttonMask always has a default value (0) set during preset loading
+							analogOptions.joystick_curve_points_2[i].buttonMask = preset.points[i].buttonMask;
+							analogOptions.joystick_curve_points_2[i].has_buttonMask = true;
 							analogOptions.joystick_curve_points_2_count++;
 						}
 					}

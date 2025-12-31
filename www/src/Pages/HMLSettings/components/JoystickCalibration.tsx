@@ -196,11 +196,11 @@ const applyFinetuneShapeAdjustments = (
  * Get interpolated scale for a given angle using range calibration data (matches backend logic)
  * @param angle Angle in radians (-PI to PI)
  * @param rangeData Range calibration data array (already adjusted by applyFinetuneShapeAdjustments)
- * @returns Interpolated scale value, or 0.0 if no calibration data
+ * @returns Interpolated scale value, or 0.65 if no calibration data (default scaling)
  */
 const getInterpolatedScale = (angle: number, rangeData: number[]): number => {
 	// Check if we have calibration data
-	// If no calibration data, return 1.0 for 1:1 native output (matches backend logic)
+	// If no calibration data, return 0.65 for default scaling (matches backend logic)
 	if (!rangeData || rangeData.length === 0 || rangeData.every(v => v <= 0)) {
 		return 0.65;
 	}
@@ -370,6 +370,10 @@ const drawStaticBackground = (
 	const intCenterY = Math.round(centerY);
 	const intRadius = Math.round(radius);
 
+	// Fill white background first
+	ctx.fillStyle = '#1b1b1d';
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
 	// Calculate effective radius and scale based on zoom mode
 	let effectiveRadius = intRadius;
 	let scale = 1.0;
@@ -469,7 +473,9 @@ const drawStaticBackground = (
 	// Limit cache size to prevent memory issues
 	if (staticCanvasCache.size > 10) {
 		const firstKey = staticCanvasCache.keys().next().value;
+		if (firstKey !== undefined) {
 		staticCanvasCache.delete(firstKey);
+		}
 	}
 
 	return canvas;

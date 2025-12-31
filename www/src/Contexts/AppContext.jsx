@@ -97,7 +97,7 @@ yup.addMethod(yup.NumberSchema, 'checkUsedPins', function () {
 const parseBoolean = (bool) => String(bool).toLowerCase() === 'true';
 
 export const AppContextProvider = ({ children, ...props }) => {
-	const localValue = localStorage.getItem('buttonLabelType') || 'gp2040';
+	const localValue = localStorage.getItem('buttonLabelType') || 'ps4';
 	const localValue2 =
 		parseBoolean(localStorage.getItem('swapTpShareLabels')) || false;
 	const [buttonLabels, _setButtonLabels] = useState({

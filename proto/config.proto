@@ -402,6 +402,7 @@ message CurvePoint
 {
     optional float x = 1;
     optional float y = 2;
+    optional uint32 buttonMask = 3;
 }
 
 message CurvePreset

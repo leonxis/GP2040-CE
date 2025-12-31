@@ -1820,6 +1820,11 @@ std::string setAddonOptions()
                 if (point.containsKey("x") && point.containsKey("y")) {
                     analogOptions.joystick_curve_points_1[i].x = point["x"].as<float>();
                     analogOptions.joystick_curve_points_1[i].y = point["y"].as<float>();
+                    // buttonMask always has a default value (0) if not provided
+                    analogOptions.joystick_curve_points_1[i].buttonMask = point.containsKey("buttonMask") && point["buttonMask"].is<uint32_t>() 
+                        ? point["buttonMask"].as<uint32_t>() 
+                        : 0;
+                    analogOptions.joystick_curve_points_1[i].has_buttonMask = true;
                     analogOptions.joystick_curve_points_1_count++;
                 }
             }
@@ -1834,6 +1839,11 @@ std::string setAddonOptions()
                 if (point.containsKey("x") && point.containsKey("y")) {
                     analogOptions.joystick_curve_points_2[i].x = point["x"].as<float>();
                     analogOptions.joystick_curve_points_2[i].y = point["y"].as<float>();
+                    // buttonMask always has a default value (0) if not provided
+                    analogOptions.joystick_curve_points_2[i].buttonMask = point.containsKey("buttonMask") && point["buttonMask"].is<uint32_t>() 
+                        ? point["buttonMask"].as<uint32_t>() 
+                        : 0;
+                    analogOptions.joystick_curve_points_2[i].has_buttonMask = true;
                     analogOptions.joystick_curve_points_2_count++;
                 }
             }
@@ -1870,6 +1880,11 @@ std::string setAddonOptions()
                             if (point.containsKey("x") && point.containsKey("y")) {
                                 curvePreset.points[j].x = point["x"].as<float>();
                                 curvePreset.points[j].y = point["y"].as<float>();
+                                // buttonMask always has a default value (0) if not provided
+                                curvePreset.points[j].buttonMask = point.containsKey("buttonMask") && point["buttonMask"].is<uint32_t>() 
+                                    ? point["buttonMask"].as<uint32_t>() 
+                                    : 0;
+                                curvePreset.points[j].has_buttonMask = true;
                                 curvePreset.points[j].has_x = true;
                                 curvePreset.points[j].has_y = true;
                                 curvePreset.points_count++;
@@ -2383,12 +2398,14 @@ std::string getAddonOptions()
         JsonObject point = curvePoints1.createNestedObject();
         point["x"] = analogOptions.joystick_curve_points_1[i].x;
         point["y"] = analogOptions.joystick_curve_points_1[i].y;
+        point["buttonMask"] = analogOptions.joystick_curve_points_1[i].buttonMask;
     }
     JsonArray curvePoints2 = doc.createNestedArray("joystickCurvePoints2");
     for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_2_count && i < 3; i++) {
         JsonObject point = curvePoints2.createNestedObject();
         point["x"] = analogOptions.joystick_curve_points_2[i].x;
         point["y"] = analogOptions.joystick_curve_points_2[i].y;
+        point["buttonMask"] = analogOptions.joystick_curve_points_2[i].buttonMask;
     }
     writeDoc(doc, "joystickCurveEnabled", analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : false);
     // Write preset schemes (stored in protobuf, max 4 presets)
@@ -2410,6 +2427,7 @@ std::string getAddonOptions()
             JsonObject point = points.createNestedObject();
             point["x"] = curvePreset.points[j].x;
             point["y"] = curvePreset.points[j].y;
+            point["buttonMask"] = curvePreset.points[j].buttonMask;
         }
     }
     // EMA smoothing removed - no longer used
