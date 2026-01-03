@@ -8,15 +8,12 @@
 #include "system.h"
 #include "MainMenuScreen.h"
 
-#include <algorithm>
-#include <cstdio>
 #include <functional>
 
 void DpadSwapScreen::init() {
     getRenderer()->clearScreen();
 
-    currentState = State::SELECT_MODE;
-    changesPending = false;
+    isMenuReady = false;
     restartPending = false;
     exitToScreen = -1;
 
@@ -78,14 +75,11 @@ void DpadSwapScreen::buildMenus() {
         std::bind(&DpadSwapScreen::currentMode, this), nullptr, 1});
     modeSelectionMenu.push_back({"RightJoystick", nullptr, nullptr,
         std::bind(&DpadSwapScreen::currentMode, this), nullptr, 2});
-    modeSelectionMenu.push_back({"ActiveZone", nullptr, nullptr,
-        nullptr, nullptr, 3});
 }
 
 void DpadSwapScreen::resetInputState() {
     prevValues = Storage::getInstance().GetGamepad()->debouncedGpio;
     prevButtonState = getGamepad()->state.buttons;
-    prevDpadState = getGamepad()->state.dpad;
 }
 
 void DpadSwapScreen::shutdown() {
@@ -110,42 +104,60 @@ int8_t DpadSwapScreen::update() {
     }
 
     GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
-    Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
+    Gamepad* gamepad = Storage::getInstance().GetGamepad();
+    Mask_t values = gamepad->debouncedGpio;
     uint16_t buttonState = getGamepad()->state.buttons;
-    uint8_t dpadState = getGamepad()->state.dpad;
 
     auto dispatchAction = [&](GpioAction action) {
-        switch (currentState) {
-            case State::SELECT_MODE: updateMenuNavigation(action); break;
-            case State::EDIT_VALUES: updateEditNavigation(action); break;
-        }
+        updateMenuNavigation(action);
     };
 
-    if (prevValues != values) {
-        if (values & mapMenuUp->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_UP);
-        else if (values & mapMenuDown->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_DOWN);
-        else if (values & mapMenuLeft->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_LEFT);
-        else if (values & mapMenuRight->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_RIGHT);
-        else if (values & mapMenuSelect->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_SELECT);
-        else if (values & mapMenuBack->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_BACK);
-    }
-
-    if (gamepadOptions.miniMenuGamepadInput) {
-        if (prevDpadState != dpadState) {
-            if (dpadState == mapMenuUp->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_UP);
-            else if (dpadState == mapMenuDown->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_DOWN);
-            else if (dpadState == mapMenuLeft->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_LEFT);
-            else if (dpadState == mapMenuRight->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_RIGHT);
+    // Check if menu mappings are initialized before using them
+    if (mapMenuUp && mapMenuDown && mapMenuLeft && mapMenuRight && mapMenuSelect && mapMenuBack) {
+        // GPIO input (physical buttons) - always works regardless of dpadMode
+        if (prevValues != values) {
+            if (values & mapMenuUp->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_UP);
+            else if (values & mapMenuDown->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_DOWN);
+            else if (values & mapMenuLeft->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_LEFT);
+            else if (values & mapMenuRight->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_RIGHT);
+            else if (values & mapMenuSelect->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_SELECT);
+            else if (values & mapMenuBack->pinMask) dispatchAction(GpioAction::MENU_NAVIGATION_BACK);
         }
-        if (prevButtonState != buttonState) {
-            if (buttonState == mapMenuSelect->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_SELECT);
-            else if (buttonState == mapMenuBack->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_BACK);
+
+        if (gamepadOptions.miniMenuGamepadInput) {
+            // For gamepad input, read dpad buttons directly from GPIO to bypass Dpad Swap conversion
+            // This allows navigation to work regardless of dpadMode setting
+            if (gamepad->mapDpadUp && gamepad->mapDpadDown && 
+                gamepad->mapDpadLeft && gamepad->mapDpadRight) {
+                // Read raw GPIO state for dpad buttons (before Dpad Swap conversion)
+                bool dpadUpPressed = (values & gamepad->mapDpadUp->pinMask) != 0;
+                bool dpadDownPressed = (values & gamepad->mapDpadDown->pinMask) != 0;
+                bool dpadLeftPressed = (values & gamepad->mapDpadLeft->pinMask) != 0;
+                bool dpadRightPressed = (values & gamepad->mapDpadRight->pinMask) != 0;
+                
+                // Check previous state to detect changes
+                bool prevDpadUp = (prevValues & gamepad->mapDpadUp->pinMask) != 0;
+                bool prevDpadDown = (prevValues & gamepad->mapDpadDown->pinMask) != 0;
+                bool prevDpadLeft = (prevValues & gamepad->mapDpadLeft->pinMask) != 0;
+                bool prevDpadRight = (prevValues & gamepad->mapDpadRight->pinMask) != 0;
+                
+                // Trigger navigation on state change (edge detection)
+                if (dpadUpPressed && !prevDpadUp) dispatchAction(GpioAction::MENU_NAVIGATION_UP);
+                else if (dpadDownPressed && !prevDpadDown) dispatchAction(GpioAction::MENU_NAVIGATION_DOWN);
+                else if (dpadLeftPressed && !prevDpadLeft) dispatchAction(GpioAction::MENU_NAVIGATION_LEFT);
+                else if (dpadRightPressed && !prevDpadRight) dispatchAction(GpioAction::MENU_NAVIGATION_RIGHT);
+            }
+            
+            // Button navigation (SELECT/BACK)
+            if (prevButtonState != buttonState) {
+                if (buttonState == mapMenuSelect->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_SELECT);
+                else if (buttonState == mapMenuBack->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_BACK);
+            }
         }
     }
 
     prevValues = values;
     prevButtonState = buttonState;
-    prevDpadState = dpadState;
 
     if (exitToScreen != -1) {
         int8_t result = exitToScreen;
@@ -157,41 +169,12 @@ int8_t DpadSwapScreen::update() {
 }
 
 void DpadSwapScreen::drawScreen() {
-    if (currentState == State::SELECT_MODE) {
-        if (gpMenu) gpMenu->setVisibility(true);
-        return;
-    }
-
-    getRenderer()->clearScreen();
-    if (gpMenu) gpMenu->setVisibility(false);
-
-    getRenderer()->drawText(3, 0, "[Dpad Swap]");
-    getRenderer()->drawText(2, 1, "ActiveZone");
-
-    struct RowInfo {
-        const char* label;
-        int value;
-    };
-
-    RowInfo rows[2] = {
-        {"angle", angleValue},
-        {"deadzone", deadzoneValue},
-    };
-
-    for (int i = 0; i < 2; i++) {
-        int y = 3 + (i * 2);
-        getRenderer()->drawText(2, y, rows[i].label);
-
-        char valueText[6];
-        snprintf(valueText, sizeof(valueText), "%2d", rows[i].value);
-
-        if (selectedRow == i) {
-            getRenderer()->drawText(10, y, CHAR_LEFT);
-        }
-        getRenderer()->drawText(12, y, valueText);
-        if (selectedRow == i) {
-            getRenderer()->drawText(15, y, CHAR_RIGHT);
-        }
+    // Ensure menu is visible and properly initialized
+    if (gpMenu && currentMenu) {
+        gpMenu->setVisibility(true);
+        // Ensure menu data is set (in case it was cleared or not set)
+        gpMenu->setMenuData(currentMenu);
+        gpMenu->setMenuTitle("[Dpad Swap]");
     }
 }
 
@@ -216,13 +199,8 @@ void DpadSwapScreen::updateMenuNavigation(GpioAction action) {
             if (menuSize == 0) break;
             {
                 uint16_t selectedIndex = gpMenu->getIndex();
-                if (selectedIndex < 3) {
-                    // Dpad, LeftJoystick, or RightJoystick: only set dpadMode
-                    setDpadMode(selectedIndex);
-                } else if (selectedIndex == 3) {
-                    // ActiveZone: enter edit mode
-                    enterEdit();
-                }
+                // All menu items are mode selection options
+                setDpadMode(selectedIndex);
             }
             break;
         case GpioAction::MENU_NAVIGATION_BACK:
@@ -240,74 +218,6 @@ void DpadSwapScreen::updateMenuNavigation(GpioAction action) {
     }
 }
 
-void DpadSwapScreen::updateEditNavigation(GpioAction action) {
-    switch (action) {
-        case GpioAction::MENU_NAVIGATION_UP:
-            selectedRow = (selectedRow + 1) % 2;
-            break;
-        case GpioAction::MENU_NAVIGATION_DOWN:
-            selectedRow = (selectedRow + 1) % 2;
-            break;
-        case GpioAction::MENU_NAVIGATION_LEFT:
-            adjustCurrentValue(-1);
-            break;
-        case GpioAction::MENU_NAVIGATION_RIGHT:
-            adjustCurrentValue(1);
-            break;
-        case GpioAction::MENU_NAVIGATION_BACK:
-            exitEdit(false);
-            break;
-        default:
-            break;
-    }
-}
-
-void DpadSwapScreen::enterEdit() {
-    selectedRow = 0;
-    changesPending = false;
-    currentState = State::EDIT_VALUES;
-    if (gpMenu) gpMenu->setVisibility(false);
-
-    GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
-
-    // Load current values
-    angleValue = std::clamp<int>(gamepadOptions.dpadTriggerThreshold > 0 ? gamepadOptions.dpadTriggerThreshold : 10, 0, 90);
-    deadzoneValue = std::clamp<int>(gamepadOptions.dpadDeadzone > 0 ? gamepadOptions.dpadDeadzone : 10, 0, 90);
-
-    resetInputState();
-}
-
-void DpadSwapScreen::exitEdit(bool discardChanges) {
-    if (!discardChanges && changesPending) {
-        applyChanges();
-    }
-
-    currentState = State::SELECT_MODE;
-    if (gpMenu) {
-        gpMenu->setMenuData(&modeSelectionMenu);
-        gpMenu->setMenuTitle("[Dpad Swap]");
-        gpMenu->setIndex(3); // Return to ActiveZone menu item
-        gpMenu->setVisibility(true);
-    }
-    resetInputState();
-}
-
-void DpadSwapScreen::adjustCurrentValue(int delta) {
-    int* target = nullptr;
-    switch (selectedRow) {
-        case 0: target = &angleValue; break;
-        case 1: target = &deadzoneValue; break;
-        default: break;
-    }
-    if (target == nullptr) return;
-
-    int newValue = std::clamp(*target + delta, 0, 90);
-    if (newValue != *target) {
-        *target = newValue;
-        changesPending = true;
-        restartPending = true;
-    }
-}
 
 int32_t DpadSwapScreen::currentMode() {
     GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
@@ -333,16 +243,4 @@ void DpadSwapScreen::setDpadMode(int modeIndex) {
     }
 }
 
-void DpadSwapScreen::applyChanges() {
-    GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
-
-    // Set angle and deadzone values
-    gamepadOptions.dpadTriggerThreshold = static_cast<uint32_t>(angleValue);
-    gamepadOptions.dpadDeadzone = static_cast<uint32_t>(deadzoneValue);
-
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
-
-    changesPending = false;
-    resetInputState();
-}
 
