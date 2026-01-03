@@ -66,8 +66,8 @@ export default {
 	'ps4-id-mode-label': '识别模式',
 	'ps4-id-mode-explanation-text': '<ul><li>控制台模式主要用于连接到 PS4 控制台。</li><li>远程/模拟模式仅应用于连接到需要 DualShock 4 兼容控制器的模拟层或远程游戏环境。</li></ul>',
 	'ps4-id-mode-options': {
-		console: '控制台',
-		emulation: '远程/模拟',
+		console: 'PS主机',
+		emulation: '电脑主机',
 	},
 	'ps5-mode-explanation-text': 'PS5 模式允许 GP2040-CE 作为经过认证的 PS5 兼容街机摇杆运行。',
 	'ps5-mode-warning-text': '<span>⏳ 警告 ⏳:</span> PS5 在没有认证的情况下会在 8 分钟后超时。',

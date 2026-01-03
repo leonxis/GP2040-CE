@@ -409,6 +409,7 @@ message CurvePreset
 {
     optional string name = 1 [(nanopb).max_length = 64];
     repeated CurvePoint points = 2 [(nanopb).max_count = 3];
+    optional uint32 activationButtonMask = 3 [default = 0];  // Button mask to activate this preset (0 = NONE, disabled)
 }
 
 message AnalogOptions

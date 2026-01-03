@@ -1340,13 +1340,14 @@ const JoystickCurveSettings = ({
 	type PresetInput = {
 		name: string;
 		points: Array<{ x: string; y: string; buttonMask?: number }>;
+		activationButtonMask?: number;
 	};
 	
 	const [presetInputs, setPresetInputs] = useState<PresetInput[]>([
-		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }] },
-		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }] },
-		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }] },
-		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }] },
+		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 },
+		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 },
+		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 },
+		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 },
 	]);
 	
 	// Load presets from values on mount and when values change
@@ -1358,6 +1359,7 @@ const JoystickCurveSettings = ({
 				const preset = presets[presetIndex];
 				const name = preset.name || '';
 				const points = preset.points || [];
+				const activationButtonMask = (preset as any).activationButtonMask ?? 0;
 				
 				const presetPoints: Array<{ x: string; y: string; buttonMask: number }> = [
 					{ x: '0', y: '0', buttonMask: 0 },
@@ -1376,11 +1378,11 @@ const JoystickCurveSettings = ({
 					}
 				}
 				
-				return { name, points: presetPoints };
+				return { name, points: presetPoints, activationButtonMask };
 			}
 			
 			// Default empty preset
-			return { name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }] };
+			return { name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 };
 		};
 		
 		setPresetInputs([
@@ -1398,10 +1400,10 @@ const JoystickCurveSettings = ({
 		setPresetInputs(newPresets);
 		
 		// Update formik with new preset array format
-		const allPresets: Array<{ name: string; points: CurvePoint[] }> = [];
+		const allPresets: Array<{ name: string; points: CurvePoint[]; activationButtonMask?: number }> = [];
 		for (let i = 0; i < 4; i++) {
 			const currentPreset = i === presetIndex 
-				? { name: value, points: newPresets[presetIndex].points }
+				? { name: value, points: newPresets[presetIndex].points, activationButtonMask: newPresets[presetIndex].activationButtonMask }
 				: presetInputs[i];
 			
 			// Convert current preset to points array
@@ -1422,7 +1424,8 @@ const JoystickCurveSettings = ({
 			if (currentPreset.name.trim() || currentPoints.length > 0) {
 				allPresets.push({
 					name: currentPreset.name.trim(),
-					points: currentPoints
+					points: currentPoints,
+					activationButtonMask: currentPreset.activationButtonMask ?? 0
 				});
 			}
 		}
@@ -1502,10 +1505,69 @@ const JoystickCurveSettings = ({
 		savePresetToFormik(presetIndex, newPresetInputs);
 	};
 	
+	// Helper function to check if activation button mask is already used by another preset
+	const isActivationButtonMaskUsed = (presetIndex: number, buttonMask: number, presetInputsToCheck: PresetInput[]): boolean => {
+		// Allow multiple presets to use 0 (NONE)
+		if (buttonMask === 0) {
+			return false;
+		}
+		
+		// Check if buttonMask is used by any other preset (excluding current preset)
+		for (let i = 0; i < presetInputsToCheck.length; i++) {
+			if (i !== presetIndex) {
+				const otherButtonMask = presetInputsToCheck[i].activationButtonMask ?? 0;
+				if (otherButtonMask === buttonMask) {
+					return true;
+				}
+			}
+		}
+		
+		return false;
+	};
+	
+	// Helper function to check if activation button mask conflicts with curve control point button masks
+	const isActivationButtonMaskConflictingWithCurvePoints = (presetIndex: number, buttonMask: number, presetInputsToCheck: PresetInput[]): boolean => {
+		// Allow 0 (NONE) to be used
+		if (buttonMask === 0) {
+			return false;
+		}
+		
+		// Check current preset's control points
+		const currentPreset = presetInputsToCheck[presetIndex];
+		if (currentPreset && currentPreset.points) {
+			for (let i = 0; i < currentPreset.points.length; i++) {
+				const pointButtonMask = currentPreset.points[i].buttonMask ?? 0;
+				if (pointButtonMask !== 0 && pointButtonMask === buttonMask) {
+					return true;
+				}
+			}
+		}
+		
+		// Check left stick curve control points
+		const leftCurvePoints = values?.joystickCurvePoints1 as CurvePoint[] || [];
+		for (let i = 0; i < leftCurvePoints.length; i++) {
+			const pointButtonMask = leftCurvePoints[i].buttonMask ?? 0;
+			if (pointButtonMask !== 0 && pointButtonMask === buttonMask) {
+				return true;
+			}
+		}
+		
+		// Check right stick curve control points
+		const rightCurvePoints = values?.joystickCurvePoints2 as CurvePoint[] || [];
+		for (let i = 0; i < rightCurvePoints.length; i++) {
+			const pointButtonMask = rightCurvePoints[i].buttonMask ?? 0;
+			if (pointButtonMask !== 0 && pointButtonMask === buttonMask) {
+				return true;
+			}
+		}
+		
+		return false;
+	};
+	
 	// Helper function to save preset to formik
 	const savePresetToFormik = (presetIndex: number, presetInputsToSave: PresetInput[]) => {
 		// Build presets array from all presetInputs, only include presets with name or points
-		const allPresets: Array<{ name: string; points: CurvePoint[] }> = [];
+		const allPresets: Array<{ name: string; points: CurvePoint[]; activationButtonMask?: number }> = [];
 		for (let i = 0; i < 4; i++) {
 			const currentPreset = presetInputsToSave[i];
 			
@@ -1527,7 +1589,8 @@ const JoystickCurveSettings = ({
 			if (currentPreset.name.trim() || currentPoints.length > 0) {
 				allPresets.push({
 					name: currentPreset.name.trim(),
-					points: currentPoints
+					points: currentPoints,
+					activationButtonMask: currentPreset.activationButtonMask ?? 0
 				});
 			}
 		}
@@ -1553,7 +1616,7 @@ const JoystickCurveSettings = ({
 		}
 		
 		// Sort by X value and validate
-		const sorted = points.sort((a, b) => a.x - b.x);
+		const sorted = [...points].sort((a, b) => a.x - b.x);
 		const validated = validateAllPointsMonotonicity(sorted);
 		setLeftCurvePoints(validated);
 		setLeftCurveInputValues(validated.map(p => ({ 
@@ -1581,7 +1644,7 @@ const JoystickCurveSettings = ({
 		}
 		
 		// Sort by X value and validate
-		const sorted = points.sort((a, b) => a.x - b.x);
+		const sorted = [...points].sort((a, b) => a.x - b.x);
 		const validated = validateAllPointsMonotonicity(sorted);
 		setRightCurvePoints(validated);
 		setRightCurveInputValues(validated.map(p => ({ 
@@ -1935,7 +1998,7 @@ const JoystickCurveSettings = ({
 
 				{/* Row 3, Column 1: Preset 1 */}
 				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '1', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
-					{/* Row 1: Name input and apply buttons */}
+					{/* Row 1: Name input with apply buttons */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
 						<Form.Control
 							type="text"
@@ -1961,6 +2024,48 @@ const JoystickCurveSettings = ({
 						>
 							应用右
 						</Button>
+					</div>
+					{/* Row 2: Activation button with label */}
+					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>右摇杆快切键：</span>
+						<Form.Select
+							size="sm"
+							value={presetInputs[0].activationButtonMask ?? 0}
+							onChange={(e) => {
+								const newPresets = [...presetInputs];
+								const buttonMask = parseInt(e.target.value);
+								const finalButtonMask = isNaN(buttonMask) ? 0 : buttonMask;
+								
+								// Temporarily update the current preset to check for duplicates
+								const tempPresets = [...newPresets];
+								tempPresets[0].activationButtonMask = finalButtonMask;
+								
+								// Check if activation button is already used by another preset
+								if (isActivationButtonMaskUsed(0, finalButtonMask, tempPresets)) {
+									// Button mask is already used, keep current value
+									alert('该激活按键已被其他预设使用，请选择其他按键');
+									return;
+								}
+								
+								// Check if activation button conflicts with curve control point button masks
+								if (isActivationButtonMaskConflictingWithCurvePoints(0, finalButtonMask, tempPresets)) {
+									// Button mask conflicts with curve control points, keep current value
+									alert('该激活按键与摇杆曲线控制点的触发按键冲突，请选择其他按键');
+									return;
+								}
+								
+								newPresets[0].activationButtonMask = finalButtonMask;
+								setPresetInputs(newPresets);
+								savePresetToFormik(0, newPresets);
+							}}
+							style={{ flex: 1, fontSize: '0.75rem', padding: '2px 6px' }}
+						>
+							{BUTTON_MASKS_OPTIONS.map((o) => (
+								<option key={o.value} value={o.value}>
+									{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
+								</option>
+							))}
+						</Form.Select>
 					</div>
 					{/* Row 2-4: Control points */}
 					{['P1', 'P2', 'P3'].map((label, idx) => (
@@ -2018,6 +2123,7 @@ const JoystickCurveSettings = ({
 
 				{/* Row 3, Column 2: Preset 2 */}
 				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '2', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
+					{/* Row 1: Name input with apply buttons */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
 						<Form.Control
 							type="text"
@@ -2043,6 +2149,48 @@ const JoystickCurveSettings = ({
 						>
 							应用右
 						</Button>
+					</div>
+					{/* Row 2: Activation button with label */}
+					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>右摇杆快切键：</span>
+						<Form.Select
+							size="sm"
+							value={presetInputs[1].activationButtonMask ?? 0}
+							onChange={(e) => {
+								const newPresets = [...presetInputs];
+								const buttonMask = parseInt(e.target.value);
+								const finalButtonMask = isNaN(buttonMask) ? 0 : buttonMask;
+								
+								// Temporarily update the current preset to check for duplicates
+								const tempPresets = [...newPresets];
+								tempPresets[1].activationButtonMask = finalButtonMask;
+								
+								// Check if activation button is already used by another preset
+								if (isActivationButtonMaskUsed(1, finalButtonMask, tempPresets)) {
+									// Button mask is already used, keep current value
+									alert('该激活按键已被其他预设使用，请选择其他按键');
+									return;
+								}
+								
+								// Check if activation button conflicts with curve control point button masks
+								if (isActivationButtonMaskConflictingWithCurvePoints(1, finalButtonMask, tempPresets)) {
+									// Button mask conflicts with curve control points, keep current value
+									alert('该激活按键与摇杆曲线控制点的触发按键冲突，请选择其他按键');
+									return;
+								}
+								
+								newPresets[1].activationButtonMask = finalButtonMask;
+								setPresetInputs(newPresets);
+								savePresetToFormik(1, newPresets);
+							}}
+							style={{ flex: 1, fontSize: '0.75rem', padding: '2px 6px' }}
+						>
+							{BUTTON_MASKS_OPTIONS.map((o) => (
+								<option key={o.value} value={o.value}>
+									{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
+								</option>
+							))}
+						</Form.Select>
 					</div>
 					{['P1', 'P2', 'P3'].map((label, idx) => (
 						<div key={idx} style={{ marginBottom: '4px' }}>
@@ -2099,6 +2247,7 @@ const JoystickCurveSettings = ({
 
 				{/* Row 3, Column 3: Preset 3 */}
 				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '3', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
+					{/* Row 1: Name input with apply buttons */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
 						<Form.Control
 							type="text"
@@ -2124,6 +2273,48 @@ const JoystickCurveSettings = ({
 						>
 							应用右
 						</Button>
+					</div>
+					{/* Row 2: Activation button with label */}
+					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>右摇杆快切键：</span>
+						<Form.Select
+							size="sm"
+							value={presetInputs[2].activationButtonMask ?? 0}
+							onChange={(e) => {
+								const newPresets = [...presetInputs];
+								const buttonMask = parseInt(e.target.value);
+								const finalButtonMask = isNaN(buttonMask) ? 0 : buttonMask;
+								
+								// Temporarily update the current preset to check for duplicates
+								const tempPresets = [...newPresets];
+								tempPresets[2].activationButtonMask = finalButtonMask;
+								
+								// Check if activation button is already used by another preset
+								if (isActivationButtonMaskUsed(2, finalButtonMask, tempPresets)) {
+									// Button mask is already used, keep current value
+									alert('该激活按键已被其他预设使用，请选择其他按键');
+									return;
+								}
+								
+								// Check if activation button conflicts with curve control point button masks
+								if (isActivationButtonMaskConflictingWithCurvePoints(2, finalButtonMask, tempPresets)) {
+									// Button mask conflicts with curve control points, keep current value
+									alert('该激活按键与摇杆曲线控制点的触发按键冲突，请选择其他按键');
+									return;
+								}
+								
+								newPresets[2].activationButtonMask = finalButtonMask;
+								setPresetInputs(newPresets);
+								savePresetToFormik(2, newPresets);
+							}}
+							style={{ flex: 1, fontSize: '0.75rem', padding: '2px 6px' }}
+						>
+							{BUTTON_MASKS_OPTIONS.map((o) => (
+								<option key={o.value} value={o.value}>
+									{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
+								</option>
+							))}
+						</Form.Select>
 					</div>
 					{['P1', 'P2', 'P3'].map((label, idx) => (
 						<div key={idx} style={{ marginBottom: '4px' }}>
@@ -2180,6 +2371,7 @@ const JoystickCurveSettings = ({
 
 				{/* Row 3, Column 4: Preset 4 */}
 				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '4', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
+					{/* Row 1: Name input with apply buttons */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
 						<Form.Control
 							type="text"
@@ -2205,6 +2397,48 @@ const JoystickCurveSettings = ({
 						>
 							应用右
 						</Button>
+					</div>
+					{/* Row 2: Activation button with label */}
+					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>右摇杆快切键：</span>
+						<Form.Select
+							size="sm"
+							value={presetInputs[3].activationButtonMask ?? 0}
+							onChange={(e) => {
+								const newPresets = [...presetInputs];
+								const buttonMask = parseInt(e.target.value);
+								const finalButtonMask = isNaN(buttonMask) ? 0 : buttonMask;
+								
+								// Temporarily update the current preset to check for duplicates
+								const tempPresets = [...newPresets];
+								tempPresets[3].activationButtonMask = finalButtonMask;
+								
+								// Check if activation button is already used by another preset
+								if (isActivationButtonMaskUsed(3, finalButtonMask, tempPresets)) {
+									// Button mask is already used, keep current value
+									alert('该激活按键已被其他预设使用，请选择其他按键');
+									return;
+								}
+								
+								// Check if activation button conflicts with curve control point button masks
+								if (isActivationButtonMaskConflictingWithCurvePoints(3, finalButtonMask, tempPresets)) {
+									// Button mask conflicts with curve control points, keep current value
+									alert('该激活按键与摇杆曲线控制点的触发按键冲突，请选择其他按键');
+									return;
+								}
+								
+								newPresets[3].activationButtonMask = finalButtonMask;
+								setPresetInputs(newPresets);
+								savePresetToFormik(3, newPresets);
+							}}
+							style={{ flex: 1, fontSize: '0.75rem', padding: '2px 6px' }}
+						>
+							{BUTTON_MASKS_OPTIONS.map((o) => (
+								<option key={o.value} value={o.value}>
+									{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
+								</option>
+							))}
+						</Form.Select>
 					</div>
 					{['P1', 'P2', 'P3'].map((label, idx) => (
 						<div key={idx} style={{ marginBottom: '4px' }}>

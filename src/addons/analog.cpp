@@ -48,6 +48,12 @@ void AnalogInput::setup() {
     usage_curve_profile_1 = analogOptions.curve_profile_1;
     usage_curve_profile_2 = analogOptions.curve_profile_2;
     
+    // Initialize temporary curve storage and activation preset tracking
+    // Note: Only right stick (stick_num = 1) uses activation buttons, so only initialize that one
+    temp_curve_storage[1].is_saved = false;
+    temp_curve_storage[1].saved_points_count = 0;
+    active_activation_preset[1] = 0;
+    
     // Check if curve is enabled (protobuf default is false)
     bool curveEnabled = analogOptions.joystick_curve_enabled;
     
@@ -174,11 +180,16 @@ void AnalogInput::reinit() {
     forceReleaseActiveControlPoints(0, gamepad); // Release stick 1 virtual buttons
     forceReleaseActiveControlPoints(1, gamepad); // Release stick 2 virtual buttons
     // Reinitialize curve segments for both sticks (only data reinitialization, no hardware changes)
-    // This is called when curve preset changes via hotkey, which only affects curve data
+    // This is called when curve preset changes via hotkey (in process() when curve is enabled)
+    // or when profile changes (via AddonManager::ReinitializeAddons(), regardless of curve enabled state)
+    // Note: Must check both curve enabled state and control points count, consistent with setup()
+    // This check is necessary because reinit() may be called when curve is disabled (e.g., profile switch)
+    bool curveEnabled = analogOptions.joystick_curve_enabled;
+    
     adc_pairs[0].curve_points_sorted_count = 0;
     adc_pairs[0].curve_segments_count = 0;
     adc_pairs[0].active_control_points_mask = 0;  // Reset active control points mask
-    if (analogOptions.joystick_curve_points_1_count > 0) {
+    if (curveEnabled && analogOptions.joystick_curve_points_1_count > 0) {
         AnalogCurvePoint converted_points[3];
         convertCurvePoints(analogOptions.joystick_curve_points_1, analogOptions.joystick_curve_points_1_count, converted_points);
         initializeCurveSegments(0, converted_points, analogOptions.joystick_curve_points_1_count);
@@ -187,7 +198,7 @@ void AnalogInput::reinit() {
     adc_pairs[1].curve_points_sorted_count = 0;
     adc_pairs[1].curve_segments_count = 0;
     adc_pairs[1].active_control_points_mask = 0;  // Reset active control points mask
-    if (analogOptions.joystick_curve_points_2_count > 0) {
+    if (curveEnabled && analogOptions.joystick_curve_points_2_count > 0) {
         AnalogCurvePoint converted_points[3];
         convertCurvePoints(analogOptions.joystick_curve_points_2, analogOptions.joystick_curve_points_2_count, converted_points);
         initializeCurveSegments(1, converted_points, analogOptions.joystick_curve_points_2_count);
@@ -205,10 +216,86 @@ void AnalogInput::process() {
     // The reinit() function will check curve enabled state to decide whether to initialize curve segments
     
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    Gamepad * gamepad = Storage::getInstance().GetGamepad();
     
-    // Only check curve profile changes when curve is enabled
-    // If curve is disabled, no need to check profile changes as reinit() won't initialize curve segments anyway
+    // Check activation button presses for preset switching (only when curve is enabled)
+    // Note: Activation buttons only affect right stick (stick_num = 1), left stick remains unchanged
+    // Important: If multiple activation buttons are pressed simultaneously, only the first one detected
+    // (in preset order: 0, 1, 2, 3) will be processed. Other pressed activation buttons will be ignored.
     if (analogOptions.joystick_curve_enabled) {
+        // Only check right stick (stick_num = 1)
+        int stick_num = 1;
+        
+        // Check if activation button is currently pressed
+        // We only process the first detected activation button, ignoring all others
+        bool found_pressed = false;
+        int pressed_preset_idx = -1;
+        
+        // Check all 4 presets for activation buttons in order (0, 1, 2, 3)
+        // Stop at the first matching activation button to ensure only one preset is activated
+        for (int preset_idx = 0; preset_idx < 4 && preset_idx < analogOptions.joystick_curve_presets_count; preset_idx++) {
+            const CurvePreset& preset = analogOptions.joystick_curve_presets[preset_idx];
+            // Check if preset has activation button mask (non-zero)
+            // Note: activationButtonMask has default value 0 (NONE), so no need to check has_activationButtonMask
+            if (preset.activationButtonMask != 0) {
+                // Check if activation button is pressed
+                bool is_pressed = false;
+                // Check if button mask matches buttons or dpad
+                uint32_t button_mask = preset.activationButtonMask;
+                // Separate D-pad buttons from regular buttons
+                uint32_t dpad_mask = button_mask & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+                uint32_t regular_mask = button_mask & ~(GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+                
+                // Check regular buttons
+                if (regular_mask != 0 && (gamepad->state.buttons & regular_mask) == regular_mask) {
+                    is_pressed = true;
+                }
+                // Check D-pad buttons
+                if (dpad_mask != 0) {
+                    if ((dpad_mask & GAMEPAD_MASK_DU) && (gamepad->state.dpad & GAMEPAD_MASK_UP)) is_pressed = true;
+                    if ((dpad_mask & GAMEPAD_MASK_DD) && (gamepad->state.dpad & GAMEPAD_MASK_DOWN)) is_pressed = true;
+                    if ((dpad_mask & GAMEPAD_MASK_DL) && (gamepad->state.dpad & GAMEPAD_MASK_LEFT)) is_pressed = true;
+                    if ((dpad_mask & GAMEPAD_MASK_DR) && (gamepad->state.dpad & GAMEPAD_MASK_RIGHT)) is_pressed = true;
+                }
+                
+                // If this activation button is pressed, process it and ignore all others
+                if (is_pressed) {
+                    found_pressed = true;
+                    pressed_preset_idx = preset_idx;
+                    break;  // Critical: Exit immediately after finding first pressed activation button
+                           // This ensures only the first detected activation button is processed,
+                           // even if multiple activation buttons are pressed simultaneously
+                }
+            }
+        }
+        
+        // Handle activation button state changes (only for right stick)
+        // Only process the first detected activation button (if any)
+        if (found_pressed) {
+            // First detected activation button is pressed
+            if (active_activation_preset[stick_num] == 0) {
+                // First time pressing: save current curve and apply preset
+                // Note: Only apply preset if it has control points (applyPresetCurve checks this internally)
+                saveCurrentCurveData(stick_num);
+                // Check if preset has points before applying (applyPresetCurve also checks, but we check here
+                // to ensure we only set active_activation_preset if preset is actually applied)
+                if (pressed_preset_idx < analogOptions.joystick_curve_presets_count &&
+                    analogOptions.joystick_curve_presets[pressed_preset_idx].points_count > 0) {
+                    applyPresetCurve(stick_num, pressed_preset_idx);
+                    active_activation_preset[stick_num] = pressed_preset_idx + 1;  // Store 1-4 (preset index + 1)
+                }
+                // If preset has no points, don't set active_activation_preset (preset not applied)
+            }
+            // Note: If active_activation_preset[stick_num] != 0, the same preset is still active,
+            // so we don't need to do anything (no re-saving or re-applying needed)
+        } else {
+            // No activation button is pressed (or none detected in the first pass)
+            if (active_activation_preset[stick_num] != 0) {
+                // Previously active activation button was released, restore original curve
+                restoreCurveData(stick_num);
+            }
+        }
+        
         // Get current curve profile values from config (0 = custom, 1-4 = preset 1-4)
         // Default value is 0, so no need to check has_curve_profile
         uint32_t current_profile_1 = analogOptions.curve_profile_1;
@@ -221,10 +308,9 @@ void AnalogInput::process() {
             // Update tracking variables
             usage_curve_profile_1 = current_profile_1;
             usage_curve_profile_2 = current_profile_2;
-            reinit();
+        reinit();
         }
     }
-    Gamepad * gamepad = Storage::getInstance().GetGamepad();
     
     uint32_t joystickMax = GAMEPAD_JOYSTICK_MAX;
     if ( DriverManager::getInstance().getDriver() != nullptr ) {
@@ -307,7 +393,10 @@ void AnalogInput::process() {
         ny = std::clamp(ny, -1.0f, 1.0f);
 
         // Step 6: Apply response curve if configured (control point button triggers are handled inside)
-        if (adc_pairs[i].curve_points_sorted_count > 0) {
+        // Note: Apply curve if either:
+        // 1. Current curve has control points (curve_points_sorted_count > 0), OR
+        // 2. Activation button preset is active (active_activation_preset != 0, which means preset curve is applied)
+        if (adc_pairs[i].curve_points_sorted_count > 0 || active_activation_preset[i] != 0) {
             applyResponseCurveToCoordinates(nx, ny, i, gamepad);
         }
 
@@ -494,7 +583,7 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
             adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].intercept = p1y - p1x * slope;
         }
         adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_start = p1x;
-        adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end = p2x;
+            adc_pairs[stick_num].curve_segments[adc_pairs[stick_num].curve_segments_count].x_end = p2x;
         adc_pairs[stick_num].curve_segments_count++;
     }
 }
@@ -512,31 +601,35 @@ void AnalogInput::initializeCurveSegments(int stick_num, const AnalogCurvePoint*
  void AnalogInput::applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, Gamepad* gamepad) {
     // 1. Center deadzone handling
     if (normalizedX == 0.0f && normalizedY == 0.0f) {
-        forceReleaseActiveControlPoints(stick_num, gamepad);
+        // Only release control points if not using activation button preset (buttonMask would be 0 anyway)
+        if (active_activation_preset[stick_num] == 0) {
+            forceReleaseActiveControlPoints(stick_num, gamepad);
+        }
         return;
     }
     
     float clampdist_sq = normalizedX * normalizedX + normalizedY * normalizedY;
     float clampdist = std::sqrt(clampdist_sq);
-
-    // ================== Button Logic (Optimized) ==================
     
-    // Determine current segment index
+    // Determine current segment index (needed for both button logic and coordinate curve logic)
     int segmentIdx = -1;
     if (clampdist > 1.0f) {
         segmentIdx = adc_pairs[stick_num].curve_segments_count; 
     } else {
-        for (int i = 0; i < adc_pairs[stick_num].curve_segments_count; i++) {
-            if (clampdist >= adc_pairs[stick_num].curve_segments[i].x_start && 
+    for (int i = 0; i < adc_pairs[stick_num].curve_segments_count; i++) {
+        if (clampdist >= adc_pairs[stick_num].curve_segments[i].x_start && 
                 clampdist < adc_pairs[stick_num].curve_segments[i].x_end) {
-                segmentIdx = i;
-                break;
-            }
+            segmentIdx = i;
+            break;
         }
+    }
         if (segmentIdx == -1) segmentIdx = adc_pairs[stick_num].curve_segments_count - 1;
     }
 
-    if (gamepad != nullptr) {
+    // ================== Button Logic (Optimized) ==================
+    // Skip button processing if using activation button preset (all buttonMask are 0)
+    // This optimization saves CPU cycles by avoiding unnecessary bitwise operations
+    if (gamepad != nullptr && active_activation_preset[stick_num] == 0) {
         uint8_t old_active_points_mask = adc_pairs[stick_num].active_control_points_mask;
         uint8_t new_active_points_mask = 0;
         
@@ -681,4 +774,80 @@ void AnalogInput::forceReleaseActiveControlPoints(int stick_num, Gamepad* gamepa
 
     // Reset active control points mask
     adc_pairs[stick_num].active_control_points_mask = 0;
+}
+
+// Save current curve data to temporary storage
+void AnalogInput::saveCurrentCurveData(int stick_num) {
+    if (stick_num < 0 || stick_num >= ADC_COUNT) return;
+    
+    // Extract control points from curve_points_sorted (skip start and end points)
+    temp_curve_storage[stick_num].saved_points_count = 0;
+    if (adc_pairs[stick_num].curve_points_sorted_count > 2) {
+        // Copy control points (indices 1 to count-2, excluding start and end)
+        for (int i = 1; i < adc_pairs[stick_num].curve_points_sorted_count - 1; i++) {
+            if (temp_curve_storage[stick_num].saved_points_count < 3) {
+                temp_curve_storage[stick_num].saved_points[temp_curve_storage[stick_num].saved_points_count] = {
+                    adc_pairs[stick_num].curve_points_sorted[i].x,
+                    adc_pairs[stick_num].curve_points_sorted[i].y,
+                    adc_pairs[stick_num].curve_points_sorted[i].buttonMask
+                };
+                temp_curve_storage[stick_num].saved_points_count++;
+            }
+        }
+    }
+    temp_curve_storage[stick_num].is_saved = true;
+}
+
+// Restore curve data from temporary storage
+void AnalogInput::restoreCurveData(int stick_num) {
+    if (stick_num < 0 || stick_num >= ADC_COUNT || !temp_curve_storage[stick_num].is_saved) return;
+    
+    // Release active control points before restoring
+    Gamepad * gamepad = Storage::getInstance().GetGamepad();
+    forceReleaseActiveControlPoints(stick_num, gamepad);
+    
+    // Restore curve data using saved control points
+    if (temp_curve_storage[stick_num].saved_points_count > 0) {
+        initializeCurveSegments(stick_num, temp_curve_storage[stick_num].saved_points, temp_curve_storage[stick_num].saved_points_count);
+    } else {
+        // No saved points, clear curve
+        adc_pairs[stick_num].curve_points_sorted_count = 0;
+        adc_pairs[stick_num].curve_segments_count = 0;
+        adc_pairs[stick_num].active_control_points_mask = 0;
+    }
+    
+    temp_curve_storage[stick_num].is_saved = false;
+    active_activation_preset[stick_num] = 0;
+}
+
+// Apply preset curve to stick
+// Note: When activated by activation button, only control point coordinates (x, y) are used,
+// all control point output buttons (buttonMask) are set to NONE (0)
+void AnalogInput::applyPresetCurve(int stick_num, int preset_index) {
+    if (stick_num < 0 || stick_num >= ADC_COUNT || preset_index < 0 || preset_index >= 4) return;
+    
+    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    
+    // Check if preset exists and has points
+    if (preset_index < analogOptions.joystick_curve_presets_count &&
+        analogOptions.joystick_curve_presets[preset_index].points_count > 0) {
+        const CurvePreset& preset = analogOptions.joystick_curve_presets[preset_index];
+        
+        // Release active control points before applying new curve
+        Gamepad * gamepad = Storage::getInstance().GetGamepad();
+        forceReleaseActiveControlPoints(stick_num, gamepad);
+        
+        // Convert protobuf CurvePoint array to AnalogCurvePoint array
+        // Important: When activated by activation button, set all buttonMask to 0 (NONE)
+        // Only use control point coordinates (x, y) from preset
+        AnalogCurvePoint converted_points[3];
+        for (int i = 0; i < preset.points_count && i < 3; i++) {
+            converted_points[i].x = preset.points[i].x;
+            converted_points[i].y = preset.points[i].y;
+            converted_points[i].buttonMask = 0;  // Always set to NONE when activated by activation button
+        }
+        
+        // Initialize curve segments with preset points (buttonMask all set to 0)
+        initializeCurveSegments(stick_num, converted_points, preset.points_count);
+    }
 }

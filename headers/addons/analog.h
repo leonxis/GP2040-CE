@@ -138,12 +138,23 @@ private:
     // Track current curve profile in use for both sticks (0 = custom, 1-4 = preset 1-4)
     uint32_t usage_curve_profile_1;
     uint32_t usage_curve_profile_2;
+    // Temporary storage for original curve data when activation button is pressed
+    struct {
+        bool is_saved;  // Flag to indicate if original curve data is saved
+        AnalogCurvePoint saved_points[3];  // Saved control points
+        uint8_t saved_points_count;  // Number of saved control points
+    } temp_curve_storage[ADC_COUNT];
+    // Track which activation button is currently pressed (0 = none, 1-4 = preset index)
+    uint8_t active_activation_preset[ADC_COUNT];  // 0 = no activation button pressed
     float readPin(int stick_num, Pin_t pin, uint16_t center, bool isXAxis);
     float getInterpolatedScale(int stick_num, float angle);
     void applyFinetuneShapeAdjustments(int stick_num);
     void initializeCurveSegments(int stick_num, const AnalogCurvePoint* control_points, int control_points_count);
     void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, Gamepad* gamepad);
     void forceReleaseActiveControlPoints(int stick_num, Gamepad* gamepad);
+    void saveCurrentCurveData(int stick_num);  // Save current curve data to temp storage
+    void restoreCurveData(int stick_num);  // Restore curve data from temp storage
+    void applyPresetCurve(int stick_num, int preset_index);  // Apply preset curve to stick
     adc_instance adc_pairs[ADC_COUNT];
 };
 

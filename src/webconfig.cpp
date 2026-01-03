@@ -1893,6 +1893,15 @@ std::string setAddonOptions()
                     }
                 }
                 
+                // Read activation button mask (default 0 = NONE, disabled)
+                if (preset.containsKey("activationButtonMask") && preset["activationButtonMask"].is<uint32_t>()) {
+                    curvePreset.activationButtonMask = preset["activationButtonMask"].as<uint32_t>();
+                    curvePreset.has_activationButtonMask = true;
+                } else {
+                    curvePreset.activationButtonMask = 0;
+                    curvePreset.has_activationButtonMask = true;
+                }
+                
                 // Only add preset if it has a name or points
                 if (curvePreset.has_name || curvePreset.points_count > 0) {
                     analogOptions.joystick_curve_presets_count++;
@@ -2428,6 +2437,13 @@ std::string getAddonOptions()
             point["x"] = curvePreset.points[j].x;
             point["y"] = curvePreset.points[j].y;
             point["buttonMask"] = curvePreset.points[j].buttonMask;
+        }
+        
+        // Write activation button mask (default 0 = NONE, disabled)
+        if (curvePreset.has_activationButtonMask) {
+            preset["activationButtonMask"] = curvePreset.activationButtonMask;
+        } else {
+            preset["activationButtonMask"] = 0;
         }
     }
     // EMA smoothing removed - no longer used
