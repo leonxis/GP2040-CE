@@ -45,6 +45,10 @@
 #define HID_JOYSTICK_MID 0x80
 #define HID_JOYSTICK_MAX 0xFF
 
+// Report IDs for composite HID device
+#define HID_REPORT_ID_GAMEPAD 0x00
+#define HID_REPORT_ID_KEYBOARD 0x01
+
 typedef struct __attribute((packed, aligned(1)))
 {
 	// digital buttons, 0 = off, 1 = on
@@ -63,6 +67,15 @@ typedef struct __attribute((packed, aligned(1)))
 	uint8_t r_x_axis;
 	uint8_t r_y_axis;
 } HIDReport;
+
+// Keyboard Report Structure
+typedef struct __attribute((packed, aligned(1)))
+{
+	uint8_t report_id;  // Report ID (HID_REPORT_ID_KEYBOARD)
+	uint8_t modifier;   // Modifier keys (Ctrl, Shift, Alt, GUI)
+	uint8_t reserved;   // Reserved byte
+	uint8_t keycode[6]; // Key codes (up to 6 keys)
+} HIDKeyboardReport;
 
 static const uint8_t hid_string_language[]     = { 0x09, 0x04 };
 static const uint8_t hid_string_manufacturer[] = "Open Stick Community";
@@ -95,8 +108,11 @@ static const uint8_t hid_device_descriptor[] =
 	1								  // bNumConfigurations
 };
 
+// Composite HID Report Descriptor (Gamepad + Keyboard)
 static const uint8_t hid_report_descriptor[] =
 {
+	// Gamepad Report (Report ID 0)
+	0x85, HID_REPORT_ID_GAMEPAD,  // REPORT_ID (0)
 	0x05, 0x01,        // USAGE_PAGE (Generic Desktop)
 	0x09, 0x05,        // USAGE (Gamepad)
 	0xa1, 0x01,        // COLLECTION (Application)
@@ -132,6 +148,46 @@ static const uint8_t hid_report_descriptor[] =
 	0x95, 0x04,        //   REPORT_COUNT (4)
 	0x81, 0x02,        //   INPUT (Data,Var,Abs)
 	// done
+	0xc0,              // END_COLLECTION
+	
+	// Keyboard Report (Report ID 1)
+	0x85, HID_REPORT_ID_KEYBOARD,  // REPORT_ID (1)
+	0x05, 0x01,        // USAGE_PAGE (Generic Desktop)
+	0x09, 0x06,        // USAGE (Keyboard)
+	0xa1, 0x01,        // COLLECTION (Application)
+	// Modifier keys (8 bits)
+	0x05, 0x07,        //   USAGE_PAGE (Keyboard)
+	0x19, 0xe0,        //   USAGE_MINIMUM (Left Control)
+	0x29, 0xe7,        //   USAGE_MAXIMUM (Right GUI)
+	0x15, 0x00,        //   LOGICAL_MINIMUM (0)
+	0x25, 0x01,        //   LOGICAL_MAXIMUM (1)
+	0x75, 0x01,        //   REPORT_SIZE (1)
+	0x95, 0x08,        //   REPORT_COUNT (8)
+	0x81, 0x02,        //   INPUT (Data,Var,Abs)
+	// Reserved byte
+	0x95, 0x01,        //   REPORT_COUNT (1)
+	0x75, 0x08,        //   REPORT_SIZE (8)
+	0x81, 0x01,        //   INPUT (Cnst,Ary,Abs)
+	// LED output (5 bits)
+	0x05, 0x08,        //   USAGE_PAGE (LEDs)
+	0x19, 0x01,        //   USAGE_MINIMUM (Num Lock)
+	0x29, 0x05,        //   USAGE_MAXIMUM (Kana)
+	0x95, 0x05,        //   REPORT_COUNT (5)
+	0x75, 0x01,        //   REPORT_SIZE (1)
+	0x91, 0x02,        //   OUTPUT (Data,Var,Abs)
+	// LED padding (3 bits)
+	0x95, 0x01,        //   REPORT_COUNT (1)
+	0x75, 0x03,        //   REPORT_SIZE (3)
+	0x91, 0x01,        //   OUTPUT (Cnst,Ary,Abs)
+	// Keycodes (6 bytes)
+	0x05, 0x07,        //   USAGE_PAGE (Keyboard)
+	0x19, 0x00,        //   USAGE_MINIMUM (Reserved)
+	0x29, 0xff,        //   USAGE_MAXIMUM (Reserved)
+	0x15, 0x00,        //   LOGICAL_MINIMUM (0)
+	0x26, 0xff, 0x00,  //   LOGICAL_MAXIMUM (255)
+	0x75, 0x08,        //   REPORT_SIZE (8)
+	0x95, 0x06,        //   REPORT_COUNT (6)
+	0x81, 0x00,        //   INPUT (Data,Ary,Abs)
 	0xc0               // END_COLLECTION
 };
 
@@ -165,8 +221,8 @@ static const uint8_t hid_configuration_descriptor[] =
 	0,						       // bCountryCode
 	1,						       // bNumDescriptors
 	0x22,						       // bDescriptorType
-	sizeof(hid_report_descriptor),			       // wDescriptorLength
-	0,
+	LSB(sizeof(hid_report_descriptor)),			       // wDescriptorLength
+	MSB(sizeof(hid_report_descriptor)),
 	// endpoint descriptor, USB spec 9.6.6, page 269-271, Table 9-13
 	7,						       // bLength
 	5,						       // bDescriptorType

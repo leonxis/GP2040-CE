@@ -88,6 +88,37 @@ void Gamepad::setup()
 	mapAnalogRSYPos = new GamepadButtonMapping(ANALOG_DIRECTION_RS_Y_POS);
 	map48WayMode    = new GamepadButtonMapping(SUSTAIN_4_8_WAY_MODE);
 	mapFocusMode    = new GamepadButtonMapping(SUSTAIN_FOCUS_MODE);
+	
+	// Initialize keyboard key mappings
+	mapKeyboardKeyA = new GamepadButtonMapping(0);
+	mapKeyboardKeyB = new GamepadButtonMapping(0);
+	mapKeyboardKeyC = new GamepadButtonMapping(0);
+	mapKeyboardKeyD = new GamepadButtonMapping(0);
+	mapKeyboardKeyE = new GamepadButtonMapping(0);
+	mapKeyboardKeyF = new GamepadButtonMapping(0);
+	mapKeyboardKeyG = new GamepadButtonMapping(0);
+	mapKeyboardKeyH = new GamepadButtonMapping(0);
+	mapKeyboardKeyI = new GamepadButtonMapping(0);
+	mapKeyboardKeyJ = new GamepadButtonMapping(0);
+	mapKeyboardKeyK = new GamepadButtonMapping(0);
+	mapKeyboardKeyL = new GamepadButtonMapping(0);
+	mapKeyboardKeyM = new GamepadButtonMapping(0);
+	mapKeyboardKeyN = new GamepadButtonMapping(0);
+	mapKeyboardKeyO = new GamepadButtonMapping(0);
+	mapKeyboardKeyP = new GamepadButtonMapping(0);
+	mapKeyboardKeyQ = new GamepadButtonMapping(0);
+	mapKeyboardKeyR = new GamepadButtonMapping(0);
+	mapKeyboardKeyS = new GamepadButtonMapping(0);
+	mapKeyboardKeyT = new GamepadButtonMapping(0);
+	mapKeyboardKeyU = new GamepadButtonMapping(0);
+	mapKeyboardKeyV = new GamepadButtonMapping(0);
+	mapKeyboardKeyW = new GamepadButtonMapping(0);
+	mapKeyboardKeyX = new GamepadButtonMapping(0);
+	mapKeyboardKeyY = new GamepadButtonMapping(0);
+	mapKeyboardKeyZ = new GamepadButtonMapping(0);
+	mapKeyboardKeyCtrl = new GamepadButtonMapping(0);
+	mapKeyboardKeyShift = new GamepadButtonMapping(0);
+	mapKeyboardKeyAltF4 = new GamepadButtonMapping(0);
 
 	const auto assignCustomMappingToMaps = [&](GpioMappingInfo mapInfo, Pin_t pin) -> void {
 		if (mapDpadUp->buttonMask & mapInfo.customDpadMask)	mapDpadUp->pinMask |= 1 << pin;
@@ -168,6 +199,35 @@ void Gamepad::setup()
 			case GpioAction::ANALOG_DIRECTION_RS_Y_POS:	mapAnalogRSYPos->pinMask |= 1 << pin; break;
 			case GpioAction::SUSTAIN_4_8_WAY_MODE:	map48WayMode->pinMask |= 1 << pin; break;
 			case GpioAction::SUSTAIN_FOCUS_MODE: mapFocusMode->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_A:	mapKeyboardKeyA->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_B:	mapKeyboardKeyB->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_C:	mapKeyboardKeyC->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_D:	mapKeyboardKeyD->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_E:	mapKeyboardKeyE->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_F:	mapKeyboardKeyF->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_G:	mapKeyboardKeyG->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_H:	mapKeyboardKeyH->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_I:	mapKeyboardKeyI->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_J:	mapKeyboardKeyJ->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_K:	mapKeyboardKeyK->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_L:	mapKeyboardKeyL->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_M:	mapKeyboardKeyM->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_N:	mapKeyboardKeyN->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_O:	mapKeyboardKeyO->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_P:	mapKeyboardKeyP->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_Q:	mapKeyboardKeyQ->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_R:	mapKeyboardKeyR->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_S:	mapKeyboardKeyS->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_T:	mapKeyboardKeyT->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_U:	mapKeyboardKeyU->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_V:	mapKeyboardKeyV->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_W:	mapKeyboardKeyW->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_X:	mapKeyboardKeyX->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_Y:	mapKeyboardKeyY->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_Z:	mapKeyboardKeyZ->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_CTRL:	mapKeyboardKeyCtrl->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_SHIFT:	mapKeyboardKeyShift->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_ALT_F4:	mapKeyboardKeyAltF4->pinMask |= 1 << pin; break;
 			default:				break;
 		}
 	}

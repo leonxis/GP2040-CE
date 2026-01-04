@@ -361,6 +361,37 @@ enum GpioAction
     MODE_WHEEL_PEDAL_GAS         = 128;
     MODE_WHEEL_PEDAL_BRAKE       = 129;
     MODE_WHEEL_PEDAL_CLUTCH      = 130;
+
+    // Keyboard key actions for HID composite device
+    KEYBOARD_KEY_A               = 131;
+    KEYBOARD_KEY_B               = 132;
+    KEYBOARD_KEY_C               = 133;
+    KEYBOARD_KEY_D               = 134;
+    KEYBOARD_KEY_E               = 135;
+    KEYBOARD_KEY_F               = 136;
+    KEYBOARD_KEY_G               = 137;
+    KEYBOARD_KEY_H               = 138;
+    KEYBOARD_KEY_I               = 139;
+    KEYBOARD_KEY_J               = 140;
+    KEYBOARD_KEY_K               = 141;
+    KEYBOARD_KEY_L               = 142;
+    KEYBOARD_KEY_M               = 143;
+    KEYBOARD_KEY_N               = 144;
+    KEYBOARD_KEY_O               = 145;
+    KEYBOARD_KEY_P               = 146;
+    KEYBOARD_KEY_Q               = 147;
+    KEYBOARD_KEY_R               = 148;
+    KEYBOARD_KEY_S               = 149;
+    KEYBOARD_KEY_T               = 150;
+    KEYBOARD_KEY_U               = 151;
+    KEYBOARD_KEY_V               = 152;
+    KEYBOARD_KEY_W               = 153;
+    KEYBOARD_KEY_X               = 154;
+    KEYBOARD_KEY_Y               = 155;
+    KEYBOARD_KEY_Z               = 156;
+    KEYBOARD_KEY_CTRL            = 157;
+    KEYBOARD_KEY_SHIFT           = 158;
+    KEYBOARD_KEY_ALT_F4          = 159;
 }
 
 enum GpioDirection

@@ -279,7 +279,7 @@ void GamepadUSBHostListener::update_ds4() {
         controller_output.rumbleRight = gamepad->auxState.haptics.rightActuator.intensity;
     }
 
-    void * report = &controller_output;
+    uint8_t * report = (uint8_t *)&controller_output;
     uint16_t report_size = sizeof(controller_output)-1;
 
     tuh_hid_send_report(_controller_dev_addr, _controller_instance, 5, report+1, report_size);

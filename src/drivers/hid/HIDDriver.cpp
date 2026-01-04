@@ -7,6 +7,8 @@
 #include "drivers/hid/HIDDescriptors.h"
 #include "drivers/shared/driverhelper.h"
 #include "storagemanager.h"
+#include "class/hid/hid.h"
+#include <string.h>
 
 static bool hid_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
@@ -19,6 +21,14 @@ void HIDDriver::initialize() {
 		.direction = HID_HAT_NOTHING,
 		.l_x_axis = HID_JOYSTICK_MID, .l_y_axis = HID_JOYSTICK_MID,
 		.r_x_axis = HID_JOYSTICK_MID, .r_y_axis = HID_JOYSTICK_MID,
+	};
+	
+	// Initialize keyboard report (report_id is handled by TinyUSB, not in data)
+	keyboardReport = {
+		.report_id = HID_REPORT_ID_KEYBOARD, // Used for reference only, not sent in data
+		.modifier = 0,
+		.reserved = 0,
+		.keycode = {0, 0, 0, 0, 0, 0}
 	};
 
 	class_driver = {
@@ -97,24 +107,100 @@ bool HIDDriver::process(Gamepad * gamepad) {
 	if (tud_suspended())
 		tud_remote_wakeup();
 
+	// Process keyboard report
+	keyboardReport.modifier = 0;
+	memset(keyboardReport.keycode, 0, 6);
+	uint8_t keycodeIndex = 0;
+	
+	// Check for modifier keys
+	if (gamepad->pressedKeyboardKeyCtrl()) {
+		keyboardReport.modifier |= KEYBOARD_MODIFIER_LEFTCTRL;
+	}
+	if (gamepad->pressedKeyboardKeyShift()) {
+		keyboardReport.modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
+	}
+	
+	// Check for Alt+F4 combination
+	if (gamepad->pressedKeyboardKeyAltF4()) {
+		keyboardReport.modifier |= KEYBOARD_MODIFIER_LEFTALT;
+		if (keycodeIndex < 6) {
+			keyboardReport.keycode[keycodeIndex++] = HID_KEY_F4;
+		}
+	} else {
+		// Check for letter keys
+		if (gamepad->pressedKeyboardKeyA() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_A;
+		if (gamepad->pressedKeyboardKeyB() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_B;
+		if (gamepad->pressedKeyboardKeyC() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_C;
+		if (gamepad->pressedKeyboardKeyD() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_D;
+		if (gamepad->pressedKeyboardKeyE() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_E;
+		if (gamepad->pressedKeyboardKeyF() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_F;
+		if (gamepad->pressedKeyboardKeyG() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_G;
+		if (gamepad->pressedKeyboardKeyH() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_H;
+		if (gamepad->pressedKeyboardKeyI() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_I;
+		if (gamepad->pressedKeyboardKeyJ() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_J;
+		if (gamepad->pressedKeyboardKeyK() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_K;
+		if (gamepad->pressedKeyboardKeyL() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_L;
+		if (gamepad->pressedKeyboardKeyM() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_M;
+		if (gamepad->pressedKeyboardKeyN() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_N;
+		if (gamepad->pressedKeyboardKeyO() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_O;
+		if (gamepad->pressedKeyboardKeyP() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_P;
+		if (gamepad->pressedKeyboardKeyQ() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_Q;
+		if (gamepad->pressedKeyboardKeyR() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_R;
+		if (gamepad->pressedKeyboardKeyS() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_S;
+		if (gamepad->pressedKeyboardKeyT() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_T;
+		if (gamepad->pressedKeyboardKeyU() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_U;
+		if (gamepad->pressedKeyboardKeyV() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_V;
+		if (gamepad->pressedKeyboardKeyW() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_W;
+		if (gamepad->pressedKeyboardKeyX() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_X;
+		if (gamepad->pressedKeyboardKeyY() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_Y;
+		if (gamepad->pressedKeyboardKeyZ() && keycodeIndex < 6) keyboardReport.keycode[keycodeIndex++] = HID_KEY_Z;
+	}
+
+	// Send gamepad report
 	void * report = &hidReport;
 	uint16_t report_size = sizeof(hidReport);
+	bool gamepadSent = false;
 	if (memcmp(last_report, report, report_size) != 0)
 	{
 		// HID ready + report sent, copy previous report
-		if (tud_hid_ready() && tud_hid_report(0, report, report_size) == true ) {
+		if (tud_hid_ready() && tud_hid_report(HID_REPORT_ID_GAMEPAD, report, report_size) == true ) {
 			memcpy(last_report, report, report_size);
-			return true;
+			gamepadSent = true;
 		}
 	}
 	
-	return false;
+	// Send keyboard report
+	// Note: TinyUSB automatically prepends report_id to the data, so we send the report without report_id field
+	uint8_t kb_report_data[8]; // modifier(1) + reserved(1) + keycode[6] = 8 bytes
+	kb_report_data[0] = keyboardReport.modifier;
+	kb_report_data[1] = keyboardReport.reserved;
+	memcpy(&kb_report_data[2], keyboardReport.keycode, 6);
+	uint16_t kb_report_size = 8;
+	bool keyboardSent = false;
+	if (memcmp(last_keyboard_report, kb_report_data, kb_report_size) != 0)
+	{
+		if (tud_hid_ready() && tud_hid_report(HID_REPORT_ID_KEYBOARD, kb_report_data, kb_report_size) == true ) {
+			memcpy(last_keyboard_report, kb_report_data, kb_report_size);
+			keyboardSent = true;
+		}
+	}
+	
+	return gamepadSent || keyboardSent;
 }
 
 // tud_hid_get_report_cb
 uint16_t HIDDriver::get_report(uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
-	memcpy(buffer, &hidReport, sizeof(HIDReport));
-	return sizeof(HIDReport);
+	if (report_id == HID_REPORT_ID_GAMEPAD) {
+		memcpy(buffer, &hidReport, sizeof(HIDReport));
+		return sizeof(HIDReport);
+	} else if (report_id == HID_REPORT_ID_KEYBOARD) {
+		// Return keyboard report data without report_id (TinyUSB handles report_id separately)
+		buffer[0] = keyboardReport.modifier;
+		buffer[1] = keyboardReport.reserved;
+		memcpy(&buffer[2], keyboardReport.keycode, 6);
+		return 8; // modifier(1) + reserved(1) + keycode[6] = 8 bytes
+	}
+	return 0;
 }
 
 // Only PS4 does anything with set report

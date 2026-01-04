@@ -28,6 +28,8 @@ public:
 private:
     uint8_t last_report[CFG_TUD_ENDPOINT0_SIZE] = { };
     HIDReport hidReport;
+    HIDKeyboardReport keyboardReport;
+    uint8_t last_keyboard_report[8] = { }; // modifier(1) + reserved(1) + keycode[6] = 8 bytes
 };
 
 #endif // _HID_DRIVER_H_
