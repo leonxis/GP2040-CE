@@ -206,16 +206,16 @@ void MainMenuScreen::setMenuHome() {
     // Initialize prevButtonState with current button state to prevent immediate button press detection
     // when returning from other screens with a button still pressed
     prevButtonState = getGamepad()->state.buttons;
-    prevDpadState = getGamepad()->state.dpad;
+    // Note: prevDpadState is no longer used - we read dpad directly from GPIO instead
     isMenuReady = true;
 }
 
 int8_t MainMenuScreen::update() {
     if (isMenuReady) {
         GamepadOptions & gamepadOptions = Storage::getInstance().getGamepadOptions();
+        Gamepad* gamepad = Storage::getInstance().GetGamepad();
         Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
         uint16_t buttonState = getGamepad()->state.buttons;
-        uint8_t dpadState = getGamepad()->state.dpad;
 
         if (prevValues != values) {
             if (values & mapMenuUp->pinMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_UP);
@@ -231,11 +231,28 @@ int8_t MainMenuScreen::update() {
             }
         }
         if (gamepadOptions.miniMenuGamepadInput == true ) {
-            if (prevDpadState != dpadState ) {
-                if (dpadState == mapMenuUp->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_UP);
-                else if (dpadState == mapMenuDown->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_DOWN);
-                else if (dpadState == mapMenuLeft->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_LEFT);
-                else if (dpadState == mapMenuRight->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_RIGHT);
+            // For gamepad input, read dpad buttons directly from GPIO to bypass Dpad Swap conversion
+            // This allows navigation to work regardless of dpadMode setting
+            // Only respond to physical dpad buttons, not joystick (even if Dpad Swap is enabled)
+            if (gamepad->mapDpadUp && gamepad->mapDpadDown && 
+                gamepad->mapDpadLeft && gamepad->mapDpadRight) {
+                // Read raw GPIO state for dpad buttons (before Dpad Swap conversion)
+                bool dpadUpPressed = (values & gamepad->mapDpadUp->pinMask) != 0;
+                bool dpadDownPressed = (values & gamepad->mapDpadDown->pinMask) != 0;
+                bool dpadLeftPressed = (values & gamepad->mapDpadLeft->pinMask) != 0;
+                bool dpadRightPressed = (values & gamepad->mapDpadRight->pinMask) != 0;
+                
+                // Check previous state to detect changes
+                bool prevDpadUp = (prevValues & gamepad->mapDpadUp->pinMask) != 0;
+                bool prevDpadDown = (prevValues & gamepad->mapDpadDown->pinMask) != 0;
+                bool prevDpadLeft = (prevValues & gamepad->mapDpadLeft->pinMask) != 0;
+                bool prevDpadRight = (prevValues & gamepad->mapDpadRight->pinMask) != 0;
+                
+                // Trigger navigation on state change (edge detection)
+                if (dpadUpPressed && !prevDpadUp) updateMenuNavigation(GpioAction::MENU_NAVIGATION_UP);
+                else if (dpadDownPressed && !prevDpadDown) updateMenuNavigation(GpioAction::MENU_NAVIGATION_DOWN);
+                else if (dpadLeftPressed && !prevDpadLeft) updateMenuNavigation(GpioAction::MENU_NAVIGATION_LEFT);
+                else if (dpadRightPressed && !prevDpadRight) updateMenuNavigation(GpioAction::MENU_NAVIGATION_RIGHT);
             }
             if ( prevButtonState != buttonState ) {
                 if (buttonState == mapMenuSelect->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_SELECT);
@@ -244,7 +261,6 @@ int8_t MainMenuScreen::update() {
         }
 
         prevButtonState = buttonState;
-        prevDpadState = dpadState;
         prevValues = values;
 
         // Core0 Event Navigations

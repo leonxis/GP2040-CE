@@ -82,7 +82,7 @@ void AnalogDeadzoneScreen::buildMenus() {
 void AnalogDeadzoneScreen::resetInputState() {
     prevValues = Storage::getInstance().GetGamepad()->debouncedGpio;
     prevButtonState = getGamepad()->state.buttons;
-    prevDpadState = getGamepad()->state.dpad;
+    // Note: prevDpadState is no longer used - we read dpad directly from GPIO instead
 }
 
 void AnalogDeadzoneScreen::shutdown() {
@@ -107,9 +107,9 @@ int8_t AnalogDeadzoneScreen::update() {
     }
 
     GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
+    Gamepad* gamepad = Storage::getInstance().GetGamepad();
     Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
     uint16_t buttonState = getGamepad()->state.buttons;
-    uint8_t dpadState = getGamepad()->state.dpad;
 
     auto dispatchAction = [&](GpioAction action) {
         switch (currentState) {
@@ -128,11 +128,28 @@ int8_t AnalogDeadzoneScreen::update() {
     }
 
     if (gamepadOptions.miniMenuGamepadInput) {
-        if (prevDpadState != dpadState) {
-            if (dpadState == mapMenuUp->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_UP);
-            else if (dpadState == mapMenuDown->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_DOWN);
-            else if (dpadState == mapMenuLeft->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_LEFT);
-            else if (dpadState == mapMenuRight->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_RIGHT);
+        // For gamepad input, read dpad buttons directly from GPIO to bypass Dpad Swap conversion
+        // This allows navigation to work regardless of dpadMode setting
+        // Only respond to physical dpad buttons, not joystick (even if Dpad Swap is enabled)
+        if (gamepad->mapDpadUp && gamepad->mapDpadDown && 
+            gamepad->mapDpadLeft && gamepad->mapDpadRight) {
+            // Read raw GPIO state for dpad buttons (before Dpad Swap conversion)
+            bool dpadUpPressed = (values & gamepad->mapDpadUp->pinMask) != 0;
+            bool dpadDownPressed = (values & gamepad->mapDpadDown->pinMask) != 0;
+            bool dpadLeftPressed = (values & gamepad->mapDpadLeft->pinMask) != 0;
+            bool dpadRightPressed = (values & gamepad->mapDpadRight->pinMask) != 0;
+            
+            // Check previous state to detect changes
+            bool prevDpadUp = (prevValues & gamepad->mapDpadUp->pinMask) != 0;
+            bool prevDpadDown = (prevValues & gamepad->mapDpadDown->pinMask) != 0;
+            bool prevDpadLeft = (prevValues & gamepad->mapDpadLeft->pinMask) != 0;
+            bool prevDpadRight = (prevValues & gamepad->mapDpadRight->pinMask) != 0;
+            
+            // Trigger navigation on state change (edge detection)
+            if (dpadUpPressed && !prevDpadUp) dispatchAction(GpioAction::MENU_NAVIGATION_UP);
+            else if (dpadDownPressed && !prevDpadDown) dispatchAction(GpioAction::MENU_NAVIGATION_DOWN);
+            else if (dpadLeftPressed && !prevDpadLeft) dispatchAction(GpioAction::MENU_NAVIGATION_LEFT);
+            else if (dpadRightPressed && !prevDpadRight) dispatchAction(GpioAction::MENU_NAVIGATION_RIGHT);
         }
         if (prevButtonState != buttonState) {
             if (buttonState == mapMenuSelect->buttonMask) dispatchAction(GpioAction::MENU_NAVIGATION_SELECT);
@@ -142,7 +159,6 @@ int8_t AnalogDeadzoneScreen::update() {
 
     prevValues = values;
     prevButtonState = buttonState;
-    prevDpadState = dpadState;
 
     if (exitToScreen != -1) {
         int8_t result = exitToScreen;
