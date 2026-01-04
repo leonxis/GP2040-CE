@@ -182,7 +182,7 @@ static const uint8_t hid_report_descriptor[] =
 	// Keycodes (6 bytes)
 	0x05, 0x07,        //   USAGE_PAGE (Keyboard)
 	0x19, 0x00,        //   USAGE_MINIMUM (Reserved)
-	0x29, 0xff,        //   USAGE_MAXIMUM (Reserved)
+	0x2A, 0xff, 0x00,  //   USAGE_MAXIMUM_N (255, 2 bytes, little-endian)
 	0x15, 0x00,        //   LOGICAL_MINIMUM (0)
 	0x26, 0xff, 0x00,  //   LOGICAL_MAXIMUM (255)
 	0x75, 0x08,        //   REPORT_SIZE (8)

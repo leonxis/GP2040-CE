@@ -40,8 +40,15 @@ const isNonSelectable = (action: PinActionValues) =>
 const isDisabled = (action: PinActionValues) =>
 	disabledOptions.includes(action);
 
+// Check if action is a keyboard key (KEYBOARD_KEY_* actions)
+const isKeyboardKey = (action: PinActionValues) => {
+	// Keyboard key actions range from KEYBOARD_KEY_A (131) to KEYBOARD_KEY_ALT_F4 (159)
+	return action >= BUTTON_ACTIONS.KEYBOARD_KEY_A && 
+	       action <= BUTTON_ACTIONS.KEYBOARD_KEY_ALT_F4;
+};
+
 const options = Object.entries(BUTTON_ACTIONS)
-	.filter(([, value]) => !isNonSelectable(value))
+	.filter(([, value]) => !isNonSelectable(value) && !isKeyboardKey(value))
 	.map(([key, value]) => {
 		const buttonMask = getMask(BUTTON_MASKS, key);
 		const dpadMask = getMask(DPAD_MASKS, key);
@@ -231,9 +238,10 @@ export default function BackButtonMapping() {
 			if (option.type === 'keyboard') {
 				const keyName = option.label?.replace('KEYBOARD_KEY_', '');
 				if (keyName === 'ALT_F4') {
-					return 'Alt+F4';
+					return 'KB: Alt+F4';
 				}
-				return keyName || option.label;
+				// Add 'KB: ' prefix to distinguish keyboard keys from gamepad buttons
+				return `KB: ${keyName || option.label}`;
 			}
 			// Handle regular buttons
 			const labelKey = option.label?.split('BUTTON_PRESS_')?.pop();
