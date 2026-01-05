@@ -188,15 +188,20 @@ export default function BackButtonMapping() {
 						customDpadMask: 0,
 					});
 				} else if (Array.isArray(selected) && selected.length > 1) {
-					const lastSelected = selected[selected.length - 1];
-					// Revert to single option if choosing action type or keyboard type
-					if (lastSelected.type === 'action' || lastSelected.type === 'keyboard') {
+					// Check if selected contains keyboard keys or action types
+					const hasKeyboard = selected.some(opt => opt.type === 'keyboard');
+					const hasAction = selected.some(opt => opt.type === 'action');
+					
+					// If contains keyboard or action, only allow single selection (prevent combinations)
+					if (hasKeyboard || hasAction) {
+						const lastSelected = selected[selected.length - 1];
 						setProfilePin(0, pin, {
 							action: lastSelected.value,
 							customButtonMask: 0,
 							customDpadMask: 0,
 						});
 					} else {
+						// Allow button combinations (only customButtonMask and customDpadMask types)
 						setProfilePin(
 							0,
 							pin,
@@ -366,8 +371,10 @@ export default function BackButtonMapping() {
 										<CustomSelect
 											isClearable
 											isMulti={!isDisabled(pinData.action) && 
-												pinData.action !== BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO && 
-												!keyboardKeyOptions.some(opt => opt.value === pinData.action)}
+												// Disable multi-select for keyboard keys
+												!keyboardKeyOptions.some(opt => opt.value === pinData.action) &&
+												// Disable multi-select for action types (non-button actions)
+												!options.some(opt => opt.value === pinData.action && opt.type === 'action')}
 											options={groupedOptions}
 											isDisabled={isDisabled(pinData.action)}
 											getOptionLabel={getOptionLabel}
@@ -397,8 +404,10 @@ export default function BackButtonMapping() {
 										<CustomSelect
 											isClearable
 											isMulti={!isDisabled(pinData.action) && 
-												pinData.action !== BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO && 
-												!keyboardKeyOptions.some(opt => opt.value === pinData.action)}
+												// Disable multi-select for keyboard keys
+												!keyboardKeyOptions.some(opt => opt.value === pinData.action) &&
+												// Disable multi-select for action types (non-button actions)
+												!options.some(opt => opt.value === pinData.action && opt.type === 'action')}
 											options={groupedOptions}
 											isDisabled={isDisabled(pinData.action)}
 											getOptionLabel={getOptionLabel}

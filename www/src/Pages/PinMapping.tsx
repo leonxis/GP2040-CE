@@ -69,8 +69,15 @@ const isNonSelectable = (action: PinActionValues) =>
 const isDisabled = (action: PinActionValues) =>
 	disabledOptions.includes(action);
 
+// Check if action is a keyboard key (KEYBOARD_KEY_* actions)
+const isKeyboardKey = (action: PinActionValues) => {
+	// Keyboard key actions range from KEYBOARD_KEY_A (131) to KEYBOARD_KEY_ALT_F4 (159)
+	return action >= BUTTON_ACTIONS.KEYBOARD_KEY_A && 
+	       action <= BUTTON_ACTIONS.KEYBOARD_KEY_ALT_F4;
+};
+
 const options = Object.entries(BUTTON_ACTIONS)
-	.filter(([, value]) => !isNonSelectable(value))
+	.filter(([, value]) => !isNonSelectable(value) && !isKeyboardKey(value))
 	.map(([key, value]) => {
 		const buttonMask = getMask(BUTTON_MASKS, key);
 		const dpadMask = getMask(DPAD_MASKS, key);
@@ -88,6 +95,39 @@ const options = Object.entries(BUTTON_ACTIONS)
 		};
 	});
 
+// Keyboard key options
+const keyboardKeyOptions: OptionType[] = [
+	{ label: 'KEYBOARD_KEY_A', value: BUTTON_ACTIONS.KEYBOARD_KEY_A, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_B', value: BUTTON_ACTIONS.KEYBOARD_KEY_B, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_C', value: BUTTON_ACTIONS.KEYBOARD_KEY_C, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_D', value: BUTTON_ACTIONS.KEYBOARD_KEY_D, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_E', value: BUTTON_ACTIONS.KEYBOARD_KEY_E, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_F', value: BUTTON_ACTIONS.KEYBOARD_KEY_F, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_G', value: BUTTON_ACTIONS.KEYBOARD_KEY_G, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_H', value: BUTTON_ACTIONS.KEYBOARD_KEY_H, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_I', value: BUTTON_ACTIONS.KEYBOARD_KEY_I, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_J', value: BUTTON_ACTIONS.KEYBOARD_KEY_J, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_K', value: BUTTON_ACTIONS.KEYBOARD_KEY_K, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_L', value: BUTTON_ACTIONS.KEYBOARD_KEY_L, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_M', value: BUTTON_ACTIONS.KEYBOARD_KEY_M, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_N', value: BUTTON_ACTIONS.KEYBOARD_KEY_N, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_O', value: BUTTON_ACTIONS.KEYBOARD_KEY_O, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_P', value: BUTTON_ACTIONS.KEYBOARD_KEY_P, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_Q', value: BUTTON_ACTIONS.KEYBOARD_KEY_Q, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_R', value: BUTTON_ACTIONS.KEYBOARD_KEY_R, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_S', value: BUTTON_ACTIONS.KEYBOARD_KEY_S, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_T', value: BUTTON_ACTIONS.KEYBOARD_KEY_T, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_U', value: BUTTON_ACTIONS.KEYBOARD_KEY_U, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_V', value: BUTTON_ACTIONS.KEYBOARD_KEY_V, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_W', value: BUTTON_ACTIONS.KEYBOARD_KEY_W, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_X', value: BUTTON_ACTIONS.KEYBOARD_KEY_X, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_Y', value: BUTTON_ACTIONS.KEYBOARD_KEY_Y, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_Z', value: BUTTON_ACTIONS.KEYBOARD_KEY_Z, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_CTRL', value: BUTTON_ACTIONS.KEYBOARD_KEY_CTRL, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_SHIFT', value: BUTTON_ACTIONS.KEYBOARD_KEY_SHIFT, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_ALT_F4', value: BUTTON_ACTIONS.KEYBOARD_KEY_ALT_F4, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+];
+
 const groupedOptions = [
 	{
 		label: 'Buttons',
@@ -96,6 +136,10 @@ const groupedOptions = [
 	{
 		label: 'Actions',
 		options: options.filter(({ type }) => type === 'action'),
+	},
+	{
+		label: 'Keyboard Keys',
+		options: keyboardKeyOptions,
 	},
 ];
 
@@ -112,6 +156,12 @@ const getMultiValue = (pinData: MaskPayload) => {
 				customDpadMask: pinData.customDpadMask,
 			},
 		];
+	}
+
+	// Check if it's a keyboard key
+	const keyboardOption = keyboardKeyOptions.find((opt) => opt.value === pinData.action);
+	if (keyboardOption) {
+		return [keyboardOption];
 	}
 
 	return pinData.action === BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO
@@ -192,15 +242,20 @@ const PinSelectList = memo(function PinSelectList({
 						customDpadMask: 0,
 					});
 				} else if (Array.isArray(selected) && selected.length > 1) {
-					const lastSelected = selected[selected.length - 1];
-					// Revert to single option if choosing action type
-					if (lastSelected.type === 'action') {
+					// Check if selected contains keyboard keys or action types
+					const hasKeyboard = selected.some(opt => opt.type === 'keyboard');
+					const hasAction = selected.some(opt => opt.type === 'action');
+					
+					// If contains keyboard or action, only allow single selection (prevent combinations)
+					if (hasKeyboard || hasAction) {
+						const lastSelected = selected[selected.length - 1];
 						setProfilePin(profileIndex, pin, {
 							action: lastSelected.value,
 							customButtonMask: 0,
 							customDpadMask: 0,
 						});
 					} else {
+						// Allow button combinations (only customButtonMask and customDpadMask types)
 						setProfilePin(
 							profileIndex,
 							pin,
@@ -225,18 +280,29 @@ const PinSelectList = memo(function PinSelectList({
 						);
 					}
 				} else {
+					const singleSelected = Array.isArray(selected) ? selected[0] : selected;
 					setProfilePin(profileIndex, pin, {
-						action: selected[0].value,
+						action: singleSelected.value,
 						customButtonMask: 0,
 						customDpadMask: 0,
 					});
 				}
 			},
-		[],
+		[profileIndex, setProfilePin],
 	);
 
 	const getOptionLabel = useCallback(
 		(option: OptionType) => {
+			// Handle keyboard keys
+			if (option.type === 'keyboard') {
+				const keyName = option.label?.replace('KEYBOARD_KEY_', '');
+				if (keyName === 'ALT_F4') {
+					return 'KB: Alt+F4';
+				}
+				// Add 'KB: ' prefix to distinguish keyboard keys from gamepad buttons
+				return `KB: ${keyName || option.label}`;
+			}
+			// Handle regular buttons
 			const labelKey = option.label?.split('BUTTON_PRESS_')?.pop();
 			// Need to fallback as some button actions are not part of button names
 			return (
@@ -244,7 +310,7 @@ const PinSelectList = memo(function PinSelectList({
 				t(`Proto:GpioAction.${option.label}`)
 			);
 		},
-		[buttonNames],
+		[buttonNames, t],
 	);
 	return (
 		<div className="pin-grid gap-3 mt-2">
@@ -255,7 +321,11 @@ const PinSelectList = memo(function PinSelectList({
 					</div>
 					<CustomSelect
 						isClearable
-						isMulti={!isDisabled(pinData.action)}
+						isMulti={!isDisabled(pinData.action) && 
+							// Disable multi-select for keyboard keys
+							!keyboardKeyOptions.some(opt => opt.value === pinData.action) &&
+							// Disable multi-select for action types (non-button actions)
+							!options.some(opt => opt.value === pinData.action && opt.type === 'action')}
 						options={groupedOptions}
 						isDisabled={isDisabled(pinData.action)}
 						getOptionLabel={getOptionLabel}
