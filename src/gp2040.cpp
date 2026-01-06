@@ -175,6 +175,9 @@ void GP2040::setup() {
 		case BootAction::SET_INPUT_MODE_PS5: // PS4 / PS5 Driver
 			inputMode = INPUT_MODE_PS5;
 			break;
+		case BootAction::SET_INPUT_MODE_PS4B: // PS4B Driver (Composite: Gamepad + Keyboard)
+			inputMode = INPUT_MODE_PS4B;
+			break;
 		case BootAction::SET_INPUT_MODE_P5GENERAL:
 			inputMode = INPUT_MODE_P5GENERAL;
 			break;

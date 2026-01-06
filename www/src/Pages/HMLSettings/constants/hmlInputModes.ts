@@ -28,6 +28,14 @@ export const HML_INPUT_MODES = [
 		],
 	},
 	{
+		labelKey: 'input-mode-options.ps4b',
+		value: 17,
+		authentication: ['none'],
+		deviceTypes: [
+			InputModeDeviceType.INPUT_MODE_DEVICE_TYPE_GAMEPAD,
+		],
+	},
+	{
 		labelKey: 'input-mode-options.p5general',
 		value: 16,
 		authentication: ['usb'],

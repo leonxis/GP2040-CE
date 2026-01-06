@@ -12,6 +12,7 @@
 #define INPUT_MODE_PS3_NAME "PS3"
 #define INPUT_MODE_KEYBOARD_NAME "Keyboard"
 #define INPUT_MODE_PS4_NAME "PS4"
+#define INPUT_MODE_PS4B_NAME "PS4B"
 #define INPUT_MODE_XBONE_NAME "Xbox One"
 #define INPUT_MODE_MDMINI_NAME "Sega Genesis Mini"
 #define INPUT_MODE_NEOGEO_NAME "NEOGEO mini"

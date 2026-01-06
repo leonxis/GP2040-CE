@@ -214,6 +214,7 @@ src/drivers/ps3/PS3Driver.cpp
 src/drivers/ps4/PS4Auth.cpp
 src/drivers/ps4/PS4AuthUSBListener.cpp
 src/drivers/ps4/PS4Driver.cpp
+src/drivers/ps4b/PS4BDriver.cpp
 src/drivers/p5general/P5GeneralAuth.cpp
 src/drivers/p5general/P5GeneralAuthUSBListener.cpp
 src/drivers/p5general/P5GeneralDriver.cpp

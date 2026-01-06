@@ -8,9 +8,14 @@
 
 #include "tusb.h"
 #include "drivermanager.h"
+#include "enums.pb.h"
 
 static bool usb_mounted;
 static bool usb_suspended;
+
+// Global variable to track current interface for get_report callback
+// This is used by drivers to determine which interface is being queried
+uint8_t current_hid_interface = 0;
 
 bool get_usb_mounted(void) {
 	return usb_mounted;
@@ -21,11 +26,20 @@ bool get_usb_suspended(void) {
 }
 
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *driver_count) {
+	// For PS4B mode, disable application driver to let Windows use built-in HID driver
+	// This ensures both gamepad and keyboard interfaces are recognized as HID devices
+	InputMode inputMode = DriverManager::getInstance().getInputMode();
+	if (inputMode == INPUT_MODE_PS4B) {
+		*driver_count = 0;
+		return NULL; // Let Windows use built-in HID driver for all interfaces
+	}
 	*driver_count = 1;
 	return DriverManager::getInstance().getDriver()->get_class_driver();
 }
 
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
+	// Store current interface number for get_report to use
+	current_hid_interface = itf;
 	return DriverManager::getInstance().getDriver()->get_report(report_id, report_type, buffer, reqlen);
 }
 

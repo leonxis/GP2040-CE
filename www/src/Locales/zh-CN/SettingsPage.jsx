@@ -15,6 +15,7 @@ export default {
 		generic: '通用 HID',
 		keyboard: '键盘',
 		ps4: 'PS4',
+		ps4b: 'PS4B',
 		ps5: 'PS5',
 		p5general: 'P5General',
 		neogeo: 'NEOGEO mini',
