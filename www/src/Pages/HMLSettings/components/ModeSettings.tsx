@@ -220,10 +220,7 @@ export default function ModeSettings() {
 	};
 
 	// PS4B模式特定配置（固定使用电脑主机模式，不需要识别模式选择）
-	const ps4bModeSpecifics = (
-		values: any,
-		handleChange: (e: React.ChangeEvent<HTMLSelectElement>) => void,
-	) => {
+	const ps4bModeSpecifics = () => {
 		return (
 			<div>
 				<Row className="mb-3">
@@ -297,7 +294,7 @@ export default function ModeSettings() {
 			case 'input-mode-options.ps4':
 				return ps4ModeSpecifics(values, handleChange);
 			case 'input-mode-options.ps4b':
-				return ps4bModeSpecifics(values, handleChange);
+				return ps4bModeSpecifics();
 			case 'input-mode-options.xinput':
 				return xinputModeSpecifics(values, handleChange, inputModeConfig);
 			case 'input-mode-options.p5general':

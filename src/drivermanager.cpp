@@ -60,7 +60,7 @@ void DriverManager::setup(InputMode mode) {
             driver = new PS4Driver(PS4_ARCADESTICK);
             break;
         case INPUT_MODE_PS4B:
-            driver = new PS4BDriver();
+            driver = new PS4BDriver(PS4_CONTROLLER);
             break;
         case INPUT_MODE_P5GENERAL:
             driver = new P5GeneralDriver();

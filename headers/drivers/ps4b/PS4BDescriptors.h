@@ -6,73 +6,14 @@
 #pragma once
 
 #include <stdint.h>
+#include "drivers/ps4/PS4Descriptors.h"  // Include PS4Descriptors for shared structs
 
-#define PS4B_ENDPOINT_SIZE 64
+// PS4B-specific interface and endpoint definitions
+#define KEYBOARD_INTERFACE	1 // Keyboard interface number
+#define KEYBOARD_ENDPOINT	2 // Keyboard endpoint number
+#define KEYBOARD_SIZE		8 // Keyboard report size
 
-// DualSense VID/PID for PC compatibility
-#define PS4B_VENDOR_ID         0x054C
-#define PS4B_PRODUCT_ID        0x0CE6
-
-/**************************************************************************
- *
- *  Endpoint Buffer Configuration
- *
- **************************************************************************/
-
-#define ENDPOINT0_SIZE	64
-
-#define GAMEPAD_INTERFACE	0
-#define GAMEPAD_ENDPOINT	1
-#define GAMEPAD_SIZE		64
-
-#define KEYBOARD_INTERFACE	1
-#define KEYBOARD_ENDPOINT	2
-#define KEYBOARD_SIZE		8
-
-#define LSB(n) (n & 255)
-#define MSB(n) ((n >> 8) & 255)
-
-// Standard HID Gamepad Report Descriptor (no report ID for single-report interface)
-static const uint8_t ps4b_gamepad_report_descriptor[] =
-{
-	0x05, 0x01,        // USAGE_PAGE (Generic Desktop)
-	0x09, 0x05,        // USAGE (Gamepad)
-	0xa1, 0x01,        // COLLECTION (Application)
-	// 32 buttons
-	0x05, 0x09,        //   USAGE_PAGE (Button)
-	0x19, 0x01,        //   USAGE_MINIMUM (Button 1)
-	0x29, 0x20,        //   USAGE_MAXIMUM (Button 32)
-	0x15, 0x00,        //   LOGICAL_MINIMUM (0)
-	0x25, 0x01,        //   LOGICAL_MAXIMUM (1)
-	0x95, 0x20,        //   REPORT_COUNT (32)
-	0x75, 0x01,        //   REPORT_SIZE (1)
-	0x81, 0x02,        //   INPUT (Data,Var,Abs)
-	// hat (dpad)
-	0x05, 0x01,        //   USAGE_PAGE (Generic Desktop)
-	0x09, 0x39,        //   USAGE (Hat switch)
-	0x25, 0x07,        //   LOGICAL_MAXIMUM (7)
-	0x95, 0x01,        //   REPORT_COUNT (1)
-	0x75, 0x04,        //   REPORT_SIZE (4)
-	0x81, 0x42,        //   INPUT (Data,Var,Abs,Null)
-	// padding the hat
-	0x95, 0x01,        //   REPORT_COUNT (1)
-	0x75, 0x04,        //   REPORT_SIZE (4)
-	0x81, 0x01,        //   INPUT (Cnst,Ary,Abs)
-	// analogs
-	0x05, 0x01,        //   USAGE_PAGE (Generic Desktop)
-	0x26, 0xff, 0x00,  //   LOGICAL_MAXIMUM (255)
-	0x46, 0xff, 0x00,  //   PHYSICAL_MAXIMUM (255)
-	0x09, 0x30,        //   USAGE (X)
-	0x09, 0x31,        //   USAGE (Y)
-	0x09, 0x32,        //   USAGE (Z)
-	0x09, 0x35,        //   USAGE (Rz)
-	0x75, 0x08,        //   REPORT_SIZE (8)
-	0x95, 0x04,        //   REPORT_COUNT (4)
-	0x81, 0x02,        //   INPUT (Data,Var,Abs)
-	0xc0               // END_COLLECTION
-};
-
-// Standard HID Keyboard Report Descriptor (no report ID for single-report interface)
+// Keyboard Report Descriptor for PS4B composite device
 static const uint8_t ps4b_keyboard_report_descriptor[] =
 {
 	0x05, 0x01,        // USAGE_PAGE (Generic Desktop)
@@ -114,38 +55,6 @@ static const uint8_t ps4b_keyboard_report_descriptor[] =
 	0xc0               // END_COLLECTION
 };
 
-// PS4B-specific string descriptors
-static const uint8_t ps4b_string_language[]     = { 0x09, 0x04 };
-static const uint8_t ps4b_string_manufacturer[] = "Sony";
-static const uint8_t ps4b_string_product[]      = "GP2040-CE (PS4B)";
-static const uint8_t ps4b_string_version[]      = "1.0";
-
-static const uint8_t *ps4b_string_descriptors[] __attribute__((unused)) =
-{
-	ps4b_string_language,
-	ps4b_string_manufacturer,
-	ps4b_string_product,
-	ps4b_string_version
-};
-
-static const uint8_t ps4b_device_descriptor[] =
-{
-	18,								  // bLength
-	1,								  // bDescriptorType
-	0x00, 0x02,						  // bcdUSB
-	0,								  // bDeviceClass
-	0,								  // bDeviceSubClass
-	0,								  // bDeviceProtocol
-	ENDPOINT0_SIZE,					  // bMaxPacketSize0
-	LSB(PS4B_VENDOR_ID), MSB(PS4B_VENDOR_ID),	  // idVendor
-	LSB(PS4B_PRODUCT_ID), MSB(PS4B_PRODUCT_ID), // idProduct
-	0x00, 0x01,						  // bcdDevice
-	1,								  // iManufacturer
-	2,								  // iProduct
-	0,								  // iSerialNumber
-	1								  // bNumConfigurations
-};
-
 // Configuration descriptor size: Config(9) + Gamepad Interface(9) + Gamepad HID(9) + Gamepad EP IN(7) + Gamepad EP OUT(7) + Keyboard Interface(9) + Keyboard HID(9) + Keyboard EP(7)
 #define PS4B_CONFIG1_DESC_SIZE		(9+9+9+7+7+9+9+7)
 static const uint8_t ps4b_configuration_descriptor[] =
@@ -177,8 +86,8 @@ static const uint8_t ps4b_configuration_descriptor[] =
 	0,							   // bCountryCode
 	1,							   // bNumDescriptors
 	0x22,						   // bDescriptorType
-	LSB(sizeof(ps4b_gamepad_report_descriptor)), // wDescriptorLength
-	MSB(sizeof(ps4b_gamepad_report_descriptor)),
+	LSB(sizeof(ps4_report_descriptor)), // wDescriptorLength
+	MSB(sizeof(ps4_report_descriptor)),
 		// endpoint descriptor, USB spec 9.6.6, page 269-271, Table 9-13
 	7,						 	   // bLength
 	5,						       // bDescriptorType
@@ -221,3 +130,6 @@ static const uint8_t ps4b_configuration_descriptor[] =
 	KEYBOARD_SIZE, 0,		       // wMaxPacketSize
 	1						       // bInterval (1 ms)
 };
+
+// PS4B-specific string descriptor
+static const uint8_t ps4b_string_product[]      = "GP2040-CE (PS4B)";
