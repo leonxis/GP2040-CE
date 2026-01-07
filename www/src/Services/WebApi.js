@@ -205,7 +205,7 @@ async function getDisplayOptions() {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getDisplayOptions`);
 
-		// splashDuration is loop count, no conversion needed
+		response.data.splashDuration = response.data.splashDuration / 1000; // milliseconds to seconds
 		response.data.displaySaverTimeout =
 			response.data.displaySaverTimeout / 60000; // milliseconds to minutes
 
@@ -222,7 +222,7 @@ async function setDisplayOptions(options, isPreview) {
 	newOptions.buttonLayout = parseInt(options.buttonLayout);
 	newOptions.buttonLayoutRight = parseInt(options.buttonLayoutRight);
 	newOptions.splashMode = parseInt(options.splashMode);
-	newOptions.splashDuration = parseInt(options.splashDuration); // loop count, no conversion
+	newOptions.splashDuration = parseInt(options.splashDuration) * 1000; // seconds to milliseconds
 	newOptions.displaySaverTimeout =
 		parseInt(options.displaySaverTimeout) * 60000; // minutes to milliseconds
 	newOptions.splashChoice = parseInt(options.splashChoice);
@@ -260,26 +260,12 @@ async function getSplashImage() {
 	}
 }
 
-async function setSplashImage({ splashImage, splashImage2, splashImage3 }) {
-	const payload = {};
-	
-	// Only send images that are not null (i.e., user modified them)
-	if (splashImage !== null) {
-		payload.splashImage = btoa(
-			String.fromCharCode.apply(null, new Uint8Array(splashImage)),
-		);
-	}
-	if (splashImage2 !== null) {
-		payload.splashImage2 = btoa(
-			String.fromCharCode.apply(null, new Uint8Array(splashImage2)),
-		);
-	}
-	if (splashImage3 !== null) {
-		payload.splashImage3 = btoa(
-			String.fromCharCode.apply(null, new Uint8Array(splashImage3)),
-		);
-	}
-	
+async function setSplashImage(values) {
+	const payload = {
+		splashImage: btoa(
+			String.fromCharCode.apply(null, new Uint8Array(values.splashImage)),
+		),
+	};
 	return Http.post(`${baseUrl}/api/setSplashImage`, payload)
 		.then((response) => {
 			return response.data;

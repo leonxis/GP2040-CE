@@ -53,9 +53,6 @@ const defaultValues = {
 	splashDuration: 0,
 	splashMode: 3,
 	splashImage: Array(16 * 64).fill(0), // 128 columns represented by bytes so 16 and 64 rows
-	splashImage2: Array(16 * 64).fill(0),
-	splashImage3: Array(16 * 64).fill(0),
-	splashAnimationDuration: 500,
 	buttonLayoutCustomOptions: {
 		params: {
 			layout: 0,
@@ -155,7 +152,6 @@ const schema = yup.object().shape({
 		}),
 	}),
 	splashDuration: yup.number().required().min(0).label('Splash Duration'),
-	splashAnimationDuration: yup.number().required().min(0).label('Splash Animation Duration'),
 	displaySaverTimeout: yup
 		.number()
 		.required()
@@ -201,23 +197,11 @@ export default function DisplayConfigPage() {
 
 	const { t } = useTranslation('');
 
-	// Track which images have been modified by user
-	const [modifiedImages, setModifiedImages] = useState({
-		splashImage: false,
-		splashImage2: false,
-		splashImage3: false,
-	});
-
 	useEffect(() => {
 		async function fetchData() {
 			const data = await WebApi.getDisplayOptions();
-			// Don't load image data to avoid performance issues
-			// Use placeholder that indicates "not modified"
-			data.splashImage = Array(16 * 64).fill(0);
-			data.splashImage2 = Array(16 * 64).fill(0);
-			data.splashImage3 = Array(16 * 64).fill(0);
-			// Merge with default values to ensure new fields have defaults
-			data.splashAnimationDuration = data.splashAnimationDuration ?? defaultValues.splashAnimationDuration;
+			const splashImageResponse = await WebApi.getSplashImage();
+			data.splashImage = splashImageResponse.splashImage;
 			buttonLayoutDefinitions = await WebApi.getButtonLayoutDefs();
 			buttonLayoutSchema = buttonLayoutSchema.oneOf(
 				Object.values(buttonLayoutDefinitions.buttonLayout),
@@ -233,15 +217,8 @@ export default function DisplayConfigPage() {
 	}, []);
 
 	const onSuccess = async (values) => {
-		// Only send images that user has modified
-		const imagesToSave = {
-			splashImage: modifiedImages.splashImage ? values.splashImage : null,
-			splashImage2: modifiedImages.splashImage2 ? values.splashImage2 : null,
-			splashImage3: modifiedImages.splashImage3 ? values.splashImage3 : null,
-		};
-
 		const success = await WebApi.setDisplayOptions(values, false).then(() =>
-			WebApi.setSplashImage(imagesToSave),
+			WebApi.setSplashImage(values),
 		);
 
 		if (success) await updateUsedPins();
@@ -254,11 +231,6 @@ export default function DisplayConfigPage() {
 	};
 
 	const onChangeCanvas = (base64, form, field) => {
-		// Mark this image as modified
-		setModifiedImages(prev => ({
-			...prev,
-			[field.name]: true
-		}));
 		return form.setFieldValue(field.name, base64);
 	};
 
@@ -864,18 +836,6 @@ export default function DisplayConfigPage() {
 											onChange={handleChange}
 											min={0}
 										/>
-										<FormControl
-											type="number"
-											label={t('DisplayConfig:form.splash-animation-duration-label')}
-											name="splashAnimationDuration"
-											className="form-select-sm"
-											groupClassName="col-sm-3 mb-3"
-											value={values.splashAnimationDuration}
-											error={errors.splashAnimationDuration}
-											isInvalid={errors.splashAnimationDuration}
-											onChange={handleChange}
-											min={0}
-										/>
 									</Row>
 										<Row className="mb-3">
 											<FormSelect
@@ -914,46 +874,8 @@ export default function DisplayConfigPage() {
 										</Row>
 										<Row>
 											<Col md={3}>
-												<h6 className="mb-3">{t('DisplayConfig:form.splash-image1-label')}</h6>
+												<h6 className="mb-3">{t('DisplayConfig:form.splash-image-label')}</h6>
 												<Field name="splashImage">
-													{({
-														field, // { name, value, onChange, onBlur }
-														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
-													}) => (
-														<div className="mt-3">
-															<Canvas
-																onChange={(base64) =>
-																	onChangeCanvas(base64, form, field)
-																}
-																value={field.value}
-																fieldName={field.name}
-															/>
-														</div>
-													)}
-												</Field>
-											</Col>
-											<Col md={3}>
-												<h6 className="mb-3">{t('DisplayConfig:form.splash-image2-label')}</h6>
-												<Field name="splashImage2">
-													{({
-														field, // { name, value, onChange, onBlur }
-														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.
-													}) => (
-														<div className="mt-3">
-															<Canvas
-																onChange={(base64) =>
-																	onChangeCanvas(base64, form, field)
-																}
-																value={field.value}
-																fieldName={field.name}
-															/>
-														</div>
-													)}
-												</Field>
-											</Col>
-											<Col md={3}>
-												<h6 className="mb-3">{t('DisplayConfig:form.splash-image3-label')}</h6>
-												<Field name="splashImage3">
 													{({
 														field, // { name, value, onChange, onBlur }
 														form, // also values, setXXXX, handleXXXX, dirty, isValid, status, etc.

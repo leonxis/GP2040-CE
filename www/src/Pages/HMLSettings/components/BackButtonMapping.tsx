@@ -300,7 +300,7 @@ export default function BackButtonMapping() {
 	const getPinKey = (pin: number) => `pin${pin < 10 ? '0' : ''}${pin}`;
 
 	// 背键映射的GPIO引脚列表
-	const gpioPins = [15, 14, 22, 25];
+	const gpioPins = [15, 14, 22, 25, 11, 23];
 	
 	// 背键GPIO引脚标签映射
 	const backButtonLabels: Record<number, string> = {
@@ -308,6 +308,8 @@ export default function BackButtonMapping() {
 		15: '左背键1（GPIO15）',
 		22: '左背键2（GPIO22）',
 		25: '右背键2（GPIO25）',
+		11: 'PS键（GPIO11）',
+		23: '屏幕菜单（GPIO23）',
 	};
 	
 	// 按键交换的GPIO引脚列表
