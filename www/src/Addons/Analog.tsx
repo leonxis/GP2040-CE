@@ -154,6 +154,16 @@ export const analogScheme = {
 		}))
 		.max(4)
 		.label('Joystick Curve Presets'),
+	joystickJitterFilter1: yup
+		.number()
+		.min(0)
+		.max(30)
+		.label('Joystick Jitter Filter 1'),
+	joystickJitterFilter2: yup
+		.number()
+		.min(0)
+		.max(30)
+		.label('Joystick Jitter Filter 2'),
 };
 
 export const analogState = {
@@ -199,6 +209,8 @@ export const analogState = {
 	joystickCurveEnabled: false,
 	// Curve point presets (default: empty array)
 	joystickCurvePresets: [],
+	joystickJitterFilter1: 0,
+	joystickJitterFilter2: 0,
 };
 
 // errorRateToPercent and percentToErrorRate removed - no longer used after removing forced_circularity

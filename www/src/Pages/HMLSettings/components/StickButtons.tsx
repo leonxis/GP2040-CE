@@ -7,8 +7,6 @@ interface StickButtonsProps {
 	onFinetuneCenter: () => void;
 	finetuneCenterActive: boolean;
 	onJitterSampling: () => void;
-	jitterSampling: boolean;
-	jitterSamplesCount: number;
 }
 
 const StickButtons: React.FC<StickButtonsProps> = ({
@@ -17,8 +15,6 @@ const StickButtons: React.FC<StickButtonsProps> = ({
 	onFinetuneCenter,
 	finetuneCenterActive,
 	onJitterSampling,
-	jitterSampling,
-	jitterSamplesCount,
 }) => {
 	const { t } = useTranslation();
 
@@ -51,12 +47,9 @@ const StickButtons: React.FC<StickButtonsProps> = ({
 				<Button
 					variant="warning"
 					size="sm"
-					disabled={jitterSampling}
 					onClick={onJitterSampling}
 				>
-					{jitterSampling 
-						? `抖动数据修正 (${jitterSamplesCount}/30)` 
-						: '抖动数据修正'}
+					摇杆步长设置
 				</Button>
 			</div>
 		</>
@@ -64,6 +57,7 @@ const StickButtons: React.FC<StickButtonsProps> = ({
 };
 
 export default StickButtons;
+
 
 
 

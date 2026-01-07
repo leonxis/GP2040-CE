@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFormikContext } from 'formik';
-import { Button, FormCheck, Modal, Table, Form } from 'react-bootstrap';
+import { Button, Modal, Table, Form } from 'react-bootstrap';
 
 import Section from '../../../Components/Section';
 import StickCalibrationModal from '../../../Components/StickCalibrationModal';
@@ -666,51 +666,13 @@ const JoystickCalibration = ({
 	const leftCanvasJitterLastRef = useRef<{ x: number; y: number } | null>(null);
 	const rightCanvasJitterLastRef = useRef<{ x: number; y: number } | null>(null);
 
-	// Jitter data correction sampling state for stick 1
-	const [leftJitterSampling, setLeftJitterSampling] = useState(false);
-	const [leftJitterSamples, setLeftJitterSamples] = useState<Array<{ x: number; y: number }>>([]);
+	// Jitter filter state for stick 1
 	const [showLeftJitterDataModal, setShowLeftJitterDataModal] = useState(false);
-	const [leftJitterStats, setLeftJitterStats] = useState<{
-		meanX: number;
-		meanY: number;
-		varianceX: number;
-		varianceY: number;
-		meanDeviationX: number;
-		meanDeviationY: number;
-		deviationRateX: number;
-		deviationRateY: number;
-		upperDeviationX: number;
-		upperDeviationY: number;
-		lowerDeviationX: number;
-		lowerDeviationY: number;
-	} | null>(null);
-	const leftJitterSamplingAbortRef = useRef<boolean>(false);
-	const leftJitterLastSampleRef = useRef<{ x: number; y: number } | null>(null);
-	const leftJitterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [leftJitterFilter, setLeftJitterFilter] = useState<number>(0);
 	const [leftJitterFilterOriginal, setLeftJitterFilterOriginal] = useState<number>(0);
-	
-	// Jitter data correction sampling state for stick 2
-	const [rightJitterSampling, setRightJitterSampling] = useState(false);
-	const [rightJitterSamples, setRightJitterSamples] = useState<Array<{ x: number; y: number }>>([]);
+
+	// Jitter filter state for stick 2
 	const [showRightJitterDataModal, setShowRightJitterDataModal] = useState(false);
-	const [rightJitterStats, setRightJitterStats] = useState<{
-		meanX: number;
-		meanY: number;
-		varianceX: number;
-		varianceY: number;
-		meanDeviationX: number;
-		meanDeviationY: number;
-		deviationRateX: number;
-		deviationRateY: number;
-		upperDeviationX: number;
-		upperDeviationY: number;
-		lowerDeviationX: number;
-		lowerDeviationY: number;
-	} | null>(null);
-	const rightJitterSamplingAbortRef = useRef<boolean>(false);
-	const rightJitterLastSampleRef = useRef<{ x: number; y: number } | null>(null);
-	const rightJitterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [rightJitterFilter, setRightJitterFilter] = useState<number>(0);
 	const [rightJitterFilterOriginal, setRightJitterFilterOriginal] = useState<number>(0);
 	
@@ -735,7 +697,6 @@ const JoystickCalibration = ({
 	// Load jitter filter values when modal opens
 	useEffect(() => {
 		if (showLeftJitterDataModal) {
-			// @ts-ignore - field exists at runtime
 			const savedValue = values?.joystickJitterFilter1 ?? 0;
 			setLeftJitterFilter(savedValue);
 			setLeftJitterFilterOriginal(savedValue);
@@ -744,7 +705,6 @@ const JoystickCalibration = ({
 	
 	useEffect(() => {
 		if (showRightJitterDataModal) {
-			// @ts-ignore - field exists at runtime
 			const savedValue = values?.joystickJitterFilter2 ?? 0;
 			setRightJitterFilter(savedValue);
 			setRightJitterFilterOriginal(savedValue);
@@ -1126,10 +1086,7 @@ const JoystickCalibration = ({
 		values?.fixed_anti_deadzone2,
 		values?.analogAdc1Invert,
 		values?.analogAdc2Invert,
-		// Note: joystickJitterFilter1/2 may not be in type definition, but are used in code
-		// @ts-ignore - field exists at runtime
 		values?.joystickJitterFilter1,
-		// @ts-ignore - field exists at runtime
 		values?.joystickJitterFilter2,
 		leftShowErrorRate,
 		rightShowErrorRate
@@ -1237,260 +1194,8 @@ const JoystickCalibration = ({
 
 
 
-	// Calculate statistics for samples (helper function)
-	const calculateJitterStats = (samples: Array<{ x: number; y: number }>) => {
-		if (samples.length === 0) return null;
-
-		// Calculate mean
-		const meanX = samples.reduce((sum, s) => sum + s.x, 0) / samples.length;
-		const meanY = samples.reduce((sum, s) => sum + s.y, 0) / samples.length;
-
-		// Calculate variance
-		const varianceX = samples.reduce((sum, s) => sum + Math.pow(s.x - meanX, 2), 0) / samples.length;
-		const varianceY = samples.reduce((sum, s) => sum + Math.pow(s.y - meanY, 2), 0) / samples.length;
-
-		// Calculate standard deviation
-		const stdDevX = Math.sqrt(varianceX);
-		const stdDevY = Math.sqrt(varianceY);
-
-		// Calculate mean absolute deviation
-		const meanDeviationX = samples.reduce((sum, s) => sum + Math.abs(s.x - meanX), 0) / samples.length;
-		const meanDeviationY = samples.reduce((sum, s) => sum + Math.abs(s.y - meanY), 0) / samples.length;
-
-		// Calculate deviation rate (coefficient of variation)
-		const deviationRateX = meanX !== 0 ? (stdDevX / meanX) * 100 : 0;
-		const deviationRateY = meanY !== 0 ? (stdDevY / meanY) * 100 : 0;
-
-		// Calculate upper and lower deviations
-		const upperDeviationX = Math.max(...samples.map(s => s.x - meanX));
-		const lowerDeviationX = Math.min(...samples.map(s => s.x - meanX));
-		const upperDeviationY = Math.max(...samples.map(s => s.y - meanY));
-		const lowerDeviationY = Math.min(...samples.map(s => s.y - meanY));
-
-		return {
-			meanX,
-			meanY,
-			varianceX,
-			varianceY,
-			meanDeviationX,
-			meanDeviationY,
-			deviationRateX,
-			deviationRateY,
-			upperDeviationX,
-			upperDeviationY,
-			lowerDeviationX,
-			lowerDeviationY,
-		};
-	};
-
-	// Start jitter sampling for stick 1
-	const handleStartJitterSampling1 = () => {
-		if (leftJitterSampling) return;
-		// Clear any existing timeout
-		if (leftJitterTimeoutRef.current) {
-			clearTimeout(leftJitterTimeoutRef.current);
-			leftJitterTimeoutRef.current = null;
-		}
-		setLeftJitterSampling(true);
-		setLeftJitterSamples([]);
-		leftJitterSamplingAbortRef.current = false;
-		leftJitterLastSampleRef.current = null;
-		
-		const maxSamples = 30;
-		
-		const fetchData = async (): Promise<void> => {
-			if (leftJitterSamplingAbortRef.current) {
-				return;
-			}
-
-			try {
-				const controller = new AbortController();
-				const timeoutId = setTimeout(() => controller.abort(), 300);
-
-				const res = await fetch('/api/getJoystickCenter', { signal: controller.signal });
-				clearTimeout(timeoutId);
-				if (res.ok) {
-					const data = await res.json();
-					if (data.success) {
-						// Calculate difference from last sample
-						if (leftJitterLastSampleRef.current !== null) {
-							const deltaX = Math.abs(data.x - leftJitterLastSampleRef.current.x);
-							const deltaY = Math.abs(data.y - leftJitterLastSampleRef.current.y);
-							
-							// Update last sample before state update
-							leftJitterLastSampleRef.current = { x: data.x, y: data.y };
-							
-							setLeftJitterSamples(prev => {
-								const newSamples = [...prev, { x: deltaX, y: deltaY }];
-								if (newSamples.length >= maxSamples) {
-									setLeftJitterSampling(false);
-									// Calculate statistics automatically when sampling completes
-									const stats = calculateJitterStats(newSamples);
-									if (stats) {
-										setLeftJitterStats(stats);
-									}
-									setShowLeftJitterDataModal(true);
-									return newSamples;
-								}
-								// Continue sampling if not reached max samples
-								if (!leftJitterSamplingAbortRef.current) {
-									if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
-									leftJitterTimeoutRef.current = setTimeout(fetchData, 5);
-								}
-								return newSamples;
-							});
-						} else {
-							// First sample: just store it, don't add to samples array
-							leftJitterLastSampleRef.current = { x: data.x, y: data.y };
-							// Continue sampling with slight delay
-							if (!leftJitterSamplingAbortRef.current) {
-								if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
-								leftJitterTimeoutRef.current = setTimeout(fetchData, 5);
-							}
-						}
-					} else {
-						if (!leftJitterSamplingAbortRef.current) {
-							if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
-							leftJitterTimeoutRef.current = setTimeout(fetchData, 10);
-						}
-					}
-				} else {
-					if (!leftJitterSamplingAbortRef.current) {
-						if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
-						leftJitterTimeoutRef.current = setTimeout(fetchData, 10);
-					}
-				}
-			} catch (error) {
-				console.error('Failed to fetch stick 1 jitter data:', error);
-				if (!leftJitterSamplingAbortRef.current) {
-					if (leftJitterTimeoutRef.current) clearTimeout(leftJitterTimeoutRef.current);
-					leftJitterTimeoutRef.current = setTimeout(fetchData, 10);
-				}
-			}
-		};
-
-		fetchData();
-	};
-
-	// Start jitter sampling for stick 2
-	const handleStartJitterSampling2 = () => {
-		if (rightJitterSampling) return;
-		// Clear any existing timeout
-		if (rightJitterTimeoutRef.current) {
-			clearTimeout(rightJitterTimeoutRef.current);
-			rightJitterTimeoutRef.current = null;
-		}
-		setRightJitterSampling(true);
-		setRightJitterSamples([]);
-		rightJitterSamplingAbortRef.current = false;
-		rightJitterLastSampleRef.current = null;
-		
-		const maxSamples = 30;
-		
-		const fetchData = async (): Promise<void> => {
-			if (rightJitterSamplingAbortRef.current) {
-				return;
-			}
-
-			try {
-				const controller = new AbortController();
-				const timeoutId = setTimeout(() => controller.abort(), 300);
-
-				const res = await fetch('/api/getJoystickCenter2', { signal: controller.signal });
-				clearTimeout(timeoutId);
-				if (res.ok) {
-					const data = await res.json();
-					if (data.success) {
-						// Calculate difference from last sample
-						if (rightJitterLastSampleRef.current !== null) {
-							const deltaX = Math.abs(data.x - rightJitterLastSampleRef.current.x);
-							const deltaY = Math.abs(data.y - rightJitterLastSampleRef.current.y);
-							
-							// Update last sample before state update
-							rightJitterLastSampleRef.current = { x: data.x, y: data.y };
-							
-							setRightJitterSamples(prev => {
-								const newSamples = [...prev, { x: deltaX, y: deltaY }];
-								if (newSamples.length >= maxSamples) {
-									setRightJitterSampling(false);
-									// Calculate statistics automatically when sampling completes
-									const stats = calculateJitterStats(newSamples);
-									if (stats) {
-										setRightJitterStats(stats);
-									}
-									setShowRightJitterDataModal(true);
-									return newSamples;
-								}
-								// Continue sampling if not reached max samples
-								if (!rightJitterSamplingAbortRef.current) {
-									if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
-									rightJitterTimeoutRef.current = setTimeout(fetchData, 5);
-								}
-								return newSamples;
-							});
-						} else {
-							// First sample: just store it, don't add to samples array
-							rightJitterLastSampleRef.current = { x: data.x, y: data.y };
-							// Continue sampling with slight delay
-							if (!rightJitterSamplingAbortRef.current) {
-								if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
-								rightJitterTimeoutRef.current = setTimeout(fetchData, 5);
-							}
-						}
-					} else {
-						if (!rightJitterSamplingAbortRef.current) {
-							if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
-							rightJitterTimeoutRef.current = setTimeout(fetchData, 10);
-						}
-					}
-				} else {
-					if (!rightJitterSamplingAbortRef.current) {
-						if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
-						rightJitterTimeoutRef.current = setTimeout(fetchData, 10);
-					}
-				}
-			} catch (error) {
-				console.error('Failed to fetch stick 2 jitter data:', error);
-				if (!rightJitterSamplingAbortRef.current) {
-					if (rightJitterTimeoutRef.current) clearTimeout(rightJitterTimeoutRef.current);
-					rightJitterTimeoutRef.current = setTimeout(fetchData, 10);
-				}
-			}
-		};
-
-		fetchData();
-	};
-
-	// Cleanup jitter sampling on unmount
-	useEffect(() => {
-		return () => {
-			leftJitterSamplingAbortRef.current = true;
-			rightJitterSamplingAbortRef.current = true;
-			if (leftJitterTimeoutRef.current) {
-				clearTimeout(leftJitterTimeoutRef.current);
-				leftJitterTimeoutRef.current = null;
-			}
-			if (rightJitterTimeoutRef.current) {
-				clearTimeout(rightJitterTimeoutRef.current);
-				rightJitterTimeoutRef.current = null;
-			}
-		};
-	}, []);
 
 	// Cleanup timeouts when sampling stops
-	useEffect(() => {
-		if (!leftJitterSampling && leftJitterTimeoutRef.current) {
-			clearTimeout(leftJitterTimeoutRef.current);
-			leftJitterTimeoutRef.current = null;
-		}
-	}, [leftJitterSampling]);
-
-	useEffect(() => {
-		if (!rightJitterSampling && rightJitterTimeoutRef.current) {
-			clearTimeout(rightJitterTimeoutRef.current);
-			rightJitterTimeoutRef.current = null;
-		}
-	}, [rightJitterSampling]);
 
 	// Reset finetune shape data when values change
 	useEffect(() => {
@@ -1595,9 +1300,7 @@ const JoystickCalibration = ({
 							onRangeCalibration={() => setShowLeftRangeModal(true)}
 							onFinetuneCenter={() => setLeftFinetuneCenterActive(!leftFinetuneCenterActive)}
 							finetuneCenterActive={leftFinetuneCenterActive}
-							onJitterSampling={handleStartJitterSampling1}
-							jitterSampling={leftJitterSampling}
-							jitterSamplesCount={leftJitterSamples.length}
+							onJitterSampling={() => setShowLeftJitterDataModal(true)}
 						/>
 					</div>
 
@@ -1641,9 +1344,7 @@ const JoystickCalibration = ({
 							onRangeCalibration={() => setShowRightRangeModal(true)}
 							onFinetuneCenter={() => setRightFinetuneCenterActive(!rightFinetuneCenterActive)}
 							finetuneCenterActive={rightFinetuneCenterActive}
-							onJitterSampling={handleStartJitterSampling2}
-							jitterSampling={rightJitterSampling}
-							jitterSamplesCount={rightJitterSamples.length}
+							onJitterSampling={() => setShowRightJitterDataModal(true)}
 						/>
 					</div>
 				</div>
@@ -1785,12 +1486,12 @@ const JoystickCalibration = ({
 			{/* Left Jitter Data Modal */}
 			<Modal show={showLeftJitterDataModal} onHide={() => setShowLeftJitterDataModal(false)} size="lg">
 				<Modal.Header closeButton>
-					<Modal.Title>抖动数据修正 - 左摇杆</Modal.Title>
+					<Modal.Title>摇杆步长设置 - 左摇杆</Modal.Title>
 				</Modal.Header>
-				<Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+				<Modal.Body>
 					{/* Jitter Filter Slider */}
 					<div className="mb-4">
-						<Form.Label>抖动过滤值: {leftJitterFilter}</Form.Label>
+						<Form.Label>摇杆步长设置: {leftJitterFilter}</Form.Label>
 						<Form.Range
 							min={0}
 							max={30}
@@ -1798,75 +1499,12 @@ const JoystickCalibration = ({
 							value={leftJitterFilter}
 							onChange={(e) => setLeftJitterFilter(parseInt(e.target.value))}
 						/>
-					</div>
-					{/* Statistics Section */}
-					{leftJitterStats && (
-						<div className="mb-4">
-							<h5>抖动统计</h5>
-							<p><strong>样本数量: {leftJitterSamples.length}</strong></p>
-							<Table striped bordered size="sm" className="mb-3">
-								<thead>
-									<tr>
-										<th>统计项</th>
-										<th>X</th>
-										<th>Y</th>
-									</tr>
-								</thead>
-								<tbody>
-									<tr>
-										<td><strong>平均值</strong></td>
-										<td>{leftJitterStats.meanX.toFixed(2)}</td>
-										<td>{leftJitterStats.meanY.toFixed(2)}</td>
-									</tr>
-									<tr>
-										<td><strong>方差</strong></td>
-										<td>{leftJitterStats.varianceX.toFixed(2)}</td>
-										<td>{leftJitterStats.varianceY.toFixed(2)}</td>
-									</tr>
-									<tr>
-										<td><strong>平均绝对偏差</strong></td>
-										<td>{leftJitterStats.meanDeviationX.toFixed(2)}</td>
-										<td>{leftJitterStats.meanDeviationY.toFixed(2)}</td>
-									</tr>
-									<tr>
-										<td><strong>偏差率</strong></td>
-										<td>{leftJitterStats.deviationRateX.toFixed(2)}%</td>
-										<td>{leftJitterStats.deviationRateY.toFixed(2)}%</td>
-									</tr>
-									<tr>
-										<td><strong>上偏差</strong></td>
-										<td>{leftJitterStats.upperDeviationX.toFixed(2)}</td>
-										<td>{leftJitterStats.upperDeviationY.toFixed(2)}</td>
-									</tr>
-									<tr>
-										<td><strong>下偏差</strong></td>
-										<td>{leftJitterStats.lowerDeviationX.toFixed(2)}</td>
-										<td>{leftJitterStats.lowerDeviationY.toFixed(2)}</td>
-									</tr>
-								</tbody>
-							</Table>
+						<div className="mt-3 small text-muted">
+							<div>摇杆步长设置为硬件读取步长，越小对移动识别越精细；</div>
+							<div>步长设置越小，摇杆硬件识别越精细，更容易受到摇杆硬件噪声影响而产生抖动；</div>
+							<div>手柄输出步长由读取步长再根据手柄协议决定，PS4模式下步长为16，Xinput模式为1。</div>
 						</div>
-					)}
-					{/* Sampling Data Section */}
-					<h5>取样数据</h5>
-					<Table striped bordered hover size="sm">
-						<thead>
-							<tr>
-								<th>#</th>
-								<th>X (ADC)</th>
-								<th>Y (ADC)</th>
-							</tr>
-						</thead>
-						<tbody>
-							{leftJitterSamples.map((sample, index) => (
-								<tr key={index}>
-									<td>{index + 1}</td>
-									<td>{sample.x.toFixed(2)}</td>
-									<td>{sample.y.toFixed(2)}</td>
-								</tr>
-							))}
-						</tbody>
-					</Table>
+					</div>
 				</Modal.Body>
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => {
@@ -1890,12 +1528,12 @@ const JoystickCalibration = ({
 			{/* Right Jitter Data Modal */}
 			<Modal show={showRightJitterDataModal} onHide={() => setShowRightJitterDataModal(false)} size="lg">
 				<Modal.Header closeButton>
-					<Modal.Title>抖动数据修正 - 右摇杆</Modal.Title>
+					<Modal.Title>摇杆步长设置 - 右摇杆</Modal.Title>
 				</Modal.Header>
-				<Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+				<Modal.Body>
 					{/* Jitter Filter Slider */}
 					<div className="mb-4">
-						<Form.Label>抖动过滤值: {rightJitterFilter}</Form.Label>
+						<Form.Label>摇杆步长设置: {rightJitterFilter}</Form.Label>
 						<Form.Range
 							min={0}
 							max={30}
@@ -1903,75 +1541,12 @@ const JoystickCalibration = ({
 							value={rightJitterFilter}
 							onChange={(e) => setRightJitterFilter(parseInt(e.target.value))}
 						/>
-					</div>
-					{/* Statistics Section */}
-					{rightJitterStats && (
-						<div className="mb-4">
-							<h5>抖动统计</h5>
-							<p><strong>样本数量: {rightJitterSamples.length}</strong></p>
-							<Table striped bordered size="sm" className="mb-3">
-								<thead>
-									<tr>
-										<th>统计项</th>
-										<th>X</th>
-										<th>Y</th>
-									</tr>
-								</thead>
-								<tbody>
-									<tr>
-										<td><strong>平均值</strong></td>
-										<td>{rightJitterStats.meanX.toFixed(2)}</td>
-										<td>{rightJitterStats.meanY.toFixed(2)}</td>
-									</tr>
-									<tr>
-										<td><strong>方差</strong></td>
-										<td>{rightJitterStats.varianceX.toFixed(2)}</td>
-										<td>{rightJitterStats.varianceY.toFixed(2)}</td>
-									</tr>
-									<tr>
-										<td><strong>平均绝对偏差</strong></td>
-										<td>{rightJitterStats.meanDeviationX.toFixed(2)}</td>
-										<td>{rightJitterStats.meanDeviationY.toFixed(2)}</td>
-									</tr>
-									<tr>
-										<td><strong>偏差率</strong></td>
-										<td>{rightJitterStats.deviationRateX.toFixed(2)}%</td>
-										<td>{rightJitterStats.deviationRateY.toFixed(2)}%</td>
-									</tr>
-									<tr>
-										<td><strong>上偏差</strong></td>
-										<td>{rightJitterStats.upperDeviationX.toFixed(2)}</td>
-										<td>{rightJitterStats.upperDeviationY.toFixed(2)}</td>
-									</tr>
-									<tr>
-										<td><strong>下偏差</strong></td>
-										<td>{rightJitterStats.lowerDeviationX.toFixed(2)}</td>
-										<td>{rightJitterStats.lowerDeviationY.toFixed(2)}</td>
-									</tr>
-								</tbody>
-							</Table>
+						<div className="mt-3 small text-muted">
+							<div>摇杆步长设置为硬件读取步长，越小对移动识别越精细；</div>
+							<div>步长设置越小，摇杆硬件识别越精细，更容易受到摇杆硬件噪声影响而产生抖动；</div>
+							<div>手柄输出步长由读取步长再根据手柄协议决定，PS4模式下步长为16，Xinput模式为1。</div>
 						</div>
-					)}
-					{/* Sampling Data Section */}
-					<h5>取样数据</h5>
-					<Table striped bordered hover size="sm">
-						<thead>
-							<tr>
-								<th>#</th>
-								<th>X (ADC)</th>
-								<th>Y (ADC)</th>
-							</tr>
-						</thead>
-						<tbody>
-							{rightJitterSamples.map((sample, index) => (
-								<tr key={index}>
-									<td>{index + 1}</td>
-									<td>{sample.x.toFixed(2)}</td>
-									<td>{sample.y.toFixed(2)}</td>
-								</tr>
-							))}
-						</tbody>
-					</Table>
+					</div>
 				</Modal.Body>
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => {
