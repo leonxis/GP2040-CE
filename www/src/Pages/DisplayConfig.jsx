@@ -991,10 +991,9 @@ const Canvas = ({ value: bitsArray, onChange, fieldName }) => {
 		onChange(bitsArray.map((a) => (inverted ? 255 - a : a)));
 	}, [image, canvasContext]);
 
-	// binary to RGBA - only render when user uploads a new image, not on initial load
+	// binary to RGBA
 	useEffect(() => {
-		// Only render preview if user has uploaded an image
-		if (canvasContext == null || image == null) return;
+		if (canvasContext == null) return;
 
 		const w = canvasContext.canvas.width;
 		const h = canvasContext.canvas.height;
@@ -1018,7 +1017,7 @@ const Canvas = ({ value: bitsArray, onChange, fieldName }) => {
 		});
 		const imageDataCopy = new ImageData(new Uint8ClampedArray(rgbToRgba), w, h);
 		canvasContext.putImageData(imageDataCopy, 0, 0, 0, 0, w, h);
-	}, [bitsArray, canvasContext, image]);
+	}, [bitsArray, canvasContext]);
 
 	const onImageAdd = (ev) => {
 		var file = ev.target.files[0];
