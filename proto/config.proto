@@ -825,6 +825,7 @@ message MacroInput
     optional uint32 buttonMask = 1;
     optional uint32 duration = 2;
     optional uint32 waitDuration = 3 [default = 0];
+    optional uint32 stickDirection = 4 [default = 0];
 }
 
 message Macro

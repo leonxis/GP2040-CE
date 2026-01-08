@@ -39,4 +39,7 @@ export default {
 	'table-thread-status': 'Status',
 	'input-macro-macro-trigger-type-button': 'Button',
 	'input-macro-macro-trigger-type-pin': 'Pin',
+	'input-macro-stick-direction-none': 'None',
+	'input-macro-stick-direction-left-center': 'Left Stick Center',
+	'input-macro-stick-direction-right-center': 'Right Stick Center',
 };

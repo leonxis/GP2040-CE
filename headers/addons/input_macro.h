@@ -36,11 +36,13 @@ class InputMacro : public GPAddon {
 public:
     virtual bool available();   // GPAddon available
     virtual void setup();       // Analog Setup
-    virtual void process() {};     // Analog Process
+    virtual void process();     // Analog Process - reapply stick values after other addons
     virtual void preprocess();
     virtual void postprocess(bool sent) {}
     virtual void reinit();
     virtual std::string name() { return InputMacroName; }
+    bool isRunning() const { return isMacroRunning; }
+    bool hasStickDirection() const;
 private:
     void checkMacroPress();
     void checkMacroAction();

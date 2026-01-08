@@ -338,8 +338,12 @@ void GP2040::run() {
 		// Left/Right Analog modes now support bidirectional swap:
 		// - Dpad input → Joystick output (already done in gamepad->process())
 		// - Joystick input → Dpad output (done here)
+		// Skip bidirectional swap if macro is running with stick direction (macro will handle stick values)
+		InputMacro* inputMacro = (InputMacro*)addons.GetAddon(InputMacroName);
+		bool macroHasStickDirection = (inputMacro != nullptr && inputMacro->hasStickDirection());
+		
 		DpadMode activeDpadMode = gamepad->getActiveDpadMode();
-		if (activeDpadMode == DpadMode::DPAD_MODE_LEFT_ANALOG || activeDpadMode == DpadMode::DPAD_MODE_RIGHT_ANALOG) {
+		if ((activeDpadMode == DpadMode::DPAD_MODE_LEFT_ANALOG || activeDpadMode == DpadMode::DPAD_MODE_RIGHT_ANALOG) && !macroHasStickDirection) {
 			// Get joystick midpoint value
 			uint16_t joystickMid = GAMEPAD_JOYSTICK_MID;
 			if ( DriverManager::getInstance().getDriver() != nullptr ) {

@@ -35,4 +35,7 @@ export default {
 	'table-thread-status': '状态',
 	'input-macro-macro-trigger-type-button': '按钮',
 	'input-macro-macro-trigger-type-pin': '引脚',
+	'input-macro-stick-direction-none': '无',
+	'input-macro-stick-direction-left-center': '左摇杆回中',
+	'input-macro-stick-direction-right-center': '右摇杆回中',
 };

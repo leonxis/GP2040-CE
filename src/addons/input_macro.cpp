@@ -1,6 +1,8 @@
 #include "addons/input_macro.h"
 #include "storagemanager.h"
 #include "GamepadState.h"
+#include "enums.pb.h"
+#include "drivermanager.h"
 
 #include "hardware/gpio.h"
 
@@ -234,9 +236,64 @@ void InputMacro::runCurrentMacro() {
         }
         gamepad->state.buttons |= buttonMask;
 
+        // Handle stick direction if set
+        if (macroInput.has_stickDirection && macroInput.stickDirection != 0) {
+            uint32_t stickDirection = macroInput.stickDirection;
+            uint16_t joystickMid = GAMEPAD_JOYSTICK_MID;
+            
+            // Get joystick midpoint from driver if available
+            if (DriverManager::getInstance().getDriver() != nullptr) {
+                joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+            }
+
+            // Check for stick center commands
+            if (stickDirection == 0xFFFFFFFE) {
+                // Center left stick
+                gamepad->state.lx = joystickMid;
+                gamepad->state.ly = joystickMid;
+            } else if (stickDirection == 0xFFFFFFFD) {
+                // Center right stick
+                gamepad->state.rx = joystickMid;
+                gamepad->state.ry = joystickMid;
+            } else {
+                // Apply stick direction based on GpioAction value
+                switch (stickDirection) {
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_X_NEG:
+                        gamepad->state.lx = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_X_POS:
+                        gamepad->state.lx = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_Y_NEG:
+                        gamepad->state.ly = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_Y_POS:
+                        gamepad->state.ly = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_X_NEG:
+                        gamepad->state.rx = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_X_POS:
+                        gamepad->state.rx = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_Y_NEG:
+                        gamepad->state.ry = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_Y_POS:
+                        gamepad->state.ry = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    default:
+                        // Unknown stick direction, do nothing
+                        break;
+                }
+            }
+        }
+
         // Macro LED is on if we're currently running and inputs are doing something (wait-timers turn it off)
         if (boardLedEnabled) {
-            gpio_put(BOARD_LED_PIN, (gamepad->state.dpad || gamepad->state.buttons) ? 1 : 0);
+            gpio_put(BOARD_LED_PIN, (gamepad->state.dpad || gamepad->state.buttons || 
+                    gamepad->state.lx != GAMEPAD_JOYSTICK_MID || gamepad->state.ly != GAMEPAD_JOYSTICK_MID ||
+                    gamepad->state.rx != GAMEPAD_JOYSTICK_MID || gamepad->state.ry != GAMEPAD_JOYSTICK_MID) ? 1 : 0);
         }
     }
 }
@@ -256,6 +313,89 @@ void InputMacro::preprocess()
     checkMacroPress();
     checkMacroAction();
     runCurrentMacro();
+}
+
+void InputMacro::process()
+{
+    // Reapply stick direction after other addons (like AnalogInput) have processed
+    // This ensures macro stick values are not overwritten by physical joystick input
+    if (!isMacroRunning || macroPosition == -1)
+        return;
+
+    Macro& macro = inputMacroOptions->macroList[macroPosition];
+    MacroInput& macroInput = macro.macroInputs[macroInputPosition];
+    Gamepad * gamepad = Storage::getInstance().GetGamepad();
+    currentMicros = getMicro();
+
+    // Only reapply stick direction if we're still within the duration window
+    if ((currentMicros - macroStartTime) <= macroInput.duration) {
+        if (macroInput.has_stickDirection && macroInput.stickDirection != 0) {
+            uint32_t stickDirection = macroInput.stickDirection;
+            uint16_t joystickMid = GAMEPAD_JOYSTICK_MID;
+            
+            // Get joystick midpoint from driver if available
+            if (DriverManager::getInstance().getDriver() != nullptr) {
+                joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+            }
+
+            // Check for stick center commands
+            if (stickDirection == 0xFFFFFFFE) {
+                // Center left stick
+                gamepad->state.lx = joystickMid;
+                gamepad->state.ly = joystickMid;
+            } else if (stickDirection == 0xFFFFFFFD) {
+                // Center right stick
+                gamepad->state.rx = joystickMid;
+                gamepad->state.ry = joystickMid;
+            } else {
+                // Apply stick direction based on GpioAction value
+                switch (stickDirection) {
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_X_NEG:
+                        gamepad->state.lx = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_X_POS:
+                        gamepad->state.lx = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_Y_NEG:
+                        gamepad->state.ly = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_Y_POS:
+                        gamepad->state.ly = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_X_NEG:
+                        gamepad->state.rx = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_X_POS:
+                        gamepad->state.rx = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_Y_NEG:
+                        gamepad->state.ry = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_Y_POS:
+                        gamepad->state.ry = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    default:
+                        // Unknown stick direction, do nothing
+                        break;
+                }
+            }
+        }
+    }
+}
+
+bool InputMacro::hasStickDirection() const
+{
+    if (!isMacroRunning || macroPosition == -1)
+        return false;
+
+    const Macro& macro = inputMacroOptions->macroList[macroPosition];
+    const MacroInput& macroInput = macro.macroInputs[macroInputPosition];
+    uint64_t currentMicros = getMicro();
+
+    // Check if we're within the duration window and have a stick direction set
+    return (currentMicros - macroStartTime) <= macroInput.duration &&
+           macroInput.has_stickDirection && 
+           macroInput.stickDirection != 0;
 }
 
 void InputMacro::reinit() {

@@ -26,6 +26,7 @@ import {
 	BUTTONS,
 	BUTTON_MASKS_OPTIONS,
 } from '../Data/Buttons';
+import { BUTTON_ACTIONS } from '../Data/Pins';
 
 const MACRO_TYPES = [
 	{ label: 'InputMacroAddon:input-macro-type.press', value: 1 },
@@ -34,6 +35,24 @@ const MACRO_TYPES = [
 ];
 const MACRO_INPUTS_MAX = 30;
 const MACRO_LIMIT = 6;
+
+// 摇杆回中的特殊值（使用0xFFFFFFFE和0xFFFFFFFD避免与GpioAction枚举值冲突）
+const STICK_DIRECTION_LEFT_CENTER = 0xFFFFFFFE;  // 左摇杆回中
+const STICK_DIRECTION_RIGHT_CENTER = 0xFFFFFFFD; // 右摇杆回中
+
+// 摇杆方向选项（左右摇杆各4个方向 + 左右摇杆回中选项）
+const STICK_DIRECTION_OPTIONS = [
+	{ label: 'ANALOG_DIRECTION_LS_X_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_X_NEG },
+	{ label: 'ANALOG_DIRECTION_LS_X_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_X_POS },
+	{ label: 'ANALOG_DIRECTION_LS_Y_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_Y_NEG },
+	{ label: 'ANALOG_DIRECTION_LS_Y_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_Y_POS },
+	{ label: 'STICK_DIRECTION_LEFT_CENTER', value: STICK_DIRECTION_LEFT_CENTER }, // 左摇杆回中
+	{ label: 'ANALOG_DIRECTION_RS_X_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_NEG },
+	{ label: 'ANALOG_DIRECTION_RS_X_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_POS },
+	{ label: 'ANALOG_DIRECTION_RS_Y_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_NEG },
+	{ label: 'ANALOG_DIRECTION_RS_Y_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_POS },
+	{ label: 'STICK_DIRECTION_RIGHT_CENTER', value: STICK_DIRECTION_RIGHT_CENTER }, // 右摇杆回中
+];
 
 const schema = yup.object().shape({
 	macroList: yup.array().of(
@@ -54,6 +73,7 @@ const schema = yup.object().shape({
 						buttonMask: yup.number().required(),
 						duration: yup.number().required(),
 						waitDuration: yup.number().required(),
+						stickDirection: yup.number().optional(), // 临时字段，仅用于前端UI
 					}),
 				),
 		}),
@@ -65,6 +85,7 @@ const defaultMacroInput = {
 	buttonMask: 0,
 	duration: 16666,
 	waitDuration: 0,
+	stickDirection: 0, // 临时字段，仅用于前端UI，0表示未选择
 };
 
 const defaultValues = {
@@ -91,6 +112,18 @@ const FormContext = () => {
 	useEffect(() => {
 		async function fetchData() {
 			const options = await WebApi.getMacroAddonOptions(setLoading);
+			// 为每个macroInput添加stickDirection字段（从后端加载，默认0）
+			if (options && options.macroList) {
+				options.macroList = options.macroList.map((macro) => ({
+					...macro,
+					macroInputs: macro.macroInputs
+						? macro.macroInputs.map((input) => ({
+								...input,
+								stickDirection: input.stickDirection || 0,
+							}))
+						: [],
+				}));
+			}
 			setValues(options);
 		}
 		fetchData();
@@ -127,7 +160,7 @@ const ButtonMasksComponent = (props) => {
 
 const MacroInputComponent = (props) => {
 	const {
-		value: { duration, buttonMask, waitDuration },
+		value: { duration, buttonMask, waitDuration, stickDirection = 0 },
 		buttonLabelType,
 		showFrames,
 		errors,
@@ -199,6 +232,31 @@ const MacroInputComponent = (props) => {
 					buttonLabelType={buttonLabelType}
 					buttonMasks={BUTTON_MASKS_OPTIONS}
 				/>
+			</Col>
+			<Col xs="auto">
+				<Form.Select
+					size="sm"
+					name={`${key}.stickDirection`}
+					value={stickDirection || 0}
+					isInvalid={errors?.stickDirection}
+					onChange={(e) => {
+						setFieldValue(`${key}.stickDirection`, parseInt(e.target.value) || 0);
+					}}
+				>
+					<option value={0}>
+						{t('InputMacroAddon:input-macro-stick-direction-none', { defaultValue: '无' })}
+					</option>
+					{STICK_DIRECTION_OPTIONS.map((option) => (
+						<option key={`${key}.stickDirection.${option.value}`} value={option.value}>
+							{option.label === 'STICK_DIRECTION_LEFT_CENTER' 
+								? t('InputMacroAddon:input-macro-stick-direction-left-center', { defaultValue: '左摇杆回中' })
+								: option.label === 'STICK_DIRECTION_RIGHT_CENTER'
+								? t('InputMacroAddon:input-macro-stick-direction-right-center', { defaultValue: '右摇杆回中' })
+								: t(`Proto:GpioAction.${option.label}`, { defaultValue: option.label })
+							}
+						</option>
+					))}
+				</Form.Select>
 			</Col>
 			<Col xs="auto" style={{ width: 290 }}>
 				<InputGroup size="sm">
@@ -494,7 +552,19 @@ export default function MacrosPage() {
 	const [saveMessage, setSaveMessage] = useState('');
 
 	const saveSettings = async (values) => {
-		const success = await WebApi.setMacroAddonOptions(values);
+		// stickDirection现在保存到后端，不需要localStorage了
+		// 确保所有macroInput都有stickDirection字段（默认0）
+		const cleanedValues = {
+			...values,
+			macroList: values.macroList.map((macro) => ({
+				...macro,
+				macroInputs: macro.macroInputs.map((input) => ({
+					...input,
+					stickDirection: input.stickDirection || 0,
+				})),
+			})),
+		};
+		const success = await WebApi.setMacroAddonOptions(cleanedValues);
 		setSaveMessage(
 			success
 				? t('Common:saved-success-message')

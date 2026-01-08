@@ -2578,6 +2578,10 @@ std::string setMacroAddonOptions()
             macroOptions.macroList[macrosIndex].macroInputs[macroInputsIndex].duration = input["duration"].as<uint32_t>();
             macroOptions.macroList[macrosIndex].macroInputs[macroInputsIndex].waitDuration = input["waitDuration"].as<uint32_t>();
             macroOptions.macroList[macrosIndex].macroInputs[macroInputsIndex].buttonMask = input["buttonMask"].as<uint32_t>();
+            macroOptions.macroList[macrosIndex].macroInputs[macroInputsIndex].stickDirection = input.containsKey("stickDirection") && input["stickDirection"].is<uint32_t>() 
+                ? input["stickDirection"].as<uint32_t>() 
+                : 0;
+            macroOptions.macroList[macrosIndex].macroInputs[macroInputsIndex].has_stickDirection = true;
             if (++macroInputsIndex >= MAX_MACRO_INPUT_LIMIT) break;
         }
         macroOptions.macroList[macrosIndex].macroInputs_count = macroInputsIndex;
@@ -2619,6 +2623,10 @@ std::string getMacroAddonOptions()
             macroInput["buttonMask"] = macroOptions.macroList[i].macroInputs[j].buttonMask;
             macroInput["duration"] = macroOptions.macroList[i].macroInputs[j].duration;
             macroInput["waitDuration"] = macroOptions.macroList[i].macroInputs[j].waitDuration;
+            // Always save stickDirection (default 0 if not set)
+            macroInput["stickDirection"] = macroOptions.macroList[i].macroInputs[j].has_stickDirection 
+                ? macroOptions.macroList[i].macroInputs[j].stickDirection 
+                : 0;
         }
     }
 
