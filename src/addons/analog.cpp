@@ -153,22 +153,43 @@ void AnalogInput::setup() {
         adc_pairs[i].last_y_adc = 0;
     }
 
+    // Check pin mappings to determine if we should initialize ADC pins
+    // Only initialize ADC pins if ALL of the following conditions are true:
+    // - GPIO0 is select key (S1) or A2 key
+    // - GPIO1 is start key (S2)
+    // - GPIO6 is R1 key
+    // - GPIO8 is select key (S1) or A2 key
+    // - GPIO17 is L3 key
+    // - GPIO24 is R3 key
+    GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
+    bool shouldInitializeADC = ((pinMappings[0].action == GpioAction::BUTTON_PRESS_S1) ||
+                                 (pinMappings[0].action == GpioAction::BUTTON_PRESS_A2)) &&
+                                (pinMappings[1].action == GpioAction::BUTTON_PRESS_S2) &&
+                                (pinMappings[6].action == GpioAction::BUTTON_PRESS_R1) &&
+                                ((pinMappings[8].action == GpioAction::BUTTON_PRESS_S1) ||
+                                 (pinMappings[8].action == GpioAction::BUTTON_PRESS_A2)) &&
+                                (pinMappings[17].action == GpioAction::BUTTON_PRESS_L3) &&
+                                (pinMappings[24].action == GpioAction::BUTTON_PRESS_R3);
+
     // Initialize center X/Y for each pair using manual calibration values
     // If no calibration data (value is 0), use ADC midpoint (2047.5) as default
-    for (int i = 0; i < ADC_COUNT; i++) {
-        if(isValidPin(adc_pairs[i].x_pin)) {
-            adc_gpio_init(adc_pairs[i].x_pin);
-            // Use stored manual calibration value, or ADC midpoint if not calibrated
-            adc_pairs[i].x_center = (adc_pairs[i].joystick_center_x > 0) ? 
-                                    adc_pairs[i].joystick_center_x : 
-                                    static_cast<uint16_t>(ADC_MAX_HALF);
-        }
-        if(isValidPin(adc_pairs[i].y_pin)) {
-            adc_gpio_init(adc_pairs[i].y_pin);
-            // Use stored manual calibration value, or ADC midpoint if not calibrated
-            adc_pairs[i].y_center = (adc_pairs[i].joystick_center_y > 0) ? 
-                                    adc_pairs[i].joystick_center_y : 
-                                    static_cast<uint16_t>(ADC_MAX_HALF);
+    // Only initialize if all critical GPIOs are mapped to the specified buttons
+    if (shouldInitializeADC) {
+        for (int i = 0; i < ADC_COUNT; i++) {
+            if(isValidPin(adc_pairs[i].x_pin)) {
+                adc_gpio_init(adc_pairs[i].x_pin);
+                // Use stored manual calibration value, or ADC midpoint if not calibrated
+                adc_pairs[i].x_center = (adc_pairs[i].joystick_center_x > 0) ? 
+                                        adc_pairs[i].joystick_center_x : 
+                                        static_cast<uint16_t>(ADC_MAX_HALF);
+            }
+            if(isValidPin(adc_pairs[i].y_pin)) {
+                adc_gpio_init(adc_pairs[i].y_pin);
+                // Use stored manual calibration value, or ADC midpoint if not calibrated
+                adc_pairs[i].y_center = (adc_pairs[i].joystick_center_y > 0) ? 
+                                        adc_pairs[i].joystick_center_y : 
+                                        static_cast<uint16_t>(ADC_MAX_HALF);
+            }
         }
     }
 }

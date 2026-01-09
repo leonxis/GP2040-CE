@@ -80,4 +80,5 @@ export default {
 		MENU_NAVIGATION_BACK: '菜单 返回',
 		MENU_NAVIGATION_TOGGLE: '菜单 切换',
 	},
+	'pin-not-modifiable': '不可修改',
 };

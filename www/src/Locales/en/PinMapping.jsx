@@ -101,4 +101,5 @@ export default {
 		MENU_NAVIGATION_BACK: 'Menu Back',
 		MENU_NAVIGATION_TOGGLE: 'Menu Toggle',
 	},
+	'pin-not-modifiable': 'Not Modifiable',
 };

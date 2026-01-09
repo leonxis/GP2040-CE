@@ -319,19 +319,25 @@ const PinSelectList = memo(function PinSelectList({
 					<div className="d-flex flex-shrink-0" style={{ width: '3.5rem' }}>
 						<label>GP{index}</label>
 					</div>
-					<CustomSelect
-						isClearable
-						isMulti={!isDisabled(pinData.action) && 
-							// Disable multi-select for keyboard keys
-							!keyboardKeyOptions.some(opt => opt.value === pinData.action) &&
-							// Disable multi-select for action types (non-button actions)
-							!options.some(opt => opt.value === pinData.action && opt.type === 'action')}
-						options={groupedOptions}
-						isDisabled={isDisabled(pinData.action)}
-						getOptionLabel={getOptionLabel}
-						onChange={onChange(pin)}
-						value={getMultiValue(pinData)}
-					/>
+					{index === 0 || index === 1 ? (
+						<span className="text-muted">
+							{t('PinMapping:pin-not-modifiable', { defaultValue: '不可修改' })}
+						</span>
+					) : (
+						<CustomSelect
+							isClearable
+							isMulti={!isDisabled(pinData.action) && 
+								// Disable multi-select for keyboard keys
+								!keyboardKeyOptions.some(opt => opt.value === pinData.action) &&
+								// Disable multi-select for action types (non-button actions)
+								!options.some(opt => opt.value === pinData.action && opt.type === 'action')}
+							options={groupedOptions}
+							isDisabled={isDisabled(pinData.action)}
+							getOptionLabel={getOptionLabel}
+							onChange={onChange(pin)}
+							value={getMultiValue(pinData)}
+						/>
+					)}
 				</div>
 			))}
 		</div>
