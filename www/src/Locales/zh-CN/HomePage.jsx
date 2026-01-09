@@ -4,7 +4,7 @@ export default {
 	'build-text': '构建版本: {{build}}',
 	'current-text': '当前版本: {{version}}',
 	'get-update-text': '获取最新版本',
-	'header-text': '欢迎使用花明楼-HML2040网页驱动工具！请关注BILIBILI花明楼改装！',
+	'header-text': '欢迎使用花明楼-HML2040网页驱动工具。',
 	'latest-text': '最新版本: {{version}}',
 	'memory-flash-text': '闪存',
 	'memory-board-text': '板载闪存',
