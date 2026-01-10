@@ -177,6 +177,16 @@ const INPUT_MODES = [
 		],
 	},
 	{
+		labelKey: 'input-mode-options.ps4b',
+		value: 17,
+		group: 'primary',
+		optional: ['usb'],
+		authentication: ['none'],
+		deviceTypes: [
+			InputModeDeviceType.INPUT_MODE_DEVICE_TYPE_GAMEPAD,
+		],
+	},
+	{
 		labelKey: 'input-mode-options.ps5',
 		value: 13,
 		group: 'primary',
@@ -224,6 +234,12 @@ const INPUT_BOOT_MODES = [
 	{
 		labelKey: 'input-mode-options.ps4',
 		value: 4,
+		group: 'primary',
+		optional: ['usb'],
+	},
+	{
+		labelKey: 'input-mode-options.ps4b',
+		value: 17,
 		group: 'primary',
 		optional: ['usb'],
 	},
@@ -1366,6 +1382,9 @@ export default function SettingsPage() {
 		}
 
 		const inputMode = INPUT_MODES.find((o) => o.value == values.inputMode);
+		if (!inputMode) {
+			return null;
+		}
 		switch (inputMode.labelKey) {
 			case 'input-mode-options.keyboard':
 				return keyboardModeSpecifics(
@@ -1382,6 +1401,9 @@ export default function SettingsPage() {
 					handleChange,
 					inputMode,
 				);
+			case 'input-mode-options.ps4b':
+				// PS4B mode uses PC host mode, no special settings needed
+				return null;
 			case 'input-mode-options.ps5':
 				return ps5ModeSpecifics(
 					values,

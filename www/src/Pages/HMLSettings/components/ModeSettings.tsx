@@ -226,7 +226,7 @@ export default function ModeSettings() {
 				<Row className="mb-3">
 					<Col sm={10}>
 						<span className="text-info">
-							PS4B模式：HID复合设备（游戏手柄+键盘），固定使用电脑主机模式
+							PS4电脑模式：支持键盘背键的PS4手柄模式，不支持主机认证
 						</span>
 					</Col>
 				</Row>

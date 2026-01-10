@@ -274,6 +274,9 @@ void ButtonLayoutScreen::generateHeader() {
                 else
                     statusBar += "   ";
                 break;
+            case INPUT_MODE_PS4B:
+                statusBar += "PS4 PC";
+                break;
             case INPUT_MODE_PS5:
                 statusBar += "PS5";
                 if(((PS4Driver*)DriverManager::getInstance().getDriver())->getAuthSent() == true )
