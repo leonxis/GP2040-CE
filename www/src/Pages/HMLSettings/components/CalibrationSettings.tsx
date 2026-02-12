@@ -61,6 +61,11 @@ import HETrigger, {
 	HETriggerScheme,
 	HETriggerState,
 } from '../../../Addons/HETrigger';
+import {
+	TriggerCalibrationBlock,
+	triggerCalibrationScheme,
+	triggerCalibrationState,
+} from './TriggerCalibration';
 
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
@@ -91,6 +96,7 @@ const schema = yup.object().shape({
 	...drv8833RumbleScheme,
 	...reactiveLEDScheme,
 	...HETriggerScheme,
+	...triggerCalibrationScheme,
 });
 
 export const DEFAULT_VALUES = {
@@ -116,6 +122,7 @@ export const DEFAULT_VALUES = {
 	...reactiveLEDState,
 	...gamepadUSBHostState,
 	...HETriggerState,
+	...triggerCalibrationState,
 } as const;
 
 const FormContext = ({ setStoredData }) => {
@@ -125,9 +132,10 @@ const FormContext = ({ setStoredData }) => {
 	useEffect(() => {
 		async function fetchData() {
 			const data = await WebApi.getAddonsOptions(setLoading);
-
-			setValues(data);
-			setStoredData(JSON.parse(JSON.stringify(data))); // Do a deep copy to keep the original
+			// 合并默认值，避免 API 未返回的字段（如扳机校准）丢失默认配置
+			const merged = { ...DEFAULT_VALUES, ...data };
+			setValues(merged);
+			setStoredData(JSON.parse(JSON.stringify(merged)));
 		}
 		fetchData();
 	}, [setValues]);
@@ -244,7 +252,7 @@ export default function CalibrationSettings() {
 					/>
 
 					<Section title="扳机校准">
-						{/* 扳机校准内容占位 */}
+						<TriggerCalibrationBlock values={values} setFieldValue={setFieldValue} />
 					</Section>
 
 					<FormContext setStoredData={setStoredData} />
