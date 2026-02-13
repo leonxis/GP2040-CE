@@ -35,6 +35,7 @@
 #include "addons/drv8833_rumble.h"
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
+#include "addons/linear_trigger.h"
 #include "addons/tg16_input.h"
 
 #include "CRC32.h"
@@ -1057,6 +1058,14 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     // reminder that this must be set or else nanopb won't retain anything
     config.addonOptions.heTriggerOptions.triggers_count = HETRIGGER_COUNT;
 
+#ifdef LINEAR_TRIGGER_ENABLED
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, enabled, LINEAR_TRIGGER_ENABLED);
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerDeadzone, 5);
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerDeadzone, 5);
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerTravel, 95);
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerTravel, 95);
+#endif
+
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, enabled, KEYBOARD_HOST_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, deprecatedPinDplus, KEYBOARD_HOST_PIN_DPLUS);
@@ -1389,6 +1398,12 @@ void gpioMappingsMigrationCore(Config& config)
     // If we didn't import from protobuf, import from boardconfig
     for(unsigned int i = 0; i < NUM_BANK0_GPIOS; i++) {
         fromBoardConfig(i, boardConfig[i]);
+    }
+
+    // Linear trigger uses fixed pins: GPIO28 = R2, GPIO29 = L2. When on → 28/29 = ASSIGNED_TO_ADDON. When off, leave 28/29 as in loaded config.
+    if (config.addonOptions.linearTriggerOptions.enabled) {
+        markAddonPinIfUsed(LINEAR_R2_PIN);
+        markAddonPinIfUsed(LINEAR_L2_PIN);
     }
 
     // migrate I2C addons to use peripheral manager

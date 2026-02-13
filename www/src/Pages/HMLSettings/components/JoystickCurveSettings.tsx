@@ -552,12 +552,18 @@ const mouseToCurvePoint = (
 
 interface JoystickCurveSettingsProps {
 	values: AddonPropTypes['values'];
+	errors?: AddonPropTypes['errors'];
+	handleChange?: AddonPropTypes['handleChange'];
 	setFieldValue: AddonPropTypes['setFieldValue'];
+	saveMessage?: string;
+	onSaveClick?: () => void;
 }
 
 const JoystickCurveSettings = ({
 	values,
 	setFieldValue,
+	saveMessage = '',
+	onSaveClick,
 }: JoystickCurveSettingsProps) => {
 	const { t } = useTranslation();
 	const { handleSubmit } = useFormikContext();
@@ -2498,16 +2504,21 @@ const JoystickCurveSettings = ({
 			{/* Bottom section: Save button (left) and Toggle switch (right) */}
 			<div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
 				{/* Save button on the left */}
-				<div>
+				<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 					<Button
 						variant="primary"
 						onClick={(e) => {
 							e.preventDefault();
-							handleSubmit();
+							onSaveClick ? onSaveClick() : handleSubmit();
 						}}
 					>
 						{t('Common:button-save-label')}
 					</Button>
+					{saveMessage && (
+						<span className={saveMessage.includes('成功') || saveMessage.includes('success') ? 'text-success' : 'text-danger'}>
+							{saveMessage}
+						</span>
+					)}
 				</div>
 				{/* Toggle switch on the right */}
 				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

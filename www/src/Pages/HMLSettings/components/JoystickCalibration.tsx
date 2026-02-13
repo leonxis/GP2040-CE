@@ -638,6 +638,8 @@ const applyJitterFilterToAdc = (
 const JoystickCalibration = ({
 	values,
 	setFieldValue,
+	saveMessage = '',
+	onSaveClick,
 }: AddonPropTypes) => {
 	const { t } = useTranslation();
 	const { handleSubmit } = useFormikContext();
@@ -1568,10 +1570,15 @@ const JoystickCalibration = ({
 			</Modal>
 			
 			{/* Save Button */}
-			<div className="mt-3">
-				<Button type="button" onClick={() => handleSubmit()}>
+			<div className="mt-3" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+				<Button type="button" onClick={() => (onSaveClick ? onSaveClick() : handleSubmit())}>
 					{t('Common:button-save-label')}
 				</Button>
+				{saveMessage && (
+					<span className={saveMessage.includes('成功') || saveMessage.includes('success') ? 'text-success' : 'text-danger'}>
+						{saveMessage}
+					</span>
+				)}
 			</div>
 
 			{/* Range calibration warning modal */}

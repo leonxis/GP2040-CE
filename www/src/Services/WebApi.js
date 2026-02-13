@@ -492,11 +492,11 @@ async function setAddonsOptions(options) {
 	return Http.post(`${baseUrl}/api/setAddonsOptions`, sanitizeRequest(options))
 		.then((response) => {
 			console.log(response.data);
-			return true;
+			return response.data != null ? response.data : true;
 		})
 		.catch((err) => {
 			console.error(err);
-			return false;
+			return null;
 		});
 }
 

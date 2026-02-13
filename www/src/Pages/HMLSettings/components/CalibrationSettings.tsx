@@ -1,5 +1,5 @@
-import { useContext, useEffect, useState } from 'react';
-import { Button, Form } from 'react-bootstrap';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { Button, Form, Modal } from 'react-bootstrap';
 import { Formik, FormikErrors, FormikHandlers, FormikHelpers, useFormikContext } from 'formik';
 import * as yup from 'yup';
 import { useTranslation } from 'react-i18next';
@@ -61,8 +61,7 @@ import HETrigger, {
 	HETriggerScheme,
 	HETriggerState,
 } from '../../../Addons/HETrigger';
-import {
-	TriggerCalibrationBlock,
+import TriggerCalibrationSettings, {
 	triggerCalibrationScheme,
 	triggerCalibrationState,
 } from './TriggerCalibration';
@@ -73,6 +72,8 @@ export type AddonPropTypes = {
 	handleChange: FormikHandlers['handleChange'];
 	handleCheckbox: (name: keyof typeof DEFAULT_VALUES) => void;
 	setFieldValue: FormikHelpers<typeof DEFAULT_VALUES>['setFieldValue'];
+	saveMessage?: string;
+	onSaveClick?: () => void;
 };
 
 const schema = yup.object().shape({
@@ -182,14 +183,23 @@ function flattenObject(object) {
 	return toReturn;
 }
 
+const TRIGGER_MAPPING_ERROR_MSG = '扳机键位设置错误，请在按键映射中恢复扳机映射为对应扳机键';
+
+type SaveSection = 'joystick' | 'curve' | 'trigger';
+
 export default function CalibrationSettings() {
 	const { updateUsedPins } = useContext(AppContext);
-	const [saveMessage, setSaveMessage] = useState('');
+	const [saveMessageJoystick, setSaveMessageJoystick] = useState('');
+	const [saveMessageCurve, setSaveMessageCurve] = useState('');
+	const [saveMessageTrigger, setSaveMessageTrigger] = useState('');
 	const [storedData, setStoredData] = useState({});
+	const [triggerErrorModalShow, setTriggerErrorModalShow] = useState(false);
+	const lastSaveSectionRef = useRef<SaveSection | null>(null);
 
 	const { t } = useTranslation();
 
 	const onSuccess = async (values: typeof DEFAULT_VALUES) => {
+		const section = lastSaveSectionRef.current;
 		const flattened = flattenObject(storedData);
 
 		// Convert turbo LED color if available
@@ -214,18 +224,39 @@ export default function CalibrationSettings() {
 			}
 		});
 		sanitizeData(resultObject);
-		const success = await WebApi.setAddonsOptions(resultObject);
-		setStoredData(JSON.parse(JSON.stringify(values))); // Update to reflect saved data
-		setSaveMessage(
-			success
-				? t('Common:saved-success-message')
-				: t('Common:saved-error-message'),
-		);
-		if (success) updateUsedPins();
+		const result = await WebApi.setAddonsOptions(resultObject);
+		if (result && result.error) {
+			setTriggerErrorModalShow(true);
+			return;
+		}
+		if (!result) {
+			const msg = t('Common:saved-error-message');
+			if (section === 'joystick') setSaveMessageJoystick(msg);
+			else if (section === 'curve') setSaveMessageCurve(msg);
+			else if (section === 'trigger') setSaveMessageTrigger(msg);
+			return;
+		}
+		setStoredData(JSON.parse(JSON.stringify(values)));
+		const msg = t('Common:saved-success-message');
+		if (section === 'joystick') setSaveMessageJoystick(msg);
+		else if (section === 'curve') setSaveMessageCurve(msg);
+		else if (section === 'trigger') setSaveMessageTrigger(msg);
+		updateUsedPins();
 	};
 
 	return (
 		<div>
+			<Modal show={triggerErrorModalShow} onHide={() => setTriggerErrorModalShow(false)} centered>
+				<Modal.Header closeButton>
+					<Modal.Title>提示</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>{TRIGGER_MAPPING_ERROR_MSG}</Modal.Body>
+				<Modal.Footer>
+					<Button variant="primary" onClick={() => setTriggerErrorModalShow(false)}>
+						确定
+					</Button>
+				</Modal.Footer>
+			</Modal>
 			<Formik
 			enableReinitialize={true}
 			validationSchema={schema}
@@ -242,6 +273,11 @@ export default function CalibrationSettings() {
 							setFieldValue(name, values[name] === 1 ? 0 : 1);
 						}}
 						setFieldValue={setFieldValue}
+						saveMessage={saveMessageJoystick}
+						onSaveClick={() => {
+							lastSaveSectionRef.current = 'joystick';
+							handleSubmit();
+						}}
 					/>
 
 					<JoystickCurveSettings
@@ -249,11 +285,22 @@ export default function CalibrationSettings() {
 						errors={errors}
 						handleChange={handleChange}
 						setFieldValue={setFieldValue}
+						saveMessage={saveMessageCurve}
+						onSaveClick={() => {
+							lastSaveSectionRef.current = 'curve';
+							handleSubmit();
+						}}
 					/>
 
-					<Section title="扳机校准">
-						<TriggerCalibrationBlock values={values} setFieldValue={setFieldValue} />
-					</Section>
+					<TriggerCalibrationSettings
+						values={values}
+						setFieldValue={setFieldValue}
+						saveMessage={saveMessageTrigger}
+						onSaveClick={() => {
+							lastSaveSectionRef.current = 'trigger';
+							handleSubmit();
+						}}
+					/>
 
 					<FormContext setStoredData={setStoredData} />
 				</Form>

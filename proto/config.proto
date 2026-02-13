@@ -936,6 +936,15 @@ message HETriggerOptions
     optional int32 smoothingFactor = 13;
 }
 
+message LinearTriggerOptions
+{
+    optional bool enabled = 1 [default = false];
+    optional uint32 leftTriggerDeadzone = 4 [default = 5];
+    optional uint32 rightTriggerDeadzone = 5 [default = 5];
+    optional uint32 leftTriggerTravel = 6 [default = 95];
+    optional uint32 rightTriggerTravel = 7 [default = 95];
+}
+
 message AddonOptions
 {
     optional BootselButtonOptions bootselButtonOptions = 1;
@@ -968,6 +977,7 @@ message AddonOptions
     optional GamepadUSBHostOptions gamepadUSBHostOptions = 28;
     optional TG16Options tg16Options = 29;
     optional HETriggerOptions heTriggerOptions = 30;
+    optional LinearTriggerOptions linearTriggerOptions = 31;
 }
 
 message MigrationHistory

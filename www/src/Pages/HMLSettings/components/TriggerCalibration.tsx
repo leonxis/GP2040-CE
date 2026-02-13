@@ -1,40 +1,60 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Form, Modal } from 'react-bootstrap';
-import type { FormikHelpers } from 'formik';
 import { useFormikContext } from 'formik';
 import { useTranslation } from 'react-i18next';
 import * as yup from 'yup';
 
+import Section from '../../../Components/Section';
+
+const MIN_TRAVEL_ABOVE_DEADZONE = 5; // 扳机行程须 > 扳机死区 + 5%
+
 export const triggerCalibrationScheme = {
+	linearTriggerEnabled: yup.number().min(0).max(1).label('启用线性扳机'),
 	leftTriggerDeadzone: yup.number().min(0).max(99).label('左扳机死区'),
 	rightTriggerDeadzone: yup.number().min(0).max(99).label('右扳机死区'),
-	leftTriggerTravel: yup.number().min(1).max(100).label('左扳机行程'),
-	rightTriggerTravel: yup.number().min(1).max(100).label('右扳机行程'),
+	leftTriggerTravel: yup
+		.number()
+		.min(1)
+		.max(100)
+		.test(
+			'travel-above-deadzone',
+			'左扳机行程须大于死区至少5%',
+			(value, ctx) =>
+				Number(value) >= Number(ctx.parent?.leftTriggerDeadzone ?? 0) + MIN_TRAVEL_ABOVE_DEADZONE,
+		)
+		.label('左扳机行程'),
+	rightTriggerTravel: yup
+		.number()
+		.min(1)
+		.max(100)
+		.test(
+			'travel-above-deadzone',
+			'右扳机行程须大于死区至少5%',
+			(value, ctx) =>
+				Number(value) >= Number(ctx.parent?.rightTriggerDeadzone ?? 0) + MIN_TRAVEL_ABOVE_DEADZONE,
+		)
+		.label('右扳机行程'),
 };
 
 export const triggerCalibrationState = {
+	linearTriggerEnabled: 0,
 	leftTriggerDeadzone: 5,
 	rightTriggerDeadzone: 5,
 	leftTriggerTravel: 95,
 	rightTriggerTravel: 95,
 };
 
-export type TriggerCalibrationValues = typeof triggerCalibrationState;
-
 const TRIGGER_CANVAS_W = 120;
 const TRIGGER_CANVAS_H = 250;
 const CANVAS_COLUMN_WIDTH = 250;
 const CONTROLS_COLUMN_WIDTH = 250;
-const MIN_TRAVEL_ABOVE_DEADZONE = 5; // 扳机行程 > 扳机死区 + 5%
 
 type TriggerCalibrationBlockProps = {
-	values: TriggerCalibrationValues & Record<string, unknown>;
-	setFieldValue: FormikHelpers<TriggerCalibrationValues & Record<string, unknown>>['setFieldValue'];
+	values: Record<string, unknown>;
+	setFieldValue: (field: string, value: unknown) => void;
 };
 
-export function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBlockProps) {
-	const { handleSubmit } = useFormikContext();
-	const { t } = useTranslation();
+function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBlockProps) {
 	const leftCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightCanvasRef = useRef<HTMLCanvasElement>(null);
 	const [showCalibrateModal, setShowCalibrateModal] = useState(false);
@@ -209,13 +229,6 @@ export function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibr
 				</div>
 			</div>
 
-			{/* 保存按钮：与摇杆校准等栏目相同，独立于 1 行 4 列布局 */}
-			<div className="mt-3">
-				<Button type="button" variant="primary" onClick={() => handleSubmit()}>
-					{t('Common:button-save-label')}
-				</Button>
-			</div>
-
 			{/* 扳机校准模态框（逻辑后续补充） */}
 			<Modal show={showCalibrateModal} onHide={() => setShowCalibrateModal(false)} centered>
 				<Modal.Header closeButton>
@@ -232,4 +245,60 @@ export function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibr
 	);
 }
 
-export default TriggerCalibrationBlock;
+interface TriggerCalibrationSettingsProps {
+	values: Record<string, unknown>;
+	setFieldValue: (field: string, value: unknown) => void;
+	saveMessage?: string;
+	onSaveClick?: () => void;
+}
+
+/**
+ * 扳机校准栏（与摇杆曲线设置栏结构一致）：可折叠内容 + 底部一行（保存按钮左、启用开关右），保存与开关始终显示。
+ */
+export default function TriggerCalibrationSettings({
+	values,
+	setFieldValue,
+	saveMessage = '',
+	onSaveClick,
+}: TriggerCalibrationSettingsProps) {
+	const { t } = useTranslation();
+	const { handleSubmit } = useFormikContext();
+
+	return (
+		<Section title="扳机校准">
+			{values?.linearTriggerEnabled ? (
+				<TriggerCalibrationBlock values={values} setFieldValue={setFieldValue} />
+			) : null}
+			<div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+					<Button
+						variant="primary"
+						onClick={(e) => {
+							e.preventDefault();
+							onSaveClick ? onSaveClick() : handleSubmit();
+						}}
+					>
+						{t('Common:button-save-label')}
+					</Button>
+					{saveMessage && (
+						<span className={saveMessage.includes('成功') || saveMessage.includes('success') ? 'text-success' : 'text-danger'}>
+							{saveMessage}
+						</span>
+					)}
+				</div>
+				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+					<Form.Check
+						type="switch"
+						id="linear-trigger-enabled"
+						label="启用线性扳机"
+						checked={Boolean(values?.linearTriggerEnabled)}
+						onChange={(e) => {
+							const enabled = e.target.checked ? 1 : 0;
+							setFieldValue('linearTriggerEnabled', enabled);
+						}}
+					/>
+				</div>
+			</div>
+		</Section>
+	);
+}
