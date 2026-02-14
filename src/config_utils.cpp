@@ -1064,6 +1064,10 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerDeadzone, 5);
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerTravel, 95);
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerTravel, 95);
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerReleasedRaw, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerReleasedRaw, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerMaxRaw, 4095);
+    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerMaxRaw, 4095);
 #endif
 
     // keyboardMapping

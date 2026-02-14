@@ -22,12 +22,14 @@ public:
     virtual void preprocess();
     virtual void postprocess(bool) {}
     virtual std::string name() { return LINEAR_TRIGGER_ADDON_NAME; }
-    virtual void reinit() {}
+    virtual void reinit() {}  // 线性扳机校准为全局配置，不随 profile 切换，无需在 reinit 中重载
 private:
-    uint32_t deadzoneL;
-    uint32_t deadzoneR;
-    uint32_t travelL;
-    uint32_t travelR;
+    void reloadThresholds();  // 从 Storage 读取配置并重算 minAdc/maxAdc，仅 setup 时调用
+    // 校准与死区/行程在 setup 中一次性算成阈值，preprocess 仅做整数线性映射
+    int32_t minAdcL;
+    int32_t maxAdcL;
+    int32_t minAdcR;
+    int32_t maxAdcR;
 };
 
 #endif // _LINEAR_TRIGGER_H

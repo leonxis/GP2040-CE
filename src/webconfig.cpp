@@ -2029,6 +2029,10 @@ std::string setAddonOptions()
     docToValue(linearTriggerOptions.rightTriggerDeadzone, doc, "rightTriggerDeadzone");
     docToValue(linearTriggerOptions.leftTriggerTravel, doc, "leftTriggerTravel");
     docToValue(linearTriggerOptions.rightTriggerTravel, doc, "rightTriggerTravel");
+    docToValue(linearTriggerOptions.leftTriggerReleasedRaw, doc, "leftTriggerReleasedRaw");
+    docToValue(linearTriggerOptions.rightTriggerReleasedRaw, doc, "rightTriggerReleasedRaw");
+    docToValue(linearTriggerOptions.leftTriggerMaxRaw, doc, "leftTriggerMaxRaw");
+    docToValue(linearTriggerOptions.rightTriggerMaxRaw, doc, "rightTriggerMaxRaw");
 
     // Sync GPIO mapping: when linear trigger on → 28/29 = ASSIGNED_TO_ADDON.
     // When turning off (28/29 were ASSIGNED_TO_ADDON) → reset to 28=R2, 29=L2. When linear trigger stays off, do not touch 28/29.
@@ -2598,7 +2602,25 @@ std::string getAddonOptions()
     writeDoc(doc, "rightTriggerDeadzone", linearTriggerOptions.rightTriggerDeadzone);
     writeDoc(doc, "leftTriggerTravel", linearTriggerOptions.leftTriggerTravel);
     writeDoc(doc, "rightTriggerTravel", linearTriggerOptions.rightTriggerTravel);
+    writeDoc(doc, "leftTriggerReleasedRaw", linearTriggerOptions.leftTriggerReleasedRaw);
+    writeDoc(doc, "rightTriggerReleasedRaw", linearTriggerOptions.rightTriggerReleasedRaw);
+    writeDoc(doc, "leftTriggerMaxRaw", linearTriggerOptions.leftTriggerMaxRaw);
+    writeDoc(doc, "rightTriggerMaxRaw", linearTriggerOptions.rightTriggerMaxRaw);
 
+    return serialize_json(doc);
+}
+
+std::string getTriggerAdcValues()
+{
+    DynamicJsonDocument doc(JSON_OBJECT_SIZE(4));
+    adc_gpio_init(LINEAR_L2_PIN);
+    adc_gpio_init(LINEAR_R2_PIN);
+    adc_select_input(LINEAR_L2_PIN - 26);
+    uint16_t leftRaw = adc_read();
+    adc_select_input(LINEAR_R2_PIN - 26);
+    uint16_t rightRaw = adc_read();
+    doc["leftTriggerRaw"] = leftRaw;
+    doc["rightTriggerRaw"] = rightRaw;
     return serialize_json(doc);
 }
 
@@ -2928,6 +2950,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getProfileOptions", getProfileOptions },
     { "/api/getKeyMappings", getKeyMappings },
     { "/api/getAddonsOptions", getAddonOptions },
+    { "/api/getTriggerAdcValues", getTriggerAdcValues },
     { "/api/getWiiControls", getWiiControls },
     { "/api/getMacroAddonOptions", getMacroAddonOptions },
     { "/api/resetSettings", resetSettings },

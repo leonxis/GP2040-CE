@@ -5,13 +5,20 @@ import { useTranslation } from 'react-i18next';
 import * as yup from 'yup';
 
 import Section from '../../../Components/Section';
+import WebApi from '../../../Services/WebApi';
 
 const MIN_TRAVEL_ABOVE_DEADZONE = 5; // 扳机行程须 > 扳机死区 + 5%
+const ADC_MAX = 4095;
 
 export const triggerCalibrationScheme = {
 	linearTriggerEnabled: yup.number().min(0).max(1).label('启用线性扳机'),
 	leftTriggerDeadzone: yup.number().min(0).max(99).label('左扳机死区'),
 	rightTriggerDeadzone: yup.number().min(0).max(99).label('右扳机死区'),
+	// 校准得到的原始 ADC：松开时的值、按到底时的值（0–4095），供后端校准使用，与行程滑块独立
+	leftTriggerReleasedRaw: yup.number().min(-1).max(ADC_MAX).label('左扳机松开值'),
+	rightTriggerReleasedRaw: yup.number().min(-1).max(ADC_MAX).label('右扳机松开值'),
+	leftTriggerMaxRaw: yup.number().min(-1).max(ADC_MAX).label('左扳机最大行程原始值'),
+	rightTriggerMaxRaw: yup.number().min(-1).max(ADC_MAX).label('右扳机最大行程原始值'),
 	leftTriggerTravel: yup
 		.number()
 		.min(1)
@@ -36,12 +43,17 @@ export const triggerCalibrationScheme = {
 		.label('右扳机行程'),
 };
 
+// 与后端默认一致：未校准时松开=0、最大=4095（全量程）
 export const triggerCalibrationState = {
 	linearTriggerEnabled: 0,
 	leftTriggerDeadzone: 5,
 	rightTriggerDeadzone: 5,
 	leftTriggerTravel: 95,
 	rightTriggerTravel: 95,
+	leftTriggerReleasedRaw: 0,
+	rightTriggerReleasedRaw: 0,
+	leftTriggerMaxRaw: 4095,
+	rightTriggerMaxRaw: 4095,
 };
 
 const TRIGGER_CANVAS_W = 120;
@@ -59,11 +71,22 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 	const rightCanvasRef = useRef<HTMLCanvasElement>(null);
 	const [showCalibrateModal, setShowCalibrateModal] = useState(false);
 	const [calibrateSide, setCalibrateSide] = useState<'left' | 'right'>('left');
+	const [calibrateStep, setCalibrateStep] = useState<1 | 2>(1); // 1=松开扳机 2=按到底
+	const [releasedRawCurrent, setReleasedRawCurrent] = useState<number | null>(null);
+	// 仅第二步点击确定且未取消时才写入表单；取消或异步期间关闭时不再写入
+	const calibrationActiveRef = useRef(false);
+	// 当前扳机 ADC 原始值，用于 canvas 实时填充高度
+	const [leftTriggerCurrentRaw, setLeftTriggerCurrentRaw] = useState<number>(0);
+	const [rightTriggerCurrentRaw, setRightTriggerCurrentRaw] = useState<number>(0);
 
 	const leftDeadzone = Number(values.leftTriggerDeadzone) ?? 5;
 	const rightDeadzone = Number(values.rightTriggerDeadzone) ?? 5;
 	const leftTravel = Number(values.leftTriggerTravel) ?? 95;
 	const rightTravel = Number(values.rightTriggerTravel) ?? 95;
+	const leftReleasedRaw = Number(values.leftTriggerReleasedRaw) ?? 0;
+	const rightReleasedRaw = Number(values.rightTriggerReleasedRaw) ?? 0;
+	const leftMaxRaw = Number(values.leftTriggerMaxRaw) ?? 4095;
+	const rightMaxRaw = Number(values.rightTriggerMaxRaw) ?? 4095;
 
 	// 约束：扳机行程 > 扳机死区 + 5%。调整时如不满足则推动另一滑块
 	const applyLeftDeadzone = (v: number) => {
@@ -91,37 +114,161 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 		}
 	};
 
-	// 扳机行程 canvas 占位（背景透明，显示逻辑后续补充）
+	// 轮询当前扳机 ADC，用于 canvas 实时显示（异步请求，不阻塞主线程，与同页摇杆轮询/绘制互不阻塞）
+	useEffect(() => {
+		let cancelled = false;
+		const poll = async () => {
+			if (cancelled) return;
+			try {
+				const data = await WebApi.getTriggerAdcValues();
+				if (cancelled || !data) return;
+				if (typeof data.leftTriggerRaw === 'number') setLeftTriggerCurrentRaw(data.leftTriggerRaw);
+				if (typeof data.rightTriggerRaw === 'number') setRightTriggerCurrentRaw(data.rightTriggerRaw);
+			} catch {
+				// ignore
+			}
+		};
+		poll();
+		const id = setInterval(poll, 80);
+		return () => {
+			cancelled = true;
+			clearInterval(id);
+		};
+	}, []);
+
+	// 绘制扳机行程 canvas：Y 轴=行程（底=松开，顶=按到底），死区/行程横线，按当前输出比例填充（范围外浅灰 40%，死区-行程段紫色 40%）
+	const drawTriggerCanvas = (
+		ctx: CanvasRenderingContext2D,
+		deadzonePct: number,
+		travelPct: number,
+		releasedRaw: number,
+		maxRaw: number,
+		currentRaw: number,
+	) => {
+		const w = TRIGGER_CANVAS_W;
+		const h = TRIGGER_CANVAS_H;
+		ctx.clearRect(0, 0, w, h);
+		// 无网格；Y 轴：底部=0%（松开），顶部=100%（按到底）
+		const yDeadzone = h * (1 - deadzonePct / 100); // 死区横线（靠近底部）
+		const yTravel = h * (1 - travelPct / 100); // 行程横线（靠近顶部）
+		const range = Math.max(1, maxRaw - releasedRaw);
+		const currentPercent = Math.min(100, Math.max(0, ((currentRaw - releasedRaw) / range) * 100));
+		const fillTop = h * (1 - currentPercent / 100); // 填充上边界（canvas y 向下为正）
+
+		// 1. 死区横线（深灰）
+		ctx.strokeStyle = '#4a4a4a';
+		ctx.lineWidth = 1.5;
+		ctx.beginPath();
+		ctx.moveTo(0, yDeadzone);
+		ctx.lineTo(w, yDeadzone);
+		ctx.stroke();
+
+		// 2. 行程横线（黄色）
+		ctx.strokeStyle = '#d4a800';
+		ctx.beginPath();
+		ctx.moveTo(0, yTravel);
+		ctx.lineTo(w, yTravel);
+		ctx.stroke();
+
+		// 3. 从底部到当前输出高度的填充：横线范围内紫色 40%，范围外浅灰 40%
+		// 填充区域 y: [fillTop, h]。分段： [fillTop, yTravel] 浅灰；[yTravel, yDeadzone] 紫；[yDeadzone, h] 浅灰
+		const lightGray = 'rgba(200, 200, 200, 0.4)';
+		const purple = 'rgba(128, 0, 128, 0.4)';
+
+		// 浅灰色：从 fillTop 到 yTravel（若存在）
+		const grayTopH = Math.max(0, Math.min(yTravel, h) - fillTop);
+		if (grayTopH > 0) {
+			ctx.fillStyle = lightGray;
+			ctx.fillRect(0, fillTop, w, grayTopH);
+		}
+		// 紫色：yTravel 到 yDeadzone 与填充区域交集
+		const bandTop = Math.max(fillTop, yTravel);
+		const bandBottom = Math.min(yDeadzone, h);
+		const bandH = Math.max(0, bandBottom - bandTop);
+		if (bandH > 0) {
+			ctx.fillStyle = purple;
+			ctx.fillRect(0, bandTop, w, bandH);
+		}
+		// 浅灰色：yDeadzone 到 h（若存在）
+		const grayBottomY = Math.max(fillTop, yDeadzone);
+		const grayBottomH = Math.max(0, h - grayBottomY);
+		if (grayBottomH > 0) {
+			ctx.fillStyle = lightGray;
+			ctx.fillRect(0, grayBottomY, w, grayBottomH);
+		}
+	};
+
 	useEffect(() => {
 		const canvas = leftCanvasRef.current;
 		if (!canvas) return;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
-		ctx.clearRect(0, 0, TRIGGER_CANVAS_W, TRIGGER_CANVAS_H);
-		ctx.strokeStyle = '#999';
-		ctx.strokeRect(0, 0, TRIGGER_CANVAS_W, TRIGGER_CANVAS_H);
-		ctx.fillStyle = '#333';
-		ctx.font = '12px sans-serif';
-		ctx.textAlign = 'center';
-		ctx.fillText('左扳机行程', TRIGGER_CANVAS_W / 2, TRIGGER_CANVAS_H / 2);
-	}, []);
+		drawTriggerCanvas(ctx, leftDeadzone, leftTravel, leftReleasedRaw, leftMaxRaw, leftTriggerCurrentRaw);
+	}, [
+		leftDeadzone,
+		leftTravel,
+		leftReleasedRaw,
+		leftMaxRaw,
+		leftTriggerCurrentRaw,
+	]);
+
 	useEffect(() => {
 		const canvas = rightCanvasRef.current;
 		if (!canvas) return;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
-		ctx.clearRect(0, 0, TRIGGER_CANVAS_W, TRIGGER_CANVAS_H);
-		ctx.strokeStyle = '#999';
-		ctx.strokeRect(0, 0, TRIGGER_CANVAS_W, TRIGGER_CANVAS_H);
-		ctx.fillStyle = '#333';
-		ctx.font = '12px sans-serif';
-		ctx.textAlign = 'center';
-		ctx.fillText('右扳机行程', TRIGGER_CANVAS_W / 2, TRIGGER_CANVAS_H / 2);
-	}, []);
+		drawTriggerCanvas(ctx, rightDeadzone, rightTravel, rightReleasedRaw, rightMaxRaw, rightTriggerCurrentRaw);
+	}, [
+		rightDeadzone,
+		rightTravel,
+		rightReleasedRaw,
+		rightMaxRaw,
+		rightTriggerCurrentRaw,
+	]);
 
 	const openCalibrateModal = (side: 'left' | 'right') => {
 		setCalibrateSide(side);
+		setCalibrateStep(1);
+		setReleasedRawCurrent(null);
+		calibrationActiveRef.current = true;
 		setShowCalibrateModal(true);
+	};
+
+	const handleCalibrateClose = () => {
+		calibrationActiveRef.current = false;
+		setShowCalibrateModal(false);
+		setCalibrateStep(1);
+		setReleasedRawCurrent(null);
+	};
+
+	const handleCalibrateConfirm = async () => {
+		const data = await WebApi.getTriggerAdcValues();
+		if (!data || (data.leftTriggerRaw == null && data.rightTriggerRaw == null)) {
+			return;
+		}
+		const raw = calibrateSide === 'left' ? data.leftTriggerRaw : data.rightTriggerRaw;
+		const rawNum = Number(raw);
+
+		if (calibrateStep === 1) {
+			if (!calibrationActiveRef.current) return;
+			setReleasedRawCurrent(rawNum);
+			setCalibrateStep(2);
+			return;
+		}
+
+		// Step 2: 仅在本步点击确定且用户未点击取消时才写入表单
+		if (!calibrationActiveRef.current) return;
+		const released = releasedRawCurrent ?? 0;
+		const maxRaw = rawNum;
+		if (calibrateSide === 'left') {
+			setFieldValue('leftTriggerReleasedRaw', released);
+			setFieldValue('leftTriggerMaxRaw', maxRaw);
+		} else {
+			setFieldValue('rightTriggerReleasedRaw', released);
+			setFieldValue('rightTriggerMaxRaw', maxRaw);
+		}
+		calibrationActiveRef.current = false;
+		handleCalibrateClose();
 	};
 
 	return (
@@ -229,15 +376,26 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 				</div>
 			</div>
 
-			{/* 扳机校准模态框（逻辑后续补充） */}
-			<Modal show={showCalibrateModal} onHide={() => setShowCalibrateModal(false)} centered>
+			{/* 扳机校准模态框：第一步松开扳机点确定，第二步按到底点确定，得到松开值与最大行程两段数据 */}
+			<Modal show={showCalibrateModal} onHide={handleCalibrateClose} centered>
 				<Modal.Header closeButton>
 					<Modal.Title>{calibrateSide === 'left' ? '校准左扳机' : '校准右扳机'}</Modal.Title>
 				</Modal.Header>
-				<Modal.Body>扳机最大行程校准（逻辑后续补充）</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowCalibrateModal(false)}>
-						关闭
+				<Modal.Body>
+					{calibrateStep === 1
+						? (calibrateSide === 'left'
+							? '请彻底松开左扳机后点击确定键。'
+							: '请彻底松开右扳机后点击确定键。')
+						: (calibrateSide === 'left'
+							? '请将左扳机按到底后点击确定键。'
+							: '请将右扳机按到底后点击确定键。')}
+				</Modal.Body>
+				<Modal.Footer style={{ justifyContent: 'flex-end' }}>
+					<Button variant="secondary" onClick={handleCalibrateClose}>
+						取消
+					</Button>
+					<Button variant="primary" onClick={handleCalibrateConfirm}>
+						确定
 					</Button>
 				</Modal.Footer>
 			</Modal>

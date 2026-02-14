@@ -480,6 +480,16 @@ async function getAddonsOptions(setLoading) {
 	}
 }
 
+async function getTriggerAdcValues() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getTriggerAdcValues`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+}
+
 async function setAddonsOptions(options) {
 	if (options.keyboardHostMap) {
 		let data = {};
@@ -731,6 +741,7 @@ export default {
 	setKeyMappings,
 	getAddonsOptions,
 	setAddonsOptions,
+	getTriggerAdcValues,
 	getMacroAddonOptions,
 	setMacroAddonOptions,
 	setPS4Options,

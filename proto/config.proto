@@ -943,6 +943,10 @@ message LinearTriggerOptions
     optional uint32 rightTriggerDeadzone = 5 [default = 5];
     optional uint32 leftTriggerTravel = 6 [default = 95];
     optional uint32 rightTriggerTravel = 7 [default = 95];
+    optional int32 leftTriggerReleasedRaw = 8 [default = 0];
+    optional int32 rightTriggerReleasedRaw = 9 [default = 0];
+    optional int32 leftTriggerMaxRaw = 10 [default = 4095];
+    optional int32 rightTriggerMaxRaw = 11 [default = 4095];
 }
 
 message AddonOptions

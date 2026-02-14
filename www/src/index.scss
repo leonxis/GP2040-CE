@@ -32,6 +32,21 @@ body {
 	-moz-osx-font-smoothing: grayscale;
 	scrollbar-gutter: stable;
 }
+
+/* Prevent Bootstrap modal from shifting page content left when it adds padding-right for scrollbar.
+   We already use scrollbar-gutter: stable, so do not add extra padding when body has .modal-open. */
+body.modal-open {
+	padding-right: 0 !important;
+}
+body.modal-open .fixed-top,
+body.modal-open .fixed-bottom,
+body.modal-open .is-fixed,
+body.modal-open .sticky-top {
+	padding-right: 0 !important;
+}
+body.modal-open .sticky-top {
+	margin-right: 0 !important;
+}
 h1 {
 	font-size: 1.5rem;
 }
