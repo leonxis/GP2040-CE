@@ -393,6 +393,16 @@ enum GpioAction
     KEYBOARD_KEY_CTRL            = 157;
     KEYBOARD_KEY_SHIFT           = 158;
     KEYBOARD_KEY_ALT_F4          = 159;
+    KEYBOARD_KEY_0               = 160;
+    KEYBOARD_KEY_1               = 161;
+    KEYBOARD_KEY_2               = 162;
+    KEYBOARD_KEY_3               = 163;
+    KEYBOARD_KEY_4               = 164;
+    KEYBOARD_KEY_5               = 165;
+    KEYBOARD_KEY_6               = 166;
+    KEYBOARD_KEY_7               = 167;
+    KEYBOARD_KEY_8               = 168;
+    KEYBOARD_KEY_9               = 169;
 }
 
 enum GpioDirection

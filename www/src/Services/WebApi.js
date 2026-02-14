@@ -215,6 +215,44 @@ async function getDisplayOptions() {
 	}
 }
 
+async function getFourKeyTouchpadOptions() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getFourKeyTouchpadOptions`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+async function setFourKeyTouchpadOptions(options) {
+	try {
+		await Http.post(`${baseUrl}/api/setFourKeyTouchpadOptions`, options);
+		return true;
+	} catch (error) {
+		console.error(error);
+		return false;
+	}
+}
+
+async function getFnKeyMappingOptions() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getFnKeyMappingOptions`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+async function setFnKeyMappingOptions(options) {
+	try {
+		await Http.post(`${baseUrl}/api/setFnKeyMappingOptions`, options);
+		return true;
+	} catch (error) {
+		console.error(error);
+		return false;
+	}
+}
+
 async function setDisplayOptions(options, isPreview) {
 	let newOptions = sanitizeRequest(options);
 	newOptions.enabled = parseInt(options.enabled);
@@ -727,6 +765,10 @@ export default {
 	resetSettings,
 	getDisplayOptions,
 	setDisplayOptions,
+	getFourKeyTouchpadOptions,
+	setFourKeyTouchpadOptions,
+	getFnKeyMappingOptions,
+	setFnKeyMappingOptions,
 	getGamepadOptions,
 	setGamepadOptions,
 	getLedOptions,

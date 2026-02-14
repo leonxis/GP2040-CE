@@ -1069,6 +1069,25 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerMaxRaw, 4095);
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerMaxRaw, 4095);
 #endif
+    INIT_UNSET_PROPERTY(config.addonOptions.fourKeyTouchpadOptions, enabled, 0);
+    {
+        auto& opts = config.addonOptions.fourKeyTouchpadOptions;
+        if (!opts.has_key1Mapping) { opts.key1Mapping.action = GpioAction::NONE; opts.key1Mapping.customButtonMask = 0; opts.key1Mapping.customDpadMask = 0; opts.has_key1Mapping = true; }
+        if (!opts.has_key2Mapping) { opts.key2Mapping.action = GpioAction::NONE; opts.key2Mapping.customButtonMask = 0; opts.key2Mapping.customDpadMask = 0; opts.has_key2Mapping = true; }
+        if (!opts.has_key3Mapping) { opts.key3Mapping.action = GpioAction::NONE; opts.key3Mapping.customButtonMask = 0; opts.key3Mapping.customDpadMask = 0; opts.has_key3Mapping = true; }
+        if (!opts.has_key4Mapping) { opts.key4Mapping.action = GpioAction::NONE; opts.key4Mapping.customButtonMask = 0; opts.key4Mapping.customDpadMask = 0; opts.has_key4Mapping = true; }
+    }
+    {
+        auto& fn = config.addonOptions.fnKeyMappingOptions;
+        if (!fn.has_leftFnMapping)  { fn.leftFnMapping.action = GpioAction::NONE;  fn.leftFnMapping.customButtonMask = 0; fn.leftFnMapping.customDpadMask = 0; fn.has_leftFnMapping = true; }
+        if (!fn.has_rightFnMapping) { fn.rightFnMapping.action = GpioAction::NONE; fn.rightFnMapping.customButtonMask = 0; fn.rightFnMapping.customDpadMask = 0; fn.has_rightFnMapping = true; }
+        if (!fn.has_leftMtMapping)  { fn.leftMtMapping.action = GpioAction::NONE;  fn.leftMtMapping.customButtonMask = 0; fn.leftMtMapping.customDpadMask = 0; fn.has_leftMtMapping = true; }
+        if (!fn.has_rightMtMapping) { fn.rightMtMapping.action = GpioAction::NONE; fn.rightMtMapping.customButtonMask = 0; fn.rightMtMapping.customDpadMask = 0; fn.has_rightMtMapping = true; }
+        INIT_UNSET_PROPERTY(fn, leftFnPin, -1);
+        INIT_UNSET_PROPERTY(fn, rightFnPin, -1);
+        INIT_UNSET_PROPERTY(fn, leftMtPin, -1);
+        INIT_UNSET_PROPERTY(fn, rightMtPin, -1);
+    }
 
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, enabled, KEYBOARD_HOST_ENABLED);
@@ -1408,6 +1427,15 @@ void gpioMappingsMigrationCore(Config& config)
     if (config.addonOptions.linearTriggerOptions.enabled) {
         markAddonPinIfUsed(LINEAR_R2_PIN);
         markAddonPinIfUsed(LINEAR_L2_PIN);
+    }
+
+    // 4-key touchpad (BS814A-2) uses I2C1 pins when I2C1 is off: SDA=SCK, SCL=DATA.
+    if (config.addonOptions.fourKeyTouchpadOptions.enabled) {
+        if (isValidPin(peripheralOptions.blockI2C1.sda))
+            markAddonPinIfUsed(peripheralOptions.blockI2C1.sda);
+        if (isValidPin(peripheralOptions.blockI2C1.scl))
+            markAddonPinIfUsed(peripheralOptions.blockI2C1.scl);
+        // GPIO12 仍执行其引脚映射；仅作为触摸板使能键参与逻辑，不占用
     }
 
     // migrate I2C addons to use peripheral manager

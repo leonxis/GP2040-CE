@@ -783,6 +783,16 @@ bool PS4BDriver::process(Gamepad * gamepad) {
         if (gamepad->pressedKeyboardKeyX() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_X;
         if (gamepad->pressedKeyboardKeyY() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_Y;
         if (gamepad->pressedKeyboardKeyZ() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_Z;
+        if (gamepad->pressedKeyboardKey0() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_0;
+        if (gamepad->pressedKeyboardKey1() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_1;
+        if (gamepad->pressedKeyboardKey2() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_2;
+        if (gamepad->pressedKeyboardKey3() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_3;
+        if (gamepad->pressedKeyboardKey4() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_4;
+        if (gamepad->pressedKeyboardKey5() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_5;
+        if (gamepad->pressedKeyboardKey6() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_6;
+        if (gamepad->pressedKeyboardKey7() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_7;
+        if (gamepad->pressedKeyboardKey8() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_8;
+        if (gamepad->pressedKeyboardKey9() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_9;
     }
 
     // Send keyboard report (Interface 1, no report ID needed for single-report interface)

@@ -278,6 +278,7 @@ src/addons/bootsel_button.cpp
 src/addons/focus_mode.cpp
 src/addons/he_trigger.cpp
 src/addons/linear_trigger.cpp
+src/addons/four_key_touchpad.cpp
 src/addons/buzzerspeaker.cpp
 src/addons/dualdirectional.cpp
 src/addons/keyboard_host.cpp

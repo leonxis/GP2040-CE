@@ -21,11 +21,11 @@ class BackStickMappingScreen : public GPScreen {
         virtual void drawScreen();
     private:
         enum MappingState {
-            STATE_SELECT_STICK,      // Select Left stick or Right stick
-            STATE_MAPPING_GPIO15,     // Mapping GPIO15 (Left Plus backstick)
-            STATE_MAPPING_GPIO22,     // Mapping GPIO22 (Left backstick)
-            STATE_MAPPING_GPIO14,     // Mapping GPIO14 (Right Plus backstick)
-            STATE_MAPPING_GPIO25,     // Mapping GPIO25 (Right backstick)
+            STATE_SELECT_STICK,      // Select back key (4 items)
+            STATE_MAPPING_GPIO24,     // Left back 1  (GPIO24)
+            STATE_MAPPING_GPIO25,     // Right back 1 (GPIO25)
+            STATE_MAPPING_GPIO26,     // Left back 2  (GPIO26)
+            STATE_MAPPING_GPIO27,     // Right back 2 (GPIO27)
             STATE_COMPLETE           // Show restart prompt
         };
         
@@ -35,10 +35,10 @@ class BackStickMappingScreen : public GPScreen {
         
         // Menu data
         std::vector<MenuEntry> stickSelectionMenu;
-        std::vector<MenuEntry> gpio15MappingMenu;
-        std::vector<MenuEntry> gpio22MappingMenu;
-        std::vector<MenuEntry> gpio14MappingMenu;
+        std::vector<MenuEntry> gpio24MappingMenu;
         std::vector<MenuEntry> gpio25MappingMenu;
+        std::vector<MenuEntry> gpio26MappingMenu;
+        std::vector<MenuEntry> gpio27MappingMenu;
         
         // Current menu pointer
         std::vector<MenuEntry>* currentMenu;
@@ -49,15 +49,15 @@ class BackStickMappingScreen : public GPScreen {
         const uint8_t menuLineSize = 4;
         bool isMenuReady = false;
         
-        // GPIO mapping state
-        GpioAction prevGPIO15Action;
-        GpioAction updateGPIO15Action;
-        GpioAction prevGPIO22Action;
-        GpioAction updateGPIO22Action;
-        GpioAction prevGPIO14Action;
-        GpioAction updateGPIO14Action;
+        // GPIO mapping state (GPIO24=左背键1, GPIO25=右背键1, GPIO26=左背键2, GPIO27=右背键2)
+        GpioAction prevGPIO24Action;
+        GpioAction updateGPIO24Action;
         GpioAction prevGPIO25Action;
         GpioAction updateGPIO25Action;
+        GpioAction prevGPIO26Action;
+        GpioAction updateGPIO26Action;
+        GpioAction prevGPIO27Action;
+        GpioAction updateGPIO27Action;
         bool changesPending = false;
         Mask_t prevValues = 0;
         int8_t exitToScreen = -1;
@@ -70,21 +70,20 @@ class BackStickMappingScreen : public GPScreen {
         GamepadButtonMapping* mapMenuBack = nullptr;
         
         // Helper functions
-        void buildButtonMappingMenu(std::vector<MenuEntry>* menu, std::function<int32_t()> currentValueFunc, std::function<void()> selectFunc, bool isGPIO22);
+        void buildButtonMappingMenu(std::vector<MenuEntry>* menu, std::function<int32_t()> currentValueFunc, std::function<void()> selectFunc, bool isGPIO26);
         void selectStickType();
         int32_t currentStickType();
         void enterMapping(int stickIndex);
-        void selectGPIO15Mapping();
-        int32_t currentGPIO15Mapping();
-        void selectGPIO22Mapping();
-        int32_t currentGPIO22Mapping();
-        void selectGPIO14Mapping();
-        int32_t currentGPIO14Mapping();
+        void selectGPIO24Mapping();
+        int32_t currentGPIO24Mapping();
         void selectGPIO25Mapping();
         int32_t currentGPIO25Mapping();
+        void selectGPIO26Mapping();
+        int32_t currentGPIO26Mapping();
+        void selectGPIO27Mapping();
+        int32_t currentGPIO27Mapping();
         void saveOptions();
         void updateMenuNavigation(GpioAction action);
-        bool isUSBPeripheralEnabled();
 };
 
 #endif

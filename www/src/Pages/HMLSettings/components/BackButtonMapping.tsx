@@ -11,6 +11,7 @@ import useProfilesStore, { MaskPayload } from '../../../Store/useProfilesStore';
 import CustomSelect from '../../../Components/CustomSelect';
 import { BUTTON_MASKS, DPAD_MASKS, getButtonLabels } from '../../../Data/Buttons';
 import { BUTTON_ACTIONS, PinActionValues } from '../../../Data/Pins';
+import WebApi from '../../../Services/WebApi';
 
 type OptionType = {
 	label: string;
@@ -42,9 +43,9 @@ const isDisabled = (action: PinActionValues) =>
 
 // Check if action is a keyboard key (KEYBOARD_KEY_* actions)
 const isKeyboardKey = (action: PinActionValues) => {
-	// Keyboard key actions range from KEYBOARD_KEY_A (131) to KEYBOARD_KEY_ALT_F4 (159)
+	// Keyboard key actions range from KEYBOARD_KEY_A (131) to KEYBOARD_KEY_9 (169)
 	return action >= BUTTON_ACTIONS.KEYBOARD_KEY_A && 
-	       action <= BUTTON_ACTIONS.KEYBOARD_KEY_ALT_F4;
+	       action <= BUTTON_ACTIONS.KEYBOARD_KEY_9;
 };
 
 const options = Object.entries(BUTTON_ACTIONS)
@@ -97,6 +98,16 @@ const keyboardKeyOptions: OptionType[] = [
 	{ label: 'KEYBOARD_KEY_CTRL', value: BUTTON_ACTIONS.KEYBOARD_KEY_CTRL, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
 	{ label: 'KEYBOARD_KEY_SHIFT', value: BUTTON_ACTIONS.KEYBOARD_KEY_SHIFT, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
 	{ label: 'KEYBOARD_KEY_ALT_F4', value: BUTTON_ACTIONS.KEYBOARD_KEY_ALT_F4, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_0', value: BUTTON_ACTIONS.KEYBOARD_KEY_0, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_1', value: BUTTON_ACTIONS.KEYBOARD_KEY_1, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_2', value: BUTTON_ACTIONS.KEYBOARD_KEY_2, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_3', value: BUTTON_ACTIONS.KEYBOARD_KEY_3, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_4', value: BUTTON_ACTIONS.KEYBOARD_KEY_4, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_5', value: BUTTON_ACTIONS.KEYBOARD_KEY_5, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_6', value: BUTTON_ACTIONS.KEYBOARD_KEY_6, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_7', value: BUTTON_ACTIONS.KEYBOARD_KEY_7, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_8', value: BUTTON_ACTIONS.KEYBOARD_KEY_8, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_9', value: BUTTON_ACTIONS.KEYBOARD_KEY_9, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
 ];
 
 const groupedOptions = [
@@ -146,6 +157,39 @@ const getMultiValue = (pinData: MaskPayload) => {
 		: options.filter((option) => option.value === pinData.action);
 };
 
+// 从下拉选中值生成 MaskPayload（与背键/按键交换共用）
+function getPayloadFromSelected(
+	selected: MultiValue<OptionType> | SingleValue<OptionType>,
+): MaskPayload {
+	if (!selected || (Array.isArray(selected) && !selected.length)) {
+		return { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 };
+	}
+	if (Array.isArray(selected) && selected.length > 1) {
+		const hasKeyboard = selected.some((opt) => opt.type === 'keyboard');
+		const hasAction = selected.some((opt) => opt.type === 'action');
+		if (hasKeyboard || hasAction) {
+			const last = selected[selected.length - 1];
+			return { action: last.value, customButtonMask: 0, customDpadMask: 0 };
+		}
+		return selected.reduce(
+			(acc, option) => ({
+				...acc,
+				customButtonMask:
+					option.type === 'customButtonMask'
+						? acc.customButtonMask ^ option.customButtonMask
+						: acc.customButtonMask,
+				customDpadMask:
+					option.type === 'customDpadMask'
+						? acc.customDpadMask ^ option.customDpadMask
+						: acc.customDpadMask,
+			}),
+			{ action: BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO, customButtonMask: 0, customDpadMask: 0 },
+		);
+	}
+	const single = Array.isArray(selected) ? selected[0] : selected;
+	return { action: single.value, customButtonMask: 0, customDpadMask: 0 };
+}
+
 export default function BackButtonMapping() {
 	const { t } = useTranslation();
 	const appContext = useContext(AppContext);
@@ -153,6 +197,24 @@ export default function BackButtonMapping() {
 	const saveProfiles = useProfilesStore((state) => state.saveProfiles);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
+	// 触摸板映射（KEY1=左上, KEY4=右上, KEY2=左下, KEY3=右下）
+	const [touchpadOptions, setTouchpadOptions] = useState<Record<string, MaskPayload>>({
+		key1: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		key4: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		key2: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		key3: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+	});
+	const [touchpadSaveMsg, setTouchpadSaveMsg] = useState('');
+	const [touchpadSaving, setTouchpadSaving] = useState(false);
+	// FN键映射（左FN、右FN、左MT、右MT；引脚先留空）
+	const [fnOptions, setFnOptions] = useState<Record<string, MaskPayload>>({
+		leftFn: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		rightFn: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		leftMt: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		rightMt: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+	});
+	const [fnSaveMsg, setFnSaveMsg] = useState('');
+	const [fnSaving, setFnSaving] = useState(false);
 
 	// 使用useProfilesStore获取base profile（索引0）的引脚映射
 	const pins = useProfilesStore(
@@ -180,62 +242,18 @@ export default function BackButtonMapping() {
 	const onChange = useCallback(
 		(pin: string) =>
 			(selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
-				// Handle clearing
-				if (!selected || (Array.isArray(selected) && !selected.length)) {
-					setProfilePin(0, pin, {
-						action: BUTTON_ACTIONS.NONE,
-						customButtonMask: 0,
-						customDpadMask: 0,
-					});
-				} else if (Array.isArray(selected) && selected.length > 1) {
-					// Check if selected contains keyboard keys or action types
-					const hasKeyboard = selected.some(opt => opt.type === 'keyboard');
-					const hasAction = selected.some(opt => opt.type === 'action');
-					
-					// If contains keyboard or action, only allow single selection (prevent combinations)
-					if (hasKeyboard || hasAction) {
-						const lastSelected = selected[selected.length - 1];
-						setProfilePin(0, pin, {
-							action: lastSelected.value,
-							customButtonMask: 0,
-							customDpadMask: 0,
-						});
-					} else {
-						// Allow button combinations (only customButtonMask and customDpadMask types)
-						setProfilePin(
-							0,
-							pin,
-							selected.reduce(
-								(masks, option) => ({
-									...masks,
-									customButtonMask:
-										option.type === 'customButtonMask'
-											? masks.customButtonMask ^ option.customButtonMask
-											: masks.customButtonMask,
-									customDpadMask:
-										option.type === 'customDpadMask'
-											? masks.customDpadMask ^ option.customDpadMask
-											: masks.customDpadMask,
-								}),
-								{
-									action: BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO,
-									customButtonMask: 0,
-									customDpadMask: 0,
-								},
-							),
-						);
-					}
-				} else {
-					const singleSelected = Array.isArray(selected) ? selected[0] : selected;
-					setProfilePin(0, pin, {
-						action: singleSelected.value,
-						customButtonMask: 0,
-						customDpadMask: 0,
-					});
-				}
+				setProfilePin(0, pin, getPayloadFromSelected(selected));
 			},
 		[setProfilePin],
 	);
+
+	// 触摸板映射 / FN 键映射 变更
+	const onTouchpadChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
+		setTouchpadOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
+	}, []);
+	const onFnChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
+		setFnOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
+	}, []);
 
 	const getOptionLabel = useCallback(
 		(option: OptionType) => {
@@ -265,6 +283,77 @@ export default function BackButtonMapping() {
 			fetchProfiles();
 		}
 	}, []);
+
+	// 加载触摸板映射与 FN 键映射
+	React.useEffect(() => {
+		const load = async () => {
+			const [touchpad, fn] = await Promise.all([
+				WebApi.getFourKeyTouchpadOptions(),
+				WebApi.getFnKeyMappingOptions(),
+			]);
+			const toPayload = (m: { action?: number; customButtonMask?: number; customDpadMask?: number } | undefined): MaskPayload =>
+				m ? { action: (m.action ?? BUTTON_ACTIONS.NONE) as PinActionValues, customButtonMask: m.customButtonMask ?? 0, customDpadMask: m.customDpadMask ?? 0 } : defaultPinData;
+			if (touchpad) {
+				setTouchpadOptions({
+					key1: toPayload(touchpad.key1),
+					key4: toPayload(touchpad.key4),
+					key2: toPayload(touchpad.key2),
+					key3: toPayload(touchpad.key3),
+				});
+			}
+			if (fn) {
+				setFnOptions({
+					leftFn: toPayload(fn.leftFn),
+					rightFn: toPayload(fn.rightFn),
+					leftMt: toPayload(fn.leftMt),
+					rightMt: toPayload(fn.rightMt),
+				});
+			}
+		};
+		load();
+	}, []);
+
+	const handleSaveTouchpad = useCallback(async () => {
+		setTouchpadSaveMsg('');
+		setTouchpadSaving(true);
+		try {
+			const payload = {
+				key1: touchpadOptions.key1,
+				key2: touchpadOptions.key2,
+				key3: touchpadOptions.key3,
+				key4: touchpadOptions.key4,
+			};
+			await WebApi.setFourKeyTouchpadOptions(payload);
+			setTouchpadSaveMsg(t('Common:saved-success-message'));
+			setTimeout(() => setTouchpadSaveMsg(''), 3000);
+		} catch (e) {
+			setTouchpadSaveMsg(t('Common:saved-error-message'));
+			setTimeout(() => setTouchpadSaveMsg(''), 3000);
+		} finally {
+			setTouchpadSaving(false);
+		}
+	}, [touchpadOptions, t]);
+
+	const handleSaveFn = useCallback(async () => {
+		setFnSaveMsg('');
+		setFnSaving(true);
+		try {
+			const payload = {
+				leftFn: fnOptions.leftFn,
+				rightFn: fnOptions.rightFn,
+				leftMt: fnOptions.leftMt,
+				rightMt: fnOptions.rightMt,
+			};
+			await WebApi.setFnKeyMappingOptions(payload);
+			setFnSaveMsg(t('Common:saved-success-message'));
+			setTimeout(() => setFnSaveMsg(''), 3000);
+		} catch (e) {
+			setFnSaveMsg(t('Common:saved-error-message'));
+			setTimeout(() => setFnSaveMsg(''), 3000);
+		} finally {
+			setFnSaving(false);
+		}
+	}, [fnOptions, t]);
 
 	// 保存引脚映射
 	const handleSave = useCallback(async () => {
@@ -299,33 +388,31 @@ export default function BackButtonMapping() {
 	// 生成pinKey的工具函数
 	const getPinKey = (pin: number) => `pin${pin < 10 ? '0' : ''}${pin}`;
 
-	// 背键映射的GPIO引脚列表
-	const gpioPins = [15, 14, 22, 25, 11, 23];
+	// 背键映射的GPIO引脚列表（左背键1=24, 右背键1=25, 左背键2=26, 右背键2=27）
+	const gpioPins = [24, 25, 26, 27];
 	
 	// 背键GPIO引脚标签映射
 	const backButtonLabels: Record<number, string> = {
-		14: '右背键1（GPIO14）',
-		15: '左背键1（GPIO15）',
-		22: '左背键2（GPIO22）',
-		25: '右背键2（GPIO25）',
-		11: 'PS键（GPIO11）',
-		23: '屏幕菜单（GPIO23）',
+		24: '左背键1',
+		25: '右背键1',
+		26: '左背键2',
+		27: '右背键2',
 	};
 	
 	// 按键交换的GPIO引脚列表
 	const swapGpioPins = [
-		{ pin: 2, label: '右', pinKey: getPinKey(2) },
-		{ pin: 3, label: '左', pinKey: getPinKey(3) },
-		{ pin: 12, label: '下', pinKey: getPinKey(12) },
-		{ pin: 13, label: '上', pinKey: getPinKey(13) },
-		{ pin: 10, label: '圆', pinKey: getPinKey(10) },
-		{ pin: 4, label: '叉', pinKey: getPinKey(4) },
-		{ pin: 5, label: '三角', pinKey: getPinKey(5) },
-		{ pin: 9, label: '方块', pinKey: getPinKey(9) },
-		{ pin: 19, label: 'L1', pinKey: getPinKey(19) },
-		{ pin: 18, label: 'L2', pinKey: getPinKey(18) },
-		{ pin: 6, label: 'R1', pinKey: getPinKey(6) },
-		{ pin: 7, label: 'R2', pinKey: getPinKey(7) },
+		{ pin: 16, label: '左键', pinKey: getPinKey(16) },
+		{ pin: 17, label: '右键', pinKey: getPinKey(17) },
+		{ pin: 23, label: '上键', pinKey: getPinKey(23) },
+		{ pin: 7, label: '下键', pinKey: getPinKey(7) },
+		{ pin: 9, label: '圆圈', pinKey: getPinKey(9) },
+		{ pin: 15, label: '叉叉', pinKey: getPinKey(15) },
+		{ pin: 14, label: '三角', pinKey: getPinKey(14) },
+		{ pin: 13, label: '方块', pinKey: getPinKey(13) },
+		{ pin: 22, label: '左肩键', pinKey: getPinKey(22) },
+		{ pin: 29, label: '左扳机', pinKey: getPinKey(29) },
+		{ pin: 21, label: '右肩键', pinKey: getPinKey(21) },
+		{ pin: 28, label: '右扳机', pinKey: getPinKey(28) },
 	];
 
 	// 保存按钮组件（避免重复代码）
@@ -389,6 +476,100 @@ export default function BackButtonMapping() {
 						})}
 					</Row>
 					{SaveButtonSection}
+				</Card.Body>
+			</Card>
+			<Card style={{ marginBottom: '1rem' }}>
+				<Card.Header>触摸板映射</Card.Header>
+				<Card.Body>
+					<Row className="g-3">
+						{[
+							{ key: 'key1', label: '左上触摸键（KEY1）' },
+							{ key: 'key4', label: '右上触摸键（KEY4）' },
+							{ key: 'key2', label: '左下触摸键（KEY2）' },
+							{ key: 'key3', label: '右下触摸键（KEY3）' },
+						].map(({ key, label }) => {
+							const mappingData = touchpadOptions[key] || defaultPinData;
+							return (
+								<Col sm={6} md={6} key={`touchpad-${key}`}>
+									<div className="d-flex align-items-center">
+										<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
+											<label>{label}</label>
+										</div>
+										<CustomSelect
+											isClearable
+											isMulti={!isDisabled(mappingData.action) &&
+												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
+												!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
+											options={groupedOptions}
+											isDisabled={isDisabled(mappingData.action)}
+											getOptionLabel={getOptionLabel}
+											onChange={onTouchpadChange(key)}
+											value={getMultiValue(mappingData)}
+										/>
+									</div>
+								</Col>
+							);
+						})}
+					</Row>
+					<Row className="mt-3">
+						<Col sm={4}>
+							<Button variant="primary" onClick={handleSaveTouchpad} disabled={touchpadSaving}>
+								{t('Common:button-save-label')}
+							</Button>
+							{touchpadSaveMsg && (
+								<span className={`ms-3 ${touchpadSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
+									{touchpadSaveMsg}
+								</span>
+							)}
+						</Col>
+					</Row>
+				</Card.Body>
+			</Card>
+			<Card style={{ marginBottom: '1rem' }}>
+				<Card.Header>FN键映射</Card.Header>
+				<Card.Body>
+					<Row className="g-3">
+						{[
+							{ key: 'leftFn', label: '左FN键' },
+							{ key: 'rightFn', label: '右FN键' },
+							{ key: 'leftMt', label: '左MT键' },
+							{ key: 'rightMt', label: '右MT键' },
+						].map(({ key, label }) => {
+							const mappingData = fnOptions[key] || defaultPinData;
+							return (
+								<Col sm={6} md={6} key={`fn-${key}`}>
+									<div className="d-flex align-items-center">
+										<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
+											<label>{label}</label>
+										</div>
+										<CustomSelect
+											isClearable
+											isMulti={!isDisabled(mappingData.action) &&
+												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
+												!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
+											options={groupedOptions}
+											isDisabled={isDisabled(mappingData.action)}
+											getOptionLabel={getOptionLabel}
+											onChange={onFnChange(key)}
+											value={getMultiValue(mappingData)}
+										/>
+									</div>
+								</Col>
+							);
+						})}
+					</Row>
+					<Row className="mt-3">
+						<Col sm={4}>
+							<Button variant="primary" onClick={handleSaveFn} disabled={fnSaving}>
+								{t('Common:button-save-label')}
+							</Button>
+							{fnSaveMsg && (
+								<span className={`ms-3 ${fnSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
+									{fnSaveMsg}
+								</span>
+							)}
+						</Col>
+					</Row>
 				</Card.Body>
 			</Card>
 			<Card style={{ marginBottom: '1rem' }}>

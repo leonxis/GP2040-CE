@@ -982,6 +982,31 @@ message AddonOptions
     optional TG16Options tg16Options = 29;
     optional HETriggerOptions heTriggerOptions = 30;
     optional LinearTriggerOptions linearTriggerOptions = 31;
+    optional FourKeyTouchpadOptions fourKeyTouchpadOptions = 32;
+    optional FnKeyMappingOptions fnKeyMappingOptions = 33;
+}
+
+message FourKeyTouchpadOptions
+{
+    optional bool enabled = 1 [default = false];
+    // 触摸键映射：KEY1=左上, KEY4=右上, KEY2=左下, KEY3=右下
+    optional GpioMappingInfo key1Mapping = 2;
+    optional GpioMappingInfo key2Mapping = 3;
+    optional GpioMappingInfo key3Mapping = 4;
+    optional GpioMappingInfo key4Mapping = 5;
+}
+
+message FnKeyMappingOptions
+{
+    // 左FN键、右FN键、左MT键、右MT键 的映射；引脚先留空(-1)
+    optional GpioMappingInfo leftFnMapping = 1;
+    optional GpioMappingInfo rightFnMapping = 2;
+    optional GpioMappingInfo leftMtMapping = 3;
+    optional GpioMappingInfo rightMtMapping = 4;
+    optional int32 leftFnPin = 5 [default = -1];
+    optional int32 rightFnPin = 6 [default = -1];
+    optional int32 leftMtPin = 7 [default = -1];
+    optional int32 rightMtPin = 8 [default = -1];
 }
 
 message MigrationHistory

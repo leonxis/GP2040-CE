@@ -17,12 +17,13 @@ export default function HardwareConfig() {
 			usb0: {
 				enabled: 0,
 			},
-			i2c0: {
+			i2c1: {
 				enabled: 0,
 			},
 		},
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
+	const [fourKeyTouchpadOptions, setFourKeyTouchpadOptions] = useState({ enabled: 0 });
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
 		brightnessMaximum: 255,
@@ -39,23 +40,25 @@ export default function HardwareConfig() {
 
 	useEffect(() => {
 		async function fetchData() {
-			const [peripheral, display, led] = await Promise.all([
+			const [peripheral, display, fourKeyTouchpad, led] = await Promise.all([
 				WebApi.getPeripheralOptions(),
 				WebApi.getDisplayOptions(),
+				WebApi.getFourKeyTouchpadOptions(),
 				WebApi.getLedOptions(),
 			]);
 			setPeripheralOptions(peripheral);
 			setDisplayOptions(display);
+			setFourKeyTouchpadOptions(fourKeyTouchpad || { enabled: 0 });
 			
-			// 同步显示屏和I2C0的启用状态
+			// 同步显示屏和I2C1的启用状态
 			// 如果两者不一致，以显示屏的enabled为准
-			if (display.enabled !== peripheral.peripheral?.i2c0?.enabled) {
+			if (display.enabled !== peripheral.peripheral?.i2c1?.enabled) {
 				setPeripheralOptions((prev) => ({
 					...prev,
 					peripheral: {
 						...prev.peripheral,
-						i2c0: {
-							...prev.peripheral?.i2c0,
+						i2c1: {
+							...prev.peripheral?.i2c1,
 							enabled: display.enabled,
 						},
 					},
@@ -80,7 +83,7 @@ export default function HardwareConfig() {
 			// Get current peripheral options to preserve other settings
 			const currentPeripheralOptions = await WebApi.getPeripheralOptions();
 			
-			// Prepare data to save, preserving existing settings and updating usb0.enabled and i2c0.enabled
+			// Prepare data to save, preserving existing settings and updating usb0.enabled 和 i2c1.enabled
 			const dataToSave = {
 				...currentPeripheralOptions,
 				peripheral: {
@@ -89,9 +92,9 @@ export default function HardwareConfig() {
 						...currentPeripheralOptions.peripheral.usb0,
 						enabled: peripheralOptions.peripheral?.usb0?.enabled || 0,
 					},
-					i2c0: {
-						...currentPeripheralOptions.peripheral.i2c0,
-						enabled: peripheralOptions.peripheral?.i2c0?.enabled || 0,
+					i2c1: {
+						...currentPeripheralOptions.peripheral.i2c1,
+						enabled: peripheralOptions.peripheral?.i2c1?.enabled || 0,
 					},
 				},
 			};
@@ -99,6 +102,7 @@ export default function HardwareConfig() {
 			await Promise.all([
 				WebApi.setPeripheralOptions(dataToSave),
 				WebApi.setDisplayOptions(displayOptions),
+				WebApi.setFourKeyTouchpadOptions(fourKeyTouchpadOptions),
 			]);
 			setHostSaveMessage('保存成功！请重启设备');
 			setTimeout(() => setHostSaveMessage(''), 5000);
@@ -179,25 +183,54 @@ export default function HardwareConfig() {
 								checked={Boolean(displayOptions.enabled)}
 								onChange={(e) => {
 									const isEnabled = e.target.checked ? 1 : 0;
-									// 同时更新显示屏和I2C0的启用状态
-									setDisplayOptions((prev) => ({
-										...prev,
-										enabled: isEnabled,
-									}));
+									setDisplayOptions((prev) => ({ ...prev, enabled: isEnabled }));
 									setPeripheralOptions((prev) => ({
 										...prev,
 										peripheral: {
 											...prev.peripheral,
-											i2c0: {
-												...prev.peripheral?.i2c0,
+											i2c1: {
+												...prev.peripheral?.i2c1,
 												enabled: isEnabled,
 											},
 										},
 									}));
+									// 打开显示屏时自动关闭 4 键触摸板
+									if (isEnabled) setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
 								}}
 							/>
 							<span className="text-muted">
 								将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率
+							</span>
+						</div>
+
+						{/* 4键触摸板开关 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Check
+								type="switch"
+								id="four-key-touchpad-switch"
+								label="4键触摸板"
+								checked={Boolean(fourKeyTouchpadOptions.enabled)}
+								onChange={(e) => {
+									const isEnabled = e.target.checked ? 1 : 0;
+									setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
+									// 打开 4 键触摸板时自动关闭显示屏及 I2C1
+									if (isEnabled) {
+										setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
+										setPeripheralOptions((prev) => ({
+											...prev,
+											peripheral: {
+												...prev.peripheral,
+												i2c1: {
+													...prev.peripheral?.i2c1,
+													enabled: 0,
+												},
+											},
+										}));
+									}
+								}}
+							/>
+							<span className="text-muted">
+								需要使用触摸板按键请将显示屏替换为触摸板
 							</span>
 						</div>
 

@@ -522,6 +522,73 @@ std::string getDisplayOptions() // Manually set Document Attributes for the disp
     return serialize_json(doc);
 }
 
+static void writeMapping(DynamicJsonDocument& doc, const char* key, const GpioMappingInfo& m) {
+    writeDoc(doc, key, "action", m.action);
+    writeDoc(doc, key, "customButtonMask", m.customButtonMask);
+    writeDoc(doc, key, "customDpadMask", m.customDpadMask);
+}
+static void readMapping(GpioMappingInfo& m, const DynamicJsonDocument& doc, const char* key) {
+    docToValue(m.action, doc, key, "action");
+    docToValue(m.customButtonMask, doc, key, "customButtonMask");
+    docToValue(m.customDpadMask, doc, key, "customDpadMask");
+}
+
+std::string getFourKeyTouchpadOptions() {
+    const size_t capacity = JSON_OBJECT_SIZE(2) + 4 * (JSON_OBJECT_SIZE(3) + 10);
+    DynamicJsonDocument doc(capacity);
+    const FourKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().fourKeyTouchpadOptions;
+    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
+    writeMapping(doc, "key1", opts.key1Mapping);
+    writeMapping(doc, "key2", opts.key2Mapping);
+    writeMapping(doc, "key3", opts.key3Mapping);
+    writeMapping(doc, "key4", opts.key4Mapping);
+    return serialize_json(doc);
+}
+
+std::string setFourKeyTouchpadOptions() {
+    DynamicJsonDocument doc = get_post_data();
+    FourKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().fourKeyTouchpadOptions;
+    docToValue(opts.enabled, doc, "enabled");
+    readMapping(opts.key1Mapping, doc, "key1");
+    readMapping(opts.key2Mapping, doc, "key2");
+    readMapping(opts.key3Mapping, doc, "key3");
+    readMapping(opts.key4Mapping, doc, "key4");
+    opts.has_key1Mapping = opts.has_key2Mapping = opts.has_key3Mapping = opts.has_key4Mapping = true;
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+    return serialize_json(doc);
+}
+
+std::string getFnKeyMappingOptions() {
+    const size_t capacity = JSON_OBJECT_SIZE(20);
+    DynamicJsonDocument doc(capacity);
+    const FnKeyMappingOptions& fn = Storage::getInstance().getAddonOptions().fnKeyMappingOptions;
+    writeMapping(doc, "leftFn", fn.leftFnMapping);
+    writeMapping(doc, "rightFn", fn.rightFnMapping);
+    writeMapping(doc, "leftMt", fn.leftMtMapping);
+    writeMapping(doc, "rightMt", fn.rightMtMapping);
+    writeDoc(doc, "leftFnPin", fn.leftFnPin);
+    writeDoc(doc, "rightFnPin", fn.rightFnPin);
+    writeDoc(doc, "leftMtPin", fn.leftMtPin);
+    writeDoc(doc, "rightMtPin", fn.rightMtPin);
+    return serialize_json(doc);
+}
+
+std::string setFnKeyMappingOptions() {
+    DynamicJsonDocument doc = get_post_data();
+    FnKeyMappingOptions& fn = Storage::getInstance().getAddonOptions().fnKeyMappingOptions;
+    readMapping(fn.leftFnMapping, doc, "leftFn");
+    readMapping(fn.rightFnMapping, doc, "rightFn");
+    readMapping(fn.leftMtMapping, doc, "leftMt");
+    readMapping(fn.rightMtMapping, doc, "rightMt");
+    docToValue(fn.leftFnPin, doc, "leftFnPin");
+    docToValue(fn.rightFnPin, doc, "rightFnPin");
+    docToValue(fn.leftMtPin, doc, "leftMtPin");
+    docToValue(fn.rightMtPin, doc, "rightMtPin");
+    fn.has_leftFnMapping = fn.has_rightFnMapping = fn.has_leftMtMapping = fn.has_rightMtMapping = true;
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+    return serialize_json(doc);
+}
+
 std::string getSplashImage()
 {
     const DisplayOptions& displayOptions = Storage::getInstance().getDisplayOptions();
@@ -2915,6 +2982,8 @@ typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
     { "/api/setDisplayOptions", setDisplayOptions },
+    { "/api/setFourKeyTouchpadOptions", setFourKeyTouchpadOptions },
+    { "/api/setFnKeyMappingOptions", setFnKeyMappingOptions },
     { "/api/setPreviewDisplayOptions", setPreviewDisplayOptions },
     { "/api/setGamepadOptions", setGamepadOptions },
     { "/api/setLedOptions", setLedOptions },
@@ -2942,6 +3011,8 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setSplashImage", setSplashImage },
     { "/api/reboot", reboot },
     { "/api/getDisplayOptions", getDisplayOptions },
+    { "/api/getFourKeyTouchpadOptions", getFourKeyTouchpadOptions },
+    { "/api/getFnKeyMappingOptions", getFnKeyMappingOptions },
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },
     { "/api/getButtonLayouts", getButtonLayouts },

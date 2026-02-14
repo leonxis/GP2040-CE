@@ -119,6 +119,16 @@ void Gamepad::setup()
 	mapKeyboardKeyCtrl = new GamepadButtonMapping(0);
 	mapKeyboardKeyShift = new GamepadButtonMapping(0);
 	mapKeyboardKeyAltF4 = new GamepadButtonMapping(0);
+	mapKeyboardKey0 = new GamepadButtonMapping(0);
+	mapKeyboardKey1 = new GamepadButtonMapping(0);
+	mapKeyboardKey2 = new GamepadButtonMapping(0);
+	mapKeyboardKey3 = new GamepadButtonMapping(0);
+	mapKeyboardKey4 = new GamepadButtonMapping(0);
+	mapKeyboardKey5 = new GamepadButtonMapping(0);
+	mapKeyboardKey6 = new GamepadButtonMapping(0);
+	mapKeyboardKey7 = new GamepadButtonMapping(0);
+	mapKeyboardKey8 = new GamepadButtonMapping(0);
+	mapKeyboardKey9 = new GamepadButtonMapping(0);
 
 	const auto assignCustomMappingToMaps = [&](GpioMappingInfo mapInfo, Pin_t pin) -> void {
 		if (mapDpadUp->buttonMask & mapInfo.customDpadMask)	mapDpadUp->pinMask |= 1 << pin;
@@ -228,6 +238,16 @@ void Gamepad::setup()
 			case GpioAction::KEYBOARD_KEY_CTRL:	mapKeyboardKeyCtrl->pinMask |= 1 << pin; break;
 			case GpioAction::KEYBOARD_KEY_SHIFT:	mapKeyboardKeyShift->pinMask |= 1 << pin; break;
 			case GpioAction::KEYBOARD_KEY_ALT_F4:	mapKeyboardKeyAltF4->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_0:	mapKeyboardKey0->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_1:	mapKeyboardKey1->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_2:	mapKeyboardKey2->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_3:	mapKeyboardKey3->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_4:	mapKeyboardKey4->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_5:	mapKeyboardKey5->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_6:	mapKeyboardKey6->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_7:	mapKeyboardKey7->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_8:	mapKeyboardKey8->pinMask |= 1 << pin; break;
+			case GpioAction::KEYBOARD_KEY_9:	mapKeyboardKey9->pinMask |= 1 << pin; break;
 			default:				break;
 		}
 	}
@@ -384,6 +404,7 @@ void Gamepad::process()
 
 void Gamepad::read()
 {
+	addonKeyboardKeyMask = 0;
 	Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
 
 	// Get the midpoint value for the current mode

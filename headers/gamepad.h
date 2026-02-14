@@ -129,36 +129,46 @@ public:
 	inline bool __attribute__((always_inline)) pressedE11()   { return pressedButton(GAMEPAD_MASK_E11); }
 	inline bool __attribute__((always_inline)) pressedE12()   { return pressedButton(GAMEPAD_MASK_E12); }
 	
-	// Keyboard key press checkers for HID composite device
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyA() { return (debouncedGpio & mapKeyboardKeyA->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyB() { return (debouncedGpio & mapKeyboardKeyB->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyC() { return (debouncedGpio & mapKeyboardKeyC->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyD() { return (debouncedGpio & mapKeyboardKeyD->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyE() { return (debouncedGpio & mapKeyboardKeyE->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyF() { return (debouncedGpio & mapKeyboardKeyF->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyG() { return (debouncedGpio & mapKeyboardKeyG->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyH() { return (debouncedGpio & mapKeyboardKeyH->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyI() { return (debouncedGpio & mapKeyboardKeyI->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyJ() { return (debouncedGpio & mapKeyboardKeyJ->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyK() { return (debouncedGpio & mapKeyboardKeyK->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyL() { return (debouncedGpio & mapKeyboardKeyL->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyM() { return (debouncedGpio & mapKeyboardKeyM->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyN() { return (debouncedGpio & mapKeyboardKeyN->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyO() { return (debouncedGpio & mapKeyboardKeyO->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyP() { return (debouncedGpio & mapKeyboardKeyP->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyQ() { return (debouncedGpio & mapKeyboardKeyQ->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyR() { return (debouncedGpio & mapKeyboardKeyR->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyS() { return (debouncedGpio & mapKeyboardKeyS->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyT() { return (debouncedGpio & mapKeyboardKeyT->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyU() { return (debouncedGpio & mapKeyboardKeyU->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyV() { return (debouncedGpio & mapKeyboardKeyV->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyW() { return (debouncedGpio & mapKeyboardKeyW->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyX() { return (debouncedGpio & mapKeyboardKeyX->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyY() { return (debouncedGpio & mapKeyboardKeyY->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyZ() { return (debouncedGpio & mapKeyboardKeyZ->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyCtrl() { return (debouncedGpio & mapKeyboardKeyCtrl->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyShift() { return (debouncedGpio & mapKeyboardKeyShift->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedKeyboardKeyAltF4() { return (debouncedGpio & mapKeyboardKeyAltF4->pinMask) != 0; }
+	// Keyboard key press checkers for HID composite device (GPIO pins + addon mask e.g. touchpad)
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyA() { return (debouncedGpio & mapKeyboardKeyA->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 0)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyB() { return (debouncedGpio & mapKeyboardKeyB->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 1)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyC() { return (debouncedGpio & mapKeyboardKeyC->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 2)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyD() { return (debouncedGpio & mapKeyboardKeyD->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 3)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyE() { return (debouncedGpio & mapKeyboardKeyE->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 4)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyF() { return (debouncedGpio & mapKeyboardKeyF->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 5)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyG() { return (debouncedGpio & mapKeyboardKeyG->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 6)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyH() { return (debouncedGpio & mapKeyboardKeyH->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 7)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyI() { return (debouncedGpio & mapKeyboardKeyI->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 8)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyJ() { return (debouncedGpio & mapKeyboardKeyJ->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 9)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyK() { return (debouncedGpio & mapKeyboardKeyK->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 10)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyL() { return (debouncedGpio & mapKeyboardKeyL->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 11)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyM() { return (debouncedGpio & mapKeyboardKeyM->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 12)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyN() { return (debouncedGpio & mapKeyboardKeyN->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 13)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyO() { return (debouncedGpio & mapKeyboardKeyO->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 14)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyP() { return (debouncedGpio & mapKeyboardKeyP->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 15)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyQ() { return (debouncedGpio & mapKeyboardKeyQ->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 16)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyR() { return (debouncedGpio & mapKeyboardKeyR->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 17)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyS() { return (debouncedGpio & mapKeyboardKeyS->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 18)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyT() { return (debouncedGpio & mapKeyboardKeyT->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 19)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyU() { return (debouncedGpio & mapKeyboardKeyU->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 20)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyV() { return (debouncedGpio & mapKeyboardKeyV->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 21)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyW() { return (debouncedGpio & mapKeyboardKeyW->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 22)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyX() { return (debouncedGpio & mapKeyboardKeyX->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 23)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyY() { return (debouncedGpio & mapKeyboardKeyY->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 24)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyZ() { return (debouncedGpio & mapKeyboardKeyZ->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 25)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyCtrl() { return (debouncedGpio & mapKeyboardKeyCtrl->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 26)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyShift() { return (debouncedGpio & mapKeyboardKeyShift->pinMask) != 0 || (addonKeyboardKeyMask & (1U << 27)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKeyAltF4() { return (debouncedGpio & mapKeyboardKeyAltF4->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 28)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey0() { return (debouncedGpio & mapKeyboardKey0->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 29)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey1() { return (debouncedGpio & mapKeyboardKey1->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 30)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey2() { return (debouncedGpio & mapKeyboardKey2->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 31)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey3() { return (debouncedGpio & mapKeyboardKey3->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 32)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey4() { return (debouncedGpio & mapKeyboardKey4->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 33)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey5() { return (debouncedGpio & mapKeyboardKey5->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 34)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey6() { return (debouncedGpio & mapKeyboardKey6->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 35)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey7() { return (debouncedGpio & mapKeyboardKey7->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 36)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey8() { return (debouncedGpio & mapKeyboardKey8->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 37)) != 0; }
+	inline bool __attribute__((always_inline)) pressedKeyboardKey9() { return (debouncedGpio & mapKeyboardKey9->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 38)) != 0; }
 
 	const GamepadOptions& getOptions() const { return options; }
 	const DpadMode getActiveDpadMode() { return activeDpadMode; }
@@ -251,10 +261,23 @@ public:
 	GamepadButtonMapping *mapKeyboardKeyCtrl;
 	GamepadButtonMapping *mapKeyboardKeyShift;
 	GamepadButtonMapping *mapKeyboardKeyAltF4;
+	GamepadButtonMapping *mapKeyboardKey0;
+	GamepadButtonMapping *mapKeyboardKey1;
+	GamepadButtonMapping *mapKeyboardKey2;
+	GamepadButtonMapping *mapKeyboardKey3;
+	GamepadButtonMapping *mapKeyboardKey4;
+	GamepadButtonMapping *mapKeyboardKey5;
+	GamepadButtonMapping *mapKeyboardKey6;
+	GamepadButtonMapping *mapKeyboardKey7;
+	GamepadButtonMapping *mapKeyboardKey8;
+	GamepadButtonMapping *mapKeyboardKey9;
 
 	// gamepad specific proxy of debounced buttons --- 1 = active (inverse of the raw GPIO)
 	// see GP2040::debounceGpioGetAll for details
 	Mask_t debouncedGpio;
+
+	// Addon-driven keyboard key mask (e.g. 4-key touchpad): bit N = KEYBOARD_KEY at enum 131+N (A=0..Z=25, CTRL=26, SHIFT=27, ALT_F4=28, 0=29..9=38)
+	uint64_t addonKeyboardKeyMask = 0;
 
 	uint32_t lastReinitProfileNumber = 0;
 

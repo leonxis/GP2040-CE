@@ -32,6 +32,7 @@
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
+#include "addons/four_key_touchpad.h"
 #include "addons/tg16_input.h"
 
 // Pico includes
@@ -111,6 +112,7 @@ void GP2040::setup() {
 	addons.LoadAddon(new AnalogInput());
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new LinearTriggerAddon());
+	addons.LoadAddon(new FourKeyTouchpadAddon());
 	addons.LoadAddon(new BootselButtonAddon());
 	addons.LoadAddon(new DualDirectionalInput());
 	addons.LoadAddon(new FocusModeAddon());
