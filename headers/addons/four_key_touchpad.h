@@ -21,6 +21,11 @@ private:
     int32_t pin_sck = -1;   // I2C1 SDA: clock output
     int32_t pin_data = -1;  // I2C1 SCL: data input (release=high, press=low)
     bool anyTouchKeyPressed = false;  // 本帧在 GPIO12 按下时是否有触摸键按下（供 process 中屏蔽 GPIO12 映射）
+    uint8_t lastKeyNibble = 0x0F;     // 上次有效键状态（1=松键），节流/错误冷却时复用
+    uint32_t lastPollTime = 0;        // 上次轮询时间 (time_us_32)
+    uint32_t nextReadAllowed = 0;     // 读错后 6ms 内不再读 (time_us_32)
+    uint8_t partialByte = 0;          // 分帧累积的 8 位
+    uint8_t readPhase = 0;            // 0..3：本周期已读 2*readPhase 位，再读 2 位
 };
 
 #endif

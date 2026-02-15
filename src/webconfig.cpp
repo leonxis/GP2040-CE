@@ -38,6 +38,8 @@
 #include "addons/input_macro.h"
 #include "addons/analog_utils.h"
 #include "addons/linear_trigger.h"
+#include "hardware/gpio.h"
+#include "pico/time.h"
 
 #define PATH_CGI_ACTION "/cgi/action"
 

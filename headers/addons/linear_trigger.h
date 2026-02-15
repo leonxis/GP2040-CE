@@ -24,8 +24,8 @@ public:
     virtual std::string name() { return LINEAR_TRIGGER_ADDON_NAME; }
     virtual void reinit() {}  // 线性扳机校准为全局配置，不随 profile 切换，无需在 reinit 中重载
 private:
-    void reloadThresholds();  // 从 Storage 读取配置并重算 minAdc/maxAdc，仅 setup 时调用
-    // 校准与死区/行程在 setup 中一次性算成阈值，preprocess 仅做整数线性映射
+    void reloadThresholds();  // 从 Storage 读取配置并重算阈值，仅 setup 时调用
+    // 真实 ADC：松开=高、压下=低。minAdc=松开侧阈值(高)，maxAdc=按到底侧阈值(低)
     int32_t minAdcL;
     int32_t maxAdcL;
     int32_t minAdcR;

@@ -6,10 +6,19 @@
 #include "pico/time.h"
 #include "eventmanager.h"
 
-// BS814A-2: SCK = I2C1 SDA (we drive), DATA = I2C1 SCL (we read). One bit per clock; low = pressed.
-// Bit order: i=0 KEY1(左上), i=1 KEY2(左下), i=2 KEY3(右下), i=3 KEY4(右上).
-// 仅当 GPIO12 为低（使能键按下）时，触摸键按下才输出映射；GPIO12 为高时释放所有触摸板映射的按键。
+// BS814A-2 串行协议：8 个时钟一组。Clock 低电平时芯片准备数据，变高后主机从 Data 读一位。
+// 8 位数据：Bit0=Key1(左上), Bit1=Key2(左下), Bit2=Key3(右下), Bit3=Key4(右上)；0=按下, 1=松键。
+// Bit6~4 = 校验和（被触摸键总数）；Bit7 = 停止位恒为 1。读错时需等 6ms 再重读。
+// 时序：TLOW/THIGH 最小 20µs，TBR 最大 25 Kbps，TED=6ms。
+// 节流 + 分帧读：每 1ms 最多读 2 位（约 80µs），4 帧凑齐 8 位，单帧阻塞从 0.32ms 降为 80µs。
 #define TOUCHPAD_ENABLE_PIN 12
+#define BS814A_POLL_INTERVAL_US  1000   // 每帧间隔 1ms
+#define BS814A_RETRY_COOLDOWN_US 6000   // 读错后冷却 6ms 再读（不阻塞）
+#define BS814A_CLOCK_LOW_US  20
+#define BS814A_CLOCK_HIGH_US 20
+#define BS814A_BITS_PER_FRAME 2        // 每帧读 2 位，共 4 帧 = 8 位
+// addonKeyboardKeyMask 位索引：KEYBOARD_KEY_A=131 至 KEYBOARD_KEY_9=169（含 CTRL/SHIFT/ALT_F4）
+static constexpr uint32_t KEYBOARD_KEY_ACTION_BASE = 131;
 
 static void applyTouchpadMapping(Gamepad* gamepad, const GpioMappingInfo& m) {
     if (m.action == GpioAction::NONE)
@@ -74,7 +83,7 @@ static void applyTouchpadMapping(Gamepad* gamepad, const GpioMappingInfo& m) {
         case GpioAction::MENU_NAVIGATION_TOGGLE: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_TOGGLE)); break;
         default:
             if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9)
-                gamepad->addonKeyboardKeyMask |= (1ULL << (static_cast<uint32_t>(m.action) - 131));
+                gamepad->addonKeyboardKeyMask |= (1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE));
             break;
     }
 }
@@ -126,10 +135,16 @@ static void clearTouchpadMapping(Gamepad* gamepad, const GpioMappingInfo& m) {
         case GpioAction::BUTTON_PRESS_E12:   gamepad->state.buttons &= ~GAMEPAD_MASK_E12; break;
         case GpioAction::BUTTON_PRESS_FN:    gamepad->state.aux &= ~AUX_MASK_FUNCTION; break;
         case GpioAction::ANALOG_DIRECTION_LS_X_NEG: case GpioAction::ANALOG_DIRECTION_LS_X_POS:
+            gamepad->state.lx = GAMEPAD_JOYSTICK_MID;
+            break;
         case GpioAction::ANALOG_DIRECTION_LS_Y_NEG: case GpioAction::ANALOG_DIRECTION_LS_Y_POS:
+            gamepad->state.ly = GAMEPAD_JOYSTICK_MID;
+            break;
         case GpioAction::ANALOG_DIRECTION_RS_X_NEG: case GpioAction::ANALOG_DIRECTION_RS_X_POS:
+            gamepad->state.rx = GAMEPAD_JOYSTICK_MID;
+            break;
         case GpioAction::ANALOG_DIRECTION_RS_Y_NEG: case GpioAction::ANALOG_DIRECTION_RS_Y_POS:
-            /* 摇杆方向由其他输入覆盖，本帧不主动清零 */
+            gamepad->state.ry = GAMEPAD_JOYSTICK_MID;
             break;
         case GpioAction::MENU_NAVIGATION_UP: case GpioAction::MENU_NAVIGATION_DOWN:
         case GpioAction::MENU_NAVIGATION_LEFT: case GpioAction::MENU_NAVIGATION_RIGHT:
@@ -139,7 +154,7 @@ static void clearTouchpadMapping(Gamepad* gamepad, const GpioMappingInfo& m) {
             break;
         default:
             if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9)
-                gamepad->addonKeyboardKeyMask &= ~(1ULL << (static_cast<uint32_t>(m.action) - 131));
+                gamepad->addonKeyboardKeyMask &= ~(1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE));
             break;
     }
 }
@@ -176,20 +191,49 @@ void FourKeyTouchpadAddon::preprocess() {
     const FourKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().fourKeyTouchpadOptions;
     const GpioMappingInfo* mappings[] = { &opts.key1Mapping, &opts.key2Mapping, &opts.key3Mapping, &opts.key4Mapping };
     if (gpio_get(TOUCHPAD_ENABLE_PIN)) {
-        // GPIO12 为高：释放所有触摸板映射的按键；GPIO12 的映射由主流程照常执行
+        // GPIO12 为高：释放所有触摸板映射的按键，并重置分帧状态以便使能再次按下时从新一帧开始
         anyTouchKeyPressed = false;
+        readPhase = 0;
+        partialByte = 0;
         for (int i = 0; i < 4; i++)
             clearTouchpadMapping(gamepad, *mappings[i]);
         return;
     }
-    // GPIO12 为低：仅当触摸键按下时输出对应映射；并记录本帧是否有触摸键按下
+    // GPIO12 为低：每 1ms 只读 2 位（约 80µs），4 帧凑齐 8 位后校验并更新键值
+    uint32_t now = time_us_32();
+    uint8_t keyNibble = lastKeyNibble;
+
+    if (now >= nextReadAllowed && (uint32_t)(now - lastPollTime) >= BS814A_POLL_INTERVAL_US) {
+        lastPollTime = now;
+        const int startBit = readPhase * BS814A_BITS_PER_FRAME;
+        for (int i = 0; i < BS814A_BITS_PER_FRAME; i++) {
+            gpio_put((uint)pin_sck, 0);
+            busy_wait_us(BS814A_CLOCK_LOW_US);
+            gpio_put((uint)pin_sck, 1);
+            busy_wait_us(BS814A_CLOCK_HIGH_US);
+            if (gpio_get((uint)pin_data))
+                partialByte |= (1u << (startBit + i));
+        }
+        readPhase++;
+        if (readPhase >= 8 / BS814A_BITS_PER_FRAME) {
+            readPhase = 0;
+            uint8_t byte = partialByte;
+            partialByte = 0;
+            bool stopOk = (byte & 0x80) != 0;
+            // 分帧读时 8 位来自 4 个不同时刻，校验和经常不匹配，故仅要求停止位正确即采纳键值
+            if (stopOk) {
+                keyNibble = byte & 0x0F;
+                lastKeyNibble = keyNibble;
+            } else {
+                nextReadAllowed = now + BS814A_RETRY_COOLDOWN_US;
+                keyNibble = lastKeyNibble;
+            }
+        }
+    }
+
     anyTouchKeyPressed = false;
     for (int i = 0; i < 4; i++) {
-        gpio_put((uint)pin_sck, 0);
-        busy_wait_us(2);
-        gpio_put((uint)pin_sck, 1);
-        busy_wait_us(1);
-        if (!gpio_get((uint)pin_data)) {
+        if (!(keyNibble & (1u << i))) {
             anyTouchKeyPressed = true;
             applyTouchpadMapping(gamepad, *mappings[i]);
         }

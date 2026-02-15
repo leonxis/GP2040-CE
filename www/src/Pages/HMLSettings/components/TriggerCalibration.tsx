@@ -7,7 +7,7 @@ import * as yup from 'yup';
 import Section from '../../../Components/Section';
 import WebApi from '../../../Services/WebApi';
 
-const MIN_TRAVEL_ABOVE_DEADZONE = 5; // 扳机行程须 > 扳机死区 + 5%
+const MIN_TRAVEL_ABOVE_DEADZONE = 1; // 扳机行程须大于死区，如死区 4% 则行程最小 5%
 const ADC_MAX = 4095;
 
 export const triggerCalibrationScheme = {
@@ -25,9 +25,9 @@ export const triggerCalibrationScheme = {
 		.max(100)
 		.test(
 			'travel-above-deadzone',
-			'左扳机行程须大于死区至少5%',
+			'左扳机行程须大于死区（如死区4%则行程最小5%）',
 			(value, ctx) =>
-				Number(value) >= Number(ctx.parent?.leftTriggerDeadzone ?? 0) + MIN_TRAVEL_ABOVE_DEADZONE,
+				Number(value) > Number(ctx.parent?.leftTriggerDeadzone ?? 0),
 		)
 		.label('左扳机行程'),
 	rightTriggerTravel: yup
@@ -36,24 +36,24 @@ export const triggerCalibrationScheme = {
 		.max(100)
 		.test(
 			'travel-above-deadzone',
-			'右扳机行程须大于死区至少5%',
+			'右扳机行程须大于死区（如死区4%则行程最小5%）',
 			(value, ctx) =>
-				Number(value) >= Number(ctx.parent?.rightTriggerDeadzone ?? 0) + MIN_TRAVEL_ABOVE_DEADZONE,
+				Number(value) > Number(ctx.parent?.rightTriggerDeadzone ?? 0),
 		)
 		.label('右扳机行程'),
 };
 
-// 与后端默认一致：未校准时松开=0、最大=4095（全量程）
+// 与后端一致：硬件为扳机下压=低 ADC，未校准时松开=4095、按到底=0（全量程）
 export const triggerCalibrationState = {
 	linearTriggerEnabled: 0,
 	leftTriggerDeadzone: 5,
 	rightTriggerDeadzone: 5,
 	leftTriggerTravel: 95,
 	rightTriggerTravel: 95,
-	leftTriggerReleasedRaw: 0,
-	rightTriggerReleasedRaw: 0,
-	leftTriggerMaxRaw: 4095,
-	rightTriggerMaxRaw: 4095,
+	leftTriggerReleasedRaw: 4095,
+	rightTriggerReleasedRaw: 4095,
+	leftTriggerMaxRaw: 0,
+	rightTriggerMaxRaw: 0,
 };
 
 const TRIGGER_CANVAS_W = 120;
@@ -88,29 +88,29 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 	const leftMaxRaw = Number(values.leftTriggerMaxRaw) ?? 4095;
 	const rightMaxRaw = Number(values.rightTriggerMaxRaw) ?? 4095;
 
-	// 约束：扳机行程 > 扳机死区 + 5%。调整时如不满足则推动另一滑块
+	// 约束：扳机行程必须大于死区（如死区 4% 则行程最小 5%）。调整时如不满足则推动另一滑块
 	const applyLeftDeadzone = (v: number) => {
 		setFieldValue('leftTriggerDeadzone', v);
-		if (leftTravel <= v + MIN_TRAVEL_ABOVE_DEADZONE) {
-			setFieldValue('leftTriggerTravel', Math.min(100, v + MIN_TRAVEL_ABOVE_DEADZONE + 1));
+		if (leftTravel <= v) {
+			setFieldValue('leftTriggerTravel', Math.min(100, v + MIN_TRAVEL_ABOVE_DEADZONE));
 		}
 	};
 	const applyRightDeadzone = (v: number) => {
 		setFieldValue('rightTriggerDeadzone', v);
-		if (rightTravel <= v + MIN_TRAVEL_ABOVE_DEADZONE) {
-			setFieldValue('rightTriggerTravel', Math.min(100, v + MIN_TRAVEL_ABOVE_DEADZONE + 1));
+		if (rightTravel <= v) {
+			setFieldValue('rightTriggerTravel', Math.min(100, v + MIN_TRAVEL_ABOVE_DEADZONE));
 		}
 	};
 	const applyLeftTravel = (v: number) => {
 		setFieldValue('leftTriggerTravel', v);
-		if (leftDeadzone >= v - MIN_TRAVEL_ABOVE_DEADZONE) {
-			setFieldValue('leftTriggerDeadzone', Math.max(0, v - MIN_TRAVEL_ABOVE_DEADZONE - 1));
+		if (leftDeadzone >= v) {
+			setFieldValue('leftTriggerDeadzone', Math.max(0, v - MIN_TRAVEL_ABOVE_DEADZONE));
 		}
 	};
 	const applyRightTravel = (v: number) => {
 		setFieldValue('rightTriggerTravel', v);
-		if (rightDeadzone >= v - MIN_TRAVEL_ABOVE_DEADZONE) {
-			setFieldValue('rightTriggerDeadzone', Math.max(0, v - MIN_TRAVEL_ABOVE_DEADZONE - 1));
+		if (rightDeadzone >= v) {
+			setFieldValue('rightTriggerDeadzone', Math.max(0, v - MIN_TRAVEL_ABOVE_DEADZONE));
 		}
 	};
 
@@ -149,11 +149,16 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 		const h = TRIGGER_CANVAS_H;
 		ctx.clearRect(0, 0, w, h);
 		// 无网格；Y 轴：底部=0%（松开），顶部=100%（按到底）
+		// 支持两种硬件：releasedRaw < maxRaw（按下=高 ADC）或 releasedRaw > maxRaw（按下=低 ADC）
 		const yDeadzone = h * (1 - deadzonePct / 100); // 死区横线（靠近底部）
 		const yTravel = h * (1 - travelPct / 100); // 行程横线（靠近顶部）
-		const range = Math.max(1, maxRaw - releasedRaw);
-		const currentPercent = Math.min(100, Math.max(0, ((currentRaw - releasedRaw) / range) * 100));
-		const fillTop = h * (1 - currentPercent / 100); // 填充上边界（canvas y 向下为正）
+		const range = Math.max(1, Math.abs(maxRaw - releasedRaw));
+		const currentPercent =
+			maxRaw >= releasedRaw
+				? ((currentRaw - releasedRaw) / range) * 100
+				: ((releasedRaw - currentRaw) / range) * 100;
+		const currentPercentClamped = Math.min(100, Math.max(0, currentPercent));
+		const fillTop = h * (1 - currentPercentClamped / 100); // 填充上边界（canvas y 向下为正）
 
 		// 1. 死区横线（深灰）
 		ctx.strokeStyle = '#4a4a4a';

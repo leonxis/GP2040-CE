@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Card, Row, Col, Button } from 'react-bootstrap';
+import { Card, Row, Col, Button, Collapse } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useContext, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
@@ -206,6 +206,8 @@ export default function BackButtonMapping() {
 	});
 	const [touchpadSaveMsg, setTouchpadSaveMsg] = useState('');
 	const [touchpadSaving, setTouchpadSaving] = useState(false);
+	// 由硬件配置-4键触摸板开关决定触摸板映射栏折叠/展开
+	const [fourKeyTouchpadEnabled, setFourKeyTouchpadEnabled] = useState(false);
 	// FN键映射（左FN、右FN、左MT、右MT；引脚先留空）
 	const [fnOptions, setFnOptions] = useState<Record<string, MaskPayload>>({
 		leftFn: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
@@ -294,6 +296,7 @@ export default function BackButtonMapping() {
 			const toPayload = (m: { action?: number; customButtonMask?: number; customDpadMask?: number } | undefined): MaskPayload =>
 				m ? { action: (m.action ?? BUTTON_ACTIONS.NONE) as PinActionValues, customButtonMask: m.customButtonMask ?? 0, customDpadMask: m.customDpadMask ?? 0 } : defaultPinData;
 			if (touchpad) {
+				setFourKeyTouchpadEnabled(Boolean(touchpad.enabled));
 				setTouchpadOptions({
 					key1: toPayload(touchpad.key1),
 					key4: toPayload(touchpad.key4),
@@ -399,8 +402,12 @@ export default function BackButtonMapping() {
 		27: '右背键2',
 	};
 	
-	// 按键交换的GPIO引脚列表
+	// 按键交换的GPIO引脚列表（上方的分享/选项/PS/触摸板，再为其余按键）
 	const swapGpioPins = [
+		{ pin: 18, label: '分享键', pinKey: getPinKey(18) },
+		{ pin: 19, label: '选项键', pinKey: getPinKey(19) },
+		{ pin: 8, label: 'PS键', pinKey: getPinKey(8) },
+		{ pin: 12, label: '触摸板', pinKey: getPinKey(12) },
 		{ pin: 16, label: '左键', pinKey: getPinKey(16) },
 		{ pin: 17, label: '右键', pinKey: getPinKey(17) },
 		{ pin: 23, label: '上键', pinKey: getPinKey(23) },
@@ -410,8 +417,8 @@ export default function BackButtonMapping() {
 		{ pin: 14, label: '三角', pinKey: getPinKey(14) },
 		{ pin: 13, label: '方块', pinKey: getPinKey(13) },
 		{ pin: 22, label: '左肩键', pinKey: getPinKey(22) },
-		{ pin: 29, label: '左扳机', pinKey: getPinKey(29) },
 		{ pin: 21, label: '右肩键', pinKey: getPinKey(21) },
+		{ pin: 29, label: '左扳机', pinKey: getPinKey(29) },
 		{ pin: 28, label: '右扳机', pinKey: getPinKey(28) },
 	];
 
@@ -480,50 +487,52 @@ export default function BackButtonMapping() {
 			</Card>
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>触摸板映射</Card.Header>
-				<Card.Body>
-					<Row className="g-3">
-						{[
-							{ key: 'key1', label: '左上触摸键（KEY1）' },
-							{ key: 'key4', label: '右上触摸键（KEY4）' },
-							{ key: 'key2', label: '左下触摸键（KEY2）' },
-							{ key: 'key3', label: '右下触摸键（KEY3）' },
-						].map(({ key, label }) => {
-							const mappingData = touchpadOptions[key] || defaultPinData;
-							return (
-								<Col sm={6} md={6} key={`touchpad-${key}`}>
-									<div className="d-flex align-items-center">
-										<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
-											<label>{label}</label>
+				<Collapse in={fourKeyTouchpadEnabled}>
+					<Card.Body>
+						<Row className="g-3">
+							{[
+								{ key: 'key1', label: '左上触摸键' },
+								{ key: 'key4', label: '右上触摸键' },
+								{ key: 'key2', label: '左下触摸键' },
+								{ key: 'key3', label: '右下触摸键' },
+							].map(({ key, label }) => {
+								const mappingData = touchpadOptions[key] || defaultPinData;
+								return (
+									<Col sm={6} md={6} key={`touchpad-${key}`}>
+										<div className="d-flex align-items-center">
+											<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
+												<label>{label}</label>
+											</div>
+											<CustomSelect
+												isClearable
+												isMulti={!isDisabled(mappingData.action) &&
+													!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
+													!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
+												options={groupedOptions}
+												isDisabled={isDisabled(mappingData.action)}
+												getOptionLabel={getOptionLabel}
+												onChange={onTouchpadChange(key)}
+												value={getMultiValue(mappingData)}
+											/>
 										</div>
-										<CustomSelect
-											isClearable
-											isMulti={!isDisabled(mappingData.action) &&
-												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
-												!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
-											options={groupedOptions}
-											isDisabled={isDisabled(mappingData.action)}
-											getOptionLabel={getOptionLabel}
-											onChange={onTouchpadChange(key)}
-											value={getMultiValue(mappingData)}
-										/>
-									</div>
-								</Col>
-							);
-						})}
-					</Row>
-					<Row className="mt-3">
-						<Col sm={4}>
-							<Button variant="primary" onClick={handleSaveTouchpad} disabled={touchpadSaving}>
-								{t('Common:button-save-label')}
-							</Button>
-							{touchpadSaveMsg && (
-								<span className={`ms-3 ${touchpadSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
-									{touchpadSaveMsg}
-								</span>
-							)}
-						</Col>
-					</Row>
-				</Card.Body>
+									</Col>
+								);
+							})}
+						</Row>
+						<Row className="mt-3">
+							<Col sm={4}>
+								<Button variant="primary" onClick={handleSaveTouchpad} disabled={touchpadSaving}>
+									{t('Common:button-save-label')}
+								</Button>
+								{touchpadSaveMsg && (
+									<span className={`ms-3 ${touchpadSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
+										{touchpadSaveMsg}
+									</span>
+								)}
+							</Col>
+						</Row>
+					</Card.Body>
+				</Collapse>
 			</Card>
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>FN键映射</Card.Header>
@@ -582,7 +591,7 @@ export default function BackButtonMapping() {
 								<Col sm={6} md={6} key={`swap-gpio-${pin}`}>
 									<div className="d-flex align-items-center">
 										<div className="d-flex flex-shrink-0" style={{ width: '8rem' }}>
-											<label>{label}（GPIO{pin}）</label>
+											<label>{label}</label>
 										</div>
 										<CustomSelect
 											isClearable
