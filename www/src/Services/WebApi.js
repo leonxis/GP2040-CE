@@ -234,6 +234,25 @@ async function setFourKeyTouchpadOptions(options) {
 	}
 }
 
+async function getMCP3208Options() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getMCP3208Options`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+async function setMCP3208Options(options) {
+	try {
+		await Http.post(`${baseUrl}/api/setMCP3208Options`, options);
+		return true;
+	} catch (error) {
+		console.error(error);
+		return false;
+	}
+}
+
 async function getFnKeyMappingOptions() {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getFnKeyMappingOptions`);
@@ -767,6 +786,8 @@ export default {
 	setDisplayOptions,
 	getFourKeyTouchpadOptions,
 	setFourKeyTouchpadOptions,
+	getMCP3208Options,
+	setMCP3208Options,
 	getFnKeyMappingOptions,
 	setFnKeyMappingOptions,
 	getGamepadOptions,

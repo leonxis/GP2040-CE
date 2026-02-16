@@ -208,12 +208,14 @@ export default function BackButtonMapping() {
 	const [touchpadSaving, setTouchpadSaving] = useState(false);
 	// 由硬件配置-4键触摸板开关决定触摸板映射栏折叠/展开
 	const [fourKeyTouchpadEnabled, setFourKeyTouchpadEnabled] = useState(false);
-	// FN键映射（左FN、右FN、左MT、右MT；引脚先留空）
+	// FN键映射（左FN、右FN、左MT、右MT、Ext左扳机、Ext右扳机；引脚先留空）
 	const [fnOptions, setFnOptions] = useState<Record<string, MaskPayload>>({
 		leftFn: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 		rightFn: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 		leftMt: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 		rightMt: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		extLeftTrigger: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		extRightTrigger: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 	});
 	const [fnSaveMsg, setFnSaveMsg] = useState('');
 	const [fnSaving, setFnSaving] = useState(false);
@@ -310,6 +312,8 @@ export default function BackButtonMapping() {
 					rightFn: toPayload(fn.rightFn),
 					leftMt: toPayload(fn.leftMt),
 					rightMt: toPayload(fn.rightMt),
+					extLeftTrigger: toPayload(fn.extLeftTrigger),
+					extRightTrigger: toPayload(fn.extRightTrigger),
 				});
 			}
 		};
@@ -346,6 +350,8 @@ export default function BackButtonMapping() {
 				rightFn: fnOptions.rightFn,
 				leftMt: fnOptions.leftMt,
 				rightMt: fnOptions.rightMt,
+				extLeftTrigger: fnOptions.extLeftTrigger,
+				extRightTrigger: fnOptions.extRightTrigger,
 			};
 			await WebApi.setFnKeyMappingOptions(payload);
 			setFnSaveMsg(t('Common:saved-success-message'));
@@ -543,6 +549,8 @@ export default function BackButtonMapping() {
 							{ key: 'rightFn', label: '右FN键' },
 							{ key: 'leftMt', label: '左MT键' },
 							{ key: 'rightMt', label: '右MT键' },
+							{ key: 'extLeftTrigger', label: 'Ext左扳机' },
+							{ key: 'extRightTrigger', label: 'Ext右扳机' },
 						].map(({ key, label }) => {
 							const mappingData = fnOptions[key] || defaultPinData;
 							return (
@@ -566,6 +574,14 @@ export default function BackButtonMapping() {
 								</Col>
 							);
 						})}
+					</Row>
+					<Row className="mt-2">
+						<Col>
+							<small className="text-muted">
+								CH2（MCP3208）：0V→左MT键，0.82V→L3(固定)，1.65V→Ext左扳机，2.48V→左FN键；
+								CH5：0V→右MT键，0.82V→R3(固定)，1.65V→Ext右扳机，2.48V→右FN键。
+							</small>
+						</Col>
 					</Row>
 					<Row className="mt-3">
 						<Col sm={4}>

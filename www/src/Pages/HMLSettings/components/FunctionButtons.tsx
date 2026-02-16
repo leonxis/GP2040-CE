@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Row, Col } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import Section from '../../../Components/Section';
 import { useGamepadOptions } from '../hooks/useGamepadOptions';
@@ -13,11 +13,34 @@ const DPAD_MODES = [
 	{ labelKey: 'd-pad-mode-options.right-analog', value: 2 },
 ];
 
+// 与功能配置-插件配置-模拟摇杆 一致：左/右摇杆模式、反转
+const ANALOG_STICK_MODES = [
+	{ label: '左摇杆', value: 1 },
+	{ label: '右摇杆', value: 2 },
+];
+const INVERT_MODES = [
+	{ label: '无', value: 0 },
+	{ label: 'X 轴', value: 1 },
+	{ label: 'Y 轴', value: 2 },
+	{ label: 'X/Y 轴', value: 3 },
+];
+
 export default function FunctionButtons() {
 	const navigate = useNavigate();
 	const { t } = useTranslation();
 	const { values, setValues, isLoading } = useGamepadOptions();
 	const [saveMessage, setSaveMessage] = useState('');
+	const [addonOptions, setAddonOptions] = useState<any>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		async function loadAddons() {
+			const data = await WebApi.getAddonsOptions();
+			if (!cancelled && data) setAddonOptions(data);
+		}
+		loadAddons();
+		return () => { cancelled = true; };
+	}, []);
 
 	// 翻译方向键模式选项
 	const translatedDpadModes = DPAD_MODES.map(({ labelKey, value }) => ({
@@ -55,12 +78,29 @@ export default function FunctionButtons() {
 		setValues((prev: any) => ({ ...prev, dpadDeadzone: newValue }));
 	};
 
+	const handleLeftStickModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+		const v = parseInt(e.target.value);
+		setAddonOptions((prev: any) => prev ? { ...prev, analogAdc1Mode: v } : prev);
+	};
+	const handleRightStickModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+		const v = parseInt(e.target.value);
+		setAddonOptions((prev: any) => prev ? { ...prev, analogAdc2Mode: v } : prev);
+	};
+	const handleLeftStickInvertChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+		const v = parseInt(e.target.value);
+		setAddonOptions((prev: any) => prev ? { ...prev, analogAdc1Invert: v } : prev);
+	};
+	const handleRightStickInvertChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+		const v = parseInt(e.target.value);
+		setAddonOptions((prev: any) => prev ? { ...prev, analogAdc2Invert: v } : prev);
+	};
 
 	const handleSave = async () => {
 		setSaveMessage('');
 		try {
-			const success = await WebApi.setGamepadOptions(values);
-			if (success) {
+			const gamepadOk = await WebApi.setGamepadOptions(values);
+			const addonOk = addonOptions ? await WebApi.setAddonsOptions(addonOptions) : true;
+			if (gamepadOk && addonOk) {
 				setSaveMessage('保存成功！');
 				setTimeout(() => setSaveMessage(''), 3000);
 			} else {
@@ -108,7 +148,64 @@ export default function FunctionButtons() {
 				</div>
 			</Section>
 
-			<Section title="方向键与摇杆">
+			<Section title="摇杆配置">
+				<Form.Group className="mb-3">
+					<Row>
+						<Col sm={6} md={3}>
+							<Form.Label>左摇杆模式</Form.Label>
+							<Form.Select
+								className="form-select-sm"
+								value={addonOptions?.analogAdc1Mode ?? 1}
+								onChange={handleLeftStickModeChange}
+							>
+								{ANALOG_STICK_MODES.map((o, i) => (
+									<option key={`hml-left-mode-${i}`} value={o.value}>{o.label}</option>
+								))}
+							</Form.Select>
+						</Col>
+						<Col sm={6} md={3}>
+							<Form.Label>右摇杆模式</Form.Label>
+							<Form.Select
+								className="form-select-sm"
+								value={addonOptions?.analogAdc2Mode ?? 2}
+								onChange={handleRightStickModeChange}
+							>
+								{ANALOG_STICK_MODES.map((o, i) => (
+									<option key={`hml-right-mode-${i}`} value={o.value}>{o.label}</option>
+								))}
+							</Form.Select>
+						</Col>
+					</Row>
+					<Row className="mt-2">
+						<Col sm={6} md={3}>
+							<Form.Label>左摇杆反转</Form.Label>
+							<Form.Select
+								className="form-select-sm"
+								value={addonOptions?.analogAdc1Invert ?? 0}
+								onChange={handleLeftStickInvertChange}
+							>
+								{INVERT_MODES.map((o, i) => (
+									<option key={`hml-left-invert-${i}`} value={o.value}>{o.label}</option>
+								))}
+							</Form.Select>
+						</Col>
+						<Col sm={6} md={3}>
+							<Form.Label>右摇杆反转</Form.Label>
+							<Form.Select
+								className="form-select-sm"
+								value={addonOptions?.analogAdc2Invert ?? 0}
+								onChange={handleRightStickInvertChange}
+							>
+								{INVERT_MODES.map((o, i) => (
+									<option key={`hml-right-invert-${i}`} value={o.value}>{o.label}</option>
+								))}
+							</Form.Select>
+						</Col>
+					</Row>
+				</Form.Group>
+			</Section>
+
+			<Section title="方向键配置">
 				<Form.Group className="mb-3">
 					<Form.Label>
 						{t('SettingsPage:d-pad-mode-label')}

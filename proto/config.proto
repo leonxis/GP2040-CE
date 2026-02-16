@@ -194,10 +194,10 @@ message PinMappings
 
 message GpioMappingInfo
 {
-    optional GpioAction action = 1;
+    optional GpioAction action = 1 [default = NONE];
     optional GpioDirection direction = 2;
-    optional uint32 customDpadMask = 3;
-    optional uint32 customButtonMask = 4;
+    optional uint32 customDpadMask = 3 [default = 0];
+    optional uint32 customButtonMask = 4 [default = 0];
 }
 
 message GpioMappings
@@ -984,6 +984,13 @@ message AddonOptions
     optional LinearTriggerOptions linearTriggerOptions = 31;
     optional FourKeyTouchpadOptions fourKeyTouchpadOptions = 32;
     optional FnKeyMappingOptions fnKeyMappingOptions = 33;
+    optional MCP3208Options mcp3208Options = 34;
+}
+
+// MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
+message MCP3208Options
+{
+    optional bool enabled = 1 [default = false];
 }
 
 message FourKeyTouchpadOptions
@@ -998,15 +1005,13 @@ message FourKeyTouchpadOptions
 
 message FnKeyMappingOptions
 {
-    // 左FN键、右FN键、左MT键、右MT键 的映射；引脚先留空(-1)
+    // 左FN/右FN、左MT/右MT、Ext左/右扳机 均由 MCP3208 CH2/CH5 电压档位决定，无 GPIO 引脚
     optional GpioMappingInfo leftFnMapping = 1;
     optional GpioMappingInfo rightFnMapping = 2;
     optional GpioMappingInfo leftMtMapping = 3;
     optional GpioMappingInfo rightMtMapping = 4;
-    optional int32 leftFnPin = 5 [default = -1];
-    optional int32 rightFnPin = 6 [default = -1];
-    optional int32 leftMtPin = 7 [default = -1];
-    optional int32 rightMtPin = 8 [default = -1];
+    optional GpioMappingInfo leftExtTriggerMapping = 5;
+    optional GpioMappingInfo rightExtTriggerMapping = 6;
 }
 
 message MigrationHistory

@@ -560,6 +560,22 @@ std::string setFourKeyTouchpadOptions() {
     return serialize_json(doc);
 }
 
+std::string getMCP3208Options() {
+    const size_t capacity = JSON_OBJECT_SIZE(2);
+    DynamicJsonDocument doc(capacity);
+    const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
+    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
+    return serialize_json(doc);
+}
+
+std::string setMCP3208Options() {
+    DynamicJsonDocument doc = get_post_data();
+    MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
+    docToValue(opts.enabled, doc, "enabled");
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+    return serialize_json(doc);
+}
+
 std::string getFnKeyMappingOptions() {
     const size_t capacity = JSON_OBJECT_SIZE(20);
     DynamicJsonDocument doc(capacity);
@@ -568,10 +584,8 @@ std::string getFnKeyMappingOptions() {
     writeMapping(doc, "rightFn", fn.rightFnMapping);
     writeMapping(doc, "leftMt", fn.leftMtMapping);
     writeMapping(doc, "rightMt", fn.rightMtMapping);
-    writeDoc(doc, "leftFnPin", fn.leftFnPin);
-    writeDoc(doc, "rightFnPin", fn.rightFnPin);
-    writeDoc(doc, "leftMtPin", fn.leftMtPin);
-    writeDoc(doc, "rightMtPin", fn.rightMtPin);
+    writeMapping(doc, "extLeftTrigger", fn.leftExtTriggerMapping);
+    writeMapping(doc, "extRightTrigger", fn.rightExtTriggerMapping);
     return serialize_json(doc);
 }
 
@@ -582,11 +596,10 @@ std::string setFnKeyMappingOptions() {
     readMapping(fn.rightFnMapping, doc, "rightFn");
     readMapping(fn.leftMtMapping, doc, "leftMt");
     readMapping(fn.rightMtMapping, doc, "rightMt");
-    docToValue(fn.leftFnPin, doc, "leftFnPin");
-    docToValue(fn.rightFnPin, doc, "rightFnPin");
-    docToValue(fn.leftMtPin, doc, "leftMtPin");
-    docToValue(fn.rightMtPin, doc, "rightMtPin");
+    readMapping(fn.leftExtTriggerMapping, doc, "extLeftTrigger");
+    readMapping(fn.rightExtTriggerMapping, doc, "extRightTrigger");
     fn.has_leftFnMapping = fn.has_rightFnMapping = fn.has_leftMtMapping = fn.has_rightMtMapping = true;
+    fn.has_leftExtTriggerMapping = fn.has_rightExtTriggerMapping = true;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -2985,6 +2998,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
     { "/api/setDisplayOptions", setDisplayOptions },
     { "/api/setFourKeyTouchpadOptions", setFourKeyTouchpadOptions },
+    { "/api/setMCP3208Options", setMCP3208Options },
     { "/api/setFnKeyMappingOptions", setFnKeyMappingOptions },
     { "/api/setPreviewDisplayOptions", setPreviewDisplayOptions },
     { "/api/setGamepadOptions", setGamepadOptions },
@@ -3014,6 +3028,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/reboot", reboot },
     { "/api/getDisplayOptions", getDisplayOptions },
     { "/api/getFourKeyTouchpadOptions", getFourKeyTouchpadOptions },
+    { "/api/getMCP3208Options", getMCP3208Options },
     { "/api/getFnKeyMappingOptions", getFnKeyMappingOptions },
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },

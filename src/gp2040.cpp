@@ -14,6 +14,8 @@
 
 // Inputs for Core0
 #include "addons/analog.h"
+#include "addons/mcp3208_adc.h"
+#include "addons/lsm6dsr_imu.h"
 #include "addons/bootsel_button.h"
 #include "addons/focus_mode.h"
 #include "addons/dualdirectional.h"
@@ -110,6 +112,8 @@ void GP2040::setup() {
 	addons.LoadUSBAddon(new KeyboardHostAddon());
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
 	addons.LoadAddon(new AnalogInput());
+	addons.LoadAddon(new MCP3208ADCAddon());
+	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new LinearTriggerAddon());
 	addons.LoadAddon(new FourKeyTouchpadAddon());

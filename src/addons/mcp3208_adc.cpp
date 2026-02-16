@@ -1,0 +1,589 @@
+#include "addons/mcp3208_adc.h"
+#include "config.pb.h"
+#include "enums.pb.h"
+#include "storagemanager.h"
+#include "peripheralmanager.h"
+#include "drivermanager.h"
+#include "gamepad/GamepadState.h"
+#include "gamepad.h"
+#include <algorithm>
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+// ========== CH2/CH5 四档开关防抖（编译时修改） ==========
+// 连续 N 帧同档位才更新输出，避免电压过渡误触发。主循环约 1ms/帧，N 帧 ≈ N ms 延迟。
+static const uint8_t CH25_DEBOUNCE_FRAMES = 2;   // 防抖帧数，建议 1–4，按需改
+
+// 一轮执行时间估算（每帧 preprocess + process）：
+// - readAllChannels: 6 通道 × 16bit @ 1.5MHz → 约 64µs SPI，加事务开销约 70–80µs
+// - process: 摇杆曲线/死区/CH2CH5 多帧防抖等，约 30–100µs
+// CH2/CH5 四档开关：按电压范围划分（两档中点），抗波动。Vref=3.3V，12bit raw = V/3.3*4095
+// 左MT: 0～0.4V, L3: 0.4～1.2V, Ext左扳机: 1.2～2.0V, 左FN: 2.0～2.9V（CH5 同理）
+static const uint16_t CH25_T1 = 496;   // 0.4V
+static const uint16_t CH25_T2 = 1488;  // 1.2V
+static const uint16_t CH25_T3 = 2482;  // 2.0V
+static const uint16_t CH25_T4 = 3596;  // 2.9V，raw >= T4 视为无效(-1)
+
+// 从 GpioMappingInfo 得到要写入 gamepad state 的 (buttons, dpad) mask
+static void gpioMappingToMasks(const GpioMappingInfo& m, uint32_t* out_buttons, uint32_t* out_dpad) {
+    *out_buttons = 0;
+    *out_dpad = 0;
+    if (m.action == GpioAction::NONE) return;
+    if (m.action == GpioAction::CUSTOM_BUTTON_COMBO) {
+        *out_buttons = m.customButtonMask;
+        if (m.customDpadMask & GAMEPAD_MASK_DU) *out_dpad |= GAMEPAD_MASK_UP;
+        if (m.customDpadMask & GAMEPAD_MASK_DD) *out_dpad |= GAMEPAD_MASK_DOWN;
+        if (m.customDpadMask & GAMEPAD_MASK_DL) *out_dpad |= GAMEPAD_MASK_LEFT;
+        if (m.customDpadMask & GAMEPAD_MASK_DR) *out_dpad |= GAMEPAD_MASK_RIGHT;
+        return;
+    }
+    switch (m.action) {
+        case GpioAction::BUTTON_PRESS_UP:    *out_dpad |= GAMEPAD_MASK_UP; break;
+        case GpioAction::BUTTON_PRESS_DOWN:  *out_dpad |= GAMEPAD_MASK_DOWN; break;
+        case GpioAction::BUTTON_PRESS_LEFT:  *out_dpad |= GAMEPAD_MASK_LEFT; break;
+        case GpioAction::BUTTON_PRESS_RIGHT: *out_dpad |= GAMEPAD_MASK_RIGHT; break;
+        case GpioAction::BUTTON_PRESS_B1:   *out_buttons |= GAMEPAD_MASK_B1; break;
+        case GpioAction::BUTTON_PRESS_B2:   *out_buttons |= GAMEPAD_MASK_B2; break;
+        case GpioAction::BUTTON_PRESS_B3:   *out_buttons |= GAMEPAD_MASK_B3; break;
+        case GpioAction::BUTTON_PRESS_B4:   *out_buttons |= GAMEPAD_MASK_B4; break;
+        case GpioAction::BUTTON_PRESS_L1:   *out_buttons |= GAMEPAD_MASK_L1; break;
+        case GpioAction::BUTTON_PRESS_R1:   *out_buttons |= GAMEPAD_MASK_R1; break;
+        case GpioAction::BUTTON_PRESS_L2:   *out_buttons |= GAMEPAD_MASK_L2; break;
+        case GpioAction::BUTTON_PRESS_R2:   *out_buttons |= GAMEPAD_MASK_R2; break;
+        case GpioAction::BUTTON_PRESS_S1:   *out_buttons |= GAMEPAD_MASK_S1; break;
+        case GpioAction::BUTTON_PRESS_S2:   *out_buttons |= GAMEPAD_MASK_S2; break;
+        case GpioAction::BUTTON_PRESS_L3:   *out_buttons |= GAMEPAD_MASK_L3; break;
+        case GpioAction::BUTTON_PRESS_R3:   *out_buttons |= GAMEPAD_MASK_R3; break;
+        case GpioAction::BUTTON_PRESS_A1:   *out_buttons |= GAMEPAD_MASK_A1; break;
+        case GpioAction::BUTTON_PRESS_A2:   *out_buttons |= GAMEPAD_MASK_A2; break;
+        case GpioAction::BUTTON_PRESS_A3:   *out_buttons |= GAMEPAD_MASK_A3; break;
+        case GpioAction::BUTTON_PRESS_A4:   *out_buttons |= GAMEPAD_MASK_A4; break;
+        case GpioAction::BUTTON_PRESS_E1:   *out_buttons |= GAMEPAD_MASK_E1; break;
+        case GpioAction::BUTTON_PRESS_E2:   *out_buttons |= GAMEPAD_MASK_E2; break;
+        case GpioAction::BUTTON_PRESS_E3:   *out_buttons |= GAMEPAD_MASK_E3; break;
+        case GpioAction::BUTTON_PRESS_E4:   *out_buttons |= GAMEPAD_MASK_E4; break;
+        case GpioAction::BUTTON_PRESS_E5:   *out_buttons |= GAMEPAD_MASK_E5; break;
+        case GpioAction::BUTTON_PRESS_E6:   *out_buttons |= GAMEPAD_MASK_E6; break;
+        case GpioAction::BUTTON_PRESS_E7:   *out_buttons |= GAMEPAD_MASK_E7; break;
+        case GpioAction::BUTTON_PRESS_E8:   *out_buttons |= GAMEPAD_MASK_E8; break;
+        case GpioAction::BUTTON_PRESS_E9:   *out_buttons |= GAMEPAD_MASK_E9; break;
+        case GpioAction::BUTTON_PRESS_E10:  *out_buttons |= GAMEPAD_MASK_E10; break;
+        case GpioAction::BUTTON_PRESS_E11:  *out_buttons |= GAMEPAD_MASK_E11; break;
+        case GpioAction::BUTTON_PRESS_E12:  *out_buttons |= GAMEPAD_MASK_E12; break;
+        default: break;
+    }
+}
+
+static void convertCurvePoints(const CurvePoint* pb_pts, int count, MCP3208CurvePoint* out) {
+    for (int i = 0; i < count && i < 3; i++) {
+        out[i].x = pb_pts[i].x;
+        out[i].y = pb_pts[i].y;
+        out[i].buttonMask = pb_pts[i].buttonMask;
+    }
+}
+
+bool MCP3208ADCAddon::available() {
+#if MCP3208_ADC_ENABLED
+    return PeripheralManager::getInstance().isSPIEnabled(MCP3208_SPI_BLOCK_ID);
+#else
+    return false;
+#endif
+}
+
+void MCP3208ADCAddon::setup() {
+    spiOk_ = false;
+    for (int i = 0; i < 8; i++) adcValues_[i] = 0;
+    ch2_stable_level_ = ch2_pending_level_ = ch5_stable_level_ = ch5_pending_level_ = -1;
+    ch2_debounce_count_ = ch5_debounce_count_ = 0;
+
+    PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(MCP3208_SPI_BLOCK_ID);
+    if (!spi || !spi->configured) return;
+    spi_ = spi;
+
+    const AnalogOptions& o = Storage::getInstance().getAddonOptions().analogOptions;
+    usage_curve_profile_1_ = o.curve_profile_1;
+    usage_curve_profile_2_ = o.curve_profile_2;
+    temp_curve_storage_[1].is_saved = false;
+    temp_curve_storage_[1].saved_points_count = 0;
+    active_activation_preset_[1] = 0;
+
+    bool curveEnabled = o.joystick_curve_enabled;
+
+    // Stick 0: 左摇杆 CH0=X, CH1=Y
+    adc_pairs_[0].analog_invert = o.analogAdc1Invert;
+    adc_pairs_[0].analog_dpad = DpadMode::DPAD_MODE_LEFT_ANALOG;
+    adc_pairs_[0].in_deadzone = o.inner_deadzone / 100.0f;
+    adc_pairs_[0].anti_deadzone = std::clamp(o.anti_deadzone / 100.0f, 0.0f, 1.0f);
+    adc_pairs_[0].fixed_anti_deadzone = o.fixed_anti_deadzone;
+    adc_pairs_[0].jitter_filter = o.joystick_jitter_filter_1;
+    adc_pairs_[0].last_x_adc = 0;
+    adc_pairs_[0].last_y_adc = 0;
+    adc_pairs_[0].has_range_calibration = (o.joystick_range_data_1_count > 0);
+    for (int i = 0; i < MCP3208_CIRCULARITY_SIZE; i++) {
+        if (i < o.joystick_range_data_1_count && o.joystick_range_data_1[i] > 0.0f) {
+            adc_pairs_[0].range_data[i] = o.joystick_range_data_1[i];
+        } else {
+            adc_pairs_[0].range_data[i] = 0.0f;
+        }
+    }
+    adc_pairs_[0].finetune_shape_force_circular = o.joystick_finetune_shape_force_circular_1;
+    adc_pairs_[0].finetune_shape_amplify = o.joystick_finetune_shape_amplify_1;
+    adc_pairs_[0].curve_points_sorted_count = 0;
+    adc_pairs_[0].curve_segments_count = 0;
+    adc_pairs_[0].active_control_points_mask = 0;
+    adc_pairs_[0].x_center = (o.joystick_center_x > 0) ? (uint16_t)o.joystick_center_x : (uint16_t)MCP3208_ADC_MAX_HALF;
+    adc_pairs_[0].y_center = (o.joystick_center_y > 0) ? (uint16_t)o.joystick_center_y : (uint16_t)MCP3208_ADC_MAX_HALF;
+    adc_pairs_[0].x_value = adc_pairs_[0].y_value = MCP3208_ANALOG_CENTER;
+    if (curveEnabled && o.joystick_curve_points_1_count > 0) {
+        MCP3208CurvePoint conv[3];
+        convertCurvePoints(o.joystick_curve_points_1, o.joystick_curve_points_1_count, conv);
+        initializeCurveSegments(0, conv, o.joystick_curve_points_1_count);
+    }
+
+    // Stick 1: 右摇杆 CH7=X, CH6=Y
+    adc_pairs_[1].analog_invert = o.analogAdc2Invert;
+    adc_pairs_[1].analog_dpad = DpadMode::DPAD_MODE_RIGHT_ANALOG;
+    adc_pairs_[1].in_deadzone = o.inner_deadzone2 / 100.0f;
+    adc_pairs_[1].anti_deadzone = std::clamp(o.anti_deadzone2 / 100.0f, 0.0f, 1.0f);
+    adc_pairs_[1].fixed_anti_deadzone = o.fixed_anti_deadzone2;
+    adc_pairs_[1].jitter_filter = o.joystick_jitter_filter_2;
+    adc_pairs_[1].last_x_adc = 0;
+    adc_pairs_[1].last_y_adc = 0;
+    adc_pairs_[1].has_range_calibration = (o.joystick_range_data_2_count > 0);
+    for (int i = 0; i < MCP3208_CIRCULARITY_SIZE; i++) {
+        if (i < o.joystick_range_data_2_count && o.joystick_range_data_2[i] > 0.0f) {
+            adc_pairs_[1].range_data[i] = o.joystick_range_data_2[i];
+        } else {
+            adc_pairs_[1].range_data[i] = 0.0f;
+        }
+    }
+    adc_pairs_[1].finetune_shape_force_circular = o.joystick_finetune_shape_force_circular_2;
+    adc_pairs_[1].finetune_shape_amplify = o.joystick_finetune_shape_amplify_2;
+    adc_pairs_[1].curve_points_sorted_count = 0;
+    adc_pairs_[1].curve_segments_count = 0;
+    adc_pairs_[1].active_control_points_mask = 0;
+    adc_pairs_[1].x_center = (o.joystick_center_x2 > 0) ? (uint16_t)o.joystick_center_x2 : (uint16_t)MCP3208_ADC_MAX_HALF;
+    adc_pairs_[1].y_center = (o.joystick_center_y2 > 0) ? (uint16_t)o.joystick_center_y2 : (uint16_t)MCP3208_ADC_MAX_HALF;
+    adc_pairs_[1].x_value = adc_pairs_[1].y_value = MCP3208_ANALOG_CENTER;
+    if (curveEnabled && o.joystick_curve_points_2_count > 0) {
+        MCP3208CurvePoint conv[3];
+        convertCurvePoints(o.joystick_curve_points_2, o.joystick_curve_points_2_count, conv);
+        initializeCurveSegments(1, conv, o.joystick_curve_points_2_count);
+    }
+
+    applyFinetuneShapeAdjustments(0);
+    applyFinetuneShapeAdjustments(1);
+    spiOk_ = true;
+}
+
+void MCP3208ADCAddon::readAllChannels() {
+    if (!spi_ || !spiOk_) return;
+    const uint8_t channels[MCP3208_READ_CHANNELS] = {0, 1, 2, 5, 6, 7};
+    spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+    for (int i = 0; i < MCP3208_READ_CHANNELS; i++) {
+        uint8_t ch = channels[i];
+        spi_->select(MCP3208_CS_PIN);
+        uint8_t cmd0 = (uint8_t)(0xC0u | (ch << 3));
+        uint8_t cmd1 = 0x00;
+        uint8_t r0 = spi_->transfer(cmd0);
+        uint8_t r1 = spi_->transfer(cmd1);
+        spi_->deselect();
+        uint16_t v = (uint16_t)(((r0 & 0x0Fu) << 8) | r1);
+        adcValues_[ch] = v & 0x0FFFu;
+    }
+    spi_->endTransaction();
+}
+
+float MCP3208ADCAddon::getStickRaw(int stick, bool isX) {
+    uint16_t adc_value = (stick == 0) ? (isX ? adcValues_[0] : adcValues_[1]) : (isX ? adcValues_[7] : adcValues_[6]);
+    uint32_t threshold = adc_pairs_[stick].jitter_filter;
+    uint16_t* last_adc = isX ? &adc_pairs_[stick].last_x_adc : &adc_pairs_[stick].last_y_adc;
+    if (threshold > 0) {
+        uint32_t diff = (adc_value > *last_adc) ? (adc_value - *last_adc) : (*last_adc - adc_value);
+        if (diff < threshold) return static_cast<float>(*last_adc);
+        *last_adc = adc_value;
+    } else {
+        *last_adc = adc_value;
+    }
+    return static_cast<float>(adc_value);
+}
+
+void MCP3208ADCAddon::preprocess() {
+    if (!spiOk_) return;
+    readAllChannels();
+}
+
+float MCP3208ADCAddon::getInterpolatedScale(int stick, float angle) const {
+    if (!adc_pairs_[stick].has_range_calibration) return 0.65f;
+    float norm = (angle + (float)M_PI) / (2.0f * (float)M_PI);
+    float idx = norm * MCP3208_CIRCULARITY_SIZE;
+    int i0 = (int)idx;
+    if (i0 >= MCP3208_CIRCULARITY_SIZE) i0 = MCP3208_CIRCULARITY_SIZE - 1;
+    int i1 = (i0 + 1 < MCP3208_CIRCULARITY_SIZE) ? (i0 + 1) : 0;
+    float t = idx - (float)i0;
+    float r0 = adc_pairs_[stick].range_data[i0];
+    float r1 = adc_pairs_[stick].range_data[i1];
+    return r0 * (1.0f - t) + r1 * t;
+}
+
+void MCP3208ADCAddon::applyFinetuneShapeAdjustments(int stick) {
+    if (!adc_pairs_[stick].has_range_calibration) return;
+    if (!adc_pairs_[stick].finetune_shape_force_circular) {
+        float mn = adc_pairs_[stick].range_data[0];
+        for (int i = 1; i < MCP3208_CIRCULARITY_SIZE; i++)
+            if (adc_pairs_[stick].range_data[i] < mn) mn = adc_pairs_[stick].range_data[i];
+        for (int i = 0; i < MCP3208_CIRCULARITY_SIZE; i++)
+            adc_pairs_[stick].range_data[i] = mn;
+    }
+    float amp = 1.0f + adc_pairs_[stick].finetune_shape_amplify / 100.0f;
+    if (amp > 0.0f) {
+        for (int i = 0; i < MCP3208_CIRCULARITY_SIZE; i++)
+            if (adc_pairs_[stick].range_data[i] > 0.0f)
+                adc_pairs_[stick].range_data[i] /= amp;
+    }
+}
+
+void MCP3208ADCAddon::initializeCurveSegments(int stick, const MCP3208CurvePoint* control_points, int control_points_count) {
+    adc_pairs_[stick].curve_points_sorted_count = 0;
+    adc_pairs_[stick].curve_points_sorted[adc_pairs_[stick].curve_points_sorted_count++] = {
+        adc_pairs_[stick].in_deadzone, adc_pairs_[stick].anti_deadzone, 0u
+    };
+    for (int i = 0; i < control_points_count; i++)
+        adc_pairs_[stick].curve_points_sorted[adc_pairs_[stick].curve_points_sorted_count++] = {
+            control_points[i].x, control_points[i].y, control_points[i].buttonMask
+        };
+    adc_pairs_[stick].curve_points_sorted[adc_pairs_[stick].curve_points_sorted_count++] = { 1.0f, 1.0f, 0u };
+    adc_pairs_[stick].curve_segments_count = 0;
+    for (int i = 0; i < adc_pairs_[stick].curve_points_sorted_count - 1; i++) {
+        float p1x = adc_pairs_[stick].curve_points_sorted[i].x, p1y = adc_pairs_[stick].curve_points_sorted[i].y;
+        float p2x = adc_pairs_[stick].curve_points_sorted[i+1].x, p2y = adc_pairs_[stick].curve_points_sorted[i+1].y;
+        if (p2x == p1x) {
+            adc_pairs_[stick].curve_segments[adc_pairs_[stick].curve_segments_count].slope = 0.0f;
+            adc_pairs_[stick].curve_segments[adc_pairs_[stick].curve_segments_count].intercept = p1y;
+        } else {
+            float sl = (p2y - p1y) / (p2x - p1x);
+            adc_pairs_[stick].curve_segments[adc_pairs_[stick].curve_segments_count].slope = sl;
+            adc_pairs_[stick].curve_segments[adc_pairs_[stick].curve_segments_count].intercept = p1y - p1x * sl;
+        }
+        adc_pairs_[stick].curve_segments[adc_pairs_[stick].curve_segments_count].x_start = p1x;
+        adc_pairs_[stick].curve_segments[adc_pairs_[stick].curve_segments_count].x_end = p2x;
+        adc_pairs_[stick].curve_segments_count++;
+    }
+}
+
+void MCP3208ADCAddon::forceReleaseActiveControlPoints(int stick, Gamepad* gamepad) {
+    if (!gamepad || adc_pairs_[stick].active_control_points_mask == 0) {
+        adc_pairs_[stick].active_control_points_mask = 0;
+        return;
+    }
+    uint32_t to_release = 0;
+    for (int j = 1; j < adc_pairs_[stick].curve_points_sorted_count - 1; j++) {
+        if ((adc_pairs_[stick].active_control_points_mask & (1U << (j-1))) != 0)
+            to_release |= adc_pairs_[stick].curve_points_sorted[j].buttonMask;
+    }
+    uint32_t dpad_mask = to_release & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
+    if (dpad_mask & GAMEPAD_MASK_DU) gamepad->state.dpad &= ~GAMEPAD_MASK_UP;
+    if (dpad_mask & GAMEPAD_MASK_DD) gamepad->state.dpad &= ~GAMEPAD_MASK_DOWN;
+    if (dpad_mask & GAMEPAD_MASK_DL) gamepad->state.dpad &= ~GAMEPAD_MASK_LEFT;
+    if (dpad_mask & GAMEPAD_MASK_DR) gamepad->state.dpad &= ~GAMEPAD_MASK_RIGHT;
+    uint32_t reg = to_release & ~(GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
+    if (reg) gamepad->state.buttons &= ~reg;
+    adc_pairs_[stick].active_control_points_mask = 0;
+}
+
+void MCP3208ADCAddon::applyResponseCurveToCoordinates(float& nx, float& ny, int stick, Gamepad* gamepad) {
+    if (nx == 0.0f && ny == 0.0f) {
+        if (active_activation_preset_[stick] == 0)
+            forceReleaseActiveControlPoints(stick, gamepad);
+        return;
+    }
+    float clampdist_sq = nx*nx + ny*ny;
+    float clampdist = std::sqrt(clampdist_sq);
+    int segmentIdx = -1;
+    if (clampdist > 1.0f) segmentIdx = adc_pairs_[stick].curve_segments_count;
+    else {
+        for (int i = 0; i < adc_pairs_[stick].curve_segments_count; i++) {
+            if (clampdist >= adc_pairs_[stick].curve_segments[i].x_start &&
+                clampdist < adc_pairs_[stick].curve_segments[i].x_end) {
+                segmentIdx = i; break;
+            }
+        }
+        if (segmentIdx == -1) segmentIdx = adc_pairs_[stick].curve_segments_count - 1;
+    }
+    if (gamepad && active_activation_preset_[stick] == 0) {
+        uint8_t old_mask = adc_pairs_[stick].active_control_points_mask;
+        uint8_t new_mask = 0;
+        uint32_t btn_now = 0, btn_prev = 0;
+        for (int j = 1; j < adc_pairs_[stick].curve_points_sorted_count - 1; j++) {
+            uint32_t btn = adc_pairs_[stick].curve_points_sorted[j].buttonMask;
+            uint8_t bit = 1U << (j-1);
+            if (segmentIdx >= j) { new_mask |= bit; if (btn) btn_now |= btn; }
+            if ((old_mask & bit) && btn) btn_prev |= btn;
+        }
+        uint32_t dpad_now = btn_now & (GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
+        uint32_t dpad_prev = btn_prev & (GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
+        uint32_t reg_now = btn_now & ~(GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
+        uint32_t reg_prev = btn_prev & ~(GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
+        if (dpad_now & GAMEPAD_MASK_DU) gamepad->state.dpad |= GAMEPAD_MASK_UP;
+        if (dpad_now & GAMEPAD_MASK_DD) gamepad->state.dpad |= GAMEPAD_MASK_DOWN;
+        if (dpad_now & GAMEPAD_MASK_DL) gamepad->state.dpad |= GAMEPAD_MASK_LEFT;
+        if (dpad_now & GAMEPAD_MASK_DR) gamepad->state.dpad |= GAMEPAD_MASK_RIGHT;
+        uint32_t dpad_rel = dpad_prev & ~dpad_now;
+        if (dpad_rel & GAMEPAD_MASK_DU) gamepad->state.dpad &= ~GAMEPAD_MASK_UP;
+        if (dpad_rel & GAMEPAD_MASK_DD) gamepad->state.dpad &= ~GAMEPAD_MASK_DOWN;
+        if (dpad_rel & GAMEPAD_MASK_DL) gamepad->state.dpad &= ~GAMEPAD_MASK_LEFT;
+        if (dpad_rel & GAMEPAD_MASK_DR) gamepad->state.dpad &= ~GAMEPAD_MASK_RIGHT;
+        gamepad->state.buttons |= reg_now;
+        gamepad->state.buttons &= ~(reg_prev & ~reg_now);
+        adc_pairs_[stick].active_control_points_mask = new_mask;
+    }
+    if (clampdist > 1.0f) return;
+    int vi = std::min(segmentIdx, (int)adc_pairs_[stick].curve_segments_count - 1);
+    float curvedMag = (vi >= 0) ? adc_pairs_[stick].curve_segments[vi].intercept + clampdist * adc_pairs_[stick].curve_segments[vi].slope : clampdist;
+    float scale = curvedMag / clampdist;
+    nx *= scale; ny *= scale;
+}
+
+void MCP3208ADCAddon::saveCurrentCurveData(int stick) {
+    if (stick < 0 || stick >= MCP3208_STICK_COUNT) return;
+    temp_curve_storage_[stick].saved_points_count = 0;
+    if (adc_pairs_[stick].curve_points_sorted_count > 2) {
+        for (int i = 1; i < adc_pairs_[stick].curve_points_sorted_count - 1 && temp_curve_storage_[stick].saved_points_count < 3; i++) {
+            temp_curve_storage_[stick].saved_points[temp_curve_storage_[stick].saved_points_count++] = {
+                adc_pairs_[stick].curve_points_sorted[i].x,
+                adc_pairs_[stick].curve_points_sorted[i].y,
+                adc_pairs_[stick].curve_points_sorted[i].buttonMask
+            };
+        }
+    }
+    temp_curve_storage_[stick].is_saved = true;
+}
+
+void MCP3208ADCAddon::restoreCurveData(int stick) {
+    if (stick < 0 || stick >= MCP3208_STICK_COUNT || !temp_curve_storage_[stick].is_saved) return;
+    Gamepad* gp = Storage::getInstance().GetGamepad();
+    forceReleaseActiveControlPoints(stick, gp);
+    if (temp_curve_storage_[stick].saved_points_count > 0)
+        initializeCurveSegments(stick, temp_curve_storage_[stick].saved_points, temp_curve_storage_[stick].saved_points_count);
+    else {
+        adc_pairs_[stick].curve_points_sorted_count = 0;
+        adc_pairs_[stick].curve_segments_count = 0;
+        adc_pairs_[stick].active_control_points_mask = 0;
+    }
+    temp_curve_storage_[stick].is_saved = false;
+    active_activation_preset_[stick] = 0;
+}
+
+void MCP3208ADCAddon::applyPresetCurve(int stick, int preset_index) {
+    if (stick < 0 || stick >= MCP3208_STICK_COUNT || preset_index < 0 || preset_index >= 4) return;
+    const AnalogOptions& o = Storage::getInstance().getAddonOptions().analogOptions;
+    if (preset_index >= (int)o.joystick_curve_presets_count || o.joystick_curve_presets[preset_index].points_count == 0) return;
+    const CurvePreset& preset = o.joystick_curve_presets[preset_index];
+    Gamepad* gp = Storage::getInstance().GetGamepad();
+    forceReleaseActiveControlPoints(stick, gp);
+    MCP3208CurvePoint conv[3];
+    for (int i = 0; i < (int)preset.points_count && i < 3; i++) {
+        conv[i].x = preset.points[i].x;
+        conv[i].y = preset.points[i].y;
+        conv[i].buttonMask = 0;
+    }
+    initializeCurveSegments(stick, conv, preset.points_count);
+}
+
+void MCP3208ADCAddon::applyCh2Ch5Keys(Gamepad* gamepad) {
+    const FnKeyMappingOptions& fn = Storage::getInstance().getAddonOptions().fnKeyMappingOptions;
+    uint32_t ch2_btn[4], ch2_dpad[4], ch5_btn[4], ch5_dpad[4];
+    gpioMappingToMasks(fn.leftMtMapping, &ch2_btn[0], &ch2_dpad[0]);
+    ch2_btn[1] = GAMEPAD_MASK_L3; ch2_dpad[1] = 0;
+    gpioMappingToMasks(fn.leftExtTriggerMapping, &ch2_btn[2], &ch2_dpad[2]);
+    gpioMappingToMasks(fn.leftFnMapping, &ch2_btn[3], &ch2_dpad[3]);
+    gpioMappingToMasks(fn.rightMtMapping, &ch5_btn[0], &ch5_dpad[0]);
+    ch5_btn[1] = GAMEPAD_MASK_R3; ch5_dpad[1] = 0;
+    gpioMappingToMasks(fn.rightExtTriggerMapping, &ch5_btn[2], &ch5_dpad[2]);
+    gpioMappingToMasks(fn.rightFnMapping, &ch5_btn[3], &ch5_dpad[3]);
+
+    auto levelFromRaw = [](uint16_t raw) -> int {
+        if (raw < CH25_T1) return 0;
+        if (raw < CH25_T2) return 1;
+        if (raw < CH25_T3) return 2;
+        if (raw < CH25_T4) return 3;
+        return -1;
+    };
+    int cand2 = levelFromRaw(adcValues_[2]);
+    int cand5 = levelFromRaw(adcValues_[5]);
+
+    auto updateDebounce = [](int candidate, int& stable_level, int& pending_level, uint8_t& debounce_count) {
+        if (candidate == stable_level) {
+            debounce_count = 0;
+            return;
+        }
+        if (candidate == pending_level) {
+            debounce_count++;
+            if (debounce_count >= CH25_DEBOUNCE_FRAMES) {
+                stable_level = pending_level;
+                debounce_count = 0;
+            }
+        } else {
+            pending_level = candidate;
+            debounce_count = 1;
+        }
+    };
+    updateDebounce(cand2, ch2_stable_level_, ch2_pending_level_, ch2_debounce_count_);
+    updateDebounce(cand5, ch5_stable_level_, ch5_pending_level_, ch5_debounce_count_);
+    int l2 = ch2_stable_level_;
+    int l5 = ch5_stable_level_;
+
+    uint32_t clear_btn = 0, clear_dpad = 0;
+    for (int i = 0; i < 4; i++) { clear_btn |= ch2_btn[i] | ch5_btn[i]; clear_dpad |= ch2_dpad[i] | ch5_dpad[i]; }
+    gamepad->state.buttons &= ~clear_btn;
+    gamepad->state.dpad &= ~clear_dpad;
+
+    if (l2 >= 0) { gamepad->state.buttons |= ch2_btn[l2]; gamepad->state.dpad |= ch2_dpad[l2]; }
+    if (l5 >= 0) { gamepad->state.buttons |= ch5_btn[l5]; gamepad->state.dpad |= ch5_dpad[l5]; }
+}
+
+void MCP3208ADCAddon::process() {
+    if (!spiOk_) return;
+    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    Gamepad* gamepad = Storage::getInstance().GetGamepad();
+
+    if (analogOptions.joystick_curve_enabled) {
+        int stick_num = 1;
+        bool found = false;
+        int pressed_idx = -1;
+        for (int pi = 0; pi < 4 && pi < (int)analogOptions.joystick_curve_presets_count; pi++) {
+            uint32_t am = analogOptions.joystick_curve_presets[pi].activationButtonMask;
+            if (am == 0) continue;
+            uint32_t dpad_m = am & (GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
+            uint32_t reg_m = am & ~(GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
+            bool on = (reg_m && (gamepad->state.buttons & reg_m) == reg_m) ||
+                (dpad_m & GAMEPAD_MASK_DU && (gamepad->state.dpad & GAMEPAD_MASK_UP)) ||
+                (dpad_m & GAMEPAD_MASK_DD && (gamepad->state.dpad & GAMEPAD_MASK_DOWN)) ||
+                (dpad_m & GAMEPAD_MASK_DL && (gamepad->state.dpad & GAMEPAD_MASK_LEFT)) ||
+                (dpad_m & GAMEPAD_MASK_DR && (gamepad->state.dpad & GAMEPAD_MASK_RIGHT));
+            if (on) { found = true; pressed_idx = pi; break; }
+        }
+        if (found) {
+            if (active_activation_preset_[stick_num] == 0) {
+                saveCurrentCurveData(stick_num);
+                if (pressed_idx < (int)analogOptions.joystick_curve_presets_count &&
+                    analogOptions.joystick_curve_presets[pressed_idx].points_count > 0) {
+                    applyPresetCurve(stick_num, pressed_idx);
+                    active_activation_preset_[stick_num] = (uint8_t)(pressed_idx + 1);
+                }
+            }
+        } else {
+            if (active_activation_preset_[stick_num] != 0) restoreCurveData(stick_num);
+        }
+        uint32_t p1 = analogOptions.curve_profile_1, p2 = analogOptions.curve_profile_2;
+        if (usage_curve_profile_1_ != p1 || usage_curve_profile_2_ != p2) {
+            usage_curve_profile_1_ = p1; usage_curve_profile_2_ = p2;
+            reinit();
+        }
+    }
+
+    // 与模拟摇杆一致：按当前模式输出 16bit 范围。12bit ADC 经归一化到 [0,1] 后乘 joystickMax
+    // XInput 等模式：driver->GetJoystickMidValue()=32767，joystickMax=65535
+    uint32_t joystickMax = GAMEPAD_JOYSTICK_MAX;
+    if (DriverManager::getInstance().getDriver() != nullptr) {
+        uint32_t joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+        joystickMax = joystickMid * 2;
+    }
+
+    for (int i = 0; i < MCP3208_STICK_COUNT; i++) {
+        // Step 1: Read raw ADC (with jitter filter) and transform to center-relative coordinates
+        float cx = getStickRaw(i, true) - (float)adc_pairs_[i].x_center;
+        float cy = getStickRaw(i, false) - (float)adc_pairs_[i].y_center;
+
+        // Step 2: Range calibration scaling (radial scaling), scale always > 0 (0.65 when uncalibrated)
+        float scale = getInterpolatedScale(i, std::atan2(cy, cx));
+        float sx = cx / scale;
+        float sy = cy / scale;
+
+        // Step 3: Normalize to [-1, 1] and apply inversion (match analog)
+        float nx = sx / MCP3208_ADC_MAX_HALF;
+        float ny = sy / MCP3208_ADC_MAX_HALF;
+        if (adc_pairs_[i].analog_invert == InvertMode::INVERT_X || adc_pairs_[i].analog_invert == InvertMode::INVERT_XY) nx = -nx;
+        if (adc_pairs_[i].analog_invert == InvertMode::INVERT_Y || adc_pairs_[i].analog_invert == InvertMode::INVERT_XY) ny = -ny;
+
+        // Step 4: Apply deadzone and anti-deadzone (match analog)
+        float dist_sq = nx * nx + ny * ny;
+        float deadzone_sq = adc_pairs_[i].in_deadzone * adc_pairs_[i].in_deadzone;
+        if (dist_sq < deadzone_sq) {
+            nx = 0.0f;
+            ny = 0.0f;
+            dist_sq = 0.0f;
+        } else if (adc_pairs_[i].anti_deadzone > 0.0f) {
+            float dist = std::sqrt(dist_sq);
+            float baseline = adc_pairs_[i].anti_deadzone;
+            if (adc_pairs_[i].fixed_anti_deadzone) {
+                if (dist > 0.0f && dist < baseline) {
+                    float scale_factor = baseline / dist;
+                    nx *= scale_factor;
+                    ny *= scale_factor;
+                }
+            } else {
+                if (dist > 0.0f) {
+                    float new_dist = dist + baseline;
+                    float scale_factor = new_dist / dist;
+                    nx *= scale_factor;
+                    ny *= scale_factor;
+                }
+            }
+        }
+
+        // Step 5: Square trimming (DS4-style) - clamp to [-1, 1]
+        nx = std::clamp(nx, -1.0f, 1.0f);
+        ny = std::clamp(ny, -1.0f, 1.0f);
+
+        // Step 6: Apply response curve if configured (match analog)
+        if (adc_pairs_[i].curve_points_sorted_count > 0 || active_activation_preset_[i] != 0) {
+            applyResponseCurveToCoordinates(nx, ny, i, gamepad);
+        }
+
+        // Final: Convert from [-1, 1] to [0, 1] for storage and output (match analog)
+        float x_value = nx * 0.5f + MCP3208_ANALOG_CENTER;
+        float y_value = ny * 0.5f + MCP3208_ANALOG_CENTER;
+        adc_pairs_[i].x_value = x_value;
+        adc_pairs_[i].y_value = y_value;
+
+        float clamped_x = std::clamp(x_value, 0.0f, 1.0f);
+        float clamped_y = std::clamp(y_value, 0.0f, 1.0f);
+        uint16_t clampedX = (uint16_t)std::min((uint32_t)(joystickMax * clamped_x), (uint32_t)0xFFFF);
+        uint16_t clampedY = (uint16_t)std::min((uint32_t)(joystickMax * clamped_y), (uint32_t)0xFFFF);
+        if (adc_pairs_[i].analog_dpad == DpadMode::DPAD_MODE_LEFT_ANALOG) {
+            gamepad->state.lx = clampedX;
+            gamepad->state.ly = clampedY;
+        } else if (adc_pairs_[i].analog_dpad == DpadMode::DPAD_MODE_RIGHT_ANALOG) {
+            gamepad->state.rx = clampedX;
+            gamepad->state.ry = clampedY;
+        }
+    }
+
+    applyCh2Ch5Keys(gamepad);
+}
+
+void MCP3208ADCAddon::reinit() {
+    const AnalogOptions& o = Storage::getInstance().getAddonOptions().analogOptions;
+    Gamepad* gamepad = Storage::getInstance().GetGamepad();
+    forceReleaseActiveControlPoints(0, gamepad);
+    forceReleaseActiveControlPoints(1, gamepad);
+    // Reinitialize curve segments only (match analog: no hardware/jitter re-init here)
+    bool curveEnabled = o.joystick_curve_enabled;
+    for (int i = 0; i < MCP3208_STICK_COUNT; i++) {
+        adc_pairs_[i].curve_points_sorted_count = 0;
+        adc_pairs_[i].curve_segments_count = 0;
+        adc_pairs_[i].active_control_points_mask = 0;
+        if (curveEnabled && (i == 0 ? o.joystick_curve_points_1_count : o.joystick_curve_points_2_count) > 0) {
+            MCP3208CurvePoint conv[3];
+            if (i == 0)
+                convertCurvePoints(o.joystick_curve_points_1, o.joystick_curve_points_1_count, conv);
+            else
+                convertCurvePoints(o.joystick_curve_points_2, o.joystick_curve_points_2_count, conv);
+            initializeCurveSegments(i, conv, i == 0 ? o.joystick_curve_points_1_count : o.joystick_curve_points_2_count);
+        }
+    }
+}
