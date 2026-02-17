@@ -37,6 +37,7 @@
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
 #include "addons/mcp3208_adc.h"
+#include "addons/lsm6dsr_imu.h"
 #include "addons/tg16_input.h"
 
 #include "CRC32.h"
@@ -1074,6 +1075,13 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.fourKeyTouchpadOptions, enabled, 0);
 #if MCP3208_ADC_ENABLED
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, 1);
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, spiBlock, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, csPin, 1);
+#endif
+#if LSM6DSR_IMU_ENABLED
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, spiBlock, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, csPin, 4);
 #endif
 
     // keyboardMapping

@@ -1,5 +1,6 @@
 #include "addons/analog_utils.h"
 #include "addons/analog.h"  // For ADC_PIN_OFFSET definition
+#include "addons/mcp3208_adc.h"
 #include "storagemanager.h"
 #include "eventmanager.h"
 #include "hardware/adc.h"
@@ -13,10 +14,13 @@
 #endif
 
 bool readJoystickADC(uint8_t stickNum, uint16_t& x, uint16_t& y) {
-    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     x = 0;
     y = 0;
-    
+    // When MCP3208 addon is active, use its raw values for web calibration/curve
+    if (MCP3208ADCAddon::getRawStickForWebConfig(stickNum, x, y)) {
+        return true;
+    }
+    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     if (!analogOptions.enabled) {
         return false;
     }

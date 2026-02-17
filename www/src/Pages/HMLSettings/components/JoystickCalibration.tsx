@@ -733,16 +733,18 @@ const JoystickCalibration = ({
 		currentDistance: 0,
 	});
 
-	// Fetch joystick data periodically and update canvas
+	// Fetch joystick data periodically and update canvas (Analog addon or MCP3208 addon)
+	const joystickSourceEnabled = values?.AnalogInputEnabled || values?.MCP3208AddonEnabled;
 	useEffect(() => {
-		if (!values || !values.AnalogInputEnabled) {
+		if (!values || !joystickSourceEnabled) {
 			return;
 		}
 
 		const fetchJoystickData = async () => {
 			try {
-				// Fetch left stick (stick 1)
-				if (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) {
+				// Fetch left stick (stick 1): when Analog pins configured or MCP3208 enabled
+				const leftStickAvailable = (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) || values.MCP3208AddonEnabled;
+				if (leftStickAvailable) {
 					const res1 = await fetch('/api/getJoystickCenter');
 					if (res1.ok) {
 						const data1 = await res1.json();
@@ -896,8 +898,9 @@ const JoystickCalibration = ({
 					}
 				}
 
-				// Fetch right stick (stick 2)
-				if (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) {
+				// Fetch right stick (stick 2): when Analog pins configured or MCP3208 enabled
+				const rightStickAvailable = (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) || values.MCP3208AddonEnabled;
+				if (rightStickAvailable) {
 					const res2 = await fetch('/api/getJoystickCenter2');
 					if (res2.ok) {
 						const data2 = await res2.json();
@@ -1062,8 +1065,8 @@ const JoystickCalibration = ({
 			clearInterval(intervalId);
 		};
 	}, [
-		values.AnalogInputEnabled, 
-		values.analogAdc1PinX, 
+		joystickSourceEnabled,
+		values?.analogAdc1PinX, 
 		values.analogAdc1PinY, 
 		values.analogAdc2PinX, 
 		values.analogAdc2PinY, 
@@ -1211,7 +1214,7 @@ const JoystickCalibration = ({
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
-			<div id="JoystickCalibrationOptions" hidden={!values || !values.AnalogInputEnabled || values.AnalogInputEnabled === 0} style={{ overflowX: 'auto' }}>
+			<div id="JoystickCalibrationOptions" hidden={!values || !joystickSourceEnabled} style={{ overflowX: 'auto' }}>
 				{/* 4 columns x 2 rows grid layout */}
 				<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: `repeat(4, ${COLUMN_WIDTH})`, gridTemplateRows: '270px auto auto', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
 					{/* Row 1, Column 1: Left stick canvas (position or curve) */}

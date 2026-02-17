@@ -561,10 +561,12 @@ std::string setFourKeyTouchpadOptions() {
 }
 
 std::string getMCP3208Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(2);
+    const size_t capacity = JSON_OBJECT_SIZE(6);
     DynamicJsonDocument doc(capacity);
     const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
+    writeDoc(doc, "mcp3208Block", opts.spiBlock);
+    writeDoc(doc, "mcp3208CsPin", opts.csPin);
     return serialize_json(doc);
 }
 
@@ -572,6 +574,28 @@ std::string setMCP3208Options() {
     DynamicJsonDocument doc = get_post_data();
     MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
     docToValue(opts.enabled, doc, "enabled");
+    docToValue(opts.spiBlock, doc, "mcp3208Block");
+    docToValue(opts.csPin, doc, "mcp3208CsPin");
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+    return serialize_json(doc);
+}
+
+std::string getLSM6DSROptions() {
+    const size_t capacity = JSON_OBJECT_SIZE(6);
+    DynamicJsonDocument doc(capacity);
+    const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
+    writeDoc(doc, "lsm6dsrBlock", opts.spiBlock);
+    writeDoc(doc, "lsm6dsrCsPin", opts.csPin);
+    return serialize_json(doc);
+}
+
+std::string setLSM6DSROptions() {
+    DynamicJsonDocument doc = get_post_data();
+    LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+    docToValue(opts.enabled, doc, "enabled");
+    docToValue(opts.spiBlock, doc, "lsm6dsrBlock");
+    docToValue(opts.csPin, doc, "lsm6dsrCsPin");
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -2036,6 +2060,16 @@ std::string setAddonOptions()
     docToValue(ads1256Options.avdd, doc, "analog1256AnalogMax");
     docToValue(ads1256Options.enableTriggers, doc, "analog1256EnableTriggers");
 
+    MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
+    docToValue(mcp3208Options.enabled, doc, "MCP3208AddonEnabled");
+    docToValue(mcp3208Options.spiBlock, doc, "mcp3208Block");
+    docToValue(mcp3208Options.csPin, doc, "mcp3208CsPin");
+
+    LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+    docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
+    docToValue(lsm6dsrOptions.spiBlock, doc, "lsm6dsrBlock");
+    docToValue(lsm6dsrOptions.csPin, doc, "lsm6dsrCsPin");
+
     RotaryOptions& rotaryOptions = Storage::getInstance().getAddonOptions().rotaryOptions;
     docToValue(rotaryOptions.enabled, doc, "RotaryAddonEnabled");
     docToValue(rotaryOptions.encoderOne.enabled, doc, "encoderOneEnabled");
@@ -2496,6 +2530,14 @@ std::string getAddonOptions()
     }
     // EMA smoothing removed - no longer used
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
+    const MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
+    writeDoc(doc, "MCP3208AddonEnabled", mcp3208Options.enabled ? 1 : 0);
+    writeDoc(doc, "mcp3208Block", mcp3208Options.spiBlock);
+    writeDoc(doc, "mcp3208CsPin", mcp3208Options.csPin);
+    const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+    writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
+    writeDoc(doc, "lsm6dsrBlock", lsm6dsrOptions.spiBlock);
+    writeDoc(doc, "lsm6dsrCsPin", lsm6dsrOptions.csPin);
 
     const BootselButtonOptions& bootselButtonOptions = Storage::getInstance().getAddonOptions().bootselButtonOptions;
     writeDoc(doc, "bootselButtonMap", bootselButtonOptions.buttonMap);
@@ -2999,6 +3041,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setDisplayOptions", setDisplayOptions },
     { "/api/setFourKeyTouchpadOptions", setFourKeyTouchpadOptions },
     { "/api/setMCP3208Options", setMCP3208Options },
+    { "/api/setLSM6DSROptions", setLSM6DSROptions },
     { "/api/setFnKeyMappingOptions", setFnKeyMappingOptions },
     { "/api/setPreviewDisplayOptions", setPreviewDisplayOptions },
     { "/api/setGamepadOptions", setGamepadOptions },
@@ -3029,6 +3072,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getDisplayOptions", getDisplayOptions },
     { "/api/getFourKeyTouchpadOptions", getFourKeyTouchpadOptions },
     { "/api/getMCP3208Options", getMCP3208Options },
+    { "/api/getLSM6DSROptions", getLSM6DSROptions },
     { "/api/getFnKeyMappingOptions", getFnKeyMappingOptions },
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },

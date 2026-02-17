@@ -87,19 +87,44 @@ static void convertCurvePoints(const CurvePoint* pb_pts, int count, MCP3208Curve
 
 bool MCP3208ADCAddon::available() {
 #if MCP3208_ADC_ENABLED
-    return PeripheralManager::getInstance().isSPIEnabled(MCP3208_SPI_BLOCK_ID);
+    const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
+    if (!opts.enabled)
+        return false;
+    uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
+    return PeripheralManager::getInstance().isSPIEnabled(block);
 #else
     return false;
 #endif
 }
 
+// Static instance for webconfig to read raw stick values (no AddonManager dependency)
+MCP3208ADCAddon* MCP3208ADCAddon::s_instance = nullptr;
+
+bool MCP3208ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint16_t& x, uint16_t& y) {
+    if (s_instance == nullptr || !s_instance->spiOk_ || stickNum >= MCP3208_STICK_COUNT) {
+        return false;
+    }
+    x = (stickNum == 0) ? s_instance->adcValues_[0] : s_instance->adcValues_[7];
+    y = (stickNum == 0) ? s_instance->adcValues_[1] : s_instance->adcValues_[6];
+    return true;
+}
+
 void MCP3208ADCAddon::setup() {
+    s_instance = this;
     spiOk_ = false;
+    csPin_ = -1;
+    // Initialize stick channels to center so first frame is (0,0) not (-1,1) before readAllChannels
+    const uint16_t center = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
     for (int i = 0; i < 8; i++) adcValues_[i] = 0;
+    adcValues_[0] = adcValues_[1] = adcValues_[6] = adcValues_[7] = center;
     ch2_stable_level_ = ch2_pending_level_ = ch5_stable_level_ = ch5_pending_level_ = -1;
     ch2_debounce_count_ = ch5_debounce_count_ = 0;
 
-    PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(MCP3208_SPI_BLOCK_ID);
+    const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
+    uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
+    if (!opts.has_csPin) return;
+    csPin_ = (int8_t)opts.csPin;
+    PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
     if (!spi || !spi->configured) return;
     spi_ = spi;
 
@@ -185,7 +210,7 @@ void MCP3208ADCAddon::readAllChannels() {
     spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
     for (int i = 0; i < MCP3208_READ_CHANNELS; i++) {
         uint8_t ch = channels[i];
-        spi_->select(MCP3208_CS_PIN);
+        spi_->select(csPin_);
         uint8_t cmd0 = (uint8_t)(0xC0u | (ch << 3));
         uint8_t cmd1 = 0x00;
         uint8_t r0 = spi_->transfer(cmd0);
@@ -415,7 +440,7 @@ void MCP3208ADCAddon::applyCh2Ch5Keys(Gamepad* gamepad) {
     int cand2 = levelFromRaw(adcValues_[2]);
     int cand5 = levelFromRaw(adcValues_[5]);
 
-    auto updateDebounce = [](int candidate, int& stable_level, int& pending_level, uint8_t& debounce_count) {
+    auto updateDebounce = [](int candidate, int8_t& stable_level, int8_t& pending_level, uint8_t& debounce_count) {
         if (candidate == stable_level) {
             debounce_count = 0;
             return;
@@ -427,7 +452,7 @@ void MCP3208ADCAddon::applyCh2Ch5Keys(Gamepad* gamepad) {
                 debounce_count = 0;
             }
         } else {
-            pending_level = candidate;
+            pending_level = static_cast<int8_t>(candidate);
             debounce_count = 1;
         }
     };

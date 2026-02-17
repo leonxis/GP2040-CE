@@ -6,6 +6,7 @@
 #include "GamepadEnums.h"
 #include "enums.pb.h"
 #include "types.h"
+#include "peripheral_spi.h"
 
 #ifndef MCP3208_ADC_ENABLED
 #define MCP3208_ADC_ENABLED 0
@@ -13,12 +14,7 @@
 
 #define MCP3208_ADC_ADDON_NAME "MCP3208 ADC"
 
-// SPI 固定：GPIO0=RX(MISO), GPIO2=SCK, GPIO3=TX(MOSI)；MCP3208 CS=GPIO1；1.5MHz Mode0
-#define MCP3208_SPI_BLOCK_ID    0
-#define MCP3208_SPI_RX_PIN      0
-#define MCP3208_SPI_SCK_PIN     2
-#define MCP3208_SPI_TX_PIN      3
-#define MCP3208_CS_PIN          1
+// SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」中的 SPI 模块与插件配置（spiBlock、csPin）获取，此处不定义默认引脚
 #define MCP3208_SPI_HZ          1500000u
 
 // 通道：CH0=左X, CH1=左Y, CH6=右Y, CH7=右X；CH2/CH5=四档开关；CH3/CH4 悬空不读
@@ -71,6 +67,9 @@ typedef struct {
 
 class MCP3208ADCAddon : public GPAddon {
 public:
+    // For webconfig/calibration: read current raw ADC for a stick (0=left, 1=right). Returns false if addon not ready.
+    static bool getRawStickForWebConfig(uint8_t stickNum, uint16_t& x, uint16_t& y);
+
     virtual bool available();
     virtual void setup();
     virtual void preprocess();
@@ -92,7 +91,9 @@ private:
     void applyPresetCurve(int stick, int preset_index);
     void applyCh2Ch5Keys(class Gamepad* gamepad);
 
+    static MCP3208ADCAddon* s_instance;
     PeripheralSPI* spi_;
+    int8_t csPin_;            // Chip select GPIO from options (SPI module / plugin config only)
     uint16_t adcValues_[8];   // CH0-CH7，仅 0,1,2,5,6,7 有效
     bool spiOk_;
     MCP3208StickInstance adc_pairs_[MCP3208_STICK_COUNT];

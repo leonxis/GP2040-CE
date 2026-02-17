@@ -3,6 +3,7 @@
 
 #include "gpaddon.h"
 #include "BoardConfig.h"
+#include "peripheral_spi.h"
 
 #ifndef LSM6DSR_IMU_ENABLED
 #define LSM6DSR_IMU_ENABLED 0
@@ -10,12 +11,7 @@
 
 #define LSM6DSR_IMU_ADDON_NAME "LSM6DSR IMU"
 
-// 共用 SPI0：GPIO0=RX(MISO), GPIO2=SCK, GPIO3=TX(MOSI)；LSM6DSRTR CS=GPIO4；SPI 1.5MHz Mode0
-// 作为摇杆补充，优先级低于 MCP3208；ODR 1.66kHz、高性能模式，量程/BDU/滤波/FIFO 后续配置
-#define LSM6DSR_SPI_RX_PIN  0
-#define LSM6DSR_SPI_SCK_PIN 2
-#define LSM6DSR_SPI_TX_PIN  3
-#define LSM6DSR_CS_PIN      4
+// SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」与插件配置（spiBlock、csPin）获取
 #define LSM6DSR_SPI_HZ      1500000u
 
 class LSM6DSRIMUAddon : public GPAddon {
@@ -28,7 +24,8 @@ public:
 	virtual std::string name() { return LSM6DSR_IMU_ADDON_NAME; }
 	virtual void reinit() {}
 private:
-	// 功能代码留空：加速度计/陀螺仪数据，ODR=1.66kHz；量程、BDU、数字滤波、FIFO 后续调整
+	PeripheralSPI* spi_;
+	int8_t csPin_;
 	bool spiOk_;
 };
 

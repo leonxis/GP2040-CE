@@ -664,10 +664,12 @@ const JoystickCurveSettings = ({
 		let intervalId: ReturnType<typeof setInterval> | null = null;
 		
 		const fetchJoystickData = async () => {
-			if (values.AnalogInputEnabled !== 1) return;
+			const joystickEnabled = values.AnalogInputEnabled === 1 || values.MCP3208AddonEnabled === 1;
+			if (!joystickEnabled) return;
 			
-			// Fetch left stick
-			if (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) {
+			// Fetch left stick (Analog pins or MCP3208)
+			const leftAvailable = (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) || values.MCP3208AddonEnabled;
+			if (leftAvailable) {
 				try {
 					const res = await fetch('/api/getJoystickCenter');
 					if (res.ok) {
@@ -764,8 +766,9 @@ const JoystickCurveSettings = ({
 				}
 			}
 			
-			// Fetch right stick
-			if (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) {
+			// Fetch right stick (Analog pins or MCP3208)
+			const rightAvailable = (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) || values.MCP3208AddonEnabled;
+			if (rightAvailable) {
 				try {
 					const res = await fetch('/api/getJoystickCenter2');
 					if (res.ok) {
@@ -868,7 +871,7 @@ const JoystickCurveSettings = ({
 		return () => {
 			if (intervalId) clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, leftCurvePoints, rightCurvePoints]);
+	}, [values.AnalogInputEnabled, values.MCP3208AddonEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, leftCurvePoints, rightCurvePoints]);
 	
 	// Draw left curve canvas (optimized with requestAnimationFrame throttling)
 	useEffect(() => {

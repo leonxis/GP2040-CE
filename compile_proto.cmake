@@ -3,6 +3,8 @@ function (compile_proto)
 
 	set(VENV ${CMAKE_CURRENT_BINARY_DIR}/venv)
 	set(VENV_FILE ${VENV}/environment.txt)
+	# Use a persistent pip cache in the project so dependencies are not re-downloaded on every build
+	set(PIP_CACHE_DIR ${CMAKE_SOURCE_DIR}/.pip_cache)
 	if(CMAKE_HOST_WIN32)
 		set(VENV_BIN_DIR ${VENV}/Scripts)
 	else()
@@ -12,7 +14,7 @@ function (compile_proto)
 	add_custom_command(
 		DEPENDS ${CMAKE_SOURCE_DIR}/lib/nanopb/extra/requirements.txt
 		COMMAND ${Python3_EXECUTABLE} -m venv ${VENV}
-		COMMAND ${VENV_BIN_DIR}/pip --disable-pip-version-check install -r ${CMAKE_SOURCE_DIR}/lib/nanopb/extra/requirements.txt
+		COMMAND ${CMAKE_COMMAND} -E env "PIP_CACHE_DIR=${PIP_CACHE_DIR}" ${VENV_BIN_DIR}/pip --disable-pip-version-check install -r ${CMAKE_SOURCE_DIR}/lib/nanopb/extra/requirements.txt
 		COMMAND ${VENV_BIN_DIR}/pip freeze > ${VENV_FILE}
 		OUTPUT ${VENV_FILE}
 		COMMENT "Setting up Python Virtual Environment"

@@ -1,6 +1,7 @@
 .pio
 .vscode/
 .cache/
+.pip_cache/
 node_modules/
 configs/MyBoard
 .DS_Store

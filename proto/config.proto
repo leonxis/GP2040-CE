@@ -985,12 +985,23 @@ message AddonOptions
     optional FourKeyTouchpadOptions fourKeyTouchpadOptions = 32;
     optional FnKeyMappingOptions fnKeyMappingOptions = 33;
     optional MCP3208Options mcp3208Options = 34;
+    optional LSM6DSROptions lsm6dsrOptions = 35;
 }
 
 // MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
 message MCP3208Options
 {
     optional bool enabled = 1 [default = false];
+    optional int32 spiBlock = 2;
+    optional int32 csPin = 3;
+}
+
+// LSM6DSR 陀螺仪：SPI 与 CS 引脚仅从插件配置（与外设映射）获取
+message LSM6DSROptions
+{
+    optional bool enabled = 1 [default = false];
+    optional int32 spiBlock = 2;
+    optional int32 csPin = 3;
 }
 
 message FourKeyTouchpadOptions
