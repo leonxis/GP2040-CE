@@ -27,6 +27,11 @@ private:
 	PeripheralSPI* spi_;
 	int8_t csPin_;
 	bool spiOk_;
+	bool imuOk_;
+	uint32_t calibCount_;
+	int32_t calibSumX_;
+	int32_t calibSumY_;
+	int32_t calibSumZ_;
 };
 
 #endif

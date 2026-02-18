@@ -728,6 +728,16 @@ async function getHETriggerCalibration(settings) {
 	return Http.post(`${baseUrl}/api/getHETriggerCalibration`, settings);
 }
 
+async function getLSM6DSRImuData() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getLSM6DSRImuData`);
+		return response?.data;
+	} catch (e) {
+		console.error(e);
+		return undefined;
+	}
+}
+
 // POST function to set our channels, select, and ADC pin
 async function setHETriggerCalibration(settings) {
 	return Http.post(`${baseUrl}/api/setHETriggerCalibration`, settings);
@@ -817,6 +827,7 @@ export default {
 	setExpansionPins,
 	getHETriggerCalibration,
 	setHETriggerCalibration,
+	getLSM6DSRImuData,
 	getHETriggerOptions,
 	setHETriggerOptions,
 	getReactiveLEDs,

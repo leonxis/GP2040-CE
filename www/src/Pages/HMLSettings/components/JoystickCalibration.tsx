@@ -734,7 +734,7 @@ const JoystickCalibration = ({
 	});
 
 	// Fetch joystick data periodically and update canvas (Analog addon or MCP3208 addon)
-	const joystickSourceEnabled = values?.AnalogInputEnabled || values?.MCP3208AddonEnabled;
+	const joystickSourceEnabled = Boolean(values?.AnalogInputEnabled) || Boolean(values?.MCP3208AddonEnabled);
 	useEffect(() => {
 		if (!values || !joystickSourceEnabled) {
 			return;
@@ -743,7 +743,7 @@ const JoystickCalibration = ({
 		const fetchJoystickData = async () => {
 			try {
 				// Fetch left stick (stick 1): when Analog pins configured or MCP3208 enabled
-				const leftStickAvailable = (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) || values.MCP3208AddonEnabled;
+				const leftStickAvailable = (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) || Boolean(values.MCP3208AddonEnabled);
 				if (leftStickAvailable) {
 					const res1 = await fetch('/api/getJoystickCenter');
 					if (res1.ok) {
@@ -899,7 +899,7 @@ const JoystickCalibration = ({
 				}
 
 				// Fetch right stick (stick 2): when Analog pins configured or MCP3208 enabled
-				const rightStickAvailable = (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) || values.MCP3208AddonEnabled;
+				const rightStickAvailable = (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) || Boolean(values.MCP3208AddonEnabled);
 				if (rightStickAvailable) {
 					const res2 = await fetch('/api/getJoystickCenter2');
 					if (res2.ok) {
@@ -1066,6 +1066,7 @@ const JoystickCalibration = ({
 		};
 	}, [
 		joystickSourceEnabled,
+		values?.MCP3208AddonEnabled,
 		values?.analogAdc1PinX, 
 		values.analogAdc1PinY, 
 		values.analogAdc2PinX, 

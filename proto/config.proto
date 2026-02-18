@@ -997,11 +997,23 @@ message MCP3208Options
 }
 
 // LSM6DSR 陀螺仪：SPI 与 CS 引脚仅从插件配置（与外设映射）获取
+// outputMode: 0=DS4 原生陀螺仪, 1=模拟右摇杆, 2=模拟鼠标（仅 0 已实现）
+// calibrateGyroRequested: 由 HML 校准页设置，addon 执行采样后清零并保存
+// engageMode: 0=一直生效, 1=按下按键生效, 2=按下按键暂停（仅持久化，功能未实现）
+// gyroEngageKeys: 生效使能键，GpioAction 枚举值列表（仅持久化，功能未实现）
 message LSM6DSROptions
 {
     optional bool enabled = 1 [default = false];
     optional int32 spiBlock = 2;
     optional int32 csPin = 3;
+    optional int32 outputMode = 4 [default = 0];  // 0=DS4, 1=right stick, 2=mouse
+    optional int32 offsetGyroX = 5;
+    optional int32 offsetGyroY = 6;
+    optional int32 offsetGyroZ = 7;
+    optional bool calibrateGyroRequested = 8 [default = false];
+    optional int32 engageMode = 9 [default = 0];   // 0=always, 1=on_key, 2=pause_on_key
+    repeated int32 gyroEngageKeys = 10 [(nanopb).max_count = 16];
+    optional int32 outputStick = 11 [default = 1];  // 0=left stick, 1=right stick (when outputMode is DS4/XBOX stick)
 }
 
 message FourKeyTouchpadOptions

@@ -67,6 +67,7 @@ import TriggerCalibrationSettings, {
 	triggerCalibrationScheme,
 	triggerCalibrationState,
 } from './TriggerCalibration';
+import GyroSettings from './GyroSettings';
 
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
@@ -155,14 +156,20 @@ const FormContext = ({ setStoredData }) => {
 };
 
 const sanitizeData = (values) => {
-	for (const prop in Object.keys(values).filter(
-		(key) => !!!key.includes('keyboardHostMap'),
-	)) {
+	const keys = Object.keys(values).filter(
+		(key) => !key.includes('keyboardHostMap'),
+	);
+	for (const prop of keys) {
 		// Skip arrays - don't convert them to integers
 		if (Array.isArray(values[prop])) {
 			continue;
 		}
-		if (!!values[prop]) values[prop] = parseInt(values[prop]);
+		if (values[prop] !== undefined && values[prop] !== null && values[prop] !== '') {
+			const parsed = parseInt(values[prop], 10);
+			if (!Number.isNaN(parsed)) {
+				values[prop] = parsed;
+			}
+		}
 	}
 };
 
@@ -191,13 +198,14 @@ function flattenObject(object) {
 
 const TRIGGER_MAPPING_ERROR_MSG = '扳机键位设置错误，请在按键映射中恢复扳机映射为对应扳机键';
 
-type SaveSection = 'joystick' | 'curve' | 'trigger';
+type SaveSection = 'joystick' | 'curve' | 'trigger' | 'gyro';
 
 export default function CalibrationSettings() {
 	const { updateUsedPins } = useContext(AppContext);
 	const [saveMessageJoystick, setSaveMessageJoystick] = useState('');
 	const [saveMessageCurve, setSaveMessageCurve] = useState('');
 	const [saveMessageTrigger, setSaveMessageTrigger] = useState('');
+	const [saveMessageGyro, setSaveMessageGyro] = useState('');
 	const [storedData, setStoredData] = useState({});
 	const [triggerErrorModalShow, setTriggerErrorModalShow] = useState(false);
 	const lastSaveSectionRef = useRef<SaveSection | null>(null);
@@ -220,7 +228,7 @@ export default function CalibrationSettings() {
 
 		// Handle array fields specially - only update if changed
 		const valuesSchema = flattenObject(values);
-		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2', 'joystickCurvePresets'];
+		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2', 'joystickCurvePresets', 'lsm6dsrEngageKeys'];
 		const resultObject = { ...data };
 		arrayFields.forEach(field => {
 			const newVal = get(valuesSchema, field);
@@ -240,6 +248,7 @@ export default function CalibrationSettings() {
 			if (section === 'joystick') setSaveMessageJoystick(msg);
 			else if (section === 'curve') setSaveMessageCurve(msg);
 			else if (section === 'trigger') setSaveMessageTrigger(msg);
+			else if (section === 'gyro') setSaveMessageGyro(msg);
 			return;
 		}
 		setStoredData(JSON.parse(JSON.stringify(values)));
@@ -247,6 +256,7 @@ export default function CalibrationSettings() {
 		if (section === 'joystick') setSaveMessageJoystick(msg);
 		else if (section === 'curve') setSaveMessageCurve(msg);
 		else if (section === 'trigger') setSaveMessageTrigger(msg);
+		else if (section === 'gyro') setSaveMessageGyro(msg);
 		updateUsedPins();
 	};
 
@@ -304,6 +314,18 @@ export default function CalibrationSettings() {
 						saveMessage={saveMessageTrigger}
 						onSaveClick={() => {
 							lastSaveSectionRef.current = 'trigger';
+							handleSubmit();
+						}}
+					/>
+
+					<GyroSettings
+						values={values}
+						errors={errors}
+						handleChange={handleChange}
+						setFieldValue={setFieldValue}
+						saveMessage={saveMessageGyro}
+						onSaveClick={() => {
+							lastSaveSectionRef.current = 'gyro';
 							handleSubmit();
 						}}
 					/>

@@ -15,6 +15,11 @@ import WebApi from '../Services/WebApi';
 import { AddonPropTypes } from '../Pages/AddonsConfigPage';
 import { Trans } from 'react-i18next';
 
+export const LSM6DSR_OUTPUT_DS4 = 0;
+export const LSM6DSR_OUTPUT_DS4_STICK = 1;
+export const LSM6DSR_OUTPUT_XBOX_STICK = 2;
+export const LSM6DSR_OUTPUT_MOUSE = 3;
+
 export const lsm6dsrScheme = {
 	LSM6DSRAddonEnabled: yup.number().label('LSM6DSR Addon Enabled'),
 	lsm6dsrBlock: yup
@@ -22,12 +27,28 @@ export const lsm6dsrScheme = {
 		.label('LSM6DSR SPI Block')
 		.validateSelectionWhenValue('LSM6DSRAddonEnabled', SPI_BLOCKS),
 	lsm6dsrCsPin: yup.number().label('LSM6DSR CS Pin'),
+	lsm6dsrOutputMode: yup.number().label('LSM6DSR Output Mode'),
+	lsm6dsrOutputStick: yup.number().label('LSM6DSR Output Stick'),
+	lsm6dsrOffsetGyroX: yup.number().label('LSM6DSR Offset Gyro X'),
+	lsm6dsrOffsetGyroY: yup.number().label('LSM6DSR Offset Gyro Y'),
+	lsm6dsrOffsetGyroZ: yup.number().label('LSM6DSR Offset Gyro Z'),
+	lsm6dsrCalibrateGyroRequested: yup.number().label('LSM6DSR Calibrate Requested'),
+	lsm6dsrEngageMode: yup.number().label('LSM6DSR Engage Mode'),
+	lsm6dsrEngageKeys: yup.array().of(yup.number()).label('LSM6DSR Engage Keys'),
 };
 
 export const lsm6dsrState = {
 	LSM6DSRAddonEnabled: 0,
 	lsm6dsrBlock: 0,
 	lsm6dsrCsPin: -1,
+	lsm6dsrOutputMode: 0,
+	lsm6dsrOutputStick: 1,
+	lsm6dsrOffsetGyroX: 0,
+	lsm6dsrOffsetGyroY: 0,
+	lsm6dsrOffsetGyroZ: 0,
+	lsm6dsrCalibrateGyroRequested: 0,
+	lsm6dsrEngageMode: 0,
+	lsm6dsrEngageKeys: [],
 };
 
 const LSM6DSR = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes) => {

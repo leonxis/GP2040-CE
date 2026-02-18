@@ -543,6 +543,14 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		LSM6DSRAddonEnabled: 0,
 		lsm6dsrBlock: 0,
 		lsm6dsrCsPin: -1,
+		lsm6dsrOutputMode: 0,
+		lsm6dsrOutputStick: 1,
+		lsm6dsrOffsetGyroX: 0,
+		lsm6dsrOffsetGyroY: 0,
+		lsm6dsrOffsetGyroZ: 0,
+		lsm6dsrCalibrateGyroRequested: 0,
+		lsm6dsrEngageMode: 0,
+		lsm6dsrEngageKeys: [],
 		analog1256AnalogMax: 3.3,
 		analog1256EnableTriggers: false,
 		encoderOneEnabled: 0,
@@ -887,6 +895,18 @@ app.post('/api/getHETriggerCalibration', (req, res) => {
 	return res.send({
 		voltage: 0.0,
 		debug: true
+	});
+});
+
+app.get('/api/getLSM6DSRImuData', (req, res) => {
+	// Stub: real implementation would read from device. Returns 6-axis (gyro XYZ + accel XYZ).
+	return res.send({
+		gyroX: 0,
+		gyroY: 0,
+		gyroZ: 0,
+		accelX: 0,
+		accelY: 0,
+		accelZ: 0,
 	});
 });
 

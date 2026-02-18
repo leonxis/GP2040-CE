@@ -581,12 +581,45 @@ std::string setMCP3208Options() {
 }
 
 std::string getLSM6DSROptions() {
-    const size_t capacity = JSON_OBJECT_SIZE(6);
+    const size_t capacity = JSON_OBJECT_SIZE(15) + JSON_ARRAY_SIZE(16);
     DynamicJsonDocument doc(capacity);
     const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrBlock", opts.spiBlock);
     writeDoc(doc, "lsm6dsrCsPin", opts.csPin);
+    writeDoc(doc, "lsm6dsrOutputMode", opts.has_outputMode ? opts.outputMode : 0);
+    writeDoc(doc, "lsm6dsrOutputStick", opts.has_outputStick ? opts.outputStick : 1);
+    writeDoc(doc, "lsm6dsrOffsetGyroX", opts.has_offsetGyroX ? opts.offsetGyroX : 0);
+    writeDoc(doc, "lsm6dsrOffsetGyroY", opts.has_offsetGyroY ? opts.offsetGyroY : 0);
+    writeDoc(doc, "lsm6dsrOffsetGyroZ", opts.has_offsetGyroZ ? opts.offsetGyroZ : 0);
+    writeDoc(doc, "lsm6dsrCalibrateGyroRequested", opts.calibrateGyroRequested ? 1 : 0);
+    writeDoc(doc, "lsm6dsrEngageMode", opts.has_engageMode ? opts.engageMode : 0);
+    JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
+    for (size_t i = 0; i < opts.gyroEngageKeys_count && i < 16; i++) {
+        arr.add(opts.gyroEngageKeys[i]);
+    }
+    return serialize_json(doc);
+}
+
+std::string getLSM6DSRImuData() {
+    const size_t capacity = JSON_OBJECT_SIZE(6);
+    DynamicJsonDocument doc(capacity);
+    Gamepad* gp = Storage::getInstance().GetProcessedGamepad();
+    if (!gp) {
+        doc["gyroX"] = 0;
+        doc["gyroY"] = 0;
+        doc["gyroZ"] = 0;
+        doc["accelX"] = 0;
+        doc["accelY"] = 0;
+        doc["accelZ"] = 0;
+        return serialize_json(doc);
+    }
+    doc["gyroX"] = (int32_t)(int16_t)gp->auxState.sensors.gyroscope.x;
+    doc["gyroY"] = (int32_t)(int16_t)gp->auxState.sensors.gyroscope.y;
+    doc["gyroZ"] = (int32_t)(int16_t)gp->auxState.sensors.gyroscope.z;
+    doc["accelX"] = (int32_t)(int16_t)gp->auxState.sensors.accelerometer.x;
+    doc["accelY"] = (int32_t)(int16_t)gp->auxState.sensors.accelerometer.y;
+    doc["accelZ"] = (int32_t)(int16_t)gp->auxState.sensors.accelerometer.z;
     return serialize_json(doc);
 }
 
@@ -596,6 +629,26 @@ std::string setLSM6DSROptions() {
     docToValue(opts.enabled, doc, "enabled");
     docToValue(opts.spiBlock, doc, "lsm6dsrBlock");
     docToValue(opts.csPin, doc, "lsm6dsrCsPin");
+    docToValue(opts.outputMode, doc, "lsm6dsrOutputMode");
+    docToValue(opts.outputStick, doc, "lsm6dsrOutputStick");
+    docToValue(opts.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
+    docToValue(opts.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
+    docToValue(opts.offsetGyroZ, doc, "lsm6dsrOffsetGyroZ");
+    if (doc.containsKey("lsm6dsrCalibrateGyroRequested")) {
+        opts.calibrateGyroRequested = doc["lsm6dsrCalibrateGyroRequested"].as<bool>();
+        opts.has_calibrateGyroRequested = true;
+    }
+    docToValue(opts.engageMode, doc, "lsm6dsrEngageMode");
+    if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
+        JsonArray arr = doc["lsm6dsrEngageKeys"];
+        opts.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
+        for (size_t i = 0; i < opts.gyroEngageKeys_count; i++) {
+            opts.gyroEngageKeys[i] = (int32_t)arr[i].as<int>();
+        }
+    }
+    opts.has_outputMode = opts.has_offsetGyroX = opts.has_offsetGyroY = opts.has_offsetGyroZ = true;
+    opts.has_outputStick = true;
+    opts.has_engageMode = true;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -2069,6 +2122,25 @@ std::string setAddonOptions()
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
     docToValue(lsm6dsrOptions.spiBlock, doc, "lsm6dsrBlock");
     docToValue(lsm6dsrOptions.csPin, doc, "lsm6dsrCsPin");
+    docToValue(lsm6dsrOptions.outputMode, doc, "lsm6dsrOutputMode");
+    docToValue(lsm6dsrOptions.outputStick, doc, "lsm6dsrOutputStick");
+    docToValue(lsm6dsrOptions.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
+    docToValue(lsm6dsrOptions.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
+    docToValue(lsm6dsrOptions.offsetGyroZ, doc, "lsm6dsrOffsetGyroZ");
+    if (doc.containsKey("lsm6dsrCalibrateGyroRequested")) {
+        lsm6dsrOptions.calibrateGyroRequested = doc["lsm6dsrCalibrateGyroRequested"].as<bool>();
+        lsm6dsrOptions.has_calibrateGyroRequested = true;
+    }
+    docToValue(lsm6dsrOptions.engageMode, doc, "lsm6dsrEngageMode");
+    if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
+        JsonArray arr = doc["lsm6dsrEngageKeys"];
+        lsm6dsrOptions.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
+        for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count; i++) {
+            lsm6dsrOptions.gyroEngageKeys[i] = (int32_t)arr[i].as<int>();
+        }
+    }
+    lsm6dsrOptions.has_outputStick = true;
+    lsm6dsrOptions.has_engageMode = true;
 
     RotaryOptions& rotaryOptions = Storage::getInstance().getAddonOptions().rotaryOptions;
     docToValue(rotaryOptions.enabled, doc, "RotaryAddonEnabled");
@@ -2538,6 +2610,19 @@ std::string getAddonOptions()
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrBlock", lsm6dsrOptions.spiBlock);
     writeDoc(doc, "lsm6dsrCsPin", lsm6dsrOptions.csPin);
+    writeDoc(doc, "lsm6dsrOutputMode", lsm6dsrOptions.has_outputMode ? lsm6dsrOptions.outputMode : 0);
+    writeDoc(doc, "lsm6dsrOutputStick", lsm6dsrOptions.has_outputStick ? lsm6dsrOptions.outputStick : 1);
+    writeDoc(doc, "lsm6dsrOffsetGyroX", lsm6dsrOptions.has_offsetGyroX ? lsm6dsrOptions.offsetGyroX : 0);
+    writeDoc(doc, "lsm6dsrOffsetGyroY", lsm6dsrOptions.has_offsetGyroY ? lsm6dsrOptions.offsetGyroY : 0);
+    writeDoc(doc, "lsm6dsrOffsetGyroZ", lsm6dsrOptions.has_offsetGyroZ ? lsm6dsrOptions.offsetGyroZ : 0);
+    writeDoc(doc, "lsm6dsrCalibrateGyroRequested", lsm6dsrOptions.calibrateGyroRequested ? 1 : 0);
+    writeDoc(doc, "lsm6dsrEngageMode", lsm6dsrOptions.has_engageMode ? lsm6dsrOptions.engageMode : 0);
+    {
+        JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
+        for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count && i < 16; i++) {
+            arr.add(lsm6dsrOptions.gyroEngageKeys[i]);
+        }
+    }
 
     const BootselButtonOptions& bootselButtonOptions = Storage::getInstance().getAddonOptions().bootselButtonOptions;
     writeDoc(doc, "bootselButtonMap", bootselButtonOptions.buttonMap);
@@ -3073,6 +3158,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getFourKeyTouchpadOptions", getFourKeyTouchpadOptions },
     { "/api/getMCP3208Options", getMCP3208Options },
     { "/api/getLSM6DSROptions", getLSM6DSROptions },
+    { "/api/getLSM6DSRImuData", getLSM6DSRImuData },
     { "/api/getFnKeyMappingOptions", getFnKeyMappingOptions },
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },

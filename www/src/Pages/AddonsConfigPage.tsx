@@ -173,14 +173,20 @@ const FormContext = ({ setStoredData }) => {
 };
 
 const sanitizeData = (values) => {
-	for (const prop in Object.keys(values).filter(
-		(key) => !!!key.includes('keyboardHostMap'),
-	)) {
+	const keys = Object.keys(values).filter(
+		(key) => !key.includes('keyboardHostMap'),
+	);
+	for (const prop of keys) {
 		// Skip arrays - don't convert them to integers
 		if (Array.isArray(values[prop])) {
 			continue;
 		}
-		if (!!values[prop]) values[prop] = parseInt(values[prop]);
+		if (values[prop] !== undefined && values[prop] !== null && values[prop] !== '') {
+			const parsed = parseInt(values[prop], 10);
+			if (!Number.isNaN(parsed)) {
+				values[prop] = parsed;
+			}
+		}
 	}
 };
 

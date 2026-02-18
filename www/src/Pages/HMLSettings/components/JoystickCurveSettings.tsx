@@ -664,11 +664,11 @@ const JoystickCurveSettings = ({
 		let intervalId: ReturnType<typeof setInterval> | null = null;
 		
 		const fetchJoystickData = async () => {
-			const joystickEnabled = values.AnalogInputEnabled === 1 || values.MCP3208AddonEnabled === 1;
+			const joystickEnabled = Boolean(values.AnalogInputEnabled) || Boolean(values.MCP3208AddonEnabled);
 			if (!joystickEnabled) return;
 			
 			// Fetch left stick (Analog pins or MCP3208)
-			const leftAvailable = (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) || values.MCP3208AddonEnabled;
+			const leftAvailable = (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) || Boolean(values.MCP3208AddonEnabled);
 			if (leftAvailable) {
 				try {
 					const res = await fetch('/api/getJoystickCenter');
@@ -767,7 +767,7 @@ const JoystickCurveSettings = ({
 			}
 			
 			// Fetch right stick (Analog pins or MCP3208)
-			const rightAvailable = (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) || values.MCP3208AddonEnabled;
+			const rightAvailable = (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) || Boolean(values.MCP3208AddonEnabled);
 			if (rightAvailable) {
 				try {
 					const res = await fetch('/api/getJoystickCenter2');

@@ -104,6 +104,8 @@ bool MCP3208ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint16_t& x, uin
     if (s_instance == nullptr || !s_instance->spiOk_ || stickNum >= MCP3208_STICK_COUNT) {
         return false;
     }
+    // Refresh ADC values on demand so web calibration gets current data even if main loop is busy
+    s_instance->readAllChannels();
     x = (stickNum == 0) ? s_instance->adcValues_[0] : s_instance->adcValues_[7];
     y = (stickNum == 0) ? s_instance->adcValues_[1] : s_instance->adcValues_[6];
     return true;

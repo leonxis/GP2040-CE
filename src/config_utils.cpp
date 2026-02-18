@@ -1082,6 +1082,12 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, spiBlock, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, csPin, 4);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, outputMode, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroX, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroY, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroZ, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, calibrateGyroRequested, false);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, engageMode, 0);
 #endif
 
     // keyboardMapping
