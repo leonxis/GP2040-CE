@@ -556,7 +556,7 @@ GP2040::BootAction GP2040::getBootAction() {
 GP2040::RebootHotkeys::RebootHotkeys() :
 	active(false),
 	noButtonsPressedTimeout(nil_time),
-	webConfigHotkeyMask(GAMEPAD_MASK_A1 | GAMEPAD_MASK_L3 | GAMEPAD_MASK_R3),
+	webConfigHotkeyMask(GAMEPAD_MASK_A1 | GAMEPAD_MASK_L1 | GAMEPAD_MASK_R1),
 	bootselHotkeyMask(GAMEPAD_MASK_S1 | GAMEPAD_MASK_B3 | GAMEPAD_MASK_B4),
 	rebootHotkeysHoldTimeout(nil_time) {
 }
