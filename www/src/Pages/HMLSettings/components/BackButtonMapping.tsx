@@ -497,10 +497,10 @@ export default function BackButtonMapping() {
 					<Card.Body>
 						<Row className="g-3">
 							{[
-								{ key: 'key1', label: '左上触摸键' },
-								{ key: 'key4', label: '右上触摸键' },
-								{ key: 'key2', label: '左下触摸键' },
-								{ key: 'key3', label: '右下触摸键' },
+								{ key: 'key4', label: '左上触摸键' },
+								{ key: 'key1', label: '右上触摸键' },
+								{ key: 'key3', label: '左下触摸键' },
+								{ key: 'key2', label: '右下触摸键' },
 							].map(({ key, label }) => {
 								const mappingData = touchpadOptions[key] || defaultPinData;
 								return (

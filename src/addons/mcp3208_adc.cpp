@@ -17,9 +17,17 @@
 // 连续 N 帧同档位才更新输出，避免电压过渡误触发。主循环约 1ms/帧，N 帧 ≈ N ms 延迟。
 static const uint8_t CH25_DEBOUNCE_FRAMES = 2;   // 防抖帧数，建议 1–4，按需改
 
-// 一轮执行时间估算（每帧 preprocess + process）：
-// - readAllChannels: 6 通道 × 16bit @ 1.5MHz → 约 64µs SPI，加事务开销约 70–80µs
-// - process: 摇杆曲线/死区/CH2CH5 多帧防抖等，约 30–100µs
+// ========== 一轮执行时间估算（每帧 preprocess + process）==========
+// preprocess: readAllChannels 仅做 SPI 读取
+//   - 6 通道 × 每通道 3 字节 = 18 字节 = 144 bit @ 1.5MHz → 144/1.5 ≈ 96 µs 纯 SPI 时钟
+//   - 6 次 select/deselect（GPIO）、1 次 begin/endTransaction，约 10–25 µs
+//   - 合计 readAllChannels ≈ 105–125 µs
+// process: 摇杆 + CH2/CH5
+//   - Storage/Driver 访问、曲线预设检测：约 5–15 µs
+//   - 双摇杆：getStickRaw、atan2、getInterpolatedScale、死区/反死区、曲线段查表、写 state：约 25–60 µs（无曲线偏下，有曲线偏上）
+//   - applyCh2Ch5Keys：阈值查表 + 防抖 + mask 应用：约 2–5 µs
+//   - 合计 process ≈ 35–85 µs
+// 整轮（preprocess + process）≈ 140–210 µs，典型约 170 µs（1.5MHz SPI、双摇杆、无曲线或轻量曲线）
 // CH2/CH5 四档开关：按电压范围划分（两档中点），抗波动。Vref=3.3V，12bit raw = V/3.3*4095
 // 左MT: 0～0.4V, L3: 0.4～1.2V, Ext左扳机: 1.2～2.0V, 左FN: 2.0～2.9V（CH5 同理）
 static const uint16_t CH25_T1 = 496;   // 0.4V
@@ -121,6 +129,8 @@ void MCP3208ADCAddon::setup() {
     adcValues_[0] = adcValues_[1] = adcValues_[6] = adcValues_[7] = center;
     ch2_stable_level_ = ch2_pending_level_ = ch5_stable_level_ = ch5_pending_level_ = -1;
     ch2_debounce_count_ = ch5_debounce_count_ = 0;
+    last_ch2_buttons_ = last_ch2_dpad_ = last_ch5_buttons_ = last_ch5_dpad_ = 0;
+    last_ch2_keyboard_ = last_ch5_keyboard_ = 0;
 
     const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
     uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
@@ -203,24 +213,36 @@ void MCP3208ADCAddon::setup() {
 
     applyFinetuneShapeAdjustments(0);
     applyFinetuneShapeAdjustments(1);
+    buildCh25Maps();
     spiOk_ = true;
 }
 
-void MCP3208ADCAddon::readAllChannels() {
+void MCP3208ADCAddon::readAllChannels()
+{
     if (!spi_ || !spiOk_) return;
-    const uint8_t channels[MCP3208_READ_CHANNELS] = {0, 1, 2, 5, 6, 7};
+
+    static const uint8_t channels[MCP3208_READ_CHANNELS] = {0, 1, 2, 5, 6, 7};
+
     spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+
     for (int i = 0; i < MCP3208_READ_CHANNELS; i++) {
-        uint8_t ch = channels[i];
         spi_->select(csPin_);
-        uint8_t cmd0 = (uint8_t)(0xC0u | (ch << 3));
-        uint8_t cmd1 = 0x00;
-        uint8_t r0 = spi_->transfer(cmd0);
-        uint8_t r1 = spi_->transfer(cmd1);
+
+        uint8_t ch = channels[i];
+        uint8_t tx[3] = {
+            static_cast<uint8_t>(0x06 | ((ch >> 2) & 0x01)),
+            static_cast<uint8_t>((ch & 0x03) << 6),
+            0x00
+        };
+        uint8_t rx[3];
+
+        spi_->transfer(tx, rx, 3);
+
         spi_->deselect();
-        uint16_t v = (uint16_t)(((r0 & 0x0Fu) << 8) | r1);
-        adcValues_[ch] = v & 0x0FFFu;
+
+        adcValues_[ch] = ((rx[1] & 0x0F) << 8) | rx[2];
     }
+
     spi_->endTransaction();
 }
 
@@ -420,27 +442,61 @@ void MCP3208ADCAddon::applyPresetCurve(int stick, int preset_index) {
     initializeCurveSegments(stick, conv, preset.points_count);
 }
 
-void MCP3208ADCAddon::applyCh2Ch5Keys(Gamepad* gamepad) {
-    const FnKeyMappingOptions& fn = Storage::getInstance().getAddonOptions().fnKeyMappingOptions;
-    uint32_t ch2_btn[4], ch2_dpad[4], ch5_btn[4], ch5_dpad[4];
-    gpioMappingToMasks(fn.leftMtMapping, &ch2_btn[0], &ch2_dpad[0]);
-    ch2_btn[1] = GAMEPAD_MASK_L3; ch2_dpad[1] = 0;
-    gpioMappingToMasks(fn.leftExtTriggerMapping, &ch2_btn[2], &ch2_dpad[2]);
-    gpioMappingToMasks(fn.leftFnMapping, &ch2_btn[3], &ch2_dpad[3]);
-    gpioMappingToMasks(fn.rightMtMapping, &ch5_btn[0], &ch5_dpad[0]);
-    ch5_btn[1] = GAMEPAD_MASK_R3; ch5_dpad[1] = 0;
-    gpioMappingToMasks(fn.rightExtTriggerMapping, &ch5_btn[2], &ch5_dpad[2]);
-    gpioMappingToMasks(fn.rightFnMapping, &ch5_btn[3], &ch5_dpad[3]);
+// addonKeyboardKeyMask 位与 GpioAction 对应：KEYBOARD_KEY_A=131 → bit0，KEYBOARD_KEY_9=169 → bit38
+static constexpr uint32_t CH25_KEYBOARD_KEY_BASE = 131;
 
-    auto levelFromRaw = [](uint16_t raw) -> int {
-        if (raw < CH25_T1) return 0;
-        if (raw < CH25_T2) return 1;
-        if (raw < CH25_T3) return 2;
-        if (raw < CH25_T4) return 3;
-        return -1;
-    };
-    int cand2 = levelFromRaw(adcValues_[2]);
-    int cand5 = levelFromRaw(adcValues_[5]);
+static void setCh25MappingFromGpio(VoltageSwitchMap& entry, const GpioMappingInfo& m, uint32_t buttonMask, uint32_t dpadMask) {
+    entry.buttonMask = buttonMask;
+    entry.dpadMask = dpadMask;
+    if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9)
+        entry.keyboardKeyBit = static_cast<uint8_t>(static_cast<uint32_t>(m.action) - CH25_KEYBOARD_KEY_BASE);
+    else
+        entry.keyboardKeyBit = 0xFF;
+}
+
+void MCP3208ADCAddon::buildCh25Maps() {
+    const FnKeyMappingOptions& fn = Storage::getInstance().getAddonOptions().fnKeyMappingOptions;
+    uint32_t b = 0, d = 0;
+    // CH2: 左MT, L3, Ext左扳机, 左FN
+    ch2_map_[0].threshold = CH25_T1;
+    gpioMappingToMasks(fn.leftMtMapping, &b, &d);
+    setCh25MappingFromGpio(ch2_map_[0], fn.leftMtMapping, b, d);
+    ch2_map_[1].threshold = CH25_T2;
+    ch2_map_[1].buttonMask = GAMEPAD_MASK_L3;
+    ch2_map_[1].dpadMask = 0;
+    ch2_map_[1].keyboardKeyBit = 0xFF;
+    ch2_map_[2].threshold = CH25_T3;
+    gpioMappingToMasks(fn.leftExtTriggerMapping, &b, &d);
+    setCh25MappingFromGpio(ch2_map_[2], fn.leftExtTriggerMapping, b, d);
+    ch2_map_[3].threshold = CH25_T4;
+    gpioMappingToMasks(fn.leftFnMapping, &b, &d);
+    setCh25MappingFromGpio(ch2_map_[3], fn.leftFnMapping, b, d);
+    // CH5: 右MT, R3, Ext右扳机, 右FN
+    ch5_map_[0].threshold = CH25_T1;
+    gpioMappingToMasks(fn.rightMtMapping, &b, &d);
+    setCh25MappingFromGpio(ch5_map_[0], fn.rightMtMapping, b, d);
+    ch5_map_[1].threshold = CH25_T2;
+    ch5_map_[1].buttonMask = GAMEPAD_MASK_R3;
+    ch5_map_[1].dpadMask = 0;
+    ch5_map_[1].keyboardKeyBit = 0xFF;
+    ch5_map_[2].threshold = CH25_T3;
+    gpioMappingToMasks(fn.rightExtTriggerMapping, &b, &d);
+    setCh25MappingFromGpio(ch5_map_[2], fn.rightExtTriggerMapping, b, d);
+    ch5_map_[3].threshold = CH25_T4;
+    gpioMappingToMasks(fn.rightFnMapping, &b, &d);
+    setCh25MappingFromGpio(ch5_map_[3], fn.rightFnMapping, b, d);
+}
+
+void MCP3208ADCAddon::applyCh2Ch5Keys(Gamepad* gamepad) {
+    // 用预构建的 threshold 表得到档位，无每帧映射调用
+    int cand2 = -1, cand5 = -1;
+    uint16_t adc2 = adcValues_[2], adc5 = adcValues_[5];
+    for (int i = 0; i < MCP3208_CH25_LEVELS; i++) {
+        if (adc2 < ch2_map_[i].threshold) { cand2 = i; break; }
+    }
+    for (int i = 0; i < MCP3208_CH25_LEVELS; i++) {
+        if (adc5 < ch5_map_[i].threshold) { cand5 = i; break; }
+    }
 
     auto updateDebounce = [](int candidate, int8_t& stable_level, int8_t& pending_level, uint8_t& debounce_count) {
         if (candidate == stable_level) {
@@ -460,16 +516,38 @@ void MCP3208ADCAddon::applyCh2Ch5Keys(Gamepad* gamepad) {
     };
     updateDebounce(cand2, ch2_stable_level_, ch2_pending_level_, ch2_debounce_count_);
     updateDebounce(cand5, ch5_stable_level_, ch5_pending_level_, ch5_debounce_count_);
-    int l2 = ch2_stable_level_;
-    int l5 = ch5_stable_level_;
+    int l2 = ch2_stable_level_, l5 = ch5_stable_level_;
 
-    uint32_t clear_btn = 0, clear_dpad = 0;
-    for (int i = 0; i < 4; i++) { clear_btn |= ch2_btn[i] | ch5_btn[i]; clear_dpad |= ch2_dpad[i] | ch5_dpad[i]; }
-    gamepad->state.buttons &= ~clear_btn;
-    gamepad->state.dpad &= ~clear_dpad;
-
-    if (l2 >= 0) { gamepad->state.buttons |= ch2_btn[l2]; gamepad->state.dpad |= ch2_dpad[l2]; }
-    if (l5 >= 0) { gamepad->state.buttons |= ch5_btn[l5]; gamepad->state.dpad |= ch5_dpad[l5]; }
+    // 只清除本插件上一帧输出的 mask，不清除「所有档位可能用到的按键」并集，避免覆盖触摸板/GPIO 等同按键
+    gamepad->state.buttons &= ~(last_ch2_buttons_ | last_ch5_buttons_);
+    gamepad->state.dpad   &= ~(last_ch2_dpad_   | last_ch5_dpad_);
+    gamepad->addonKeyboardKeyMask &= ~(last_ch2_keyboard_ | last_ch5_keyboard_);
+    uint32_t curr2_btn = 0, curr2_dpad = 0;
+    uint64_t curr2_kb = 0;
+    uint32_t curr5_btn = 0, curr5_dpad = 0;
+    uint64_t curr5_kb = 0;
+    if (l2 >= 0) {
+        curr2_btn = ch2_map_[l2].buttonMask;
+        curr2_dpad = ch2_map_[l2].dpadMask;
+        if (ch2_map_[l2].keyboardKeyBit != 0xFF) curr2_kb = (1ULL << ch2_map_[l2].keyboardKeyBit);
+        gamepad->state.buttons |= curr2_btn;
+        gamepad->state.dpad   |= curr2_dpad;
+        gamepad->addonKeyboardKeyMask |= curr2_kb;
+    }
+    if (l5 >= 0) {
+        curr5_btn = ch5_map_[l5].buttonMask;
+        curr5_dpad = ch5_map_[l5].dpadMask;
+        if (ch5_map_[l5].keyboardKeyBit != 0xFF) curr5_kb = (1ULL << ch5_map_[l5].keyboardKeyBit);
+        gamepad->state.buttons |= curr5_btn;
+        gamepad->state.dpad   |= curr5_dpad;
+        gamepad->addonKeyboardKeyMask |= curr5_kb;
+    }
+    last_ch2_buttons_ = curr2_btn;
+    last_ch2_dpad_    = curr2_dpad;
+    last_ch2_keyboard_ = curr2_kb;
+    last_ch5_buttons_ = curr5_btn;
+    last_ch5_dpad_    = curr5_dpad;
+    last_ch5_keyboard_ = curr5_kb;
 }
 
 void MCP3208ADCAddon::process() {
@@ -514,10 +592,11 @@ void MCP3208ADCAddon::process() {
 
     // 与模拟摇杆一致：按当前模式输出 16bit 范围。12bit ADC 经归一化到 [0,1] 后乘 joystickMax
     // XInput 等模式：driver->GetJoystickMidValue()=32767，joystickMax=65535
+    // 每帧只取一次 driver，不缓存在 setup()：若将来支持运行时切换输入模式，缓存的指针会失效
     uint32_t joystickMax = GAMEPAD_JOYSTICK_MAX;
-    if (DriverManager::getInstance().getDriver() != nullptr) {
-        uint32_t joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
-        joystickMax = joystickMid * 2;
+    GPDriver* driver = DriverManager::getInstance().getDriver();
+    if (driver != nullptr) {
+        joystickMax = driver->GetJoystickMidValue() * 2;
     }
 
     for (int i = 0; i < MCP3208_STICK_COUNT; i++) {
@@ -613,4 +692,5 @@ void MCP3208ADCAddon::reinit() {
             initializeCurveSegments(i, conv, i == 0 ? o.joystick_curve_points_1_count : o.joystick_curve_points_2_count);
         }
     }
+    buildCh25Maps();
 }

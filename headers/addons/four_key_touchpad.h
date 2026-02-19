@@ -3,8 +3,18 @@
 
 #include "gpaddon.h"
 #include "BoardConfig.h"
+#include "config.pb.h"
 
 #define FOUR_KEY_TOUCHPAD_ADDON_NAME "4键触摸板"
+
+// 预解析映射：运行时仅 OR mask，复杂类型(ANALOG/MENU/KEYBOARD) 再进 switch
+struct FastMapping {
+    uint32_t buttonMask;
+    uint32_t dpadMask;
+    uint32_t auxMask;
+    bool isComplex;
+    const GpioMappingInfo* originalMapping;
+};
 
 // BS814A-2: DATA = I2C1 SCL (MCU reads), SCK = I2C1 SDA (MCU drives). Bit-bang 4 bits; low = pressed; map to A1–A4.
 
@@ -16,10 +26,15 @@ public:
     virtual void preprocess();
     virtual void postprocess(bool) {}
     virtual std::string name() { return FOUR_KEY_TOUCHPAD_ADDON_NAME; }
-    virtual void reinit() {}
+    virtual void reinit();
 private:
+    void buildMappings();
+
     int32_t pin_sck = -1;   // I2C1 SDA: clock output
     int32_t pin_data = -1;  // I2C1 SCL: data input (release=high, press=low)
+    FastMapping fastMappings[4];      // 4 键预解析映射
+    FastMapping enablePinMapping;     // GPIO12 使能键映射（用于 process 中屏蔽）
+    bool wasEnabled = false;         // 上一帧触摸板是否使能（低有效）
     bool anyTouchKeyPressed = false;  // 本帧在 GPIO12 按下时是否有触摸键按下（供 process 中屏蔽 GPIO12 映射）
     uint8_t lastKeyNibble = 0x0F;     // 上次有效键状态（1=松键），节流/错误冷却时复用
     uint32_t lastPollTime = 0;        // 上次轮询时间 (time_us_32)
