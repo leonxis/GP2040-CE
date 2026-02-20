@@ -1081,7 +1081,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 #if LSM6DSR_IMU_ENABLED
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, spiBlock, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, csPin, 4);
+    // csPin 仅从前端配置读取，不设固件默认值
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, outputMode, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroX, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroY, 0);

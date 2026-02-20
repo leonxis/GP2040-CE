@@ -267,12 +267,12 @@ export default function GyroSettings({
 					</div>
 
 					{/* 调试信息：6 轴 RAW、WHO_AM_I、SPI OK、IMU OK，启用时轮询显示 */}
-					<div className="p-2 bg-light rounded small">
+					<div className="p-2 rounded small bg-black text-white">
 						<div className="fw-semibold mb-1">{t('CalibrationSettings:gyro-debug-title')}</div>
 						{imuDataError && (
 							<p className="text-danger mb-0 small">{t('CalibrationSettings:gyro-view-data-error')}</p>
 						)}
-						{!imuDataError && !imuData && <span className="text-muted">{t('Common:loading-text')}</span>}
+						{!imuDataError && !imuData && <span>{t('Common:loading-text')}</span>}
 						{!imuDataError && imuData && (
 							<pre className="mb-0 small" style={{ fontSize: '0.8rem' }}>
 								{`WHO_AM_I: 0x${(imuData.whoAmI ?? 0).toString(16).toUpperCase().padStart(2, '0')} (${t('CalibrationSettings:gyro-debug-expected')} 0x6B)\nSPI OK: ${imuData.spiOk ?? false}\nIMU OK: ${imuData.imuOk ?? false}\n\nGyro X (RAW): ${imuData.gyroX ?? '-'}\nGyro Y (RAW): ${imuData.gyroY ?? '-'}\nGyro Z (RAW): ${imuData.gyroZ ?? '-'}\nAccel X (RAW): ${imuData.accelX ?? '-'}\nAccel Y (RAW): ${imuData.accelY ?? '-'}\nAccel Z (RAW): ${imuData.accelZ ?? '-'}`}

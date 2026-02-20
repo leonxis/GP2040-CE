@@ -11,11 +11,6 @@
 #define LSM6DSR_CS_SELECT(cs)   do { gpio_put((uint)(cs), 0); } while (0)
 #define LSM6DSR_CS_DESELECT(cs) do { gpio_put((uint)(cs), 1); } while (0)
 
-// 固定 SPI 与 CS 引脚，不再从前端/配置读取
-// 使用 GPIO 编号（0–29），非物理引脚号。Pico 上物理 5 号引脚 = GPIO04
-#define LSM6DSR_SPI_BLOCK  0U
-#define LSM6DSR_CS_PIN    5   // GPIO05（对应物理 6 号引脚）
-
 // Register map (ST LSM6DSR, same for I2C/SPI)
 #define LSM6DSR_WHO_AM_I      0x0FU
 #define LSM6DSR_ID            0x6BU
@@ -71,7 +66,8 @@ bool LSM6DSRIMUAddon::available() {
 #if LSM6DSR_IMU_ENABLED
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
 	if (!opts.enabled) return false;
-	return PeripheralManager::getInstance().isSPIEnabled(LSM6DSR_SPI_BLOCK);
+	uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
+	return PeripheralManager::getInstance().isSPIEnabled(block);
 #else
 	return false;
 #endif
@@ -90,10 +86,11 @@ void LSM6DSRIMUAddon::setup() {
 
 #if LSM6DSR_IMU_ENABLED
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-	if (!opts.enabled) return;
+	if (!opts.enabled || !opts.has_csPin) return;
 
-	csPin_ = LSM6DSR_CS_PIN;
-	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(LSM6DSR_SPI_BLOCK);
+	csPin_ = (int8_t)opts.csPin;
+	uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
+	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
 	if (!spi || !spi->configured) return;
 	spi_ = spi;
 
