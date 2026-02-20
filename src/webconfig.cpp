@@ -613,22 +613,23 @@ std::string getLSM6DSRImuData() {
     doc["expectedWhoAmI"] = 0x6B;
     doc["spiOk"] = spiOk;
     doc["imuOk"] = imuOk;
-    Gamepad* gp = Storage::getInstance().GetProcessedGamepad();
-    if (!gp) {
+    // 网页模式下主循环不跑 addon preprocess，故按需做一次 SPI 读取以保证数据实时
+    int16_t gyro[3] = {0}, accel[3] = {0};
+    if (getLSM6DSRRawData(gyro, accel)) {
+        doc["gyroX"] = (int32_t)gyro[0];
+        doc["gyroY"] = (int32_t)gyro[1];
+        doc["gyroZ"] = (int32_t)gyro[2];
+        doc["accelX"] = (int32_t)accel[0];
+        doc["accelY"] = (int32_t)accel[1];
+        doc["accelZ"] = (int32_t)accel[2];
+    } else {
         doc["gyroX"] = 0;
         doc["gyroY"] = 0;
         doc["gyroZ"] = 0;
         doc["accelX"] = 0;
         doc["accelY"] = 0;
         doc["accelZ"] = 0;
-        return serialize_json(doc);
     }
-    doc["gyroX"] = (int32_t)(int16_t)gp->auxState.sensors.gyroscope.x;
-    doc["gyroY"] = (int32_t)(int16_t)gp->auxState.sensors.gyroscope.y;
-    doc["gyroZ"] = (int32_t)(int16_t)gp->auxState.sensors.gyroscope.z;
-    doc["accelX"] = (int32_t)(int16_t)gp->auxState.sensors.accelerometer.x;
-    doc["accelY"] = (int32_t)(int16_t)gp->auxState.sensors.accelerometer.y;
-    doc["accelZ"] = (int32_t)(int16_t)gp->auxState.sensors.accelerometer.z;
     return serialize_json(doc);
 }
 

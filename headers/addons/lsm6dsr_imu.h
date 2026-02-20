@@ -16,6 +16,8 @@
 
 // 供 webconfig 获取调试信息（WHO_AM_I、SPI/IMU 状态）
 void getLSM6DSRImuDebug(uint8_t* whoAmI, bool* spiOk, bool* imuOk);
+// 供 webconfig 按需读取 6 轴 RAW（网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）
+bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]);
 
 class LSM6DSRIMUAddon : public GPAddon {
 public:

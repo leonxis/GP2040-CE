@@ -33,6 +33,9 @@
 static uint8_t s_debugWhoAmI = 0;
 static bool s_debugSpiOk = false;
 static bool s_debugImuOk = false;
+// 按需读取用（网页模式下 preprocess 不运行，API 调用时现场读一次）
+static PeripheralSPI* s_spi = nullptr;
+static int8_t s_csPin = -1;
 
 void getLSM6DSRImuDebug(uint8_t* whoAmI, bool* spiOk, bool* imuOk) {
 #if LSM6DSR_IMU_ENABLED
@@ -123,6 +126,30 @@ void LSM6DSRIMUAddon::setup() {
 
 	imuOk_ = true;
 	s_debugImuOk = true;
+	s_spi = spi_;
+	s_csPin = csPin_;
+#endif
+}
+
+bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
+#if LSM6DSR_IMU_ENABLED
+	if (!s_spi || s_csPin < 0 || !s_debugImuOk) return false;
+	uint8_t buf[6];
+	s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
+	spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 6);
+	gyro[0] = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
+	gyro[1] = (int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
+	gyro[2] = (int16_t)((uint16_t)buf[4] | ((uint16_t)buf[5] << 8));
+	spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_A, buf, 6);
+	accel[0] = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
+	accel[1] = (int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
+	accel[2] = (int16_t)((uint16_t)buf[4] | ((uint16_t)buf[5] << 8));
+	s_spi->endTransaction();
+	return true;
+#else
+	(void)gyro;
+	(void)accel;
+	return false;
 #endif
 }
 
