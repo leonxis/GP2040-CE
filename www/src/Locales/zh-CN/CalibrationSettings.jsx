@@ -18,4 +18,6 @@ export default {
 	'gyro-engage-on-key': '按下按键生效',
 	'gyro-engage-pause-on-key': '按下按键暂停',
 	'gyro-engage-keys-label-short': '生效按键：',
+	'gyro-debug-title': '调试信息',
+	'gyro-debug-expected': '期望',
 };

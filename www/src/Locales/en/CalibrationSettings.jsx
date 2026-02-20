@@ -18,4 +18,6 @@ export default {
 	'gyro-engage-on-key': 'On when key pressed',
 	'gyro-engage-pause-on-key': 'Pause when key pressed',
 	'gyro-engage-keys-label-short': 'Engage keys:',
+	'gyro-debug-title': 'Debug info',
+	'gyro-debug-expected': 'Expected',
 };

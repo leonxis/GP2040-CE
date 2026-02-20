@@ -14,6 +14,9 @@
 // SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」与插件配置（spiBlock、csPin）获取
 #define LSM6DSR_SPI_HZ      1500000u
 
+// 供 webconfig 获取调试信息（WHO_AM_I、SPI/IMU 状态）
+void getLSM6DSRImuDebug(uint8_t* whoAmI, bool* spiOk, bool* imuOk);
+
 class LSM6DSRIMUAddon : public GPAddon {
 public:
 	virtual bool available();

@@ -5,169 +5,159 @@
 #include "gamepad/GamepadState.h"
 #include "gamepad.h"
 #include "BoardConfig.h"
-#include "eventmanager.h"
-#include "GPEvent.h"
-#include "GPStorageSaveEvent.h"
+#include "hardware/gpio.h"
 
-// LSM6DSR register map (alpakka / project convention; adjust per datasheet if needed)
-#define LSM6DSR_WHO_AM_I   0x0F
-#define LSM6DSR_CTRL1_XL   0x10
-#define LSM6DSR_CTRL2_G    0x11
-#define LSM6DSR_CTRL8_XL   0x17
-#define LSM6DSR_OUTX_L_G   0x22
-#define LSM6DSR_READ       0x80
+// CS 片选：主动推挽驱动，避免 SPI select/deselect 的上拉/下拉驱动不足
+#define LSM6DSR_CS_SELECT(cs)   do { gpio_put((uint)(cs), 0); } while (0)
+#define LSM6DSR_CS_DESELECT(cs) do { gpio_put((uint)(cs), 1); } while (0)
 
-#define LSM6DSR_CTRL1_XL_OFF  0x00
-#define LSM6DSR_CTRL1_XL_2G   0xA2
-#define LSM6DSR_CTRL8_XL_LP  0x00
-#define LSM6DSR_CTRL2_G_OFF  0x00
-#define LSM6DSR_CTRL2_G_500  0xA4
+// 固定 SPI 与 CS 引脚，不再从前端/配置读取
+// 使用 GPIO 编号（0–29），非物理引脚号。Pico 上物理 5 号引脚 = GPIO04
+#define LSM6DSR_SPI_BLOCK  0U
+#define LSM6DSR_CS_PIN    5   // GPIO05（对应物理 6 号引脚）
 
-static const uint32_t LSM6DSR_CALIB_SAMPLES = 100;
+// Register map (ST LSM6DSR, same for I2C/SPI)
+#define LSM6DSR_WHO_AM_I      0x0FU
+#define LSM6DSR_ID            0x6BU
+#define LSM6DSR_CTRL1_XL      0x10U
+#define LSM6DSR_CTRL2_G       0x11U
+#define LSM6DSR_CTRL3_C       0x12U
+#define LSM6DSR_I3C_BUS_AVB   0x62U
+#define LSM6DSR_OUTX_L_G      0x22U
+#define LSM6DSR_OUTX_L_A      0x28U
 
-enum LSM6DSROutputMode : int32_t {
-    LSM6DSR_OUTPUT_DS4 = 0,
-    LSM6DSR_OUTPUT_RIGHT_STICK = 1,
-    LSM6DSR_OUTPUT_MOUSE = 2,
-};
+#define LSM6DSR_SPI_READ      0x80U
+#define LSM6DSR_I3C_DISABLE    0x80U
+
+// ODR 1666 Hz = 8, 2g = 0, 2000dps = 12 (ST enum)
+#define LSM6DSR_CTRL1_XL_1666_2G   (0x80U)  // odr_xl=8, fs_xl=0
+#define LSM6DSR_CTRL2_G_1666_2000  (0x8CU)  // odr_g=8, fs_g=12
+#define LSM6DSR_CTRL3_C_BDU_INC    0x44U   // BDU + IF_INC
+
+// Debug for webconfig
+static uint8_t s_debugWhoAmI = 0;
+static bool s_debugSpiOk = false;
+static bool s_debugImuOk = false;
+
+void getLSM6DSRImuDebug(uint8_t* whoAmI, bool* spiOk, bool* imuOk) {
+#if LSM6DSR_IMU_ENABLED
+	if (whoAmI) *whoAmI = s_debugWhoAmI;
+	if (spiOk) *spiOk = s_debugSpiOk;
+	if (imuOk) *imuOk = s_debugImuOk;
+#else
+	if (whoAmI) *whoAmI = 0;
+	if (spiOk) *spiOk = false;
+	if (imuOk) *imuOk = false;
+#endif
+}
+
+static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
+	if (len == 0) return;
+	LSM6DSR_CS_SELECT(csPin);
+	(void)spi->transfer(reg | LSM6DSR_SPI_READ);
+	for (size_t i = 0; i < len; i++)
+		buf[i] = spi->transfer(0);
+	LSM6DSR_CS_DESELECT(csPin);
+}
+
+static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t val) {
+	LSM6DSR_CS_SELECT(csPin);
+	spi->transfer(reg);
+	spi->transfer(val);
+	LSM6DSR_CS_DESELECT(csPin);
+}
 
 bool LSM6DSRIMUAddon::available() {
 #if LSM6DSR_IMU_ENABLED
-    const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-    if (!opts.enabled) return false;
-    uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
-    return PeripheralManager::getInstance().isSPIEnabled(block);
+	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+	if (!opts.enabled) return false;
+	return PeripheralManager::getInstance().isSPIEnabled(LSM6DSR_SPI_BLOCK);
 #else
-    return false;
+	return false;
 #endif
 }
 
 void LSM6DSRIMUAddon::setup() {
-    spi_ = nullptr;
-    csPin_ = -1;
-    spiOk_ = false;
-    imuOk_ = false;
-    calibCount_ = 0;
-    calibSumX_ = calibSumY_ = calibSumZ_ = 0;
+	spi_ = nullptr;
+	csPin_ = -1;
+	spiOk_ = false;
+	imuOk_ = false;
+	calibCount_ = 0;
+	calibSumX_ = calibSumY_ = calibSumZ_ = 0;
+	s_debugWhoAmI = 0;
+	s_debugSpiOk = false;
+	s_debugImuOk = false;
 
 #if LSM6DSR_IMU_ENABLED
-    const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-    if (!opts.enabled) return;
-    if (!opts.has_csPin) return;
-    csPin_ = (int8_t)opts.csPin;
-    uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
-    PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
-    if (!spi || !spi->configured) return;
-    spi_ = spi;
+	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+	if (!opts.enabled) return;
 
-    gpio_init((uint)csPin_);
-    gpio_set_dir((uint)csPin_, GPIO_OUT);
-    gpio_put((uint)csPin_, true);
-    spiOk_ = true;
+	csPin_ = LSM6DSR_CS_PIN;
+	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(LSM6DSR_SPI_BLOCK);
+	if (!spi || !spi->configured) return;
+	spi_ = spi;
 
-    // 1.5 MHz transaction for LSM6DSR (mode 3 per alpakka/typical IMU)
-    spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
-    spi_->select(csPin_);
-    uint8_t id = spi_->transfer(LSM6DSR_READ | LSM6DSR_WHO_AM_I);
-    (void)spi_->transfer(0);
-    spi_->deselect();
-    spi_->endTransaction();
+	gpio_init((uint)csPin_);
+	gpio_set_dir((uint)csPin_, GPIO_OUT);
+	gpio_put((uint)csPin_, true);
+	spiOk_ = true;
+	s_debugSpiOk = true;
 
-    if (id != 0x6A) {
-        spiOk_ = false;
-        return;
-    }
+	// 1.5 MHz, SPI mode 3 (LSM6DSR typical)
+	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
+	LSM6DSR_CS_SELECT(csPin_);
+	(void)spi_->transfer(LSM6DSR_SPI_READ | LSM6DSR_WHO_AM_I);
+	uint8_t id = spi_->transfer(0);
+	LSM6DSR_CS_DESELECT(csPin_);
+	spi_->endTransaction();
 
-    spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
-    spi_->select(csPin_);
-    spi_->transfer(LSM6DSR_CTRL1_XL);
-    spi_->transfer(LSM6DSR_CTRL1_XL_2G);
-    spi_->deselect();
-    spi_->select(csPin_);
-    spi_->transfer(LSM6DSR_CTRL8_XL);
-    spi_->transfer(LSM6DSR_CTRL8_XL_LP);
-    spi_->deselect();
-    spi_->select(csPin_);
-    spi_->transfer(LSM6DSR_CTRL2_G);
-    spi_->transfer(LSM6DSR_CTRL2_G_500);
-    spi_->deselect();
-    spi_->endTransaction();
-    imuOk_ = true;
+	s_debugWhoAmI = id;
+	if (id != LSM6DSR_ID) {
+		spiOk_ = false;
+		s_debugSpiOk = false;
+		return;
+	}
+
+	// Disable I3C, set ODR 1666 Hz, 2g acc, 2000 dps gyro, BDU+IF_INC
+	spiWriteReg(spi_, csPin_, LSM6DSR_I3C_BUS_AVB, LSM6DSR_I3C_DISABLE & 0x03U);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL3_C, LSM6DSR_CTRL3_C_BDU_INC);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL1_XL, LSM6DSR_CTRL1_XL_1666_2G);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL2_G, LSM6DSR_CTRL2_G_1666_2000);
+
+	imuOk_ = true;
+	s_debugImuOk = true;
 #endif
 }
 
 void LSM6DSRIMUAddon::preprocess() {
 #if LSM6DSR_IMU_ENABLED
-    if (!spiOk_ || !spi_ || !imuOk_) return;
+	if (!spiOk_ || !spi_ || !imuOk_) return;
 
-    AddonOptions& addonOpts = Storage::getInstance().getAddonOptions();
-    LSM6DSROptions& opts = addonOpts.lsm6dsrOptions;
+	uint8_t buf[6];
+	int16_t rawG[3], rawA[3];
 
-    if (opts.has_calibrateGyroRequested && opts.calibrateGyroRequested) {
-        if (calibCount_ == 0) {
-            calibSumX_ = calibSumY_ = calibSumZ_ = 0;
-        }
-        uint8_t buf[6];
-        spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
-        spi_->select(csPin_);
-        spi_->transfer(LSM6DSR_READ | LSM6DSR_OUTX_L_G);
-        for (int i = 0; i < 6; i++)
-            buf[i] = spi_->transfer(0);
-        spi_->deselect();
-        spi_->endTransaction();
-        int16_t rawX = (int16_t)((uint16_t)buf[1] << 8 | buf[0]);
-        int16_t rawY = (int16_t)((uint16_t)buf[3] << 8 | buf[2]);
-        int16_t rawZ = (int16_t)((uint16_t)buf[5] << 8 | buf[4]);
-        rawX = (int16_t)-rawX;
-        calibSumX_ += rawX;
-        calibSumY_ += rawY;
-        calibSumZ_ += rawZ;
-        calibCount_++;
-        if (calibCount_ >= LSM6DSR_CALIB_SAMPLES) {
-            opts.offsetGyroX = (int32_t)(calibSumX_ / (int32_t)LSM6DSR_CALIB_SAMPLES);
-            opts.offsetGyroY = (int32_t)(calibSumY_ / (int32_t)LSM6DSR_CALIB_SAMPLES);
-            opts.offsetGyroZ = (int32_t)(calibSumZ_ / (int32_t)LSM6DSR_CALIB_SAMPLES);
-            opts.has_offsetGyroX = opts.has_offsetGyroY = opts.has_offsetGyroZ = true;
-            opts.calibrateGyroRequested = false;
-            opts.has_calibrateGyroRequested = true;
-            calibCount_ = 0;
-            EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-        }
-        return;
-    }
+	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
+	spiReadRegs(spi_, csPin_, LSM6DSR_OUTX_L_G, buf, 6);
+	rawG[0] = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
+	rawG[1] = (int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
+	rawG[2] = (int16_t)((uint16_t)buf[4] | ((uint16_t)buf[5] << 8));
 
-    int32_t outMode = opts.has_outputMode ? opts.outputMode : 0;
-    if (outMode != LSM6DSR_OUTPUT_DS4) return;
+	spiReadRegs(spi_, csPin_, LSM6DSR_OUTX_L_A, buf, 6);
+	rawA[0] = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
+	rawA[1] = (int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
+	rawA[2] = (int16_t)((uint16_t)buf[4] | ((uint16_t)buf[5] << 8));
+	spi_->endTransaction();
 
-    int32_t offX = opts.has_offsetGyroX ? opts.offsetGyroX : 0;
-    int32_t offY = opts.has_offsetGyroY ? opts.offsetGyroY : 0;
-    int32_t offZ = opts.has_offsetGyroZ ? opts.offsetGyroZ : 0;
-
-    uint8_t buf[6];
-    spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
-    spi_->select(csPin_);
-    spi_->transfer(LSM6DSR_READ | LSM6DSR_OUTX_L_G);
-    for (int i = 0; i < 6; i++)
-        buf[i] = spi_->transfer(0);
-    spi_->deselect();
-    spi_->endTransaction();
-
-    int16_t rawX = (int16_t)((uint16_t)buf[1] << 8 | buf[0]);
-    int16_t rawY = (int16_t)((uint16_t)buf[3] << 8 | buf[2]);
-    int16_t rawZ = (int16_t)((uint16_t)buf[5] << 8 | buf[4]);
-    rawX = (int16_t)-rawX;
-    int32_t gx = (int32_t)rawX - offX;
-    int32_t gy = (int32_t)rawY - offY;
-    int32_t gz = (int32_t)rawZ - offZ;
-    gx = (gx < -32768) ? -32768 : ((gx > 32767) ? 32767 : gx);
-    gy = (gy < -32768) ? -32768 : ((gy > 32767) ? 32767 : gy);
-    gz = (gz < -32768) ? -32768 : ((gz > 32767) ? 32767 : gz);
-
-    Gamepad* gamepad = Storage::getInstance().GetProcessedGamepad();
-    gamepad->auxState.sensors.gyroscope.enabled = true;
-    gamepad->auxState.sensors.gyroscope.active = true;
-    gamepad->auxState.sensors.gyroscope.x = (uint16_t)(int16_t)gx;
-    gamepad->auxState.sensors.gyroscope.y = (uint16_t)(int16_t)gy;
-    gamepad->auxState.sensors.gyroscope.z = (uint16_t)(int16_t)gz;
+	Gamepad* gamepad = Storage::getInstance().GetProcessedGamepad();
+	if (gamepad) {
+		gamepad->auxState.sensors.gyroscope.enabled = true;
+		gamepad->auxState.sensors.gyroscope.active = true;
+		gamepad->auxState.sensors.gyroscope.x = (uint16_t)(int16_t)rawG[0];
+		gamepad->auxState.sensors.gyroscope.y = (uint16_t)(int16_t)rawG[1];
+		gamepad->auxState.sensors.gyroscope.z = (uint16_t)(int16_t)rawG[2];
+		gamepad->auxState.sensors.accelerometer.x = (uint16_t)(int16_t)rawA[0];
+		gamepad->auxState.sensors.accelerometer.y = (uint16_t)(int16_t)rawA[1];
+		gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[2];
+	}
 #endif
 }

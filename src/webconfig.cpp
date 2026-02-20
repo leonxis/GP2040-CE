@@ -38,6 +38,7 @@
 #include "addons/input_macro.h"
 #include "addons/analog_utils.h"
 #include "addons/linear_trigger.h"
+#include "addons/lsm6dsr_imu.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
 
@@ -602,8 +603,16 @@ std::string getLSM6DSROptions() {
 }
 
 std::string getLSM6DSRImuData() {
-    const size_t capacity = JSON_OBJECT_SIZE(6);
+    const size_t capacity = JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(5); // 6 axis + debug
     DynamicJsonDocument doc(capacity);
+    uint8_t whoAmI = 0;
+    bool spiOk = false, imuOk = false;
+    getLSM6DSRImuDebug(&whoAmI, &spiOk, &imuOk);
+    doc["debug"] = true;
+    doc["whoAmI"] = whoAmI;
+    doc["expectedWhoAmI"] = 0x6B;
+    doc["spiOk"] = spiOk;
+    doc["imuOk"] = imuOk;
     Gamepad* gp = Storage::getInstance().GetProcessedGamepad();
     if (!gp) {
         doc["gyroX"] = 0;

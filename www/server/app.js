@@ -899,7 +899,7 @@ app.post('/api/getHETriggerCalibration', (req, res) => {
 });
 
 app.get('/api/getLSM6DSRImuData', (req, res) => {
-	// Stub: real implementation would read from device. Returns 6-axis (gyro XYZ + accel XYZ).
+	// Stub: real implementation would read from device. Returns 6-axis (gyro XYZ + accel XYZ) + debug.
 	return res.send({
 		gyroX: 0,
 		gyroY: 0,
@@ -907,6 +907,11 @@ app.get('/api/getLSM6DSRImuData', (req, res) => {
 		accelX: 0,
 		accelY: 0,
 		accelZ: 0,
+		debug: true,
+		whoAmI: 0,
+		expectedWhoAmI: 0x6B,
+		spiOk: false,
+		imuOk: false,
 	});
 });
 

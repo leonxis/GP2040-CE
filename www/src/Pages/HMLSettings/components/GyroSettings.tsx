@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MultiValue } from 'react-select';
-import { Button, Form, Modal } from 'react-bootstrap';
+import { Button, Form } from 'react-bootstrap';
 import Section from '../../../Components/Section';
 import CustomSelect from '../../../Components/CustomSelect';
 import { AppContext } from '../../../Contexts/AppContext';
@@ -56,6 +56,12 @@ type ImuData = {
 	accelX?: number;
 	accelY?: number;
 	accelZ?: number;
+	// 调试信息
+	debug?: boolean;
+	whoAmI?: number;
+	expectedWhoAmI?: number;
+	spiOk?: boolean;
+	imuOk?: boolean;
 };
 
 export default function GyroSettings({
@@ -68,7 +74,6 @@ export default function GyroSettings({
 }: GyroSettingsProps) {
 	const { t } = useTranslation();
 	const appContext = useContext(AppContext);
-	const [showViewDataModal, setShowViewDataModal] = useState(false);
 	const [imuData, setImuData] = useState<ImuData | null>(null);
 	const [imuDataError, setImuDataError] = useState(false);
 	const imuPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -129,14 +134,14 @@ export default function GyroSettings({
 	};
 
 	useEffect(() => {
-		if (!showViewDataModal) {
+		if (!enabled) {
 			if (imuPollRef.current) {
 				clearInterval(imuPollRef.current);
 				imuPollRef.current = null;
 			}
+			setImuData(null);
 			return;
 		}
-		setImuData(null);
 		setImuDataError(false);
 		fetchImuData();
 		imuPollRef.current = setInterval(fetchImuData, IMU_POLL_INTERVAL_MS);
@@ -146,11 +151,7 @@ export default function GyroSettings({
 				imuPollRef.current = null;
 			}
 		};
-	}, [showViewDataModal]);
-
-	const handleShowViewData = () => {
-		setShowViewDataModal(true);
-	};
+	}, [enabled]);
 
 	const engageKeysValue: EngageKeyOption[] = useMemo(
 		() => engageKeyOptions.filter((opt) => engageKeys.includes(opt.value)),
@@ -216,7 +217,7 @@ export default function GyroSettings({
 						</div>
 					</div>
 
-					{/* 生效方式：标题 + 下拉框，右侧为校准陀螺仪、查看数据按键 */}
+					{/* 生效方式：标题 + 下拉框，右侧为校准陀螺仪按键 */}
 					<div className="mb-2">
 						<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-mode-label-short')}</Form.Label>
 					</div>
@@ -240,30 +241,20 @@ export default function GyroSettings({
 								</option>
 							</Form.Select>
 						</div>
-						<div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-							<Button
-								variant="primary"
-								size="sm"
-								style={{ width: GYRO_BUTTON_WIDTH }}
-								onClick={handleCalibrate}
-							>
-								{t('CalibrationSettings:gyro-calibrate-button')}
-							</Button>
-							<Button
-								variant="info"
-								size="sm"
-								style={{ width: GYRO_BUTTON_WIDTH }}
-								onClick={handleShowViewData}
-							>
-								{t('CalibrationSettings:gyro-view-data-button')}
-							</Button>
-						</div>
+						<Button
+							variant="primary"
+							size="sm"
+							style={{ width: GYRO_BUTTON_WIDTH }}
+							onClick={handleCalibrate}
+						>
+							{t('CalibrationSettings:gyro-calibrate-button')}
+						</Button>
 					</div>
 					{/* 生效按键：标题 + 下拉框（在生效方式下方） */}
 					<div className="mb-2">
 						<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-keys-label-short')}</Form.Label>
 					</div>
-					<div style={{ width: DROPDOWN_WIDTH }}>
+					<div style={{ width: DROPDOWN_WIDTH, marginBottom: '16px' }}>
 						<CustomSelect<EngageKeyOption, true>
 							isMulti
 							options={engageKeyOptions}
@@ -273,6 +264,20 @@ export default function GyroSettings({
 							onChange={onEngageKeysChange}
 							styles={{ control: (base) => ({ ...base, minHeight: '38px' }) }}
 						/>
+					</div>
+
+					{/* 调试信息：6 轴 RAW、WHO_AM_I、SPI OK、IMU OK，启用时轮询显示 */}
+					<div className="p-2 bg-light rounded small">
+						<div className="fw-semibold mb-1">{t('CalibrationSettings:gyro-debug-title')}</div>
+						{imuDataError && (
+							<p className="text-danger mb-0 small">{t('CalibrationSettings:gyro-view-data-error')}</p>
+						)}
+						{!imuDataError && !imuData && <span className="text-muted">{t('Common:loading-text')}</span>}
+						{!imuDataError && imuData && (
+							<pre className="mb-0 small" style={{ fontSize: '0.8rem' }}>
+								{`WHO_AM_I: 0x${(imuData.whoAmI ?? 0).toString(16).toUpperCase().padStart(2, '0')} (${t('CalibrationSettings:gyro-debug-expected')} 0x6B)\nSPI OK: ${imuData.spiOk ?? false}\nIMU OK: ${imuData.imuOk ?? false}\n\nGyro X (RAW): ${imuData.gyroX ?? '-'}\nGyro Y (RAW): ${imuData.gyroY ?? '-'}\nGyro Z (RAW): ${imuData.gyroZ ?? '-'}\nAccel X (RAW): ${imuData.accelX ?? '-'}\nAccel Y (RAW): ${imuData.accelY ?? '-'}\nAccel Z (RAW): ${imuData.accelZ ?? '-'}`}
+							</pre>
+						)}
 					</div>
 				</>
 			) : null}
@@ -292,26 +297,6 @@ export default function GyroSettings({
 					) : null}
 				</div>
 			</div>
-
-			<Modal show={showViewDataModal} onHide={() => setShowViewDataModal(false)} centered>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('CalibrationSettings:gyro-view-data-title')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					{showViewDataModal && !imuDataError && imuData && (
-						<p className="text-muted small mb-2">{t('CalibrationSettings:gyro-view-data-realtime-hint')}</p>
-					)}
-					{imuDataError && (
-						<p className="text-danger mb-0">{t('CalibrationSettings:gyro-view-data-error')}</p>
-					)}
-					{!imuDataError && imuData && (
-						<pre className="mb-0 small">
-							{`Gyro X: ${imuData.gyroX ?? '-'}\nGyro Y: ${imuData.gyroY ?? '-'}\nGyro Z: ${imuData.gyroZ ?? '-'}\nAccel X: ${imuData.accelX ?? '-'}\nAccel Y: ${imuData.accelY ?? '-'}\nAccel Z: ${imuData.accelZ ?? '-'}`}
-						</pre>
-					)}
-					{!imuDataError && !imuData && <span>{t('Common:loading-text')}</span>}
-				</Modal.Body>
-			</Modal>
 		</Section>
 	);
 }

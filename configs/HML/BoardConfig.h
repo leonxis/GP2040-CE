@@ -38,21 +38,13 @@
 #define GPIO_PIN_27 GpioAction::BUTTON_PRESS_B4     // bkey4
 
 // MCP3208 + LSM6DSR 共用 SPI0，引脚固定不从前端获取
-#define MCP3208_ADC_ENABLED       1
-#define SPI0_ENABLED              1
-#define SPI0_PIN_RX               0   // MISO
-#define SPI0_PIN_TX               3   // MOSI
-#define SPI0_PIN_SCK              2
-#define SPI0_PIN_CS               1   // MCP3208 CS（LSM6DSR 使用 GPIO4）
+#define MCP3208_ADC_ENABLED       0
+#define LSM6DSR_IMU_ENABLED       1
 
 // Setting GPIO pins to assigned by add-on
 //
-#define GPIO_PIN_00 GpioAction::ASSIGNED_TO_ADDON
-#define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON
-#define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON
-#define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON
-#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON
-#define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON
+
+
 #define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON
 #define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON
 #define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON
@@ -88,22 +80,12 @@
 #define CASE_RGB_COUNT 1
 
 // analog stick configuration
-#define ANALOG_INPUT_ENABLED        1
 //#define ANALOG_ADC_1_VRX            27
 //#define ANALOG_ADC_1_VRY            26
 //#define ANALOG_ADC_2_VRX            29
 //#define ANALOG_ADC_2_VRY            28
-#define DEFAULT_INNER_DEADZONE      0
-#define DEFAULT_INNER_DEADZONE2     0
-#define ANALOG_ADC_1_INVERT        INVERT_X
-#define ANALOG_ADC_2_INVERT        INVERT_X
 
-// USB Passthrough
-//#define USB_PERIPHERAL_ENABLED 1
-#ifndef USB_PERIPHERAL_PIN_DPLUS
-#define USB_PERIPHERAL_PIN_DPLUS 5
-#endif
-//#define USB_PERIPHERAL_PIN_ORDER 0
+
 
 // PS AUTH
 #define DEFAULT_PS4CONTROLLER_TYPE PS4_CONTROLLER
