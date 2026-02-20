@@ -16,17 +16,27 @@
 #define LSM6DSR_ID            0x6BU
 #define LSM6DSR_CTRL1_XL      0x10U
 #define LSM6DSR_CTRL2_G       0x11U
+#define LSM6DSR_FIFO_CTRL1    0x07U
+#define LSM6DSR_FIFO_CTRL2    0x08U
+#define LSM6DSR_FIFO_CTRL3    0x09U
+#define LSM6DSR_FIFO_CTRL4    0x0AU
+#define LSM6DSR_FIFO_CTRL5    0x0BU
 #define LSM6DSR_CTRL3_C       0x12U
-#define LSM6DSR_I3C_BUS_AVB   0x62U
+#define LSM6DSR_CTRL4_C       0x13U  // LPF1 关闭 → 最大数字滤波带宽; bit2 I2C_DISABLE
+#define LSM6DSR_CTRL4_C_I2C_DISABLE  (1U << 2)
+#define LSM6DSR_CTRL6_C       0x15U  // bit4 XL_HM_MODE=0 高性能, bit7 FTYP=0
+#define LSM6DSR_CTRL7_G       0x16U  // bit7 G_HM_MODE=0 → Gyro 高性能
+#define LSM6DSR_CTRL8_XL      0x17U  // LPF2 关闭 → 最小延迟
+#define LSM6DSR_CTRL9_XL      0x18U   // bit1 = I3C_DISABLE
+#define LSM6DSR_CTRL9_XL_I3C_DISABLE  (1U << 1)
 #define LSM6DSR_OUTX_L_G      0x22U
 #define LSM6DSR_OUTX_L_A      0x28U
 
 #define LSM6DSR_SPI_READ      0x80U
-#define LSM6DSR_I3C_DISABLE    0x80U
 
-// ODR 1666 Hz = 8, 2g = 0, 2000dps = 12 (ST enum)
-#define LSM6DSR_CTRL1_XL_1666_2G   (0x80U)  // odr_xl=8, fs_xl=0
-#define LSM6DSR_CTRL2_G_1666_2000  (0x8CU)  // odr_g=8, fs_g=12
+// ODR 1666 Hz = 8; Accel 4g = 2 (ST enum fs_xl); Gyro 2000dps = 12
+#define LSM6DSR_CTRL1_XL_1666_4G   (0x88U)  // odr_xl=8, fs_xl=2 (4g)
+#define LSM6DSR_CTRL2_G_1666_2000  (0x8CU)  // odr_g=8, fs_g=12 (2000dps)
 #define LSM6DSR_CTRL3_C_BDU_INC    0x44U   // BDU + IF_INC
 
 // Debug for webconfig
@@ -103,8 +113,8 @@ void LSM6DSRIMUAddon::setup() {
 	spiOk_ = true;
 	s_debugSpiOk = true;
 
-	// 1.5 MHz, SPI mode 3 (LSM6DSR typical)
-	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
+	// 1.5 MHz, SPI mode 0（与 MCP3208 共用总线时一致）
+	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 	LSM6DSR_CS_SELECT(csPin_);
 	(void)spi_->transfer(LSM6DSR_SPI_READ | LSM6DSR_WHO_AM_I);
 	uint8_t id = spi_->transfer(0);
@@ -118,10 +128,15 @@ void LSM6DSRIMUAddon::setup() {
 		return;
 	}
 
-	// Disable I3C, set ODR 1666 Hz, 2g acc, 2000 dps gyro, BDU+IF_INC
-	spiWriteReg(spi_, csPin_, LSM6DSR_I3C_BUS_AVB, LSM6DSR_I3C_DISABLE & 0x03U);
+	// Disable FIFO (避免延迟), I3C, High Performance, ODR 1666 Hz, 2g acc, 2000 dps gyro, BDU+IF_INC
+	spiWriteReg(spi_, csPin_, LSM6DSR_FIFO_CTRL5, 0x00);  // 禁用 FIFO
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL9_XL, LSM6DSR_CTRL9_XL_I3C_DISABLE);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL4_C, LSM6DSR_CTRL4_C_I2C_DISABLE);  // 关闭 I2C、LPF1 关闭，最大带宽
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL6_C, 0x00);  // XL_HM_MODE=0, FTYP=0 → Acc 高性能
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL7_G, 0x00);  // G_HM_MODE=0 → Gyro 高性能
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL8_XL, 0x00); // LPF2 关闭，最小延迟
 	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL3_C, LSM6DSR_CTRL3_C_BDU_INC);
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL1_XL, LSM6DSR_CTRL1_XL_1666_2G);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL1_XL, LSM6DSR_CTRL1_XL_1666_4G);
 	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL2_G, LSM6DSR_CTRL2_G_1666_2000);
 
 	imuOk_ = true;
@@ -135,7 +150,7 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 #if LSM6DSR_IMU_ENABLED
 	if (!s_spi || s_csPin < 0 || !s_debugImuOk) return false;
 	uint8_t buf[6];
-	s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
+	s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 	spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 6);
 	gyro[0] = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
 	gyro[1] = (int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
@@ -160,7 +175,7 @@ void LSM6DSRIMUAddon::preprocess() {
 	uint8_t buf[6];
 	int16_t rawG[3], rawA[3];
 
-	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE3);
+	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 	spiReadRegs(spi_, csPin_, LSM6DSR_OUTX_L_G, buf, 6);
 	rawG[0] = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
 	rawG[1] = (int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
