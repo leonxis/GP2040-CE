@@ -2,15 +2,10 @@
 #define _MCP3208_ADC_H
 
 #include "gpaddon.h"
-#include "BoardConfig.h"
 #include "GamepadEnums.h"
 #include "enums.pb.h"
 #include "types.h"
 #include "peripheral_spi.h"
-
-#ifndef MCP3208_ADC_ENABLED
-#define MCP3208_ADC_ENABLED 0
-#endif
 
 #define MCP3208_ADC_ADDON_NAME "MCP3208 ADC"
 

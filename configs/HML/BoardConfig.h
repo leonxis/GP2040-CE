@@ -38,8 +38,7 @@
 #define GPIO_PIN_27 GpioAction::BUTTON_PRESS_B4     // bkey4
 
 // MCP3208 + LSM6DSR 共用 SPI0，引脚固定不从前端获取
-#define MCP3208_ADC_ENABLED       0
-#define LSM6DSR_IMU_ENABLED       1
+
 
 // Setting GPIO pins to assigned by add-on
 //

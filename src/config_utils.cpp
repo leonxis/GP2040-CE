@@ -1073,22 +1073,17 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerMaxRaw, 0);
 #endif
     INIT_UNSET_PROPERTY(config.addonOptions.fourKeyTouchpadOptions, enabled, 0);
-#if MCP3208_ADC_ENABLED
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, 1);
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, spiBlock, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, csPin, 1);
-#endif
-#if LSM6DSR_IMU_ENABLED
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, spiBlock, 0);
-    // csPin 仅从前端配置读取，不设固件默认值
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, outputMode, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroX, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroY, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroZ, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, calibrateGyroRequested, false);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, engageMode, 0);
-#endif
 
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, enabled, KEYBOARD_HOST_ENABLED);

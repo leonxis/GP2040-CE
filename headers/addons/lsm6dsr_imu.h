@@ -2,16 +2,12 @@
 #define _LSM6DSR_IMU_H
 
 #include "gpaddon.h"
-#include "BoardConfig.h"
 #include "peripheral_spi.h"
-
-#ifndef LSM6DSR_IMU_ENABLED
-#define LSM6DSR_IMU_ENABLED 0
-#endif
 
 #define LSM6DSR_IMU_ADDON_NAME "LSM6DSR IMU"
 
 // SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」与插件配置（spiBlock、csPin）获取
+// 与 MCP3208 等共用 SPI 时若速率不同：改此处即可（如 5MHz 用 5000000u），每次访问已包 begin/endTransaction
 #define LSM6DSR_SPI_HZ      1500000u
 
 // 供 webconfig 获取调试信息（WHO_AM_I、SPI/IMU 状态）
@@ -33,10 +29,6 @@ private:
 	int8_t csPin_;
 	bool spiOk_;
 	bool imuOk_;
-	uint32_t calibCount_;
-	int32_t calibSumX_;
-	int32_t calibSumY_;
-	int32_t calibSumZ_;
 };
 
 #endif

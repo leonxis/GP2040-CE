@@ -94,15 +94,11 @@ static void convertCurvePoints(const CurvePoint* pb_pts, int count, MCP3208Curve
 }
 
 bool MCP3208ADCAddon::available() {
-#if MCP3208_ADC_ENABLED
     const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
     if (!opts.enabled)
         return false;
     uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
     return PeripheralManager::getInstance().isSPIEnabled(block);
-#else
-    return false;
-#endif
 }
 
 // Static instance for webconfig to read raw stick values (no AddonManager dependency)
