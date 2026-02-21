@@ -130,11 +130,17 @@ struct PSSensor {
     int16_t z;
 };
 
+// DS4 USB report layout (little-endian; ref: ControllersInfo/dualshock4, Linux hid-sony):
+// Report bytes 12=temp, 13-18=gyro X/Z/Y, 19-24=accel X/Y/Z (int16 LE)
 struct PSSensorData {
-    uint16_t battery;
-    PSSensor gyroscope;
-    PSSensor accelerometer;
-    uint8_t misc[4];
+    uint8_t temperature;       // report byte 12 (use 0)
+    int16_t gyroX;             // AngularVelocityX
+    int16_t gyroZ;             // AngularVelocityZ (DS4 order X,Z,Y)
+    int16_t gyroY;             // AngularVelocityY
+    int16_t accelX;
+    int16_t accelY;
+    int16_t accelZ;
+    uint8_t extData[5];        // DS4 ExtData[5]
     uint8_t powerLevel : 4;
     uint8_t charging : 1;
     uint8_t headphones : 1;

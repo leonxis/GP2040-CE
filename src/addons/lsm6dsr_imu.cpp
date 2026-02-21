@@ -15,7 +15,6 @@
 #define LSM6DSR_ID            0x6BU
 #define LSM6DSR_CTRL1_XL      0x10U
 #define LSM6DSR_CTRL2_G       0x11U
-#define LSM6DSR_FIFO_CTRL5    0x0BU
 #define LSM6DSR_CTRL3_C       0x12U
 #define LSM6DSR_CTRL4_C       0x13U
 #define LSM6DSR_CTRL6_C       0x15U
@@ -103,7 +102,6 @@ void LSM6DSRIMUAddon::setup() {
 	// Disable FIFO (避免延迟), I3C, High Performance, ODR 1666 Hz, 4g acc, 500 dps gyro, BDU+IF_INC
 	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 	// CTRL2_G: 0x84 = ODR 1.66kHz (0b10) + FS 500 dps (0b01) → 17.5 mdps/LSB
-	spiWriteReg(spi_, csPin_, LSM6DSR_FIFO_CTRL5, 0x00);
 	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL9_XL, 0x02);
 	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL4_C, 0x06);
 	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL6_C, 0x02);
