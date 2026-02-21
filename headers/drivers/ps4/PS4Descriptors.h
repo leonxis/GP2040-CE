@@ -516,10 +516,15 @@ static const uint8_t ps4_report_descriptor[] =
 	0x95, 0x1F,        //   Report Count (31)
 	0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
 
-	0x85, 0x03,        //   Report ID (3)
+	0x85, 0x04,        //   Report ID (4) — DS4 standard: Feature 36 bytes (Usage 0xFF000023)
+	0x09, 0x23,        //   Usage (0xFF000023)
+	0x95, 0x24,        //   Report Count (36)
+	0xB1, 0x02,        //   Feature (Data,Var,Abs,...)
+
+	0x85, 0x03,        //   Report ID (3) — Controller Definition (0x2721)
 	0x0A, 0x21, 0x27,  //   Usage (0x2721)
 	0x95, 0x2F,        //   Report Count (47)
-	0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
+	0xB1, 0x02,        //   Feature (Data,Var,Abs,...)
 
 	0x85, 0x02,        //   Report ID (2)
 	0x09, 0x24,        //   Usage (0x24)
@@ -588,9 +593,9 @@ static const uint8_t ps4_report_descriptor[] =
 	0x09, 0x27,        //   Usage (0x27)
 	0x95, 0x23,        //   Report Count (35)
 	0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-	0x85, 0x88,        //   Report ID (136)
+	0x85, 0x88,        //   Report ID (136) — DS4 standard: 63 bytes
 	0x09, 0x28,        //   Usage (0x28)
-	0x95, 0x22,        //   Report Count (34)
+	0x95, 0x3F,        //   Report Count (63)
 	0xB1, 0x02,        //   Feature (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
 	0x85, 0x89,        //   Report ID (137)
 	0x09, 0x29,        //   Usage (0x29)

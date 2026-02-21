@@ -786,6 +786,22 @@ uint16_t PS4Driver::get_report(uint8_t report_id, hid_report_type_t report_type,
         return sizeof(ps4Report);
     }
 
+    // DS4 standard Feature Report 0x04 (36 bytes, Usage 0xFF000023) — always respond
+    if ( report_id == 0x04 ) {
+        if ( reqlen < 36 )
+            return (uint16_t)-1;
+        memset(buffer, 0, 36);
+        return 36;
+    }
+
+    // Report 0x88 (63 bytes) — DS4 standard; respond with zeros if requested
+    if ( report_id == 0x88 ) {
+        if ( reqlen < 63 )
+            return (uint16_t)-1;
+        memset(buffer, 0, 63);
+        return 63;
+    }
+
     // Do nothing if we do not have host authentication data or a driver to run on
     if ( ps4AuthData == nullptr || ps4AuthDriver == nullptr) {
         return sizeof(ps4Report);

@@ -855,6 +855,20 @@ uint16_t PS4BDriver::get_report(uint8_t report_id, hid_report_type_t report_type
         return sizeof(ps4Report);
     }
 
+    // DS4 standard Feature Report 0x04 (36 bytes) and 0x88 (63 bytes) — always respond
+    if ( report_id == 0x04 ) {
+        if ( reqlen < 36 )
+            return (uint16_t)-1;
+        memset(buffer, 0, 36);
+        return 36;
+    }
+    if ( report_id == 0x88 ) {
+        if ( reqlen < 63 )
+            return (uint16_t)-1;
+        memset(buffer, 0, 63);
+        return 63;
+    }
+
     // PS4B mode uses PC host mode - only handle basic feature reports that PC may query
     // Authentication-related reports (SIGNATURE_NONCE, SIGNING_STATE, RESET_AUTH) are not needed
     uint16_t responseLen = 0;
