@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Card, Row, Col, Button, Collapse } from 'react-bootstrap';
+import { Card, Row, Col, Button } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useContext, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
@@ -220,6 +220,12 @@ export default function BackButtonMapping() {
 	const [fnSaveMsg, setFnSaveMsg] = useState('');
 	const [fnSaving, setFnSaving] = useState(false);
 
+	const defaultPinData: MaskPayload = {
+		action: BUTTON_ACTIONS.NONE,
+		customButtonMask: 0,
+		customDpadMask: 0,
+	};
+
 	// 使用useProfilesStore获取base profile（索引0）的引脚映射
 	const pins = useProfilesStore(
 		useShallow((state) =>
@@ -280,23 +286,12 @@ export default function BackButtonMapping() {
 		[buttonNames, t],
 	);
 
-	// 确保profiles已加载
+	// 进入背键映射时刷新：GPIO 映射 + 触摸板/FN 映射（与功能配置、4 键触摸板开关一致）
 	React.useEffect(() => {
-		const fetchProfiles = useProfilesStore.getState().fetchProfiles;
-		if (useProfilesStore.getState().profiles.length === 0) {
-			fetchProfiles();
-		}
-	}, []);
-
-	// 加载触摸板映射与 FN 键映射
-	React.useEffect(() => {
-		const load = async () => {
-			const [touchpad, fn] = await Promise.all([
-				WebApi.getFourKeyTouchpadOptions(),
-				WebApi.getFnKeyMappingOptions(),
-			]);
-			const toPayload = (m: { action?: number; customButtonMask?: number; customDpadMask?: number } | undefined): MaskPayload =>
-				m ? { action: (m.action ?? BUTTON_ACTIONS.NONE) as PinActionValues, customButtonMask: m.customButtonMask ?? 0, customDpadMask: m.customDpadMask ?? 0 } : defaultPinData;
+		useProfilesStore.getState().fetchProfiles();
+		const toPayload = (m: { action?: number; customButtonMask?: number; customDpadMask?: number } | undefined): MaskPayload =>
+			m ? { action: (m.action ?? BUTTON_ACTIONS.NONE) as PinActionValues, customButtonMask: m.customButtonMask ?? 0, customDpadMask: m.customDpadMask ?? 0 } : defaultPinData;
+		Promise.all([WebApi.getFourKeyTouchpadOptions(), WebApi.getFnKeyMappingOptions()]).then(([touchpad, fn]) => {
 			if (touchpad) {
 				setFourKeyTouchpadEnabled(Boolean(touchpad.enabled));
 				setTouchpadOptions({
@@ -316,8 +311,7 @@ export default function BackButtonMapping() {
 					extRightTrigger: toPayload(fn.extRightTrigger),
 				});
 			}
-		};
-		load();
+		});
 	}, []);
 
 	const handleSaveTouchpad = useCallback(async () => {
@@ -386,13 +380,6 @@ export default function BackButtonMapping() {
 			setIsLoading(false);
 		}
 	}, [saveProfiles, appContext, t]);
-
-	// 默认引脚数据
-	const defaultPinData: MaskPayload = {
-		action: BUTTON_ACTIONS.NONE,
-		customButtonMask: 0,
-		customDpadMask: 0,
-	};
 
 	// 生成pinKey的工具函数
 	const getPinKey = (pin: number) => `pin${pin < 10 ? '0' : ''}${pin}`;
@@ -493,52 +480,51 @@ export default function BackButtonMapping() {
 			</Card>
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>触摸板映射</Card.Header>
-				<Collapse in={fourKeyTouchpadEnabled}>
-					<Card.Body>
-						<Row className="g-3">
-							{[
-								{ key: 'key4', label: '左上触摸键' },
-								{ key: 'key1', label: '右上触摸键' },
-								{ key: 'key3', label: '左下触摸键' },
-								{ key: 'key2', label: '右下触摸键' },
-							].map(({ key, label }) => {
-								const mappingData = touchpadOptions[key] || defaultPinData;
-								return (
-									<Col sm={6} md={6} key={`touchpad-${key}`}>
-										<div className="d-flex align-items-center">
-											<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
-												<label>{label}</label>
-											</div>
-											<CustomSelect
-												isClearable
-												isMulti={!isDisabled(mappingData.action) &&
-													!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
-													!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
-												options={groupedOptions}
-												isDisabled={isDisabled(mappingData.action)}
-												getOptionLabel={getOptionLabel}
-												onChange={onTouchpadChange(key)}
-												value={getMultiValue(mappingData)}
-											/>
+				<Card.Body>
+					<Row className="g-3">
+						{[
+							{ key: 'key4', label: '左上触摸键' },
+							{ key: 'key1', label: '右上触摸键' },
+							{ key: 'key3', label: '左下触摸键' },
+							{ key: 'key2', label: '右下触摸键' },
+						].map(({ key, label }) => {
+							const mappingData = touchpadOptions[key] || defaultPinData;
+							const touchpadSelectDisabled = !fourKeyTouchpadEnabled || isDisabled(mappingData.action);
+							return (
+								<Col sm={6} md={6} key={`touchpad-${key}`}>
+									<div className="d-flex align-items-center">
+										<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
+											<label>{label}</label>
 										</div>
-									</Col>
-								);
-							})}
-						</Row>
-						<Row className="mt-3">
-							<Col sm={4}>
-								<Button variant="primary" onClick={handleSaveTouchpad} disabled={touchpadSaving}>
-									{t('Common:button-save-label')}
-								</Button>
-								{touchpadSaveMsg && (
-									<span className={`ms-3 ${touchpadSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
-										{touchpadSaveMsg}
-									</span>
-								)}
-							</Col>
-						</Row>
-					</Card.Body>
-				</Collapse>
+										<CustomSelect
+											isClearable
+											isMulti={!touchpadSelectDisabled &&
+												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
+												!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
+											options={groupedOptions}
+											isDisabled={touchpadSelectDisabled}
+											getOptionLabel={getOptionLabel}
+											onChange={onTouchpadChange(key)}
+											value={getMultiValue(mappingData)}
+										/>
+									</div>
+								</Col>
+							);
+						})}
+					</Row>
+					<Row className="mt-3">
+						<Col sm={4}>
+							<Button variant="primary" onClick={handleSaveTouchpad} disabled={touchpadSaving || !fourKeyTouchpadEnabled}>
+								{t('Common:button-save-label')}
+							</Button>
+							{touchpadSaveMsg && (
+								<span className={`ms-3 ${touchpadSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
+									{touchpadSaveMsg}
+								</span>
+							)}
+						</Col>
+					</Row>
+				</Card.Body>
 			</Card>
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>FN键映射</Card.Header>

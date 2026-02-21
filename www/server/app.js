@@ -915,6 +915,11 @@ app.get('/api/getLSM6DSRImuData', (req, res) => {
 	});
 });
 
+app.get('/api/calibrateLSM6DSRGyro', (req, res) => {
+	// Stub for dev: real implementation runs on device.
+	return res.send({ ok: false, offsetGyroX: 0, offsetGyroY: 0, offsetGyroZ: 0 });
+});
+
 app.post('/api/*', (req, res) => {
 	console.log(req.body);
 	return res.send(req.body);

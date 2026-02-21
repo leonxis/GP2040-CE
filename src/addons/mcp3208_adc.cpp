@@ -15,7 +15,7 @@
 
 // ========== CH2/CH5 四档开关防抖（编译时修改） ==========
 // 连续 N 帧同档位才更新输出，避免电压过渡误触发。主循环约 1ms/帧，N 帧 ≈ N ms 延迟。
-static const uint8_t CH25_DEBOUNCE_FRAMES = 2;   // 防抖帧数，建议 1–4，按需改
+static const uint8_t CH25_DEBOUNCE_FRAMES = 4;   // 防抖帧数，建议 1–4，按需改
 
 // ========== 一轮执行时间估算（每帧 preprocess + process）==========
 // preprocess: readAllChannels 仅做 SPI 读取

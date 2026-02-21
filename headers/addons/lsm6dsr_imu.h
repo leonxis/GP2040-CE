@@ -12,8 +12,10 @@
 
 // 供 webconfig 获取调试信息（WHO_AM_I、SPI/IMU 状态）
 void getLSM6DSRImuDebug(uint8_t* whoAmI, bool* spiOk, bool* imuOk);
-// 供 webconfig 按需读取 6 轴 RAW（网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）
+// 供 webconfig 按需读取 6 轴 RAW（已应用校准偏移；网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]);
+// 陀螺仪零偏校准：静止采样取平均，写入 offsetX/Y/Z（int32），返回是否成功
+bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ);
 
 class LSM6DSRIMUAddon : public GPAddon {
 public:
@@ -23,12 +25,16 @@ public:
 	virtual void process() {}
 	virtual void postprocess(bool) {}
 	virtual std::string name() { return LSM6DSR_IMU_ADDON_NAME; }
-	virtual void reinit() {}
+	virtual void reinit();
 private:
+	void loadOffsetCache();
 	PeripheralSPI* spi_;
 	int8_t csPin_;
 	bool spiOk_;
 	bool imuOk_;
+	int32_t offsetGyroX_;
+	int32_t offsetGyroY_;
+	int32_t offsetGyroZ_;
 };
 
 #endif

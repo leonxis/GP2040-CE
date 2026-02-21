@@ -38,6 +38,10 @@
 #define LSM6DSR_CTRL2_G_1666_2000  (0x8CU)  // odr_g=8, fs_g=12 (2000dps)
 #define LSM6DSR_CTRL3_C_BDU_INC    0x44U   // BDU + IF_INC
 
+// 陀螺仪零偏校准：静止采样数量与间隔（与 alpakka 思路一致，采样平均作为零偏）
+#define LSM6DSR_GYRO_CAL_SAMPLES  500
+#define LSM6DSR_GYRO_CAL_DELAY_MS 2
+
 // Debug for webconfig
 static uint8_t s_debugWhoAmI = 0;
 static bool s_debugSpiOk = false;
@@ -80,6 +84,7 @@ void LSM6DSRIMUAddon::setup() {
 	csPin_ = -1;
 	spiOk_ = false;
 	imuOk_ = false;
+	offsetGyroX_ = offsetGyroY_ = offsetGyroZ_ = 0;
 	s_debugWhoAmI = 0;
 	s_debugSpiOk = false;
 	s_debugImuOk = false;
@@ -138,20 +143,65 @@ void LSM6DSRIMUAddon::setup() {
 	s_debugImuOk = true;
 	s_spi = spi_;
 	s_csPin = csPin_;
+	loadOffsetCache();
+}
+
+void LSM6DSRIMUAddon::loadOffsetCache() {
+	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+	offsetGyroX_ = opts.has_offsetGyroX ? opts.offsetGyroX : 0;
+	offsetGyroY_ = opts.has_offsetGyroY ? opts.offsetGyroY : 0;
+	offsetGyroZ_ = opts.has_offsetGyroZ ? opts.offsetGyroZ : 0;
+}
+
+void LSM6DSRIMUAddon::reinit() {
+	loadOffsetCache();
 }
 
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	if (!s_spi || s_csPin < 0 || !s_debugImuOk) return false;
+	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+	int32_t offX = opts.has_offsetGyroX ? opts.offsetGyroX : 0;
+	int32_t offY = opts.has_offsetGyroY ? opts.offsetGyroY : 0;
+	int32_t offZ = opts.has_offsetGyroZ ? opts.offsetGyroZ : 0;
+
 	s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 	uint8_t buf[12];
 	spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
-	gyro[0] = -(int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
-	gyro[1] = -(int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
-	gyro[2] = (int16_t)((uint16_t)buf[4] | ((uint16_t)buf[5] << 8));
+	int16_t r0 = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
+	int16_t r1 = (int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
+	int16_t r2 = (int16_t)((uint16_t)buf[4] | ((uint16_t)buf[5] << 8));
+	s_spi->endTransaction();
+
+	gyro[0] = (int16_t)(-r0 - offX);
+	gyro[1] = (int16_t)(-r1 - offY);
+	gyro[2] = (int16_t)(r2 - offZ);
 	accel[0] = -(int16_t)((uint16_t)buf[6] | ((uint16_t)buf[7] << 8));
 	accel[1] = -(int16_t)((uint16_t)buf[8] | ((uint16_t)buf[9] << 8));
 	accel[2] = (int16_t)((uint16_t)buf[10] | ((uint16_t)buf[11] << 8));
-	s_spi->endTransaction();
+	return true;
+}
+
+bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ) {
+	if (!s_spi || s_csPin < 0 || !s_debugImuOk || !offsetX || !offsetY || !offsetZ) return false;
+	int64_t sumX = 0, sumY = 0, sumZ = 0;
+	const uint32_t n = LSM6DSR_GYRO_CAL_SAMPLES;
+	for (uint32_t i = 0; i < n; i++) {
+		s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+		uint8_t buf[12];
+		spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
+		s_spi->endTransaction();
+		int16_t rx = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
+		int16_t ry = (int16_t)((uint16_t)buf[2] | ((uint16_t)buf[3] << 8));
+		int16_t rz = (int16_t)((uint16_t)buf[4] | ((uint16_t)buf[5] << 8));
+		sumX += rx;
+		sumY += ry;
+		sumZ += rz;
+		busy_wait_ms(LSM6DSR_GYRO_CAL_DELAY_MS);
+	}
+	// 与输出轴一致：X/Y 取反后减偏移，故存储 offset = -avg(raw)；Z 不取反，存储 offset = avg(raw)
+	*offsetX = -(int32_t)(sumX / (int64_t)n);
+	*offsetY = -(int32_t)(sumY / (int64_t)n);
+	*offsetZ = (int32_t)(sumZ / (int64_t)n);
 	return true;
 }
 
@@ -173,13 +223,19 @@ void LSM6DSRIMUAddon::preprocess() {
 
 	spi_->endTransaction();
 
+	int16_t calG[3] = {
+		(int16_t)(-rawG[0] - offsetGyroX_),
+		(int16_t)(-rawG[1] - offsetGyroY_),
+		(int16_t)(rawG[2] - offsetGyroZ_),
+	};
+
 	Gamepad* gamepad = Storage::getInstance().GetProcessedGamepad();
 	if (gamepad) {
 		gamepad->auxState.sensors.gyroscope.enabled = true;
 		gamepad->auxState.sensors.gyroscope.active = true;
-		gamepad->auxState.sensors.gyroscope.x = (uint16_t)(int16_t)(-rawG[0]);
-		gamepad->auxState.sensors.gyroscope.y = (uint16_t)(int16_t)(-rawG[1]);
-		gamepad->auxState.sensors.gyroscope.z = (uint16_t)(int16_t)rawG[2];
+		gamepad->auxState.sensors.gyroscope.x = (uint16_t)(int16_t)calG[0];
+		gamepad->auxState.sensors.gyroscope.y = (uint16_t)(int16_t)calG[1];
+		gamepad->auxState.sensors.gyroscope.z = (uint16_t)(int16_t)calG[2];
 		gamepad->auxState.sensors.accelerometer.x = (uint16_t)(int16_t)(-rawA[0]);
 		gamepad->auxState.sensors.accelerometer.y = (uint16_t)(int16_t)(-rawA[1]);
 		gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[2];

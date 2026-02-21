@@ -9,6 +9,8 @@ export default {
 	'gyro-mode-xbox-stick': 'XBOX摇杆',
 	'gyro-mode-mouse': '模拟鼠标',
 	'gyro-calibrate-button': '校准陀螺仪',
+	'gyro-calibrate-success': '校准完成，请点击保存写入配置',
+	'gyro-calibrate-fail': '校准失败，请保持设备静止并确认 IMU 正常',
 	'gyro-view-data-button': '查看数据',
 	'gyro-view-data-title': '陀螺仪6轴数据',
 	'gyro-view-data-realtime-hint': '以下数据实时刷新。',

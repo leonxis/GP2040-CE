@@ -9,6 +9,8 @@ export default {
 	'gyro-mode-xbox-stick': 'XBOX stick',
 	'gyro-mode-mouse': 'Simulate mouse',
 	'gyro-calibrate-button': 'Calibrate gyro',
+	'gyro-calibrate-success': 'Calibration done. Click Save to write to config.',
+	'gyro-calibrate-fail': 'Calibration failed. Keep device still and check IMU.',
 	'gyro-view-data-button': 'View data',
 	'gyro-view-data-title': 'Gyro 6-axis data',
 	'gyro-view-data-realtime-hint': 'Data updates in real time.',

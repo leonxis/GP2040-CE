@@ -30,17 +30,17 @@ public:
 private:
     void buildMappings();
 
-    int32_t pin_sck = -1;   // I2C1 SDA: clock output
-    int32_t pin_data = -1;  // I2C1 SCL: data input (release=high, press=low)
-    FastMapping fastMappings[4];      // 4 键预解析映射
-    FastMapping enablePinMapping;     // GPIO12 使能键映射（用于 process 中屏蔽）
-    bool wasEnabled = false;         // 上一帧触摸板是否使能（低有效）
-    bool anyTouchKeyPressed = false;  // 本帧在 GPIO12 按下时是否有触摸键按下（供 process 中屏蔽 GPIO12 映射）
-    uint8_t lastKeyNibble = 0x0F;     // 上次有效键状态（1=松键），节流/错误冷却时复用
-    uint32_t lastPollTime = 0;        // 上次轮询时间 (time_us_32)
-    uint32_t nextReadAllowed = 0;     // 读错后 6ms 内不再读 (time_us_32)
-    uint8_t partialByte = 0;          // 分帧累积的 8 位
-    uint8_t readPhase = 0;            // 0..3：本周期已读 2*readPhase 位，再读 2 位
+    int32_t pin_sck = -1;
+    int32_t pin_data = -1;
+    FastMapping fastMappings[4];
+    // 使能键 3ms 防抖（低有效）
+    bool enableRawLast = false;
+    uint32_t enableChangeTime = 0;
+    bool enableStable = false;
+    uint8_t lastKeyNibble = 0x0F;
+    uint32_t lastPollTime = 0;
+    uint8_t partialByte = 0;
+    uint8_t readPhase = 0;
 };
 
 #endif

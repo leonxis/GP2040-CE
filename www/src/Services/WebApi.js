@@ -738,6 +738,17 @@ async function getLSM6DSRImuData() {
 	}
 }
 
+/** 执行陀螺仪零偏校准，返回 { ok, offsetGyroX, offsetGyroY, offsetGyroZ } */
+async function calibrateLSM6DSRGyro() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/calibrateLSM6DSRGyro`);
+		return response?.data;
+	} catch (e) {
+		console.error(e);
+		return { ok: false, offsetGyroX: 0, offsetGyroY: 0, offsetGyroZ: 0 };
+	}
+}
+
 // POST function to set our channels, select, and ADC pin
 async function setHETriggerCalibration(settings) {
 	return Http.post(`${baseUrl}/api/setHETriggerCalibration`, settings);
@@ -828,6 +839,7 @@ export default {
 	getHETriggerCalibration,
 	setHETriggerCalibration,
 	getLSM6DSRImuData,
+	calibrateLSM6DSRGyro,
 	getHETriggerOptions,
 	setHETriggerOptions,
 	getReactiveLEDs,

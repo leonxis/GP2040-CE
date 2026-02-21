@@ -110,9 +110,27 @@ export default function GyroSettings({
 		return opts;
 	}, [buttonNames]);
 
-	const handleCalibrate = () => {
-		setFieldValue('lsm6dsrCalibrateGyroRequested', 1);
-		setTimeout(() => setFieldValue('lsm6dsrCalibrateGyroRequested', 0), 1000);
+	const [calibrateMessage, setCalibrateMessage] = useState('');
+	const [calibrateOk, setCalibrateOk] = useState<boolean | null>(null);
+	const handleCalibrate = async () => {
+		setCalibrateMessage('');
+		setCalibrateOk(null);
+		try {
+			const data = await WebApi.calibrateLSM6DSRGyro();
+			if (data?.ok) {
+				setFieldValue('lsm6dsrOffsetGyroX', data.offsetGyroX ?? 0);
+				setFieldValue('lsm6dsrOffsetGyroY', data.offsetGyroY ?? 0);
+				setFieldValue('lsm6dsrOffsetGyroZ', data.offsetGyroZ ?? 0);
+				setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-success') || '校准完成，请点击保存写入配置');
+				setCalibrateOk(true);
+			} else {
+				setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-fail') || '校准失败，请确认设备静止且 IMU 正常');
+				setCalibrateOk(false);
+			}
+		} catch {
+			setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-fail') || '校准失败');
+			setCalibrateOk(false);
+		}
 	};
 
 	const handleSave = () => {
@@ -249,6 +267,11 @@ export default function GyroSettings({
 						>
 							{t('CalibrationSettings:gyro-calibrate-button')}
 						</Button>
+						{calibrateMessage ? (
+							<span className={calibrateOk === false ? 'text-danger' : 'text-success'} style={{ fontSize: '0.875rem' }}>
+								{calibrateMessage}
+							</span>
+						) : null}
 					</div>
 					{/* 生效按键：标题 + 下拉框（在生效方式下方） */}
 					<div className="mb-2">

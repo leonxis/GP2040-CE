@@ -12,9 +12,9 @@
 // 8 位数据：Bit0=Key1, Bit1=Key2, Bit2=Key3, Bit3=Key4；0=按下, 1=松键。Bit7=停止位恒为 1。
 #define TOUCHPAD_ENABLE_PIN 12
 #define BS814A_POLL_INTERVAL_US  1000
-#define BS814A_RETRY_COOLDOWN_US 6000
 #define BS814A_CLOCK_HALF_CYCLE_US 20
 #define BS814A_BITS_PER_FRAME 2
+#define ENABLE_DEBOUNCE_MS 3
 static constexpr uint32_t KEYBOARD_KEY_ACTION_BASE = 131;
 
 // 映射在 setup/reinit 时解析一次，运行时不做 switch：普通按键/方向/FN/组合键 → buttonMask/dpadMask/auxMask，仅 OR。
@@ -148,14 +148,6 @@ void FourKeyTouchpadAddon::buildMappings() {
     parseMapping(opts.key2Mapping, fastMappings[1]);
     parseMapping(opts.key3Mapping, fastMappings[2]);
     parseMapping(opts.key4Mapping, fastMappings[3]);
-    GpioMappingInfo* profilePins = Storage::getInstance().getProfilePinMappings();
-    if (profilePins)
-        parseMapping(profilePins[TOUCHPAD_ENABLE_PIN], enablePinMapping);
-    else {
-        enablePinMapping.buttonMask = enablePinMapping.dpadMask = enablePinMapping.auxMask = 0;
-        enablePinMapping.isComplex = false;
-        enablePinMapping.originalMapping = nullptr;
-    }
 }
 
 void FourKeyTouchpadAddon::setup() {
@@ -174,7 +166,9 @@ void FourKeyTouchpadAddon::setup() {
     gpio_set_dir(TOUCHPAD_ENABLE_PIN, GPIO_IN);
     gpio_pull_up(TOUCHPAD_ENABLE_PIN);
     buildMappings();
-    wasEnabled = !gpio_get(TOUCHPAD_ENABLE_PIN);
+    enableRawLast = !gpio_get(TOUCHPAD_ENABLE_PIN);
+    enableChangeTime = 0;
+    enableStable = enableRawLast;
 }
 
 void FourKeyTouchpadAddon::reinit() {
@@ -185,30 +179,11 @@ void FourKeyTouchpadAddon::preprocess() {
     if (!isValidPin(pin_sck) || !isValidPin(pin_data))
         return;
 
-    bool isEnabled = !gpio_get(TOUCHPAD_ENABLE_PIN);
-    if (!isEnabled) {
-        if (wasEnabled) {
-            anyTouchKeyPressed = false;
-            readPhase = 0;
-            partialByte = 0;
-            Gamepad* gamepad = Storage::getInstance().GetGamepad();
-            for (int i = 0; i < 4; i++) {
-                gamepad->state.buttons &= ~fastMappings[i].buttonMask;
-                gamepad->state.dpad   &= ~fastMappings[i].dpadMask;
-                gamepad->state.aux    &= ~fastMappings[i].auxMask;
-                if (fastMappings[i].isComplex)
-                    clearComplexMapping(gamepad, *fastMappings[i].originalMapping);
-            }
-        }
-        wasEnabled = false;
-        return;
-    }
-    wasEnabled = true;
-
+    Gamepad* gamepad = Storage::getInstance().GetGamepad();
     uint32_t now = time_us_32();
-    uint8_t keyNibble = lastKeyNibble;
 
-    if (now >= nextReadAllowed && (uint32_t)(now - lastPollTime) >= BS814A_POLL_INTERVAL_US) {
+    // ① BS814A 分帧读取（始终运行）
+    if ((uint32_t)(now - lastPollTime) >= BS814A_POLL_INTERVAL_US) {
         lastPollTime = now;
         uint sck = (uint)pin_sck;
         uint sda = (uint)pin_data;
@@ -227,45 +202,46 @@ void FourKeyTouchpadAddon::preprocess() {
         busy_wait_us(BS814A_CLOCK_HALF_CYCLE_US);
 
         readPhase++;
-        if (readPhase >= 8 / BS814A_BITS_PER_FRAME) {
+        if (readPhase >= 4) {
             readPhase = 0;
             uint8_t byte = partialByte;
             partialByte = 0;
-            if (byte & 0x80) {
-                keyNibble = byte & 0x0F;
-                lastKeyNibble = keyNibble;
-            } else {
-                nextReadAllowed = now + BS814A_RETRY_COOLDOWN_US;
-                keyNibble = lastKeyNibble;
-            }
+            if (byte & 0x80)
+                lastKeyNibble = byte & 0x0F;
         }
     }
 
-    // 热路径：仅做位掩码 OR，无 switch-case。映射已在 setup/reinit 的 buildMappings() 中解析为 mask。
-    Gamepad* gamepad = Storage::getInstance().GetGamepad();
-    anyTouchKeyPressed = false;
+    // ② 使能键 3ms 防抖（低有效，仅作触摸使能，不输出按键）
+    bool enableRaw = !gpio_get(TOUCHPAD_ENABLE_PIN);
+    if (enableRaw != enableRawLast) {
+        enableRawLast = enableRaw;
+        enableChangeTime = now;
+    }
+    if ((now - enableChangeTime) >= (ENABLE_DEBOUNCE_MS * 1000u))
+        enableStable = enableRaw;
+
+    // ③ 输出：使能时按 lastKeyNibble 输出 4 键映射，未使能时只清除（使能键不输出任何按键）
+    uint8_t keyNibble = lastKeyNibble;
     for (int i = 0; i < 4; i++) {
-        if (!(keyNibble & (1u << i))) {
-            anyTouchKeyPressed = true;
-            gamepad->state.buttons |= fastMappings[i].buttonMask;
-            gamepad->state.dpad    |= fastMappings[i].dpadMask;
-            gamepad->state.aux     |= fastMappings[i].auxMask;
-            // 仅当该键配置为 ANALOG/MENU/KEYBOARD 时才走 switch，绝大多数配置为普通按键时不会进入
-            if (fastMappings[i].isComplex)
-                applyComplexMapping(gamepad, *fastMappings[i].originalMapping);
+        gamepad->state.buttons &= ~fastMappings[i].buttonMask;
+        gamepad->state.dpad   &= ~fastMappings[i].dpadMask;
+        gamepad->state.aux    &= ~fastMappings[i].auxMask;
+        if (fastMappings[i].isComplex)
+            clearComplexMapping(gamepad, *fastMappings[i].originalMapping);
+    }
+    if (enableStable) {
+        for (int i = 0; i < 4; i++) {
+            if (!(keyNibble & (1u << i))) {
+                gamepad->state.buttons |= fastMappings[i].buttonMask;
+                gamepad->state.dpad    |= fastMappings[i].dpadMask;
+                gamepad->state.aux     |= fastMappings[i].auxMask;
+                if (fastMappings[i].isComplex)
+                    applyComplexMapping(gamepad, *fastMappings[i].originalMapping);
+            }
         }
     }
 }
 
 void FourKeyTouchpadAddon::process() {
-    if (!isValidPin(pin_sck) || !isValidPin(pin_data))
-        return;
-    if (wasEnabled && anyTouchKeyPressed) {
-        Gamepad* gamepad = Storage::getInstance().GetGamepad();
-        gamepad->state.buttons &= ~enablePinMapping.buttonMask;
-        gamepad->state.dpad   &= ~enablePinMapping.dpadMask;
-        gamepad->state.aux   &= ~enablePinMapping.auxMask;
-        if (enablePinMapping.isComplex)
-            clearComplexMapping(gamepad, *enablePinMapping.originalMapping);
-    }
+    // 使能键与触摸键均在 preprocess() 中输出，此处无需处理
 }

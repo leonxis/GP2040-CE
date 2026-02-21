@@ -548,10 +548,38 @@ std::string getFourKeyTouchpadOptions() {
     return serialize_json(doc);
 }
 
+// GPIO12 = 4键触摸板使能键；插件开启时主循环不映射该引脚，由插件按使能+触摸状态输出 A2
+static constexpr Pin_t FOUR_KEY_TOUCHPAD_ENABLE_GPIO = 12;
+
 std::string setFourKeyTouchpadOptions() {
     DynamicJsonDocument doc = get_post_data();
     FourKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().fourKeyTouchpadOptions;
     docToValue(opts.enabled, doc, "enabled");
+
+    GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;
+    ProfileOptions& profiles = Storage::getInstance().getProfileOptions();
+    Pin_t pin12 = FOUR_KEY_TOUCHPAD_ENABLE_GPIO;
+    if (opts.enabled) {
+        gpioMappings[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
+        gpioMappings[pin12].customButtonMask = 0;
+        gpioMappings[pin12].customDpadMask = 0;
+        for (int i = 0; i < 3; i++) {
+            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
+            profiles.gpioMappingsSets[i].pins[pin12].customButtonMask = 0;
+            profiles.gpioMappingsSets[i].pins[pin12].customDpadMask = 0;
+        }
+    } else {
+        gpioMappings[pin12].action = GpioAction::BUTTON_PRESS_A2;
+        gpioMappings[pin12].customButtonMask = 0;
+        gpioMappings[pin12].customDpadMask = 0;
+        for (int i = 0; i < 3; i++) {
+            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::BUTTON_PRESS_A2;
+            profiles.gpioMappingsSets[i].pins[pin12].customButtonMask = 0;
+            profiles.gpioMappingsSets[i].pins[pin12].customDpadMask = 0;
+        }
+    }
+    Storage::getInstance().setFunctionalPinMappings();
+
     readMapping(opts.key1Mapping, doc, "key1");
     readMapping(opts.key2Mapping, doc, "key2");
     readMapping(opts.key3Mapping, doc, "key3");
@@ -576,7 +604,11 @@ std::string setMCP3208Options() {
     MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
     docToValue(opts.enabled, doc, "enabled");
     docToValue(opts.spiBlock, doc, "mcp3208Block");
+    Pin_t oldCsPin = opts.csPin;
     docToValue(opts.csPin, doc, "mcp3208CsPin");
+    Pin_t csPinRef = opts.csPin;
+    cleanAddonGpioMappings(csPinRef, oldCsPin);
+    opts.csPin = (int8_t)csPinRef;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -598,6 +630,25 @@ std::string getLSM6DSROptions() {
     JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
     for (size_t i = 0; i < opts.gyroEngageKeys_count && i < 16; i++) {
         arr.add(opts.gyroEngageKeys[i]);
+    }
+    return serialize_json(doc);
+}
+
+std::string calibrateLSM6DSRGyro() {
+    const size_t capacity = JSON_OBJECT_SIZE(6);
+    DynamicJsonDocument doc(capacity);
+    int32_t ox = 0, oy = 0, oz = 0;
+    bool ok = lsm6dsr_calibrate_gyro(&ox, &oy, &oz);
+    doc["ok"] = ok;
+    doc["offsetGyroX"] = ox;
+    doc["offsetGyroY"] = oy;
+    doc["offsetGyroZ"] = oz;
+    if (ok) {
+        LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+        opts.offsetGyroX = ox;
+        opts.offsetGyroY = oy;
+        opts.offsetGyroZ = oz;
+        opts.has_offsetGyroX = opts.has_offsetGyroY = opts.has_offsetGyroZ = true;
     }
     return serialize_json(doc);
 }
@@ -638,7 +689,11 @@ std::string setLSM6DSROptions() {
     LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(opts.enabled, doc, "enabled");
     docToValue(opts.spiBlock, doc, "lsm6dsrBlock");
+    Pin_t oldCsPin = opts.csPin;
     docToValue(opts.csPin, doc, "lsm6dsrCsPin");
+    Pin_t csPinRef = opts.csPin;
+    cleanAddonGpioMappings(csPinRef, oldCsPin);
+    opts.csPin = (int8_t)csPinRef;
     docToValue(opts.outputMode, doc, "lsm6dsrOutputMode");
     docToValue(opts.outputStick, doc, "lsm6dsrOutputStick");
     docToValue(opts.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
@@ -2126,12 +2181,20 @@ std::string setAddonOptions()
     MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
     docToValue(mcp3208Options.enabled, doc, "MCP3208AddonEnabled");
     docToValue(mcp3208Options.spiBlock, doc, "mcp3208Block");
-    docToValue(mcp3208Options.csPin, doc, "mcp3208CsPin");
+    {
+        Pin_t csPin = (Pin_t)mcp3208Options.csPin;
+        docToPin(csPin, doc, "mcp3208CsPin");
+        mcp3208Options.csPin = (int8_t)csPin;
+    }
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
     docToValue(lsm6dsrOptions.spiBlock, doc, "lsm6dsrBlock");
-    docToValue(lsm6dsrOptions.csPin, doc, "lsm6dsrCsPin");
+    {
+        Pin_t csPin = (Pin_t)lsm6dsrOptions.csPin;
+        docToPin(csPin, doc, "lsm6dsrCsPin");
+        lsm6dsrOptions.csPin = (int8_t)csPin;
+    }
     docToValue(lsm6dsrOptions.outputMode, doc, "lsm6dsrOutputMode");
     docToValue(lsm6dsrOptions.outputStick, doc, "lsm6dsrOutputStick");
     docToValue(lsm6dsrOptions.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
@@ -3169,6 +3232,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getMCP3208Options", getMCP3208Options },
     { "/api/getLSM6DSROptions", getLSM6DSROptions },
     { "/api/getLSM6DSRImuData", getLSM6DSRImuData },
+    { "/api/calibrateLSM6DSRGyro", calibrateLSM6DSRGyro },
     { "/api/getFnKeyMappingOptions", getFnKeyMappingOptions },
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },

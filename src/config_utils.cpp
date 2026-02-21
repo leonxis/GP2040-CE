@@ -1638,6 +1638,8 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed(config.addonOptions.heTriggerOptions.selectPin3);
     }
 
+    markAddonPinIfUsed((Pin_t)config.addonOptions.mcp3208Options.csPin);
+    markAddonPinIfUsed((Pin_t)config.addonOptions.lsm6dsrOptions.csPin);
 
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
         config.gpioMappings.pins[pin].action = actions[pin];
