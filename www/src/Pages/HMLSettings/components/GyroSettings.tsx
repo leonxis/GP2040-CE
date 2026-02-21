@@ -1,7 +1,7 @@
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MultiValue } from 'react-select';
-import { Button, Form } from 'react-bootstrap';
+import { Button, Form, Modal } from 'react-bootstrap';
 import Section from '../../../Components/Section';
 import CustomSelect from '../../../Components/CustomSelect';
 import { AppContext } from '../../../Contexts/AppContext';
@@ -17,7 +17,6 @@ import WebApi from '../../../Services/WebApi';
 
 type EngageKeyOption = { value: number; label: string };
 const DROPDOWN_WIDTH = 400;
-const OUTPUT_STICK_WIDTH = 250;
 const GYRO_BUTTON_WIDTH = 120;
 const COLUMN_GAP = 24;
 const IMU_POLL_INTERVAL_MS = 150;
@@ -56,12 +55,10 @@ type ImuData = {
 	accelX?: number;
 	accelY?: number;
 	accelZ?: number;
-	// 调试信息
+	offsetGyroX?: number;
+	offsetGyroY?: number;
+	offsetGyroZ?: number;
 	debug?: boolean;
-	whoAmI?: number;
-	expectedWhoAmI?: number;
-	spiOk?: boolean;
-	imuOk?: boolean;
 };
 
 export default function GyroSettings({
@@ -80,8 +77,6 @@ export default function GyroSettings({
 
 	const enabled = Boolean(values.LSM6DSRAddonEnabled);
 	const outputMode = Number(values.lsm6dsrOutputMode) ?? 0;
-	const outputStick = Number(values.lsm6dsrOutputStick) ?? 1;
-	const stickDropdownEnabled = outputMode === LSM6DSR_OUTPUT_DS4_STICK || outputMode === LSM6DSR_OUTPUT_XBOX_STICK;
 	const engageMode = Number(values.lsm6dsrEngageMode) ?? 0;
 	const engageKeys: number[] = Array.isArray(values.lsm6dsrEngageKeys)
 		? (values.lsm6dsrEngageKeys as number[]).filter((k) => typeof k === 'number')
@@ -112,6 +107,7 @@ export default function GyroSettings({
 
 	const [calibrateMessage, setCalibrateMessage] = useState('');
 	const [calibrateOk, setCalibrateOk] = useState<boolean | null>(null);
+	const [showGyroModal, setShowGyroModal] = useState(false);
 	const handleCalibrate = async () => {
 		setCalibrateMessage('');
 		setCalibrateOk(null);
@@ -137,7 +133,7 @@ export default function GyroSettings({
 		onSaveClick?.();
 	};
 
-	const fetchImuData = async () => {
+	const fetchImuData = useCallback(async () => {
 		try {
 			const data = await WebApi.getLSM6DSRImuData();
 			if (data && typeof data === 'object') {
@@ -149,7 +145,7 @@ export default function GyroSettings({
 		} catch {
 			setImuDataError(true);
 		}
-	};
+	}, []);
 
 	useEffect(() => {
 		if (!enabled) {
@@ -169,6 +165,10 @@ export default function GyroSettings({
 				imuPollRef.current = null;
 			}
 		};
+	}, [enabled, fetchImuData]);
+
+	useEffect(() => {
+		if (!enabled) setShowGyroModal(false);
 	}, [enabled]);
 
 	const engageKeysValue: EngageKeyOption[] = useMemo(
@@ -180,22 +180,28 @@ export default function GyroSettings({
 		setFieldValue('lsm6dsrEngageKeys', selected ? selected.map((o) => o.value) : []);
 	};
 
+	const onOutputModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+		const mode = Number(e.target.value);
+		handleChange(e);
+		if (mode === LSM6DSR_OUTPUT_DS4_STICK) setFieldValue('lsm6dsrOutputStick', 0);
+		else if (mode === LSM6DSR_OUTPUT_XBOX_STICK) setFieldValue('lsm6dsrOutputStick', 1);
+	};
+
 	const twoColStyle = { display: 'flex' as const, gap: COLUMN_GAP };
 
 	return (
 		<Section title={t('CalibrationSettings:gyro-settings-title')}>
 			{enabled ? (
 				<>
-					{/* 第一行：陀螺仪模拟方式： | 模拟左/右摇杆：（标题，与第二行下拉框上下左对齐） */}
+					{/* 第一行：陀螺仪模拟方式 + 生效方式（同排） */}
 					<div style={{ ...twoColStyle, marginBottom: '6px' }}>
 						<div style={{ width: DROPDOWN_WIDTH }}>
 							<Form.Label className="mb-0">{t('CalibrationSettings:gyro-simulation-mode-label')}</Form.Label>
 						</div>
-						<div style={{ width: OUTPUT_STICK_WIDTH }}>
-							<Form.Label className="mb-0">{t('CalibrationSettings:gyro-output-stick-label')}</Form.Label>
+						<div style={{ width: DROPDOWN_WIDTH }}>
+							<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-mode-label-short')}</Form.Label>
 						</div>
 					</div>
-					{/* 第二行：陀螺仪输出模式下拉框 | 左/右摇杆下拉框（仅 DS4摇杆/XBOX摇杆 时可选，宽度 200px） */}
 					<div style={{ ...twoColStyle, marginBottom: '16px' }}>
 						<div style={{ width: DROPDOWN_WIDTH }}>
 							<Form.Select
@@ -204,7 +210,7 @@ export default function GyroSettings({
 								style={{ width: '100%' }}
 								value={outputMode}
 								isInvalid={Boolean(errors.lsm6dsrOutputMode)}
-								onChange={handleChange}
+								onChange={onOutputModeChange}
 							>
 								<option value={LSM6DSR_OUTPUT_DS4}>
 									{t('CalibrationSettings:gyro-mode-ds4')}
@@ -220,26 +226,6 @@ export default function GyroSettings({
 								</option>
 							</Form.Select>
 						</div>
-						<div style={{ width: OUTPUT_STICK_WIDTH }}>
-							<Form.Select
-								name="lsm6dsrOutputStick"
-								className="form-select-sm"
-								style={{ width: '100%' }}
-								value={outputStick}
-								onChange={handleChange}
-								disabled={!stickDropdownEnabled}
-							>
-								<option value={0}>{t('CalibrationSettings:gyro-stick-left')}</option>
-								<option value={1}>{t('CalibrationSettings:gyro-stick-right')}</option>
-							</Form.Select>
-						</div>
-					</div>
-
-					{/* 生效方式：标题 + 下拉框，右侧为校准陀螺仪按键 */}
-					<div className="mb-2">
-						<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-mode-label-short')}</Form.Label>
-					</div>
-					<div style={{ display: 'flex', alignItems: 'center', gap: COLUMN_GAP, marginBottom: '16px', flexWrap: 'wrap' }}>
 						<div style={{ width: DROPDOWN_WIDTH }}>
 							<Form.Select
 								name="lsm6dsrEngageMode"
@@ -259,6 +245,24 @@ export default function GyroSettings({
 								</option>
 							</Form.Select>
 						</div>
+					</div>
+
+					{/* 生效按键 + 校准陀螺仪（同排） */}
+					<div className="mb-2">
+						<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-keys-label-short')}</Form.Label>
+					</div>
+					<div style={{ display: 'flex', alignItems: 'center', gap: COLUMN_GAP, marginBottom: '16px', flexWrap: 'wrap' }}>
+						<div style={{ width: DROPDOWN_WIDTH }}>
+							<CustomSelect<EngageKeyOption, true>
+								isMulti
+								options={engageKeyOptions}
+								getOptionLabel={(opt) => opt.label}
+								getOptionValue={(opt) => String(opt.value)}
+								value={engageKeysValue}
+								onChange={onEngageKeysChange}
+								styles={{ control: (base) => ({ ...base, minHeight: '38px' }) }}
+							/>
+						</div>
 						<Button
 							variant="primary"
 							size="sm"
@@ -267,41 +271,42 @@ export default function GyroSettings({
 						>
 							{t('CalibrationSettings:gyro-calibrate-button')}
 						</Button>
+						<Button
+							variant="outline-secondary"
+							size="sm"
+							style={{ width: GYRO_BUTTON_WIDTH }}
+							onClick={() => setShowGyroModal(true)}
+						>
+							{t('CalibrationSettings:gyro-view-gyro-button')}
+						</Button>
 						{calibrateMessage ? (
 							<span className={calibrateOk === false ? 'text-danger' : 'text-success'} style={{ fontSize: '0.875rem' }}>
 								{calibrateMessage}
 							</span>
 						) : null}
 					</div>
-					{/* 生效按键：标题 + 下拉框（在生效方式下方） */}
-					<div className="mb-2">
-						<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-keys-label-short')}</Form.Label>
-					</div>
-					<div style={{ width: DROPDOWN_WIDTH, marginBottom: '16px' }}>
-						<CustomSelect<EngageKeyOption, true>
-							isMulti
-							options={engageKeyOptions}
-							getOptionLabel={(opt) => opt.label}
-							getOptionValue={(opt) => String(opt.value)}
-							value={engageKeysValue}
-							onChange={onEngageKeysChange}
-							styles={{ control: (base) => ({ ...base, minHeight: '38px' }) }}
-						/>
-					</div>
 
-					{/* 调试信息：6 轴 RAW、WHO_AM_I、SPI OK、IMU OK，启用时轮询显示 */}
-					<div className="p-2 rounded small bg-black text-white">
-						<div className="fw-semibold mb-1">{t('CalibrationSettings:gyro-debug-title')}</div>
-						{imuDataError && (
-							<p className="text-danger mb-0 small">{t('CalibrationSettings:gyro-view-data-error')}</p>
-						)}
-						{!imuDataError && !imuData && <span>{t('Common:loading-text')}</span>}
-						{!imuDataError && imuData && (
-							<pre className="mb-0 small" style={{ fontSize: '0.8rem' }}>
-								{`WHO_AM_I: 0x${(imuData.whoAmI ?? 0).toString(16).toUpperCase().padStart(2, '0')} (${t('CalibrationSettings:gyro-debug-expected')} 0x6B)\nSPI OK: ${imuData.spiOk ?? false}\nIMU OK: ${imuData.imuOk ?? false}\n\nGyro X (RAW): ${imuData.gyroX ?? '-'}\nGyro Y (RAW): ${imuData.gyroY ?? '-'}\nGyro Z (RAW): ${imuData.gyroZ ?? '-'}\nAccel X (RAW): ${imuData.accelX ?? '-'}\nAccel Y (RAW): ${imuData.accelY ?? '-'}\nAccel Z (RAW): ${imuData.accelZ ?? '-'}`}
-							</pre>
-						)}
-					</div>
+					{/* 查看陀螺仪模态框：调试信息移入此处 */}
+					<Modal show={showGyroModal} onHide={() => setShowGyroModal(false)} size="lg" centered>
+						<Modal.Header closeButton>
+							<Modal.Title>{t('CalibrationSettings:gyro-view-data-title')}</Modal.Title>
+						</Modal.Header>
+						<Modal.Body>
+							<p className="text-muted small mb-2">{t('CalibrationSettings:gyro-view-data-realtime-hint')}</p>
+							<div className="p-2 rounded small bg-dark text-white">
+								<div className="fw-semibold mb-1">{t('CalibrationSettings:gyro-debug-title')}</div>
+								{imuDataError && (
+									<p className="text-danger mb-0 small">{t('CalibrationSettings:gyro-view-data-error')}</p>
+								)}
+								{!imuDataError && !imuData && <span>{t('Common:loading-text')}</span>}
+								{!imuDataError && imuData && (
+									<pre className="mb-0 small" style={{ fontSize: '0.8rem' }}>
+										{`${t('CalibrationSettings:gyro-calibration-offset')}\nOffset X: ${imuData.offsetGyroX ?? '-'}  Y: ${imuData.offsetGyroY ?? '-'}  Z: ${imuData.offsetGyroZ ?? '-'}\n\nGyro X (RAW): ${imuData.gyroX ?? '-'}\nGyro Y (RAW): ${imuData.gyroY ?? '-'}\nGyro Z (RAW): ${imuData.gyroZ ?? '-'}\nAccel X (RAW): ${imuData.accelX ?? '-'}\nAccel Y (RAW): ${imuData.accelY ?? '-'}\nAccel Z (RAW): ${imuData.accelZ ?? '-'}`}
+									</pre>
+								)}
+							</div>
+						</Modal.Body>
+					</Modal>
 				</>
 			) : null}
 			<div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', width: '100%' }}>

@@ -654,16 +654,13 @@ std::string calibrateLSM6DSRGyro() {
 }
 
 std::string getLSM6DSRImuData() {
-    const size_t capacity = JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(5); // 6 axis + debug
+    const size_t capacity = JSON_OBJECT_SIZE(10) + 120; // 6 axis + debug + 3 offset
     DynamicJsonDocument doc(capacity);
-    uint8_t whoAmI = 0;
-    bool spiOk = false, imuOk = false;
-    getLSM6DSRImuDebug(&whoAmI, &spiOk, &imuOk);
     doc["debug"] = true;
-    doc["whoAmI"] = whoAmI;
-    doc["expectedWhoAmI"] = 0x6B;
-    doc["spiOk"] = spiOk;
-    doc["imuOk"] = imuOk;
+    const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+    doc["offsetGyroX"] = opts.has_offsetGyroX ? opts.offsetGyroX : 0;
+    doc["offsetGyroY"] = opts.has_offsetGyroY ? opts.offsetGyroY : 0;
+    doc["offsetGyroZ"] = opts.has_offsetGyroZ ? opts.offsetGyroZ : 0;
     // 网页模式下主循环不跑 addon preprocess，故按需做一次 SPI 读取以保证数据实时
     int16_t gyro[3] = {0}, accel[3] = {0};
     if (getLSM6DSRRawData(gyro, accel)) {

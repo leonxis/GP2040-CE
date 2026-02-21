@@ -907,11 +907,10 @@ app.get('/api/getLSM6DSRImuData', (req, res) => {
 		accelX: 0,
 		accelY: 0,
 		accelZ: 0,
+		offsetGyroX: 0,
+		offsetGyroY: 0,
+		offsetGyroZ: 0,
 		debug: true,
-		whoAmI: 0,
-		expectedWhoAmI: 0x6B,
-		spiOk: false,
-		imuOk: false,
 	});
 });
 

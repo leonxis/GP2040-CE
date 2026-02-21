@@ -2,7 +2,6 @@
 #include "config.pb.h"
 #include "storagemanager.h"
 #include "peripheralmanager.h"
-#include "gamepad/GamepadState.h"
 #include "gamepad.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
@@ -16,45 +15,29 @@
 #define LSM6DSR_ID            0x6BU
 #define LSM6DSR_CTRL1_XL      0x10U
 #define LSM6DSR_CTRL2_G       0x11U
-#define LSM6DSR_FIFO_CTRL1    0x07U
-#define LSM6DSR_FIFO_CTRL2    0x08U
-#define LSM6DSR_FIFO_CTRL3    0x09U
-#define LSM6DSR_FIFO_CTRL4    0x0AU
 #define LSM6DSR_FIFO_CTRL5    0x0BU
 #define LSM6DSR_CTRL3_C       0x12U
-#define LSM6DSR_CTRL4_C       0x13U  // LPF1 关闭 → 最大数字滤波带宽; bit2 I2C_DISABLE
-#define LSM6DSR_CTRL4_C_I2C_DISABLE  (1U << 2)
-#define LSM6DSR_CTRL6_C       0x15U  // bit4 XL_HM_MODE=0 高性能, bit7 FTYP=0
+#define LSM6DSR_CTRL4_C       0x13U
+#define LSM6DSR_CTRL6_C       0x15U
 #define LSM6DSR_CTRL7_G       0x16U  // bit7 G_HM_MODE=0 → Gyro 高性能
 #define LSM6DSR_CTRL8_XL      0x17U  // LPF2 关闭 → 最小延迟
-#define LSM6DSR_CTRL9_XL      0x18U   // bit1 = I3C_DISABLE
-#define LSM6DSR_CTRL9_XL_I3C_DISABLE  (1U << 1)
+#define LSM6DSR_CTRL9_XL      0x18U
 #define LSM6DSR_OUTX_L_G      0x22U
 
 #define LSM6DSR_SPI_READ      0x80U
-
-// ODR 1666 Hz = 8; Accel 4g = 2 (ST enum fs_xl); Gyro 2000dps = 12
-#define LSM6DSR_CTRL1_XL_1666_4G   (0xA8U)  // odr_xl=8, fs_xl=2 (4g)
-#define LSM6DSR_CTRL2_G_1666_2000  (0x8CU)  // odr_g=8, fs_g=12 (2000dps)
-#define LSM6DSR_CTRL3_C_BDU_INC    0x44U   // BDU + IF_INC
 
 // 陀螺仪零偏校准：静止采样数量与间隔（与 alpakka 思路一致，采样平均作为零偏）
 #define LSM6DSR_GYRO_CAL_SAMPLES  500
 #define LSM6DSR_GYRO_CAL_DELAY_MS 2
 
-// Debug for webconfig
-static uint8_t s_debugWhoAmI = 0;
-static bool s_debugSpiOk = false;
-static bool s_debugImuOk = false;
+// DS4 陀螺仪单位换算：主机用 gyroResPerDeg (1000/61) 解析，即 report * (61/1000) = deg/s → 1 LSB = 0.061 deg/s
+// LSM6DSR 在 ±500 dps 下 17.5 mdps/LSB → 1 LSB = 0.0175 deg/s，故 DS4_report = raw * 0.0175 / 0.061 = raw * 175/610
+#define LSM6DSR_GYRO_500DPS_NUMER   175   // 17.5 * 10，用于 report = calG * 175 / 610
+#define LSM6DSR_GYRO_500DPS_DENOM   610   // 61 * 10，与 DS4 0.061 deg/s/LSB 一致
+
 // 按需读取用（网页模式下 preprocess 不运行，API 调用时现场读一次）
 static PeripheralSPI* s_spi = nullptr;
 static int8_t s_csPin = -1;
-
-void getLSM6DSRImuDebug(uint8_t* whoAmI, bool* spiOk, bool* imuOk) {
-	if (whoAmI) *whoAmI = s_debugWhoAmI;
-	if (spiOk) *spiOk = s_debugSpiOk;
-	if (imuOk) *imuOk = s_debugImuOk;
-}
 
 static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
 	if (len == 0) return;
@@ -74,91 +57,73 @@ static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t v
 
 bool LSM6DSRIMUAddon::available() {
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-	if (!opts.enabled) return false;
+	if (!opts.enabled || !opts.has_csPin) return false;
 	uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
-	return PeripheralManager::getInstance().isSPIEnabled(block);
+	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
+	if (!PeripheralManager::getInstance().isSPIEnabled(block) || !spi || !spi->configured)
+		return false;
+	int8_t csPin = (int8_t)opts.csPin;
+	gpio_init((uint)csPin);
+	gpio_set_dir((uint)csPin, GPIO_OUT);
+	gpio_put((uint)csPin, true);
+	spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+	LSM6DSR_CS_SELECT(csPin);
+	(void)spi->transfer(LSM6DSR_SPI_READ | LSM6DSR_WHO_AM_I);
+	uint8_t id = spi->transfer(0);
+	LSM6DSR_CS_DESELECT(csPin);
+	spi->endTransaction();
+	return (id == LSM6DSR_ID);
 }
 
 void LSM6DSRIMUAddon::setup() {
 	spi_ = nullptr;
 	csPin_ = -1;
-	spiOk_ = false;
-	imuOk_ = false;
 	offsetGyroX_ = offsetGyroY_ = offsetGyroZ_ = 0;
-	s_debugWhoAmI = 0;
-	s_debugSpiOk = false;
-	s_debugImuOk = false;
+	s_spi = nullptr;
+	s_csPin = -1;
 
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-	if (!opts.enabled || !opts.has_csPin) return;
-
 	csPin_ = (int8_t)opts.csPin;
 	uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
-	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
-	if (!spi || !spi->configured) return;
-	spi_ = spi;
+	spi_ = PeripheralManager::getInstance().getSPI(block);
+	offsetGyroX_ = opts.has_offsetGyroX ? opts.offsetGyroX : 0;
+	offsetGyroY_ = opts.has_offsetGyroY ? opts.offsetGyroY : 0;
+	offsetGyroZ_ = opts.has_offsetGyroZ ? opts.offsetGyroZ : 0;
 
 	gpio_init((uint)csPin_);
 	gpio_set_dir((uint)csPin_, GPIO_OUT);
 	gpio_put((uint)csPin_, true);
-	spiOk_ = true;
-	s_debugSpiOk = true;
 
-	// SW_RESET 干净启动：防异常 SPI 状态/FIFO/I3C 残留
+	// SW_RESET 干净启动：防异常 SPI 状态/FIFO/I3C 残留（WHO_AM_I 已在 available() 中校验）
 	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL3_C, 0x01);  // CTRL3_C bit0 = SW_RESET
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL3_C, 0x01);
 	spi_->endTransaction();
 	busy_wait_ms(10);
 
-	// 与 MCP3208 共用 SPI 时：若速率不同（如 LSM6 5MHz / MCP3208 1.5MHz），必须「谁用谁 begin/end」以便切换插件时 SPI 被正确重配
+	// Disable FIFO (避免延迟), I3C, High Performance, ODR 1666 Hz, 4g acc, 500 dps gyro, BDU+IF_INC
 	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+	// CTRL2_G: 0x84 = ODR 1.66kHz (0b10) + FS 500 dps (0b01) → 17.5 mdps/LSB
+	spiWriteReg(spi_, csPin_, LSM6DSR_FIFO_CTRL5, 0x00);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL9_XL, 0x02);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL4_C, 0x06);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL6_C, 0x02);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL7_G, 0x00);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL8_XL, 0x00);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL3_C, 0x44);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL1_XL, 0xA8);
+	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL2_G, 0x84);  // 500 dps
+	spi_->endTransaction();
 
-	LSM6DSR_CS_SELECT(csPin_);
-	(void)spi_->transfer(LSM6DSR_SPI_READ | LSM6DSR_WHO_AM_I);
-	uint8_t id = spi_->transfer(0);
-	LSM6DSR_CS_DESELECT(csPin_);
-
-	s_debugWhoAmI = id;
-	if (id != LSM6DSR_ID) {
-		spi_->endTransaction();
-		spiOk_ = false;
-		s_debugSpiOk = false;
-		return;
-	}
-
-	// Disable FIFO (避免延迟), I3C, High Performance, ODR 1666 Hz, 2g acc, 2000 dps gyro, BDU+IF_INC
-	spiWriteReg(spi_, csPin_, LSM6DSR_FIFO_CTRL5, 0x00);  // 禁用 FIFO
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL9_XL, LSM6DSR_CTRL9_XL_I3C_DISABLE);
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL4_C, LSM6DSR_CTRL4_C_I2C_DISABLE);  // 关闭 I2C、LPF1 关闭，最大带宽
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL6_C, 0x00);  // XL_HM_MODE=0, FTYP=0 → Acc 高性能
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL7_G, 0x00);  // G_HM_MODE=0 → Gyro 高性能
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL8_XL, 0x00); // LPF2 关闭，最小延迟
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL3_C, LSM6DSR_CTRL3_C_BDU_INC);
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL1_XL, LSM6DSR_CTRL1_XL_1666_4G);
-	spiWriteReg(spi_, csPin_, LSM6DSR_CTRL2_G, LSM6DSR_CTRL2_G_1666_2000);
-
-	spi_->endTransaction();  // setup 结束释放 SPI，避免与 MCP3208 等不同速率插件冲突
-
-	imuOk_ = true;
-	s_debugImuOk = true;
 	s_spi = spi_;
 	s_csPin = csPin_;
-	loadOffsetCache();
-}
-
-void LSM6DSRIMUAddon::loadOffsetCache() {
-	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-	offsetGyroX_ = opts.has_offsetGyroX ? opts.offsetGyroX : 0;
-	offsetGyroY_ = opts.has_offsetGyroY ? opts.offsetGyroY : 0;
-	offsetGyroZ_ = opts.has_offsetGyroZ ? opts.offsetGyroZ : 0;
 }
 
 void LSM6DSRIMUAddon::reinit() {
-	loadOffsetCache();
+	// 陀螺仪校准数据针对设备全局，不随 profile 切换，无需重载
 }
 
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
-	if (!s_spi || s_csPin < 0 || !s_debugImuOk) return false;
+	if (!s_spi || s_csPin < 0) return false;
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
 	int32_t offX = opts.has_offsetGyroX ? opts.offsetGyroX : 0;
 	int32_t offY = opts.has_offsetGyroY ? opts.offsetGyroY : 0;
@@ -182,7 +147,7 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 }
 
 bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ) {
-	if (!s_spi || s_csPin < 0 || !s_debugImuOk || !offsetX || !offsetY || !offsetZ) return false;
+	if (!s_spi || s_csPin < 0 || !offsetX || !offsetY || !offsetZ) return false;
 	int64_t sumX = 0, sumY = 0, sumZ = 0;
 	const uint32_t n = LSM6DSR_GYRO_CAL_SAMPLES;
 	for (uint32_t i = 0; i < n; i++) {
@@ -206,8 +171,6 @@ bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ
 }
 
 void LSM6DSRIMUAddon::preprocess() {
-	if (!spiOk_ || !spi_ || !imuOk_) return;
-
 	spi_->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 
 	uint8_t buf[12];
@@ -229,13 +192,24 @@ void LSM6DSRIMUAddon::preprocess() {
 		(int16_t)(rawG[2] - offsetGyroZ_),
 	};
 
-	Gamepad* gamepad = Storage::getInstance().GetProcessedGamepad();
+	// 换算到 DS4 协议单位：主机 deg/s = report * (61/1000)，LSM6DSR @500dps 为 0.0175 deg/s/LSB → report = calG * 175/610
+	int32_t ds4x = (int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
+	int32_t ds4y = (int32_t)calG[1] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
+	int32_t ds4z = (int32_t)calG[2] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
+	if (ds4x > 32767) ds4x = 32767; else if (ds4x < -32767) ds4x = -32767;
+	if (ds4y > 32767) ds4y = 32767; else if (ds4y < -32767) ds4y = -32767;
+	if (ds4z > 32767) ds4z = 32767; else if (ds4z < -32767) ds4z = -32767;
+
+	// 必须写入 GetGamepad()：主循环中 inputDriver->process(gamepad) 使用的是 gamepad，不是 processedGamepad
+	Gamepad* gamepad = Storage::getInstance().GetGamepad();
 	if (gamepad) {
 		gamepad->auxState.sensors.gyroscope.enabled = true;
 		gamepad->auxState.sensors.gyroscope.active = true;
-		gamepad->auxState.sensors.gyroscope.x = (uint16_t)(int16_t)calG[0];
-		gamepad->auxState.sensors.gyroscope.y = (uint16_t)(int16_t)calG[1];
-		gamepad->auxState.sensors.gyroscope.z = (uint16_t)(int16_t)calG[2];
+		gamepad->auxState.sensors.gyroscope.x = (uint16_t)(int16_t)ds4x;
+		gamepad->auxState.sensors.gyroscope.y = (uint16_t)(int16_t)ds4y;
+		gamepad->auxState.sensors.gyroscope.z = (uint16_t)(int16_t)ds4z;
+		gamepad->auxState.sensors.accelerometer.enabled = true;
+		gamepad->auxState.sensors.accelerometer.active = true;
 		gamepad->auxState.sensors.accelerometer.x = (uint16_t)(int16_t)(-rawA[0]);
 		gamepad->auxState.sensors.accelerometer.y = (uint16_t)(int16_t)(-rawA[1]);
 		gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[2];
