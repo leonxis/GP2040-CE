@@ -4,6 +4,8 @@ export default {
 	'gyro-mode-ds4': 'DS4原生陀螺仪',
 	'gyro-mode-ds4-stick': '左摇杆',
 	'gyro-mode-xbox-stick': '右摇杆',
+	'gyro-mode-left-stick': '左摇杆',
+	'gyro-mode-right-stick': '右摇杆',
 	'gyro-mode-mouse': '模拟鼠标',
 	'gyro-calibrate-button': '校准陀螺仪',
 	'gyro-calibrate-success': '校准完成，请点击保存写入配置',

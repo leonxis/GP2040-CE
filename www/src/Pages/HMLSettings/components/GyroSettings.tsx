@@ -7,8 +7,8 @@ import CustomSelect from '../../../Components/CustomSelect';
 import { AppContext } from '../../../Contexts/AppContext';
 import {
 	LSM6DSR_OUTPUT_DS4,
-	LSM6DSR_OUTPUT_DS4_STICK,
-	LSM6DSR_OUTPUT_XBOX_STICK,
+	LSM6DSR_OUTPUT_LEFT_STICK,
+	LSM6DSR_OUTPUT_RIGHT_STICK,
 	LSM6DSR_OUTPUT_MOUSE,
 } from '../../../Addons/LSM6DSR';
 import { BUTTON_ACTIONS } from '../../../Data/Pins';
@@ -74,11 +74,17 @@ export default function GyroSettings({
 	const [imuData, setImuData] = useState<ImuData | null>(null);
 	const [imuDataError, setImuDataError] = useState(false);
 	const imuPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [stickSensitivity, setStickSensitivity] = useState(0);
+	const [stickThreshold, setStickThreshold] = useState(0);
+	const [mouseSensitivity, setMouseSensitivity] = useState(0);
+	const [mouseThreshold, setMouseThreshold] = useState(0);
 
 	const enabled = Boolean(values.LSM6DSRAddonEnabled);
-	const outputMode = Number(values.lsm6dsrOutputMode) ?? 0;
-	const engageMode = Number(values.lsm6dsrEngageMode) ?? 0;
-	const engageKeys: number[] = Array.isArray(values.lsm6dsrEngageKeys)
+		const outputMode = Number(values.lsm6dsrOutputMode) ?? 0;
+		const engageMode = Number(values.lsm6dsrEngageMode) ?? 0;
+		const spikeFilterEnabled = Number(values.lsm6dsrSpikeFilterEnabled) !== 0;
+		const oneEuroFilterEnabled = Number(values.lsm6dsrOneEuroFilterEnabled) !== 0;
+		const engageKeys: number[] = Array.isArray(values.lsm6dsrEngageKeys)
 		? (values.lsm6dsrEngageKeys as number[]).filter((k) => typeof k === 'number')
 		: [];
 
@@ -180,111 +186,119 @@ export default function GyroSettings({
 		setFieldValue('lsm6dsrEngageKeys', selected ? selected.map((o) => o.value) : []);
 	};
 
+	// 左摇杆(1)、右摇杆(2) 均进入模拟摇杆逻辑，由 outputMode 区分
 	const onOutputModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-		const mode = Number(e.target.value);
 		handleChange(e);
-		if (mode === LSM6DSR_OUTPUT_DS4_STICK) setFieldValue('lsm6dsrOutputStick', 0);
-		else if (mode === LSM6DSR_OUTPUT_XBOX_STICK) setFieldValue('lsm6dsrOutputStick', 1);
 	};
 
 	const twoColStyle = { display: 'flex' as const, gap: COLUMN_GAP };
 
 	return (
+		<>
 		<Section title={t('CalibrationSettings:gyro-settings-title')}>
-			{enabled ? (
-				<>
-					{/* 第一行：陀螺仪模拟方式 + 生效方式（同排） */}
-					<div style={{ ...twoColStyle, marginBottom: '6px' }}>
-						<div style={{ width: DROPDOWN_WIDTH }}>
-							<Form.Label className="mb-0">{t('CalibrationSettings:gyro-simulation-mode-label')}</Form.Label>
-						</div>
-						<div style={{ width: DROPDOWN_WIDTH }}>
-							<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-mode-label-short')}</Form.Label>
-						</div>
+			{/* 2 行 3 列：列宽 400px, 400px, 150px；内部下拉框宽 350px */}
+			<div
+				style={{
+					display: 'grid',
+					gridTemplateColumns: '400px 400px 150px',
+					alignItems: 'start',
+					justifyItems: 'start',
+					gap: '8px 12px',
+					marginBottom: '16px',
+				}}
+			>
+				{/* 1 行 1 列：陀螺仪模拟方式 */}
+				<div style={{ width: '100%' }}>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-simulation-mode-label')}</Form.Label>
+					<Form.Select
+						name="lsm6dsrOutputMode"
+						className="form-select-sm mt-1"
+						style={{ width: '350px' }}
+						value={outputMode}
+						isInvalid={Boolean(errors.lsm6dsrOutputMode)}
+						onChange={onOutputModeChange}
+					>
+						<option value={LSM6DSR_OUTPUT_DS4}>{t('CalibrationSettings:gyro-mode-ds4')}</option>
+						<option value={LSM6DSR_OUTPUT_LEFT_STICK}>{t('CalibrationSettings:gyro-mode-left-stick')}</option>
+						<option value={LSM6DSR_OUTPUT_RIGHT_STICK}>{t('CalibrationSettings:gyro-mode-right-stick')}</option>
+						<option value={LSM6DSR_OUTPUT_MOUSE}>{t('CalibrationSettings:gyro-mode-mouse')}</option>
+					</Form.Select>
+				</div>
+				{/* 1 行 2 列：生效方式 */}
+				<div style={{ width: '100%' }}>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-mode-label-short')}</Form.Label>
+					<Form.Select
+						name="lsm6dsrEngageMode"
+						className="form-select-sm mt-1"
+						style={{ width: '350px' }}
+						value={engageMode}
+						onChange={handleChange}
+					>
+						<option value={GYRO_ENGAGE_ALWAYS}>{t('CalibrationSettings:gyro-engage-always')}</option>
+						<option value={GYRO_ENGAGE_ON_KEY}>{t('CalibrationSettings:gyro-engage-on-key')}</option>
+						<option value={GYRO_ENGAGE_PAUSE_ON_KEY}>{t('CalibrationSettings:gyro-engage-pause-on-key')}</option>
+					</Form.Select>
+				</div>
+				{/* 1 行 3 列：尖峰滤波开关 */}
+				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+					<Form.Label className="mb-0">尖峰滤波</Form.Label>
+					<Form.Check
+						type="switch"
+						id="lsm6dsrSpikeFilterEnabled"
+						label=""
+						checked={spikeFilterEnabled}
+						onChange={() => setFieldValue('lsm6dsrSpikeFilterEnabled', spikeFilterEnabled ? 0 : 1)}
+						className="mt-1"
+					/>
+				</div>
+				{/* 2 行 1 列：生效按键 */}
+				<div style={{ width: '100%' }}>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-keys-label-short')}</Form.Label>
+					<div className="mt-1" style={{ width: '350px' }}>
+						<CustomSelect<EngageKeyOption, true>
+							isMulti
+							options={engageKeyOptions}
+							getOptionLabel={(opt) => opt.label}
+							getOptionValue={(opt) => String(opt.value)}
+							value={engageKeysValue}
+							onChange={onEngageKeysChange}
+							styles={{ control: (base) => ({ ...base, minHeight: '38px' }) }}
+						/>
 					</div>
-					<div style={{ ...twoColStyle, marginBottom: '16px' }}>
-						<div style={{ width: DROPDOWN_WIDTH }}>
-							<Form.Select
-								name="lsm6dsrOutputMode"
-								className="form-select-sm"
-								style={{ width: '100%' }}
-								value={outputMode}
-								isInvalid={Boolean(errors.lsm6dsrOutputMode)}
-								onChange={onOutputModeChange}
-							>
-								<option value={LSM6DSR_OUTPUT_DS4}>
-									{t('CalibrationSettings:gyro-mode-ds4')}
-								</option>
-								<option value={LSM6DSR_OUTPUT_DS4_STICK}>
-									{t('CalibrationSettings:gyro-mode-ds4-stick')}
-								</option>
-								<option value={LSM6DSR_OUTPUT_XBOX_STICK}>
-									{t('CalibrationSettings:gyro-mode-xbox-stick')}
-								</option>
-								<option value={LSM6DSR_OUTPUT_MOUSE}>
-									{t('CalibrationSettings:gyro-mode-mouse')}
-								</option>
-							</Form.Select>
-						</div>
-						<div style={{ width: DROPDOWN_WIDTH }}>
-							<Form.Select
-								name="lsm6dsrEngageMode"
-								className="form-select-sm"
-								style={{ width: '100%' }}
-								value={engageMode}
-								onChange={handleChange}
-							>
-								<option value={GYRO_ENGAGE_ALWAYS}>
-									{t('CalibrationSettings:gyro-engage-always')}
-								</option>
-								<option value={GYRO_ENGAGE_ON_KEY}>
-									{t('CalibrationSettings:gyro-engage-on-key')}
-								</option>
-								<option value={GYRO_ENGAGE_PAUSE_ON_KEY}>
-									{t('CalibrationSettings:gyro-engage-pause-on-key')}
-								</option>
-							</Form.Select>
-						</div>
-					</div>
-
-					{/* 生效按键 + 校准陀螺仪（同排） */}
-					<div className="mb-2">
-						<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-keys-label-short')}</Form.Label>
-					</div>
-					<div style={{ display: 'flex', alignItems: 'center', gap: COLUMN_GAP, marginBottom: '16px', flexWrap: 'wrap' }}>
-						<div style={{ width: DROPDOWN_WIDTH }}>
-							<CustomSelect<EngageKeyOption, true>
-								isMulti
-								options={engageKeyOptions}
-								getOptionLabel={(opt) => opt.label}
-								getOptionValue={(opt) => String(opt.value)}
-								value={engageKeysValue}
-								onChange={onEngageKeysChange}
-								styles={{ control: (base) => ({ ...base, minHeight: '38px' }) }}
-							/>
-						</div>
-						<Button
-							variant="primary"
-							size="sm"
-							style={{ width: GYRO_BUTTON_WIDTH }}
-							onClick={handleCalibrate}
-						>
+				</div>
+				{/* 2 行 2 列：校准陀螺仪、水平面校准、查看陀螺仪 */}
+				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+					<Form.Label className="mb-0">&nbsp;</Form.Label>
+					<div className="mt-1" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+						<Button variant="primary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={handleCalibrate}>
 							{t('CalibrationSettings:gyro-calibrate-button')}
 						</Button>
-						<Button
-							variant="outline-secondary"
-							size="sm"
-							style={{ width: GYRO_BUTTON_WIDTH }}
-							onClick={() => setShowGyroModal(true)}
-						>
+						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={() => {}}>
+							水平面校准
+						</Button>
+						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={() => setShowGyroModal(true)}>
 							{t('CalibrationSettings:gyro-view-gyro-button')}
 						</Button>
-						{calibrateMessage ? (
-							<span className={calibrateOk === false ? 'text-danger' : 'text-success'} style={{ fontSize: '0.875rem' }}>
-								{calibrateMessage}
-							</span>
-						) : null}
 					</div>
+					{calibrateMessage ? (
+						<span className={calibrateOk === false ? 'text-danger' : 'text-success'} style={{ fontSize: '0.875rem' }}>
+							{calibrateMessage}
+						</span>
+					) : null}
+				</div>
+				{/* 2 行 3 列：一欧元滤波开关 */}
+				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+					<Form.Label className="mb-0">一欧元滤波</Form.Label>
+					<Form.Check
+						type="switch"
+						id="lsm6dsrOneEuroFilterEnabled"
+						label=""
+						checked={oneEuroFilterEnabled}
+						onChange={() => setFieldValue('lsm6dsrOneEuroFilterEnabled', oneEuroFilterEnabled ? 0 : 1)}
+						className="mt-1"
+					/>
+				</div>
+			</div>
 
 					{/* 查看陀螺仪模态框：调试信息移入此处 */}
 					<Modal show={showGyroModal} onHide={() => setShowGyroModal(false)} size="lg" centered>
@@ -305,16 +319,14 @@ export default function GyroSettings({
 									</pre>
 								)}
 							</div>
-						</Modal.Body>
-					</Modal>
-				</>
-			) : null}
-			<div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', width: '100%' }}>
+					</Modal.Body>
+				</Modal>
+			<div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '12px' }}>
 				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 					<Button
 						variant="primary"
 						onClick={handleSave}
-						disabled={!onSaveClick || !enabled}
+						disabled={!onSaveClick}
 					>
 						{t('Common:button-save-label')}
 					</Button>
@@ -324,7 +336,58 @@ export default function GyroSettings({
 						</span>
 					) : null}
 				</div>
+				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+					<Form.Check
+						type="switch"
+						id="gyro-enable-switch"
+						label={t('CalibrationSettings:gyro-enable-label', '启用陀螺仪')}
+						checked={enabled}
+						onChange={(e) => {
+							setFieldValue('LSM6DSRAddonEnabled', e.target.checked ? 1 : 0);
+						}}
+					/>
+				</div>
 			</div>
 		</Section>
+
+		<Section title="陀螺仪模拟设置">
+			<div style={{ ...twoColStyle, marginBottom: '16px' }}>
+				<div style={{ width: DROPDOWN_WIDTH }}>
+					<Form.Label className="mb-1">摇杆灵敏度 {stickSensitivity}</Form.Label>
+					<Form.Range min={0} max={10} step={0.1} value={stickSensitivity} onChange={(e) => setStickSensitivity(Number(e.target.value))} style={{ width: '100%' }} />
+				</div>
+				<div style={{ width: DROPDOWN_WIDTH }}>
+					<Form.Label className="mb-1">摇杆阈值 {stickThreshold}</Form.Label>
+					<Form.Range min={0} max={10} step={0.1} value={stickThreshold} onChange={(e) => setStickThreshold(Number(e.target.value))} style={{ width: '100%' }} />
+				</div>
+			</div>
+			<div style={{ ...twoColStyle, marginBottom: '16px' }}>
+				<div style={{ width: DROPDOWN_WIDTH }}>
+					<Form.Label className="mb-1">鼠标灵敏度 {mouseSensitivity}</Form.Label>
+					<Form.Range min={0} max={10} step={0.1} value={mouseSensitivity} onChange={(e) => setMouseSensitivity(Number(e.target.value))} style={{ width: '100%' }} />
+				</div>
+				<div style={{ width: DROPDOWN_WIDTH }}>
+					<Form.Label className="mb-1">鼠标阈值 {mouseThreshold}</Form.Label>
+					<Form.Range min={0} max={10} step={0.1} value={mouseThreshold} onChange={(e) => setMouseThreshold(Number(e.target.value))} style={{ width: '100%' }} />
+				</div>
+			</div>
+			<div style={{ ...twoColStyle, marginBottom: '0' }}>
+				<div style={{ width: DROPDOWN_WIDTH }}>
+					<Form.Label className="mb-1">控制模式</Form.Label>
+					<Form.Select size="sm" style={{ width: '100%' }}>
+						<option>自由俯仰角</option>
+						<option>自由横滚角</option>
+					</Form.Select>
+				</div>
+				<div style={{ width: DROPDOWN_WIDTH }}>
+					<Form.Label className="mb-1">摇杆反转</Form.Label>
+					<Form.Select size="sm" style={{ width: '100%' }}>
+						<option>水平反转</option>
+						<option>垂直反转</option>
+					</Form.Select>
+				</div>
+			</div>
+		</Section>
+		</>
 	);
 }

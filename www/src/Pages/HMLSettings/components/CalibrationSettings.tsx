@@ -67,8 +67,6 @@ import TriggerCalibrationSettings, {
 	triggerCalibrationScheme,
 	triggerCalibrationState,
 } from './TriggerCalibration';
-import GyroSettings from './GyroSettings';
-
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
 	errors: FormikErrors<typeof DEFAULT_VALUES>;
@@ -79,7 +77,7 @@ export type AddonPropTypes = {
 	onSaveClick?: () => void;
 };
 
-const schema = yup.object().shape({
+export const schema = yup.object().shape({
 	...analogScheme,
 	...analog1256Scheme,
 	...mcp3208Scheme,
@@ -133,7 +131,7 @@ export const DEFAULT_VALUES = {
 	...triggerCalibrationState,
 } as const;
 
-const FormContext = ({ setStoredData }) => {
+export const FormContext = ({ setStoredData }) => {
 	const { values, setValues } = useFormikContext();
 	const { setLoading } = useContext(AppContext);
 
@@ -155,7 +153,10 @@ const FormContext = ({ setStoredData }) => {
 	return null;
 };
 
-const sanitizeData = (values) => {
+// 需要保留小数的字段（如外圈放大系数 0.1% 步长），不做 parseInt
+const FLOAT_KEYS = ['joystickFinetuneShapeAmplify1', 'joystickFinetuneShapeAmplify2'];
+
+export const sanitizeData = (values) => {
 	const keys = Object.keys(values).filter(
 		(key) => !key.includes('keyboardHostMap'),
 	);
@@ -165,15 +166,22 @@ const sanitizeData = (values) => {
 			continue;
 		}
 		if (values[prop] !== undefined && values[prop] !== null && values[prop] !== '') {
-			const parsed = parseInt(values[prop], 10);
-			if (!Number.isNaN(parsed)) {
-				values[prop] = parsed;
+			if (FLOAT_KEYS.includes(prop)) {
+				const parsed = parseFloat(values[prop]);
+				if (!Number.isNaN(parsed)) {
+					values[prop] = parsed;
+				}
+			} else {
+				const parsed = parseInt(values[prop], 10);
+				if (!Number.isNaN(parsed)) {
+					values[prop] = parsed;
+				}
 			}
 		}
 	}
 };
 
-function flattenObject(object) {
+export function flattenObject(object) {
 	var toReturn = {};
 
 	for (var i in object) {
@@ -198,14 +206,13 @@ function flattenObject(object) {
 
 const TRIGGER_MAPPING_ERROR_MSG = '扳机键位设置错误，请在按键映射中恢复扳机映射为对应扳机键';
 
-type SaveSection = 'joystick' | 'curve' | 'trigger' | 'gyro';
+type SaveSection = 'joystick' | 'curve' | 'trigger';
 
 export default function CalibrationSettings() {
 	const { updateUsedPins } = useContext(AppContext);
 	const [saveMessageJoystick, setSaveMessageJoystick] = useState('');
 	const [saveMessageCurve, setSaveMessageCurve] = useState('');
 	const [saveMessageTrigger, setSaveMessageTrigger] = useState('');
-	const [saveMessageGyro, setSaveMessageGyro] = useState('');
 	const [storedData, setStoredData] = useState({});
 	const [triggerErrorModalShow, setTriggerErrorModalShow] = useState(false);
 	const lastSaveSectionRef = useRef<SaveSection | null>(null);
@@ -248,7 +255,6 @@ export default function CalibrationSettings() {
 			if (section === 'joystick') setSaveMessageJoystick(msg);
 			else if (section === 'curve') setSaveMessageCurve(msg);
 			else if (section === 'trigger') setSaveMessageTrigger(msg);
-			else if (section === 'gyro') setSaveMessageGyro(msg);
 			return;
 		}
 		setStoredData(JSON.parse(JSON.stringify(values)));
@@ -256,7 +262,6 @@ export default function CalibrationSettings() {
 		if (section === 'joystick') setSaveMessageJoystick(msg);
 		else if (section === 'curve') setSaveMessageCurve(msg);
 		else if (section === 'trigger') setSaveMessageTrigger(msg);
-		else if (section === 'gyro') setSaveMessageGyro(msg);
 		updateUsedPins();
 	};
 
@@ -314,18 +319,6 @@ export default function CalibrationSettings() {
 						saveMessage={saveMessageTrigger}
 						onSaveClick={() => {
 							lastSaveSectionRef.current = 'trigger';
-							handleSubmit();
-						}}
-					/>
-
-					<GyroSettings
-						values={values}
-						errors={errors}
-						handleChange={handleChange}
-						setFieldValue={setFieldValue}
-						saveMessage={saveMessageGyro}
-						onSaveClick={() => {
-							lastSaveSectionRef.current = 'gyro';
 							handleSubmit();
 						}}
 					/>

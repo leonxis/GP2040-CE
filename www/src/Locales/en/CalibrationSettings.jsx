@@ -4,6 +4,8 @@ export default {
 	'gyro-mode-ds4': 'DS4 native gyro',
 	'gyro-mode-ds4-stick': 'Left stick',
 	'gyro-mode-xbox-stick': 'Right stick',
+	'gyro-mode-left-stick': 'Left stick',
+	'gyro-mode-right-stick': 'Right stick',
 	'gyro-mode-mouse': 'Simulate mouse',
 	'gyro-calibrate-button': 'Calibrate gyro',
 	'gyro-calibrate-success': 'Calibration done. Click Save to write to config.',

@@ -3,12 +3,14 @@
 
 #include "gpaddon.h"
 #include "peripheral_spi.h"
+#include <cstddef>
+#include <cstdint>
 
 #define LSM6DSR_IMU_ADDON_NAME "LSM6DSR IMU"
 
 // SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」与插件配置（spiBlock、csPin）获取
 // 与 MCP3208 等共用 SPI 时若速率不同：改此处即可（如 5MHz 用 5000000u），每次访问已包 begin/endTransaction
-#define LSM6DSR_SPI_HZ      1500000u
+#define LSM6DSR_SPI_HZ      5000000u
 
 // 供 webconfig 按需读取 6 轴 RAW（已应用校准偏移；网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]);
@@ -25,11 +27,32 @@ public:
 	virtual std::string name() { return LSM6DSR_IMU_ADDON_NAME; }
 	virtual void reinit();
 private:
-	PeripheralSPI* spi_;
-	int8_t csPin_;
-	int32_t offsetGyroX_;
-	int32_t offsetGyroY_;
-	int32_t offsetGyroZ_;
+	void buildEngageMasks();   // 根据 engageKeys 填充 engageButtonMask / engageDpadMask（仅支持上下左右、B1-B4、L1/L2/R1/R2、S1/S2）
+	void applyGyroSlewLimit(); // 尖峰滤波：对 calG/filterG 做变化率限制，抑制微动开关震动引起的短时尖峰
+	void applyOneEuroFilter(); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)，在尖峰滤波之后应用
+	PeripheralSPI* spi;
+	int8_t csPin;
+	int32_t offsetGyroX;
+	int32_t offsetGyroY;
+	int32_t offsetGyroZ;
+	int outputMode;   // 陀螺仪模拟方式：0=DS4, 1=左摇杆, 2=右摇杆, 3=鼠标
+	int engageMode;   // 生效方式：0=一直生效, 1=按下按键生效, 2=按下按键暂停
+	bool spikeFilterEnabled;  // 尖峰滤波开关：true 时对陀螺仪做变化率限制
+	bool oneEuroFilterEnabled;  // 一欧元滤波开关：true 时在尖峰滤波后对陀螺仪做低通平滑
+	int32_t engageKeys[16];  // 生效按键（GpioAction 枚举值），与前端体感设置一致
+	size_t engageKeysCount;
+	// 预解析生效按键为 mask，运行时仅按位判断（同四键触摸板优化）
+	uint32_t engageButtonMask[16];
+	uint8_t engageDpadMask[16];
+	// preprocess 复用缓冲区，避免每帧栈上分配
+	uint8_t readBuf[12];
+	int16_t rawG[3];
+	int16_t rawA[3];
+	int16_t calG[3];
+	// 陀螺仪变化率限制（抑制微动开关震动引起的短时尖峰）：上一帧滤波后的角速度 LSB
+	int16_t filterG[3];
+	// 一欧元滤波内部状态（浮点，每轴一个）
+	float oneEuroState[3];
 };
 
 #endif

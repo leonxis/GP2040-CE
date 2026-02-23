@@ -42,6 +42,16 @@ const FinetuneShapeControls: React.FC<FinetuneShapeControlsProps> = ({
 							step={0.1}
 							value={amplify}
 							onChange={(e) => onAmplifyChange(parseFloat(e.target.value))}
+							onKeyDown={(e) => {
+								const step = 0.1;
+								if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+									e.preventDefault();
+									onAmplifyChange(Math.min(20, Math.round((amplify + step) * 10) / 10));
+								} else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+									e.preventDefault();
+									onAmplifyChange(Math.max(-20, Math.round((amplify - step) * 10) / 10));
+								}
+							}}
 						/>
 						<p className="text-muted small mt-1 mb-0">
 							扩大系数可以放大摇杆覆盖范围，加快移动响应速度。

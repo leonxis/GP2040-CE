@@ -60,8 +60,9 @@ export const PS4_ID_MODES = [
 export const TABS = [
 	{ key: 'mode', label: '模式设置' },
 	{ key: 'back-buttons', label: '背键映射' },
-	{ key: 'function-buttons', label: '功能按键' },
 	{ key: 'calibration', label: '校准设置' },
+	{ key: 'motion', label: '体感设置' },
+	{ key: 'function-buttons', label: '其他功能' },
 	{ key: 'hardware', label: '硬件配置' },
 	{ key: 'backup-reset', label: '备份重置' },
 ];

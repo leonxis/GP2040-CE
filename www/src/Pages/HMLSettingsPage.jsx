@@ -4,6 +4,7 @@ import ModeSettings from './HMLSettings/components/ModeSettings';
 import BackButtonMapping from './HMLSettings/components/BackButtonMapping';
 import FunctionButtons from './HMLSettings/components/FunctionButtons';
 import CalibrationSettings from './HMLSettings/components/CalibrationSettings';
+import MotionSettings from './HMLSettings/components/MotionSettings';
 import HardwareConfig from './HMLSettings/components/HardwareConfig';
 import BackupReset from './HMLSettings/components/BackupReset';
 import { TABS } from './HMLSettings/constants/hmlInputModes';
@@ -21,6 +22,8 @@ export default function HMLSettingsPage() {
 				return <FunctionButtons />;
 			case 'calibration':
 				return <CalibrationSettings />;
+			case 'motion':
+				return <MotionSettings />;
 			case 'hardware':
 				return <HardwareConfig />;
 			case 'backup-reset':
@@ -32,7 +35,7 @@ export default function HMLSettingsPage() {
 
 	return (
 		<div className="mt-4">
-			<Row>
+			<Row style={{ flexWrap: 'nowrap' }}>
 				<Col style={{ width: '150px', flex: '0 0 150px', maxWidth: '150px' }}>
 					<Nav
 						variant="pills"
@@ -49,7 +52,7 @@ export default function HMLSettingsPage() {
 						))}
 					</Nav>
 				</Col>
-				<Col>
+				<Col style={{ minWidth: 0, flex: '1 1 0' }}>
 					{renderContent()}
 				</Col>
 			</Row>

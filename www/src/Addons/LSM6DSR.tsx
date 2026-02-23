@@ -16,8 +16,8 @@ import { AddonPropTypes } from '../Pages/AddonsConfigPage';
 import { Trans } from 'react-i18next';
 
 export const LSM6DSR_OUTPUT_DS4 = 0;
-export const LSM6DSR_OUTPUT_DS4_STICK = 1;
-export const LSM6DSR_OUTPUT_XBOX_STICK = 2;
+export const LSM6DSR_OUTPUT_LEFT_STICK = 1;
+export const LSM6DSR_OUTPUT_RIGHT_STICK = 2;
 export const LSM6DSR_OUTPUT_MOUSE = 3;
 
 export const lsm6dsrScheme = {
@@ -34,6 +34,8 @@ export const lsm6dsrScheme = {
 	lsm6dsrOffsetGyroZ: yup.number().label('LSM6DSR Offset Gyro Z'),
 	lsm6dsrCalibrateGyroRequested: yup.number().label('LSM6DSR Calibrate Requested'),
 	lsm6dsrEngageMode: yup.number().label('LSM6DSR Engage Mode'),
+	lsm6dsrSpikeFilterEnabled: yup.number().label('LSM6DSR Spike Filter'),
+	lsm6dsrOneEuroFilterEnabled: yup.number().label('LSM6DSR One Euro Filter'),
 	lsm6dsrEngageKeys: yup.array().of(yup.number()).label('LSM6DSR Engage Keys'),
 };
 
@@ -48,6 +50,8 @@ export const lsm6dsrState = {
 	lsm6dsrOffsetGyroZ: 0,
 	lsm6dsrCalibrateGyroRequested: 0,
 	lsm6dsrEngageMode: 0,
+	lsm6dsrSpikeFilterEnabled: 0,
+	lsm6dsrOneEuroFilterEnabled: 1,
 	lsm6dsrEngageKeys: [],
 };
 

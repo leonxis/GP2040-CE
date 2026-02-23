@@ -24,7 +24,6 @@ export default function HardwareConfig() {
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
 	const [fourKeyTouchpadOptions, setFourKeyTouchpadOptions] = useState({ enabled: 0 });
-	const [lsm6dsrEnabled, setLsm6dsrEnabled] = useState(0);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
 		brightnessMaximum: 255,
@@ -41,18 +40,16 @@ export default function HardwareConfig() {
 
 	useEffect(() => {
 		async function fetchData() {
-			const [peripheral, display, fourKeyTouchpad, led, addonOptions] = await Promise.all([
+			const [peripheral, display, fourKeyTouchpad, led] = await Promise.all([
 				WebApi.getPeripheralOptions(),
 				WebApi.getDisplayOptions(),
 				WebApi.getFourKeyTouchpadOptions(),
 				WebApi.getLedOptions(),
-				WebApi.getAddonsOptions(),
 			]);
 			setPeripheralOptions(peripheral);
 			setDisplayOptions(display);
 			setFourKeyTouchpadOptions(fourKeyTouchpad || { enabled: 0 });
-			setLsm6dsrEnabled(addonOptions?.LSM6DSRAddonEnabled ?? 0);
-			
+
 			// 同步显示屏和I2C1的启用状态
 			// 如果两者不一致，以显示屏的enabled为准
 			if (display.enabled !== peripheral.peripheral?.i2c1?.enabled) {
@@ -102,17 +99,10 @@ export default function HardwareConfig() {
 				},
 			};
 			
-			const currentAddonOptions = await WebApi.getAddonsOptions();
-			const addonDataToSave = {
-				...currentAddonOptions,
-				LSM6DSRAddonEnabled: lsm6dsrEnabled ? 1 : 0,
-			};
-
 			await Promise.all([
 				WebApi.setPeripheralOptions(dataToSave),
 				WebApi.setDisplayOptions(displayOptions),
 				WebApi.setFourKeyTouchpadOptions(fourKeyTouchpadOptions),
-				WebApi.setAddonsOptions(addonDataToSave),
 			]);
 			setHostSaveMessage('保存成功！请重启设备');
 			setTimeout(() => setHostSaveMessage(''), 5000);
@@ -210,22 +200,6 @@ export default function HardwareConfig() {
 							/>
 							<span className="text-muted">
 								将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率
-							</span>
-						</div>
-
-						{/* 陀螺仪开关（与插件配置-LSM6DSR 开关同步） */}
-						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<Form.Check
-								type="switch"
-								id="gyro-switch"
-								label="陀螺仪"
-								checked={Boolean(lsm6dsrEnabled)}
-								onChange={(e) => {
-									setLsm6dsrEnabled(e.target.checked ? 1 : 0);
-								}}
-							/>
-							<span className="text-muted">
-								陀螺仪输出仅支持DS4与DS4 电脑模式
 							</span>
 						</div>
 
