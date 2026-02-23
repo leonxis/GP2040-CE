@@ -6,6 +6,7 @@
 #include "gamepad/GamepadState.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
+#include <cmath>
 
 // CS 片选：主动推挽驱动，避免 SPI select/deselect 的上拉/下拉驱动不足
 #define LSM6DSR_CS_SELECT(cs)   do { gpio_put((uint)(cs), 0); } while (0)
@@ -26,9 +27,13 @@
 
 #define LSM6DSR_SPI_READ      0x80U
 
-// 陀螺仪零偏校准：静止采样数量与间隔（与 alpakka 思路一致，采样平均作为零偏）
-#define LSM6DSR_GYRO_CAL_SAMPLES  500
+// 陀螺仪零偏校准：静止采样数量与间隔（与 alpakka 思路一致，采样平均作为零偏），总时长约 5 秒
+#define LSM6DSR_GYRO_CAL_SAMPLES  2500
 #define LSM6DSR_GYRO_CAL_DELAY_MS 2
+// 加速度计零漂校准（alpakka 方法）：采样数量与 alpakka CFG_CALIBRATION_SAMPLES_ACCEL 同量级，无延迟以加快完成
+#define LSM6DSR_ACCEL_CAL_SAMPLES  10000
+// LSM6DSR 4g 量程下 1G 对应 LSB（与 alpakka BIT_14 在 2G 下等价：校准后 Z 减 1G）
+#define LSM6DSR_ACCEL_1G_LSB_INT  8192
 
 // DS4 陀螺仪单位换算：主机用 gyroResPerDeg (1000/61) 解析，即 report * (61/1000) = deg/s → 1 LSB = 0.061 deg/s
 // LSM6DSR 量程为 ±500 dps（CTRL2_G 配置），此量程下 17.5 mdps/LSB → 1 LSB = 0.0175 deg/s，故 DS4_report = raw * 0.0175 / 0.061 = raw * 175/610
@@ -108,10 +113,16 @@ void LSM6DSRIMUAddon::setup() {
 	offsetGyroX = opts.offsetGyroX;
 	offsetGyroY = opts.offsetGyroY;
 	offsetGyroZ = opts.offsetGyroZ;
+	offsetAccelX = opts.offsetAccelX;
+	offsetAccelY = opts.offsetAccelY;
+	offsetAccelZ = opts.offsetAccelZ;
 	outputMode = opts.outputMode;
 	engageMode = opts.engageMode;
 	spikeFilterEnabled = opts.gyroSpikeFilterEnabled;
 	oneEuroFilterEnabled = opts.gyroOneEuroFilterEnabled;
+	gyroStickThreshold = opts.gyroStickThreshold >= 0 && opts.gyroStickThreshold <= 100 ? opts.gyroStickThreshold : 0;
+	gyroStickSensitivity = opts.gyroStickSensitivity >= 0 && opts.gyroStickSensitivity <= 100 ? opts.gyroStickSensitivity : 50;
+	gyroStickInvert = opts.gyroStickInvert >= 0 && opts.gyroStickInvert <= 3 ? opts.gyroStickInvert : 0;
 	engageKeysCount = opts.gyroEngageKeys_count <= 16 ? opts.gyroEngageKeys_count : 16;
 	for (size_t i = 0; i < engageKeysCount; i++)
 		engageKeys[i] = opts.gyroEngageKeys[i];
@@ -120,6 +131,9 @@ void LSM6DSRIMUAddon::setup() {
 		filterG[i] = 0;
 		oneEuroState[i] = 0.0f;
 	}
+	angleX = 0.0f;
+	angleY = 0.0f;
+	angleInitialized = false;
 
 	gpio_init((uint)csPin);
 	gpio_set_dir((uint)csPin, GPIO_OUT);
@@ -149,16 +163,23 @@ void LSM6DSRIMUAddon::setup() {
 }
 
 void LSM6DSRIMUAddon::reinit() {
-	// 陀螺仪校准数据针对设备全局，不随 profile 切换，无需重载；重新加载陀螺仪模拟方式、生效方式与生效按键
+	// 陀螺仪/加速度计校准数据针对设备全局，不随 profile 切换；重新加载模拟方式、生效方式与生效按键
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+	offsetAccelX = opts.offsetAccelX;
+	offsetAccelY = opts.offsetAccelY;
+	offsetAccelZ = opts.offsetAccelZ;
 	outputMode = opts.outputMode;
 	engageMode = opts.engageMode;
 	spikeFilterEnabled = opts.gyroSpikeFilterEnabled;
 	oneEuroFilterEnabled = opts.gyroOneEuroFilterEnabled;
+	gyroStickThreshold = opts.gyroStickThreshold >= 0 && opts.gyroStickThreshold <= 100 ? opts.gyroStickThreshold : 0;
+	gyroStickSensitivity = opts.gyroStickSensitivity >= 0 && opts.gyroStickSensitivity <= 100 ? opts.gyroStickSensitivity : 50;
+	gyroStickInvert = opts.gyroStickInvert >= 0 && opts.gyroStickInvert <= 3 ? opts.gyroStickInvert : 0;
 	engageKeysCount = opts.gyroEngageKeys_count <= 16 ? opts.gyroEngageKeys_count : 16;
 	for (size_t i = 0; i < engageKeysCount; i++)
 		engageKeys[i] = opts.gyroEngageKeys[i];
 	buildEngageMasks();
+	angleInitialized = false;
 }
 
 void LSM6DSRIMUAddon::applyOneEuroFilter() {
@@ -185,19 +206,23 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	int32_t offX = opts.offsetGyroX;
 	int32_t offY = opts.offsetGyroY;
 	int32_t offZ = opts.offsetGyroZ;
+	int32_t offAX = opts.offsetAccelX;
+	int32_t offAY = opts.offsetAccelY;
+	int32_t offAZ = opts.offsetAccelZ;
 
 	s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 	uint8_t buf[12];
 	spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
 	s_spi->endTransaction();
 
+	// 与 preprocess 一致：角速度 X 取反，加速度计 X 取反、Y 与 Z 交换
 	int16_t calG[3];
-	calG[0] = (int16_t)(read16LE(buf + 0) - offX);
+	calG[0] = (int16_t)(-(int32_t)read16LE(buf + 0) - offX);
 	calG[1] = (int16_t)(read16LE(buf + 2) - offY);
 	calG[2] = (int16_t)(read16LE(buf + 4) - offZ);
-	accel[0] = read16LE(buf + 6);
-	accel[1] = read16LE(buf + 8);
-	accel[2] = read16LE(buf + 10);
+	accel[0] = (int16_t)(-(int32_t)read16LE(buf + 6) - offAX);
+	accel[1] = (int16_t)(read16LE(buf + 10) - offAY);  // 逻辑 Y = 传感器 Z
+	accel[2] = (int16_t)(read16LE(buf + 8) - offAZ);   // 逻辑 Z = 传感器 Y
 
 	// 尖峰滤波（与 preprocess 中 applyGyroSlewLimit 一致）
 	if (opts.gyroSpikeFilterEnabled) {
@@ -253,10 +278,31 @@ bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ
 		sumZ += read16LE(buf + 4);
 		busy_wait_ms(LSM6DSR_GYRO_CAL_DELAY_MS);
 	}
-	// 陀螺仪 XYZ 均不取反，输出 = raw - offset，故存储 offset = avg(raw)
-	*offsetX = (int32_t)(sumX / (int64_t)n);
+	// 角速度 X 取反：逻辑 raw = -传感器X，故存储 offset = -avg(传感器X)，使 calG[0] = -raw - offset 零均
+	*offsetX = (int32_t)(-(sumX / (int64_t)n));
 	*offsetY = (int32_t)(sumY / (int64_t)n);
 	*offsetZ = (int32_t)(sumZ / (int64_t)n);
+	return true;
+}
+
+// 加速度计零漂校准（alpakka 方法）：静止放置，采样取平均；X/Y 为零偏，Z 为零偏减 1G（静止时重力向下）
+bool lsm6dsr_calibrate_accel(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ) {
+	if (!s_spi || s_csPin < 0 || !offsetX || !offsetY || !offsetZ) return false;
+	int64_t sumX = 0, sumY = 0, sumZ = 0;
+	const uint32_t n = LSM6DSR_ACCEL_CAL_SAMPLES;
+	for (uint32_t i = 0; i < n; i++) {
+		s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+		uint8_t buf[12];
+		spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
+		s_spi->endTransaction();
+		sumX += read16LE(buf + 6);
+		sumY += read16LE(buf + 8);
+		sumZ += read16LE(buf + 10);
+	}
+	// 加速度计 X 取反、Y 与 Z 交换：逻辑 X=-传感器X, 逻辑Y=传感器Z, 逻辑Z=传感器Y；静止时逻辑 Z 为 1G
+	*offsetX = (int32_t)(-(sumX / (int64_t)n));
+	*offsetY = (int32_t)(sumZ / (int64_t)n);
+	*offsetZ = (int32_t)(sumY / (int64_t)n) - LSM6DSR_ACCEL_1G_LSB_INT;
 	return true;
 }
 
@@ -319,11 +365,127 @@ static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16
 	gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[2];
 }
 
-// 将陀螺仪输出到摇杆：outputMode 1=左摇杆，2=右摇杆，功能后续补充
-static void outputGyroToStick(Gamepad* gamepad, const int16_t calG[3], int outputMode) {
-	(void)gamepad;
-	(void)calG;
-	(void)outputMode;
+// 与 alpakka 一致：陀螺仪得到的值叠加到物理摇杆上；灵敏度 0～100 作为叠加值的系数（0=不叠加，100=全额叠加）
+void LSM6DSRIMUAddon::outputGyroToStick(Gamepad* gamepad, const int16_t calG[3], int outputMode) {
+	absolute_time_t now = get_absolute_time();
+	float dt = absolute_time_diff_us(lastUpdateTime, now) / 1000000.0f;
+	if (dt <= 0.0f || dt > 0.02f)
+		dt = 0.001f;
+	lastUpdateTime = now;
+
+	const float gyroScale = 0.0175f * 3.14159265f / 180.0f; // rad/s per LSB @ 500dps
+
+	float gx = (float)calG[0] * gyroScale;
+	float gy = (float)calG[1] * gyroScale;
+
+	// -------------------------
+	// 加速度计归一化
+	// -------------------------
+	float ax = (float)(rawA[0] - offsetAccelX);
+	float ay = (float)(rawA[1] - offsetAccelY);
+	float az = (float)(rawA[2] - offsetAccelZ);
+
+	float norm = sqrtf(ax * ax + ay * ay + az * az);
+	if (norm > 100.0f) {
+		ax /= norm;
+		ay /= norm;
+		az /= norm;
+	}
+
+	float accelPitch = atan2f(-ax, sqrtf(ay * ay + az * az));
+	float accelRoll  = atan2f(ay, az);
+
+	// -------------------------
+	// 初始化角度
+	// -------------------------
+	if (!angleInitialized) {
+		angleX = accelRoll;
+		angleY = accelPitch;
+		angleInitialized = true;
+	}
+
+	// -------------------------
+	// 标准互补滤波
+	// -------------------------
+	float alpha;
+	float gyroMag = fabsf(gx) + fabsf(gy);
+	if (gyroMag > 1.0f)
+		alpha = 0.995f;   // 快速转动时信任 gyro
+	else
+		alpha = 0.98f;    // 静止时更多信任 accel
+
+	angleX = alpha * (angleX + gy * dt) + (1.0f - alpha) * accelRoll;
+	angleY = alpha * (angleY + gx * dt) + (1.0f - alpha) * accelPitch;
+
+	// -------------------------
+	// 转为摇杆范围
+	// -------------------------
+	const float maxAngle = 0.35f; // ≈20°
+	float stickX = angleX / maxAngle;
+	float stickY = angleY / maxAngle;
+
+	if (stickX > 1.0f) stickX = 1.0f;
+	if (stickX < -1.0f) stickX = -1.0f;
+	if (stickY > 1.0f) stickY = 1.0f;
+	if (stickY < -1.0f) stickY = -1.0f;
+
+	// -------------------------
+	// 死区（thresh=1 时避免除零）
+	// -------------------------
+	float thresh = (float)gyroStickThreshold / 100.0f;
+	if (thresh >= 1.0f) thresh = 0.99f;
+	const float invRange = 1.0f / (1.0f - thresh);
+	auto applyDeadzone = [&](float v) -> float {
+		if (fabsf(v) < thresh)
+			return 0.0f;
+		return (v > 0.0f)
+			? (v - thresh) * invRange
+			: (v + thresh) * invRange;
+	};
+
+	stickX = applyDeadzone(stickX);
+	stickY = applyDeadzone(stickY);
+
+	if (gyroStickInvert & 1) stickX = -stickX;
+	if (gyroStickInvert & 2) stickY = -stickY;
+
+	float coeff = (float)gyroStickSensitivity / 100.0f;
+	const float mid = (float)GAMEPAD_JOYSTICK_MID;
+
+	uint16_t curX = (outputMode == LSM6DSR_OUTPUT_LEFT_STICK)
+		? gamepad->state.lx
+		: gamepad->state.rx;
+	uint16_t curY = (outputMode == LSM6DSR_OUTPUT_LEFT_STICK)
+		? gamepad->state.ly
+		: gamepad->state.ry;
+
+	float physX = ((float)curX - mid) / mid;
+	float physY = (mid - (float)curY) / mid;
+
+	float outX = physX + stickX * coeff;
+	float outY = physY + stickY * coeff;
+
+	if (outX > 1.0f) outX = 1.0f;
+	if (outX < -1.0f) outX = -1.0f;
+	if (outY > 1.0f) outY = 1.0f;
+	if (outY < -1.0f) outY = -1.0f;
+
+	int32_t ix = (int32_t)(mid + outX * mid);
+	int32_t iy = (int32_t)(mid - outY * mid);
+	if (ix < 0) ix = 0;
+	if (ix > 65535) ix = 65535;
+	if (iy < 0) iy = 0;
+	if (iy > 65535) iy = 65535;
+	uint16_t finalX = (uint16_t)ix;
+	uint16_t finalY = (uint16_t)iy;
+
+	if (outputMode == LSM6DSR_OUTPUT_LEFT_STICK) {
+		gamepad->state.lx = finalX;
+		gamepad->state.ly = finalY;
+	} else {
+		gamepad->state.rx = finalX;
+		gamepad->state.ry = finalY;
+	}
 }
 
 // 将陀螺仪输出到 HID 鼠标，功能后续补充
@@ -337,12 +499,23 @@ void LSM6DSRIMUAddon::preprocess() {
 	spiReadRegs(spi, csPin, LSM6DSR_OUTX_L_G, readBuf, 12);
 	spi->endTransaction();
 
-	rawG[0] = read16LE(readBuf + 0);
+	// 角速度 X 取反；加速度计 X 取反，Y 与 Z 交换（rawA[1]=传感器Z, rawA[2]=传感器Y）；用 int32 再转 int16 避免取反溢出
+	rawG[0] = (int16_t)(-(int32_t)read16LE(readBuf + 0));
 	rawG[1] = read16LE(readBuf + 2);
 	rawG[2] = read16LE(readBuf + 4);
-	rawA[0] = read16LE(readBuf + 6);
-	rawA[1] = read16LE(readBuf + 8);
-	rawA[2] = read16LE(readBuf + 10);
+	rawA[0] = (int16_t)(-(int32_t)read16LE(readBuf + 6));
+	rawA[1] = read16LE(readBuf + 10);  // 逻辑 Y = 传感器 Z
+	rawA[2] = read16LE(readBuf + 8);   // 逻辑 Z = 传感器 Y
+
+	// 真实 dt：首次未初始化时只记录时间，dt 在 outputGyroToStick 内计算
+	absolute_time_t now = get_absolute_time();
+	if (!angleInitialized) {
+		lastUpdateTime = now;
+	} else {
+		float dt = absolute_time_diff_us(lastUpdateTime, now) / 1000000.0f;
+		if (dt < 0.0001f || dt > 0.02f)
+			lastUpdateTime = now;  // 异常时重置，避免下一帧 dt 过大
+	}
 
 	calG[0] = (int16_t)(rawG[0] - offsetGyroX);
 	calG[1] = (int16_t)(rawG[1] - offsetGyroY);

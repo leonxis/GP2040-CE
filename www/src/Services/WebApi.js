@@ -749,6 +749,17 @@ async function calibrateLSM6DSRGyro() {
 	}
 }
 
+/** 执行加速度计零漂校准（水平面/重力方向，alpakka 方法），返回 { ok, offsetAccelX, offsetAccelY, offsetAccelZ } */
+async function calibrateLSM6DSRAccel() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/calibrateLSM6DSRAccel`);
+		return response?.data;
+	} catch (e) {
+		console.error(e);
+		return { ok: false, offsetAccelX: 0, offsetAccelY: 0, offsetAccelZ: 0 };
+	}
+}
+
 // POST function to set our channels, select, and ADC pin
 async function setHETriggerCalibration(settings) {
 	return Http.post(`${baseUrl}/api/setHETriggerCalibration`, settings);
@@ -840,6 +851,7 @@ export default {
 	setHETriggerCalibration,
 	getLSM6DSRImuData,
 	calibrateLSM6DSRGyro,
+	calibrateLSM6DSRAccel,
 	getHETriggerOptions,
 	setHETriggerOptions,
 	getReactiveLEDs,

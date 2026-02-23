@@ -3,6 +3,7 @@
 
 #include "gpaddon.h"
 #include "peripheral_spi.h"
+#include "pico/time.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -16,6 +17,8 @@
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]);
 // 陀螺仪零偏校准：静止采样取平均，写入 offsetX/Y/Z（int32），返回是否成功
 bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ);
+// 加速度计零漂校准（alpakka 方法）：静止采样取平均，X/Y 为零偏，Z 为零偏减 1G，返回是否成功
+bool lsm6dsr_calibrate_accel(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ);
 
 class LSM6DSRIMUAddon : public GPAddon {
 public:
@@ -30,15 +33,22 @@ private:
 	void buildEngageMasks();   // 根据 engageKeys 填充 engageButtonMask / engageDpadMask（仅支持上下左右、B1-B4、L1/L2/R1/R2、S1/S2）
 	void applyGyroSlewLimit(); // 尖峰滤波：对 calG/filterG 做变化率限制，抑制微动开关震动引起的短时尖峰
 	void applyOneEuroFilter(); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)，在尖峰滤波之后应用
+	void outputGyroToStick(Gamepad* gamepad, const int16_t calG[3], int outputMode);  // 陀螺仪模拟摇杆（阈值+灵敏度）
 	PeripheralSPI* spi;
 	int8_t csPin;
 	int32_t offsetGyroX;
 	int32_t offsetGyroY;
 	int32_t offsetGyroZ;
+	int32_t offsetAccelX;
+	int32_t offsetAccelY;
+	int32_t offsetAccelZ;
 	int outputMode;   // 陀螺仪模拟方式：0=DS4, 1=左摇杆, 2=右摇杆, 3=鼠标
 	int engageMode;   // 生效方式：0=一直生效, 1=按下按键生效, 2=按下按键暂停
 	bool spikeFilterEnabled;  // 尖峰滤波开关：true 时对陀螺仪做变化率限制
 	bool oneEuroFilterEnabled;  // 一欧元滤波开关：true 时在尖峰滤波后对陀螺仪做低通平滑
+	int gyroStickThreshold;   // 模拟摇杆输出阈值 0-100（%），低于该值不输出
+	int gyroStickSensitivity; // 模拟摇杆灵敏度 0-100 → 固件内 0.1～10.0 倍
+	int gyroStickInvert;      // 模拟反转：0=无, 1=水平, 2=垂直, 3=全部
 	int32_t engageKeys[16];  // 生效按键（GpioAction 枚举值），与前端体感设置一致
 	size_t engageKeysCount;
 	// 预解析生效按键为 mask，运行时仅按位判断（同四键触摸板优化）
@@ -53,6 +63,11 @@ private:
 	int16_t filterG[3];
 	// 一欧元滤波内部状态（浮点，每轴一个）
 	float oneEuroState[3];
+	// 陀螺仪模拟摇杆：互补滤波角度与真实 dt
+	absolute_time_t lastUpdateTime;
+	float angleX;   // roll (rad)
+	float angleY;   // pitch (rad)
+	bool angleInitialized;
 };
 
 #endif

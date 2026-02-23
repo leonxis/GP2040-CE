@@ -1016,6 +1016,13 @@ message LSM6DSROptions
     optional int32 outputStick = 11 [default = 1];  // 0=left stick, 1=right stick (when outputMode is DS4/XBOX stick)
     optional bool gyroSpikeFilterEnabled = 12 [default = false];  // 尖峰滤波：变化率限制，抑制微动开关震动引起的短时尖峰
     optional bool gyroOneEuroFilterEnabled = 13 [default = true];  // 一欧元滤波：低通平滑，在尖峰滤波之后应用
+    optional int32 gyroStickThreshold = 14 [default = 0];   // 模拟摇杆输出阈值 0-100（百分比），低于该值不输出
+    optional int32 gyroStickSensitivity = 15 [default = 50];  // 模拟摇杆灵敏度 0-100，对应 0.1～10.0 倍（前端滑块 0～10）
+    optional int32 gyroStickInvert = 16 [default = 0];  // 模拟反转：0=无, 1=水平, 2=垂直, 3=全部（仅对陀螺仪模拟摇杆的值反转）
+    // 加速度计零漂校准（水平面/重力方向，alpakka 方法）：三轴平均减零偏，Z 再减 1G；仅用于陀螺仪模拟摇杆的漂移校正
+    optional int32 offsetAccelX = 17 [default = 0];
+    optional int32 offsetAccelY = 18 [default = 0];
+    optional int32 offsetAccelZ = 19 [default = 0];
 }
 
 message FourKeyTouchpadOptions

@@ -37,6 +37,12 @@ export const lsm6dsrScheme = {
 	lsm6dsrSpikeFilterEnabled: yup.number().label('LSM6DSR Spike Filter'),
 	lsm6dsrOneEuroFilterEnabled: yup.number().label('LSM6DSR One Euro Filter'),
 	lsm6dsrEngageKeys: yup.array().of(yup.number()).label('LSM6DSR Engage Keys'),
+	lsm6dsrStickThreshold: yup.number().label('LSM6DSR Stick Threshold'),
+	lsm6dsrStickSensitivity: yup.number().label('LSM6DSR Stick Sensitivity'),
+	lsm6dsrStickInvert: yup.number().label('LSM6DSR Stick Invert'),
+	lsm6dsrOffsetAccelX: yup.number().label('LSM6DSR Offset Accel X'),
+	lsm6dsrOffsetAccelY: yup.number().label('LSM6DSR Offset Accel Y'),
+	lsm6dsrOffsetAccelZ: yup.number().label('LSM6DSR Offset Accel Z'),
 };
 
 export const lsm6dsrState = {
@@ -53,6 +59,12 @@ export const lsm6dsrState = {
 	lsm6dsrSpikeFilterEnabled: 0,
 	lsm6dsrOneEuroFilterEnabled: 1,
 	lsm6dsrEngageKeys: [],
+	lsm6dsrStickThreshold: 0,
+	lsm6dsrStickSensitivity: 50,
+	lsm6dsrStickInvert: 0,
+	lsm6dsrOffsetAccelX: 0,
+	lsm6dsrOffsetAccelY: 0,
+	lsm6dsrOffsetAccelZ: 0,
 };
 
 const LSM6DSR = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes) => {

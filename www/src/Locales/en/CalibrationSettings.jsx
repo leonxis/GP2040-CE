@@ -10,6 +10,8 @@ export default {
 	'gyro-calibrate-button': 'Calibrate gyro',
 	'gyro-calibrate-success': 'Calibration done. Click Save to write to config.',
 	'gyro-calibrate-fail': 'Calibration failed. Keep device still and check IMU.',
+	'accel-calibrate-success': 'Accel (level) calibration done. Click Save to write to config.',
+	'accel-calibrate-fail': 'Accel calibration failed. Keep device still and check IMU.',
 	'gyro-view-gyro-button': 'View gyro',
 	'gyro-view-data-title': 'Gyro 6-axis data',
 	'gyro-view-data-realtime-hint': 'Data updates in real time.',

@@ -74,8 +74,6 @@ export default function GyroSettings({
 	const [imuData, setImuData] = useState<ImuData | null>(null);
 	const [imuDataError, setImuDataError] = useState(false);
 	const imuPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-	const [stickSensitivity, setStickSensitivity] = useState(0);
-	const [stickThreshold, setStickThreshold] = useState(0);
 	const [mouseSensitivity, setMouseSensitivity] = useState(0);
 	const [mouseThreshold, setMouseThreshold] = useState(0);
 
@@ -131,6 +129,26 @@ export default function GyroSettings({
 			}
 		} catch {
 			setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-fail') || '校准失败');
+			setCalibrateOk(false);
+		}
+	};
+	const handleCalibrateAccel = async () => {
+		setCalibrateMessage('');
+		setCalibrateOk(null);
+		try {
+			const data = await WebApi.calibrateLSM6DSRAccel();
+			if (data?.ok) {
+				setFieldValue('lsm6dsrOffsetAccelX', data.offsetAccelX ?? 0);
+				setFieldValue('lsm6dsrOffsetAccelY', data.offsetAccelY ?? 0);
+				setFieldValue('lsm6dsrOffsetAccelZ', data.offsetAccelZ ?? 0);
+				setCalibrateMessage(t('CalibrationSettings:accel-calibrate-success') || '水平面校准完成，请点击保存写入配置');
+				setCalibrateOk(true);
+			} else {
+				setCalibrateMessage(t('CalibrationSettings:accel-calibrate-fail') || '水平面校准失败，请确认设备静止且 IMU 正常');
+				setCalibrateOk(false);
+			}
+		} catch {
+			setCalibrateMessage(t('CalibrationSettings:accel-calibrate-fail') || '水平面校准失败');
 			setCalibrateOk(false);
 		}
 	};
@@ -273,7 +291,7 @@ export default function GyroSettings({
 						<Button variant="primary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={handleCalibrate}>
 							{t('CalibrationSettings:gyro-calibrate-button')}
 						</Button>
-						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={() => {}}>
+						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={handleCalibrateAccel}>
 							水平面校准
 						</Button>
 						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={() => setShowGyroModal(true)}>
@@ -353,12 +371,26 @@ export default function GyroSettings({
 		<Section title="陀螺仪模拟设置">
 			<div style={{ ...twoColStyle, marginBottom: '16px' }}>
 				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">摇杆灵敏度 {stickSensitivity}</Form.Label>
-					<Form.Range min={0} max={10} step={0.1} value={stickSensitivity} onChange={(e) => setStickSensitivity(Number(e.target.value))} style={{ width: '100%' }} />
+					<Form.Label className="mb-1">摇杆灵敏度 {((Number(values.lsm6dsrStickSensitivity ?? 50) / 10)).toFixed(1)}</Form.Label>
+					<Form.Range
+						min={0}
+						max={10}
+						step={0.1}
+						value={(Number(values.lsm6dsrStickSensitivity ?? 50) / 10)}
+						onChange={(e) => setFieldValue('lsm6dsrStickSensitivity', Math.round(parseFloat(e.target.value) * 10))}
+						style={{ width: '100%' }}
+					/>
 				</div>
 				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">摇杆阈值 {stickThreshold}</Form.Label>
-					<Form.Range min={0} max={10} step={0.1} value={stickThreshold} onChange={(e) => setStickThreshold(Number(e.target.value))} style={{ width: '100%' }} />
+					<Form.Label className="mb-1">摇杆阈值 {Number(values.lsm6dsrStickThreshold ?? 0)}%</Form.Label>
+					<Form.Range
+						min={0}
+						max={100}
+						step={1}
+						value={Number(values.lsm6dsrStickThreshold ?? 0)}
+						onChange={(e) => setFieldValue('lsm6dsrStickThreshold', Number(e.target.value))}
+						style={{ width: '100%' }}
+					/>
 				</div>
 			</div>
 			<div style={{ ...twoColStyle, marginBottom: '16px' }}>
@@ -380,10 +412,18 @@ export default function GyroSettings({
 					</Form.Select>
 				</div>
 				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">摇杆反转</Form.Label>
-					<Form.Select size="sm" style={{ width: '100%' }}>
-						<option>水平反转</option>
-						<option>垂直反转</option>
+					<Form.Label className="mb-1">模拟反转</Form.Label>
+					<Form.Select
+						size="sm"
+						style={{ width: '100%' }}
+						name="lsm6dsrStickInvert"
+						value={Number(values.lsm6dsrStickInvert ?? 0)}
+						onChange={(e) => setFieldValue('lsm6dsrStickInvert', Number(e.target.value))}
+					>
+						<option value={0}>无</option>
+						<option value={1}>水平反转</option>
+						<option value={2}>垂直反转</option>
+						<option value={3}>全部反转</option>
 					</Form.Select>
 				</div>
 			</div>

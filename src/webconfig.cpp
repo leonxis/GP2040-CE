@@ -629,6 +629,12 @@ std::string getLSM6DSROptions() {
     writeDoc(doc, "lsm6dsrEngageMode", opts.engageMode);
     writeDoc(doc, "lsm6dsrSpikeFilterEnabled", opts.gyroSpikeFilterEnabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOneEuroFilterEnabled", opts.gyroOneEuroFilterEnabled ? 1 : 0);
+    writeDoc(doc, "lsm6dsrStickThreshold", opts.gyroStickThreshold);
+    writeDoc(doc, "lsm6dsrStickSensitivity", opts.gyroStickSensitivity);
+    writeDoc(doc, "lsm6dsrStickInvert", opts.gyroStickInvert);
+    writeDoc(doc, "lsm6dsrOffsetAccelX", opts.offsetAccelX);
+    writeDoc(doc, "lsm6dsrOffsetAccelY", opts.offsetAccelY);
+    writeDoc(doc, "lsm6dsrOffsetAccelZ", opts.offsetAccelZ);
     JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
     for (size_t i = 0; i < opts.gyroEngageKeys_count && i < 16; i++) {
         arr.add(opts.gyroEngageKeys[i]);
@@ -650,6 +656,24 @@ std::string calibrateLSM6DSRGyro() {
         opts.offsetGyroX = ox;
         opts.offsetGyroY = oy;
         opts.offsetGyroZ = oz;
+    }
+    return serialize_json(doc);
+}
+
+std::string calibrateLSM6DSRAccel() {
+    const size_t capacity = JSON_OBJECT_SIZE(6);
+    DynamicJsonDocument doc(capacity);
+    int32_t ox = 0, oy = 0, oz = 0;
+    bool ok = lsm6dsr_calibrate_accel(&ox, &oy, &oz);
+    doc["ok"] = ok;
+    doc["offsetAccelX"] = ox;
+    doc["offsetAccelY"] = oy;
+    doc["offsetAccelZ"] = oz;
+    if (ok) {
+        LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
+        opts.offsetAccelX = ox;
+        opts.offsetAccelY = oy;
+        opts.offsetAccelZ = oz;
     }
     return serialize_json(doc);
 }
@@ -707,6 +731,12 @@ std::string setLSM6DSROptions() {
     if (doc.containsKey("lsm6dsrOneEuroFilterEnabled")) {
         opts.gyroOneEuroFilterEnabled = doc["lsm6dsrOneEuroFilterEnabled"].as<int>() != 0;
     }
+    docToValue(opts.gyroStickThreshold, doc, "lsm6dsrStickThreshold");
+    docToValue(opts.gyroStickSensitivity, doc, "lsm6dsrStickSensitivity");
+    docToValue(opts.gyroStickInvert, doc, "lsm6dsrStickInvert");
+    docToValue(opts.offsetAccelX, doc, "lsm6dsrOffsetAccelX");
+    docToValue(opts.offsetAccelY, doc, "lsm6dsrOffsetAccelY");
+    docToValue(opts.offsetAccelZ, doc, "lsm6dsrOffsetAccelZ");
     if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
         JsonArray arr = doc["lsm6dsrEngageKeys"];
         opts.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
@@ -2198,6 +2228,9 @@ std::string setAddonOptions()
     docToValue(lsm6dsrOptions.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
     docToValue(lsm6dsrOptions.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
     docToValue(lsm6dsrOptions.offsetGyroZ, doc, "lsm6dsrOffsetGyroZ");
+    docToValue(lsm6dsrOptions.offsetAccelX, doc, "lsm6dsrOffsetAccelX");
+    docToValue(lsm6dsrOptions.offsetAccelY, doc, "lsm6dsrOffsetAccelY");
+    docToValue(lsm6dsrOptions.offsetAccelZ, doc, "lsm6dsrOffsetAccelZ");
     if (doc.containsKey("lsm6dsrCalibrateGyroRequested")) {
         lsm6dsrOptions.calibrateGyroRequested = doc["lsm6dsrCalibrateGyroRequested"].as<bool>();
     }
@@ -2208,6 +2241,9 @@ std::string setAddonOptions()
     if (doc.containsKey("lsm6dsrOneEuroFilterEnabled")) {
         lsm6dsrOptions.gyroOneEuroFilterEnabled = doc["lsm6dsrOneEuroFilterEnabled"].as<int>() != 0;
     }
+    docToValue(lsm6dsrOptions.gyroStickThreshold, doc, "lsm6dsrStickThreshold");
+    docToValue(lsm6dsrOptions.gyroStickSensitivity, doc, "lsm6dsrStickSensitivity");
+    docToValue(lsm6dsrOptions.gyroStickInvert, doc, "lsm6dsrStickInvert");
     if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
         JsonArray arr = doc["lsm6dsrEngageKeys"];
         lsm6dsrOptions.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
@@ -2689,10 +2725,16 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrOffsetGyroX", lsm6dsrOptions.offsetGyroX);
     writeDoc(doc, "lsm6dsrOffsetGyroY", lsm6dsrOptions.offsetGyroY);
     writeDoc(doc, "lsm6dsrOffsetGyroZ", lsm6dsrOptions.offsetGyroZ);
+    writeDoc(doc, "lsm6dsrOffsetAccelX", lsm6dsrOptions.offsetAccelX);
+    writeDoc(doc, "lsm6dsrOffsetAccelY", lsm6dsrOptions.offsetAccelY);
+    writeDoc(doc, "lsm6dsrOffsetAccelZ", lsm6dsrOptions.offsetAccelZ);
     writeDoc(doc, "lsm6dsrCalibrateGyroRequested", lsm6dsrOptions.calibrateGyroRequested ? 1 : 0);
     writeDoc(doc, "lsm6dsrEngageMode", lsm6dsrOptions.engageMode);
     writeDoc(doc, "lsm6dsrSpikeFilterEnabled", lsm6dsrOptions.gyroSpikeFilterEnabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOneEuroFilterEnabled", lsm6dsrOptions.gyroOneEuroFilterEnabled ? 1 : 0);
+    writeDoc(doc, "lsm6dsrStickThreshold", lsm6dsrOptions.gyroStickThreshold);
+    writeDoc(doc, "lsm6dsrStickSensitivity", lsm6dsrOptions.gyroStickSensitivity);
+    writeDoc(doc, "lsm6dsrStickInvert", lsm6dsrOptions.gyroStickInvert);
     {
         JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
         for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count && i < 16; i++) {
@@ -3236,6 +3278,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getLSM6DSROptions", getLSM6DSROptions },
     { "/api/getLSM6DSRImuData", getLSM6DSRImuData },
     { "/api/calibrateLSM6DSRGyro", calibrateLSM6DSRGyro },
+    { "/api/calibrateLSM6DSRAccel", calibrateLSM6DSRAccel },
     { "/api/getFnKeyMappingOptions", getFnKeyMappingOptions },
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },

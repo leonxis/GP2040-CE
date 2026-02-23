@@ -548,6 +548,9 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		lsm6dsrOffsetGyroX: 0,
 		lsm6dsrOffsetGyroY: 0,
 		lsm6dsrOffsetGyroZ: 0,
+		lsm6dsrOffsetAccelX: 0,
+		lsm6dsrOffsetAccelY: 0,
+		lsm6dsrOffsetAccelZ: 0,
 		lsm6dsrCalibrateGyroRequested: 0,
 		lsm6dsrEngageMode: 0,
 		lsm6dsrEngageKeys: [],
@@ -917,6 +920,11 @@ app.get('/api/getLSM6DSRImuData', (req, res) => {
 app.get('/api/calibrateLSM6DSRGyro', (req, res) => {
 	// Stub for dev: real implementation runs on device.
 	return res.send({ ok: false, offsetGyroX: 0, offsetGyroY: 0, offsetGyroZ: 0 });
+});
+
+app.get('/api/calibrateLSM6DSRAccel', (req, res) => {
+	// Stub for dev: real implementation runs on device.
+	return res.send({ ok: false, offsetAccelX: 0, offsetAccelY: 0, offsetAccelZ: 0 });
 });
 
 app.post('/api/*', (req, res) => {

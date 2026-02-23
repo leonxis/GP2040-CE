@@ -1082,6 +1082,9 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroX, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroY, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroZ, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelX, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelY, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelZ, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, calibrateGyroRequested, false);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, engageMode, 0);
 

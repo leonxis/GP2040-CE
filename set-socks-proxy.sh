@@ -5,7 +5,7 @@
 # ============================================================
 
 # ---------- 在此修改为你的 SOCKS 代理（格式：socks5://IP:端口）----------
-SOCKS_PROXY="socks5://192.168.1.100:10808"
+SOCKS_PROXY="socks5://192.168.2.97:10808"
 # -------------------------------------------------------------------------
 
 set -e
@@ -43,11 +43,12 @@ echo "[Cursor] 已设置 http.proxy = $SOCKS_PROXY"
 echo ""
 
 # --- 2. 设置 Git 代理 ---
-echo "[Git] 正在设置全局 http/https 代理..."
+echo "[Git] 正在设置全局 http/https 及 GitHub 代理..."
 git config --global http.proxy "$SOCKS_PROXY"
 git config --global https.proxy "$SOCKS_PROXY"
 git config --global http.https://github.com.proxy "$SOCKS_PROXY"
-echo "[Git] 已设置 http.proxy / https.proxy / http.https://github.com.proxy"
+git config --global https.https://github.com.proxy "$SOCKS_PROXY"
+echo "[Git] 已设置 http.proxy / https.proxy / http.https://github.com.proxy / https.https://github.com.proxy"
 echo ""
 
 echo "全部完成。Cursor 若已打开，请重新加载窗口或重启 Cursor 使代理生效。"
