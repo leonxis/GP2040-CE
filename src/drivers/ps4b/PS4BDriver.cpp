@@ -280,6 +280,10 @@ void PS4BDriver::initialize() {
     keyboard_reserved = 0;
     memset(keyboard_keycode, 0, 6);
 
+    // Initialize mouse report (for gyro-as-mouse later)
+    memset(mouse_report, 0, sizeof(mouse_report));
+    memset(last_mouse_report, 0, sizeof(last_mouse_report));
+
     // see output_0x03
     controllerConfig = {
         .hidUsage = 0x2721,
@@ -818,7 +822,35 @@ bool PS4BDriver::process(Gamepad * gamepad) {
         }
     }
 
-    return reportSent || keyboardSent;
+    // Update mouse report from gamepad (back key → mouse left/right/middle); x/y from gyro-as-mouse when enabled
+    mouse_report[0] = (gamepad->pressedMouseLeft() ? 1 : 0) | (gamepad->pressedMouseRight() ? 2 : 0) | (gamepad->pressedMouseMiddle() ? 4 : 0);
+    if (gamepad->auxState.sensors.mouse.enabled) {
+        int16_t mx = gamepad->auxState.sensors.mouse.x;
+        int16_t my = gamepad->auxState.sensors.mouse.y;
+        if (mx > 127) mx = 127;
+        else if (mx < -127) mx = -127;
+        if (my > 127) my = 127;
+        else if (my < -127) my = -127;
+        mouse_report[1] = (int8_t)mx;
+        mouse_report[2] = (int8_t)my;
+    } else {
+        mouse_report[1] = 0;
+        mouse_report[2] = 0;
+    }
+    mouse_report[3] = 0;
+
+    // Send mouse report (Interface 2)
+    const uint16_t mouse_report_size = MOUSE_SIZE;
+    bool mouseSent = false;
+    if (memcmp(last_mouse_report, mouse_report, mouse_report_size) != 0)
+    {
+        if (tud_hid_n_ready(MOUSE_INTERFACE) && tud_hid_n_report(MOUSE_INTERFACE, 0, mouse_report, mouse_report_size) == true) {
+            memcpy(last_mouse_report, mouse_report, mouse_report_size);
+            mouseSent = true;
+        }
+    }
+
+    return reportSent || keyboardSent || mouseSent;
 }
 
 // Called by Core1, PS4 key signing will lock the CPU
@@ -849,6 +881,9 @@ uint16_t PS4BDriver::get_report(uint8_t report_id, hid_report_type_t report_type
             buffer[1] = keyboard_reserved;
             memcpy(&buffer[2], keyboard_keycode, 6);
             return 8; // modifier(1) + reserved(1) + keycode[6] = 8 bytes
+        } else if (current_hid_interface == MOUSE_INTERFACE) {
+            memcpy(buffer, mouse_report, MOUSE_SIZE);
+            return MOUSE_SIZE;
         }
         // Fallback to gamepad report
         memcpy(buffer, &ps4Report, sizeof(ps4Report));
@@ -945,6 +980,8 @@ const uint8_t * PS4BDriver::get_hid_descriptor_report_cb(uint8_t itf) {
         return ps4_report_descriptor;
     } else if (itf == KEYBOARD_INTERFACE) {
         return ps4b_keyboard_report_descriptor;
+    } else if (itf == MOUSE_INTERFACE) {
+        return ps4b_mouse_report_descriptor;
     }
     return ps4_report_descriptor;
 }

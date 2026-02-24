@@ -5,7 +5,6 @@
 #include "gamepad.h"
 #include "gamepad/GamepadState.h"
 #include "hardware/gpio.h"
-#include "pico/time.h"
 #include <cmath>
 
 // CS 片选：主动推挽驱动，避免 SPI select/deselect 的上拉/下拉驱动不足
@@ -120,9 +119,10 @@ void LSM6DSRIMUAddon::setup() {
 	engageMode = opts.engageMode;
 	spikeFilterEnabled = opts.gyroSpikeFilterEnabled;
 	oneEuroFilterEnabled = opts.gyroOneEuroFilterEnabled;
-	gyroStickThreshold = opts.gyroStickThreshold >= 0 && opts.gyroStickThreshold <= 100 ? opts.gyroStickThreshold : 0;
-	gyroStickSensitivity = opts.gyroStickSensitivity >= 0 && opts.gyroStickSensitivity <= 100 ? opts.gyroStickSensitivity : 50;
-	gyroStickInvert = opts.gyroStickInvert >= 0 && opts.gyroStickInvert <= 3 ? opts.gyroStickInvert : 0;
+	gyroMouseMapMode = opts.gyroMouseMapMode;
+	gyroMouseInvert = opts.gyroMouseInvert;
+	gyroMouseSensLR = (opts.gyroMouseSensLR > 0.0f) ? opts.gyroMouseSensLR : 1.0f;
+	gyroMouseSensUD = (opts.gyroMouseSensUD > 0.0f) ? opts.gyroMouseSensUD : 1.0f;
 	engageKeysCount = opts.gyroEngageKeys_count <= 16 ? opts.gyroEngageKeys_count : 16;
 	for (size_t i = 0; i < engageKeysCount; i++)
 		engageKeys[i] = opts.gyroEngageKeys[i];
@@ -131,9 +131,6 @@ void LSM6DSRIMUAddon::setup() {
 		filterG[i] = 0;
 		oneEuroState[i] = 0.0f;
 	}
-	angleX = 0.0f;
-	angleY = 0.0f;
-	angleInitialized = false;
 
 	gpio_init((uint)csPin);
 	gpio_set_dir((uint)csPin, GPIO_OUT);
@@ -172,14 +169,14 @@ void LSM6DSRIMUAddon::reinit() {
 	engageMode = opts.engageMode;
 	spikeFilterEnabled = opts.gyroSpikeFilterEnabled;
 	oneEuroFilterEnabled = opts.gyroOneEuroFilterEnabled;
-	gyroStickThreshold = opts.gyroStickThreshold >= 0 && opts.gyroStickThreshold <= 100 ? opts.gyroStickThreshold : 0;
-	gyroStickSensitivity = opts.gyroStickSensitivity >= 0 && opts.gyroStickSensitivity <= 100 ? opts.gyroStickSensitivity : 50;
-	gyroStickInvert = opts.gyroStickInvert >= 0 && opts.gyroStickInvert <= 3 ? opts.gyroStickInvert : 0;
+	gyroMouseMapMode = opts.gyroMouseMapMode;
+	gyroMouseInvert = opts.gyroMouseInvert;
+	gyroMouseSensLR = (opts.gyroMouseSensLR > 0.0f) ? opts.gyroMouseSensLR : 1.0f;
+	gyroMouseSensUD = (opts.gyroMouseSensUD > 0.0f) ? opts.gyroMouseSensUD : 1.0f;
 	engageKeysCount = opts.gyroEngageKeys_count <= 16 ? opts.gyroEngageKeys_count : 16;
 	for (size_t i = 0; i < engageKeysCount; i++)
 		engageKeys[i] = opts.gyroEngageKeys[i];
 	buildEngageMasks();
-	angleInitialized = false;
 }
 
 void LSM6DSRIMUAddon::applyOneEuroFilter() {
@@ -365,133 +362,64 @@ static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16
 	gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[2];
 }
 
-// 与 alpakka 一致：陀螺仪得到的值叠加到物理摇杆上；灵敏度 0～100 作为叠加值的系数（0=不叠加，100=全额叠加）
-void LSM6DSRIMUAddon::outputGyroToStick(Gamepad* gamepad, const int16_t calG[3], int outputMode) {
-	absolute_time_t now = get_absolute_time();
-	float dt = absolute_time_diff_us(lastUpdateTime, now) / 1000000.0f;
-	if (dt <= 0.0f || dt > 0.02f)
-		dt = 0.001f;
-	lastUpdateTime = now;
+// 陀螺仪→鼠标基准灵敏度（LSM6DSR 17.5 mdps/LSB，与 alpakka CFG_GYRO_SENSITIVITY = 2^-9*1.45 一致）
+#define GYRO_MOUSE_BASE_SENS  (1.45f / 512.0f)
 
-	const float gyroScale = 0.0175f * 3.14159265f / 180.0f; // rad/s per LSB @ 500dps
-
-	float gx = (float)calG[0] * gyroScale;
-	float gy = (float)calG[1] * gyroScale;
-
-	// -------------------------
-	// 加速度计归一化
-	// -------------------------
-	float ax = (float)(rawA[0] - offsetAccelX);
-	float ay = (float)(rawA[1] - offsetAccelY);
-	float az = (float)(rawA[2] - offsetAccelZ);
-
-	float norm = sqrtf(ax * ax + ay * ay + az * az);
-	if (norm > 100.0f) {
-		ax /= norm;
-		ay /= norm;
-		az /= norm;
-	}
-
-	float accelPitch = atan2f(-ax, sqrtf(ay * ay + az * az));
-	float accelRoll  = atan2f(ay, az);
-
-	// -------------------------
-	// 初始化角度
-	// -------------------------
-	if (!angleInitialized) {
-		angleX = accelRoll;
-		angleY = accelPitch;
-		angleInitialized = true;
-	}
-
-	// -------------------------
-	// 标准互补滤波
-	// -------------------------
-	float alpha;
-	float gyroMag = fabsf(gx) + fabsf(gy);
-	if (gyroMag > 1.0f)
-		alpha = 0.995f;   // 快速转动时信任 gyro
-	else
-		alpha = 0.98f;    // 静止时更多信任 accel
-
-	angleX = alpha * (angleX + gy * dt) + (1.0f - alpha) * accelRoll;
-	angleY = alpha * (angleY + gx * dt) + (1.0f - alpha) * accelPitch;
-
-	// -------------------------
-	// 转为摇杆范围
-	// -------------------------
-	const float maxAngle = 0.35f; // ≈20°
-	float stickX = angleX / maxAngle;
-	float stickY = angleY / maxAngle;
-
-	if (stickX > 1.0f) stickX = 1.0f;
-	if (stickX < -1.0f) stickX = -1.0f;
-	if (stickY > 1.0f) stickY = 1.0f;
-	if (stickY < -1.0f) stickY = -1.0f;
-
-	// -------------------------
-	// 死区（thresh=1 时避免除零）
-	// -------------------------
-	float thresh = (float)gyroStickThreshold / 100.0f;
-	if (thresh >= 1.0f) thresh = 0.99f;
-	const float invRange = 1.0f / (1.0f - thresh);
-	auto applyDeadzone = [&](float v) -> float {
-		if (fabsf(v) < thresh)
-			return 0.0f;
-		return (v > 0.0f)
-			? (v - thresh) * invRange
-			: (v + thresh) * invRange;
-	};
-
-	stickX = applyDeadzone(stickX);
-	stickY = applyDeadzone(stickY);
-
-	if (gyroStickInvert & 1) stickX = -stickX;
-	if (gyroStickInvert & 2) stickY = -stickY;
-
-	float coeff = (float)gyroStickSensitivity / 100.0f;
-	const float mid = (float)GAMEPAD_JOYSTICK_MID;
-
-	uint16_t curX = (outputMode == LSM6DSR_OUTPUT_LEFT_STICK)
-		? gamepad->state.lx
-		: gamepad->state.rx;
-	uint16_t curY = (outputMode == LSM6DSR_OUTPUT_LEFT_STICK)
-		? gamepad->state.ly
-		: gamepad->state.ry;
-
-	float physX = ((float)curX - mid) / mid;
-	float physY = (mid - (float)curY) / mid;
-
-	float outX = physX + stickX * coeff;
-	float outY = physY + stickY * coeff;
-
-	if (outX > 1.0f) outX = 1.0f;
-	if (outX < -1.0f) outX = -1.0f;
-	if (outY > 1.0f) outY = 1.0f;
-	if (outY < -1.0f) outY = -1.0f;
-
-	int32_t ix = (int32_t)(mid + outX * mid);
-	int32_t iy = (int32_t)(mid - outY * mid);
-	if (ix < 0) ix = 0;
-	if (ix > 65535) ix = 65535;
-	if (iy < 0) iy = 0;
-	if (iy > 65535) iy = 65535;
-	uint16_t finalX = (uint16_t)ix;
-	uint16_t finalY = (uint16_t)iy;
-
-	if (outputMode == LSM6DSR_OUTPUT_LEFT_STICK) {
-		gamepad->state.lx = finalX;
-		gamepad->state.ly = finalY;
-	} else {
-		gamepad->state.rx = finalX;
-		gamepad->state.ry = finalY;
-	}
+// 低区平滑（alpakka hssnf）：小幅度角速度压缩，减少微小抖动，|x|<t 时应用
+// hssnf(t,k,x) = x(1-k) / (1 - x*k/t)，t=1.0, k=0.5
+static float hssnf(float t, float k, float x) {
+	float a = x * (1.0f - k);
+	float b = 1.0f - (x * k / t);
+	return (b != 0.0f) ? (a / b) : x;
 }
 
-// 将陀螺仪输出到 HID 鼠标，功能后续补充
-static void outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3]) {
-	(void)gamepad;
-	(void)calG;
+// 将陀螺仪输出到 HID 鼠标：mapMode、灵敏度、低区平滑(hssnf)、亚像素累积、轴向反转
+void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3]) {
+	static float sub_x = 0.0f, sub_y = 0.0f;
+
+	const int mapMode = gyroMouseMapMode;
+	const int inv = gyroMouseInvert;
+	const float sensLR = gyroMouseSensLR;
+	const float sensUD = gyroMouseSensUD;
+
+	int32_t lr_raw = (mapMode == 0) ? (int32_t)calG[1] : (int32_t)calG[2];
+	int32_t ud_raw = (int32_t)calG[0];
+
+	float lr_float = (float)lr_raw * GYRO_MOUSE_BASE_SENS * sensLR;
+	float ud_float = (float)ud_raw * GYRO_MOUSE_BASE_SENS * sensUD;
+
+	// 低区平滑（与 alpakka Gyro__report_incremental 一致：t=1.0, k=0.5，仅对 |v|<t 应用）
+	const float hssnf_t = 1.0f;
+	const float hssnf_k = 0.5f;
+	if      (lr_float > 0.0f && lr_float < hssnf_t) lr_float =  hssnf(hssnf_t, hssnf_k, lr_float);
+	else if (lr_float < 0.0f && lr_float > -hssnf_t) lr_float = -hssnf(hssnf_t, hssnf_k, -lr_float);
+	if      (ud_float > 0.0f && ud_float < hssnf_t) ud_float =  hssnf(hssnf_t, hssnf_k, ud_float);
+	else if (ud_float < 0.0f && ud_float > -hssnf_t) ud_float = -hssnf(hssnf_t, hssnf_k, -ud_float);
+
+	lr_float += sub_x;
+	ud_float += sub_y;
+
+	float intPart;
+	sub_x = std::modf(lr_float, &intPart);
+	int dx = (int)intPart;
+	sub_y = std::modf(ud_float, &intPart);
+	int dy = (int)intPart;
+
+	// 先全部反转，使前端默认「无反转」对应实际使用中需要的方向
+	dx = -dx;
+	dy = -dy;
+	if (inv & 1) dx = -dx;
+	if (inv & 2) dy = -dy;
+
+	if (dx > 32767) dx = 32767;
+	else if (dx < -32768) dx = -32768;
+	if (dy > 32767) dy = 32767;
+	else if (dy < -32768) dy = -32768;
+
+	gamepad->auxState.sensors.mouse.x = (int16_t)dx;
+	gamepad->auxState.sensors.mouse.y = (int16_t)dy;
+	gamepad->auxState.sensors.mouse.enabled = true;
+	gamepad->auxState.sensors.mouse.active = true;
 }
 
 void LSM6DSRIMUAddon::preprocess() {
@@ -506,16 +434,6 @@ void LSM6DSRIMUAddon::preprocess() {
 	rawA[0] = (int16_t)(-(int32_t)read16LE(readBuf + 6));
 	rawA[1] = read16LE(readBuf + 10);  // 逻辑 Y = 传感器 Z
 	rawA[2] = read16LE(readBuf + 8);   // 逻辑 Z = 传感器 Y
-
-	// 真实 dt：首次未初始化时只记录时间，dt 在 outputGyroToStick 内计算
-	absolute_time_t now = get_absolute_time();
-	if (!angleInitialized) {
-		lastUpdateTime = now;
-	} else {
-		float dt = absolute_time_diff_us(lastUpdateTime, now) / 1000000.0f;
-		if (dt < 0.0001f || dt > 0.02f)
-			lastUpdateTime = now;  // 异常时重置，避免下一帧 dt 过大
-	}
 
 	calG[0] = (int16_t)(rawG[0] - offsetGyroX);
 	calG[1] = (int16_t)(rawG[1] - offsetGyroY);
@@ -545,17 +463,12 @@ void LSM6DSRIMUAddon::preprocess() {
 
 	switch (outputMode) {
 	case LSM6DSR_OUTPUT_DS4:
+		gamepad->auxState.sensors.mouse.enabled = false;
+		gamepad->auxState.sensors.mouse.active = false;
 		outputGyroToDS4(gamepad, calG, rawA);
-		break;
-	case LSM6DSR_OUTPUT_LEFT_STICK:
-	case LSM6DSR_OUTPUT_RIGHT_STICK:
-		outputGyroToStick(gamepad, calG, outputMode);
 		break;
 	case LSM6DSR_OUTPUT_MOUSE:
 		outputGyroToMouse(gamepad, calG);
-		break;
-	default:
-		outputGyroToDS4(gamepad, calG, rawA);
 		break;
 	}
 }

@@ -1006,23 +1006,24 @@ message LSM6DSROptions
     optional bool enabled = 1 [default = false];
     optional int32 spiBlock = 2 [default = 0];
     optional int32 csPin = 3 [default = -1];  // -1 = not configured
-    optional int32 outputMode = 4 [default = 0];  // 0=DS4, 1=right stick, 2=mouse
+    optional int32 outputMode = 4 [default = 0];  // 0=DS4, 3=鼠标（左/右摇杆已移除）
     optional int32 offsetGyroX = 5 [default = 0];
     optional int32 offsetGyroY = 6 [default = 0];
     optional int32 offsetGyroZ = 7 [default = 0];
     optional bool calibrateGyroRequested = 8 [default = false];
     optional int32 engageMode = 9 [default = 0];   // 0=always, 1=on_key, 2=pause_on_key
     repeated int32 gyroEngageKeys = 10 [(nanopb).max_count = 16];
-    optional int32 outputStick = 11 [default = 1];  // 0=left stick, 1=right stick (when outputMode is DS4/XBOX stick)
     optional bool gyroSpikeFilterEnabled = 12 [default = false];  // 尖峰滤波：变化率限制，抑制微动开关震动引起的短时尖峰
     optional bool gyroOneEuroFilterEnabled = 13 [default = true];  // 一欧元滤波：低通平滑，在尖峰滤波之后应用
-    optional int32 gyroStickThreshold = 14 [default = 0];   // 模拟摇杆输出阈值 0-100（百分比），低于该值不输出
-    optional int32 gyroStickSensitivity = 15 [default = 50];  // 模拟摇杆灵敏度 0-100，对应 0.1～10.0 倍（前端滑块 0～10）
-    optional int32 gyroStickInvert = 16 [default = 0];  // 模拟反转：0=无, 1=水平, 2=垂直, 3=全部（仅对陀螺仪模拟摇杆的值反转）
-    // 加速度计零漂校准（水平面/重力方向，alpakka 方法）：三轴平均减零偏，Z 再减 1G；仅用于陀螺仪模拟摇杆的漂移校正
+    // 加速度计零漂校准（水平面/重力方向，alpakka 方法）：三轴平均减零偏，Z 再减 1G
     optional int32 offsetAccelX = 17 [default = 0];
     optional int32 offsetAccelY = 18 [default = 0];
     optional int32 offsetAccelZ = 19 [default = 0];
+    // 陀螺仪模拟鼠标（outputMode=3 时生效）
+    optional int32 gyroMouseMapMode = 20 [default = 0];   // 0=XY轴模拟, 1=XZ轴模拟
+    optional int32 gyroMouseInvert = 21 [default = 0];    // 0=无, 1=反转左右, 2=反转上下, 3=全部反转
+    optional float gyroMouseSensLR = 22 [default = 1.0]; // 左右灵敏度，范围 0.5~3.0
+    optional float gyroMouseSensUD = 23 [default = 1.0]; // 上下灵敏度
 }
 
 message FourKeyTouchpadOptions

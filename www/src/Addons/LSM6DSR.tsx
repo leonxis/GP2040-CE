@@ -16,8 +16,6 @@ import { AddonPropTypes } from '../Pages/AddonsConfigPage';
 import { Trans } from 'react-i18next';
 
 export const LSM6DSR_OUTPUT_DS4 = 0;
-export const LSM6DSR_OUTPUT_LEFT_STICK = 1;
-export const LSM6DSR_OUTPUT_RIGHT_STICK = 2;
 export const LSM6DSR_OUTPUT_MOUSE = 3;
 
 export const lsm6dsrScheme = {
@@ -28,7 +26,6 @@ export const lsm6dsrScheme = {
 		.validateSelectionWhenValue('LSM6DSRAddonEnabled', SPI_BLOCKS),
 	lsm6dsrCsPin: yup.number().label('LSM6DSR CS Pin'),
 	lsm6dsrOutputMode: yup.number().label('LSM6DSR Output Mode'),
-	lsm6dsrOutputStick: yup.number().label('LSM6DSR Output Stick'),
 	lsm6dsrOffsetGyroX: yup.number().label('LSM6DSR Offset Gyro X'),
 	lsm6dsrOffsetGyroY: yup.number().label('LSM6DSR Offset Gyro Y'),
 	lsm6dsrOffsetGyroZ: yup.number().label('LSM6DSR Offset Gyro Z'),
@@ -37,12 +34,13 @@ export const lsm6dsrScheme = {
 	lsm6dsrSpikeFilterEnabled: yup.number().label('LSM6DSR Spike Filter'),
 	lsm6dsrOneEuroFilterEnabled: yup.number().label('LSM6DSR One Euro Filter'),
 	lsm6dsrEngageKeys: yup.array().of(yup.number()).label('LSM6DSR Engage Keys'),
-	lsm6dsrStickThreshold: yup.number().label('LSM6DSR Stick Threshold'),
-	lsm6dsrStickSensitivity: yup.number().label('LSM6DSR Stick Sensitivity'),
-	lsm6dsrStickInvert: yup.number().label('LSM6DSR Stick Invert'),
 	lsm6dsrOffsetAccelX: yup.number().label('LSM6DSR Offset Accel X'),
 	lsm6dsrOffsetAccelY: yup.number().label('LSM6DSR Offset Accel Y'),
 	lsm6dsrOffsetAccelZ: yup.number().label('LSM6DSR Offset Accel Z'),
+	lsm6dsrGyroMouseMapMode: yup.number().label('LSM6DSR Gyro Mouse Map Mode'),
+	lsm6dsrGyroMouseInvert: yup.number().label('LSM6DSR Gyro Mouse Invert'),
+	lsm6dsrGyroMouseSensLR: yup.number().label('LSM6DSR Gyro Mouse Sens LR'),
+	lsm6dsrGyroMouseSensUD: yup.number().label('LSM6DSR Gyro Mouse Sens UD'),
 };
 
 export const lsm6dsrState = {
@@ -50,7 +48,6 @@ export const lsm6dsrState = {
 	lsm6dsrBlock: 0,
 	lsm6dsrCsPin: -1,
 	lsm6dsrOutputMode: 0,
-	lsm6dsrOutputStick: 1,
 	lsm6dsrOffsetGyroX: 0,
 	lsm6dsrOffsetGyroY: 0,
 	lsm6dsrOffsetGyroZ: 0,
@@ -59,12 +56,13 @@ export const lsm6dsrState = {
 	lsm6dsrSpikeFilterEnabled: 0,
 	lsm6dsrOneEuroFilterEnabled: 1,
 	lsm6dsrEngageKeys: [],
-	lsm6dsrStickThreshold: 0,
-	lsm6dsrStickSensitivity: 50,
-	lsm6dsrStickInvert: 0,
 	lsm6dsrOffsetAccelX: 0,
 	lsm6dsrOffsetAccelY: 0,
 	lsm6dsrOffsetAccelZ: 0,
+	lsm6dsrGyroMouseMapMode: 0,
+	lsm6dsrGyroMouseInvert: 0,
+	lsm6dsrGyroMouseSensLR: 1,
+	lsm6dsrGyroMouseSensUD: 1,
 };
 
 const LSM6DSR = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes) => {

@@ -7,8 +7,6 @@ import CustomSelect from '../../../Components/CustomSelect';
 import { AppContext } from '../../../Contexts/AppContext';
 import {
 	LSM6DSR_OUTPUT_DS4,
-	LSM6DSR_OUTPUT_LEFT_STICK,
-	LSM6DSR_OUTPUT_RIGHT_STICK,
 	LSM6DSR_OUTPUT_MOUSE,
 } from '../../../Addons/LSM6DSR';
 import { BUTTON_ACTIONS } from '../../../Data/Pins';
@@ -74,8 +72,6 @@ export default function GyroSettings({
 	const [imuData, setImuData] = useState<ImuData | null>(null);
 	const [imuDataError, setImuDataError] = useState(false);
 	const imuPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-	const [mouseSensitivity, setMouseSensitivity] = useState(0);
-	const [mouseThreshold, setMouseThreshold] = useState(0);
 
 	const enabled = Boolean(values.LSM6DSRAddonEnabled);
 		const outputMode = Number(values.lsm6dsrOutputMode) ?? 0;
@@ -204,7 +200,6 @@ export default function GyroSettings({
 		setFieldValue('lsm6dsrEngageKeys', selected ? selected.map((o) => o.value) : []);
 	};
 
-	// 左摇杆(1)、右摇杆(2) 均进入模拟摇杆逻辑，由 outputMode 区分
 	const onOutputModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		handleChange(e);
 	};
@@ -237,8 +232,6 @@ export default function GyroSettings({
 						onChange={onOutputModeChange}
 					>
 						<option value={LSM6DSR_OUTPUT_DS4}>{t('CalibrationSettings:gyro-mode-ds4')}</option>
-						<option value={LSM6DSR_OUTPUT_LEFT_STICK}>{t('CalibrationSettings:gyro-mode-left-stick')}</option>
-						<option value={LSM6DSR_OUTPUT_RIGHT_STICK}>{t('CalibrationSettings:gyro-mode-right-stick')}</option>
 						<option value={LSM6DSR_OUTPUT_MOUSE}>{t('CalibrationSettings:gyro-mode-mouse')}</option>
 					</Form.Select>
 				</div>
@@ -368,66 +361,60 @@ export default function GyroSettings({
 			</div>
 		</Section>
 
-		<Section title="陀螺仪模拟设置">
-			<div style={{ ...twoColStyle, marginBottom: '16px' }}>
-				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">摇杆灵敏度 {((Number(values.lsm6dsrStickSensitivity ?? 50) / 10)).toFixed(1)}</Form.Label>
-					<Form.Range
-						min={0}
-						max={10}
-						step={0.1}
-						value={(Number(values.lsm6dsrStickSensitivity ?? 50) / 10)}
-						onChange={(e) => setFieldValue('lsm6dsrStickSensitivity', Math.round(parseFloat(e.target.value) * 10))}
-						style={{ width: '100%' }}
-					/>
-				</div>
-				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">摇杆阈值 {Number(values.lsm6dsrStickThreshold ?? 0)}%</Form.Label>
-					<Form.Range
-						min={0}
-						max={100}
-						step={1}
-						value={Number(values.lsm6dsrStickThreshold ?? 0)}
-						onChange={(e) => setFieldValue('lsm6dsrStickThreshold', Number(e.target.value))}
-						style={{ width: '100%' }}
-					/>
-				</div>
-			</div>
-			<div style={{ ...twoColStyle, marginBottom: '16px' }}>
-				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">鼠标灵敏度 {mouseSensitivity}</Form.Label>
-					<Form.Range min={0} max={10} step={0.1} value={mouseSensitivity} onChange={(e) => setMouseSensitivity(Number(e.target.value))} style={{ width: '100%' }} />
-				</div>
-				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">鼠标阈值 {mouseThreshold}</Form.Label>
-					<Form.Range min={0} max={10} step={0.1} value={mouseThreshold} onChange={(e) => setMouseThreshold(Number(e.target.value))} style={{ width: '100%' }} />
-				</div>
-			</div>
-			<div style={{ ...twoColStyle, marginBottom: '0' }}>
-				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">控制模式</Form.Label>
-					<Form.Select size="sm" style={{ width: '100%' }}>
-						<option>自由俯仰角</option>
-						<option>自由横滚角</option>
-					</Form.Select>
-				</div>
-				<div style={{ width: DROPDOWN_WIDTH }}>
-					<Form.Label className="mb-1">模拟反转</Form.Label>
+		{outputMode === LSM6DSR_OUTPUT_MOUSE && (
+		<Section title={t('CalibrationSettings:gyro-mouse-options-title', '陀螺仪模拟鼠标')}>
+			<div style={{ display: 'grid', gridTemplateColumns: '400px 400px', gap: '12px 24px', marginBottom: '12px' }}>
+				<div>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-map-mode-label', '鼠标操作方式')}</Form.Label>
 					<Form.Select
-						size="sm"
-						style={{ width: '100%' }}
-						name="lsm6dsrStickInvert"
-						value={Number(values.lsm6dsrStickInvert ?? 0)}
-						onChange={(e) => setFieldValue('lsm6dsrStickInvert', Number(e.target.value))}
+						className="form-select-sm mt-1"
+						style={{ width: '350px' }}
+						value={Number(values.lsm6dsrGyroMouseMapMode) ?? 0}
+						onChange={(e) => setFieldValue('lsm6dsrGyroMouseMapMode', Number(e.target.value))}
 					>
-						<option value={0}>无</option>
-						<option value={1}>水平反转</option>
-						<option value={2}>垂直反转</option>
-						<option value={3}>全部反转</option>
+						<option value={0}>{t('CalibrationSettings:gyro-mouse-map-xy', 'XY轴模拟')}</option>
+						<option value={1}>{t('CalibrationSettings:gyro-mouse-map-xz', 'XZ轴模拟')}</option>
 					</Form.Select>
+				</div>
+				<div>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-invert-label', '轴向反转')}</Form.Label>
+					<Form.Select
+						className="form-select-sm mt-1"
+						style={{ width: '350px' }}
+						value={Number(values.lsm6dsrGyroMouseInvert) ?? 0}
+						onChange={(e) => setFieldValue('lsm6dsrGyroMouseInvert', Number(e.target.value))}
+					>
+						<option value={0}>{t('CalibrationSettings:gyro-mouse-invert-none', '无')}</option>
+						<option value={1}>{t('CalibrationSettings:gyro-mouse-invert-lr', '反转左右')}</option>
+						<option value={2}>{t('CalibrationSettings:gyro-mouse-invert-ud', '反转上下')}</option>
+						<option value={3}>{t('CalibrationSettings:gyro-mouse-invert-both', '全部反转')}</option>
+					</Form.Select>
+				</div>
+				<div>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-lr-label', '左右灵敏度')} {(Math.max(0.5, Math.min(3, Number(values.lsm6dsrGyroMouseSensLR) || 1))).toFixed(1)}</Form.Label>
+					<Form.Range
+						min={5}
+						max={30}
+						step={1}
+						value={Math.round(Math.max(0.5, Math.min(3, Number(values.lsm6dsrGyroMouseSensLR) || 1)) * 10)}
+						onChange={(e) => setFieldValue('lsm6dsrGyroMouseSensLR', Number(e.target.value) / 10)}
+						style={{ width: '100%' }}
+					/>
+				</div>
+				<div>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-ud-label', '上下灵敏度')} {(Math.max(0.5, Math.min(3, Number(values.lsm6dsrGyroMouseSensUD) || 1))).toFixed(1)}</Form.Label>
+					<Form.Range
+						min={5}
+						max={30}
+						step={1}
+						value={Math.round(Math.max(0.5, Math.min(3, Number(values.lsm6dsrGyroMouseSensUD) || 1)) * 10)}
+						onChange={(e) => setFieldValue('lsm6dsrGyroMouseSensUD', Number(e.target.value) / 10)}
+						style={{ width: '100%' }}
+					/>
 				</div>
 			</div>
 		</Section>
+		)}
 		</>
 	);
 }

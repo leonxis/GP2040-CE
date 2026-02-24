@@ -621,7 +621,6 @@ std::string getLSM6DSROptions() {
     writeDoc(doc, "lsm6dsrBlock", opts.spiBlock);
     writeDoc(doc, "lsm6dsrCsPin", opts.csPin);
     writeDoc(doc, "lsm6dsrOutputMode", opts.outputMode);
-    writeDoc(doc, "lsm6dsrOutputStick", opts.outputStick);
     writeDoc(doc, "lsm6dsrOffsetGyroX", opts.offsetGyroX);
     writeDoc(doc, "lsm6dsrOffsetGyroY", opts.offsetGyroY);
     writeDoc(doc, "lsm6dsrOffsetGyroZ", opts.offsetGyroZ);
@@ -629,12 +628,13 @@ std::string getLSM6DSROptions() {
     writeDoc(doc, "lsm6dsrEngageMode", opts.engageMode);
     writeDoc(doc, "lsm6dsrSpikeFilterEnabled", opts.gyroSpikeFilterEnabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOneEuroFilterEnabled", opts.gyroOneEuroFilterEnabled ? 1 : 0);
-    writeDoc(doc, "lsm6dsrStickThreshold", opts.gyroStickThreshold);
-    writeDoc(doc, "lsm6dsrStickSensitivity", opts.gyroStickSensitivity);
-    writeDoc(doc, "lsm6dsrStickInvert", opts.gyroStickInvert);
     writeDoc(doc, "lsm6dsrOffsetAccelX", opts.offsetAccelX);
     writeDoc(doc, "lsm6dsrOffsetAccelY", opts.offsetAccelY);
     writeDoc(doc, "lsm6dsrOffsetAccelZ", opts.offsetAccelZ);
+    writeDoc(doc, "lsm6dsrGyroMouseMapMode", opts.gyroMouseMapMode);
+    writeDoc(doc, "lsm6dsrGyroMouseInvert", opts.gyroMouseInvert);
+    writeDoc(doc, "lsm6dsrGyroMouseSensLR", opts.gyroMouseSensLR);
+    writeDoc(doc, "lsm6dsrGyroMouseSensUD", opts.gyroMouseSensUD);
     JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
     for (size_t i = 0; i < opts.gyroEngageKeys_count && i < 16; i++) {
         arr.add(opts.gyroEngageKeys[i]);
@@ -717,7 +717,6 @@ std::string setLSM6DSROptions() {
     cleanAddonGpioMappings(csPinRef, oldCsPin);
     opts.csPin = (int8_t)csPinRef;
     docToValue(opts.outputMode, doc, "lsm6dsrOutputMode");
-    docToValue(opts.outputStick, doc, "lsm6dsrOutputStick");
     docToValue(opts.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
     docToValue(opts.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
     docToValue(opts.offsetGyroZ, doc, "lsm6dsrOffsetGyroZ");
@@ -731,12 +730,13 @@ std::string setLSM6DSROptions() {
     if (doc.containsKey("lsm6dsrOneEuroFilterEnabled")) {
         opts.gyroOneEuroFilterEnabled = doc["lsm6dsrOneEuroFilterEnabled"].as<int>() != 0;
     }
-    docToValue(opts.gyroStickThreshold, doc, "lsm6dsrStickThreshold");
-    docToValue(opts.gyroStickSensitivity, doc, "lsm6dsrStickSensitivity");
-    docToValue(opts.gyroStickInvert, doc, "lsm6dsrStickInvert");
     docToValue(opts.offsetAccelX, doc, "lsm6dsrOffsetAccelX");
     docToValue(opts.offsetAccelY, doc, "lsm6dsrOffsetAccelY");
     docToValue(opts.offsetAccelZ, doc, "lsm6dsrOffsetAccelZ");
+    docToValue(opts.gyroMouseMapMode, doc, "lsm6dsrGyroMouseMapMode");
+    docToValue(opts.gyroMouseInvert, doc, "lsm6dsrGyroMouseInvert");
+    if (doc.containsKey("lsm6dsrGyroMouseSensLR")) opts.gyroMouseSensLR = doc["lsm6dsrGyroMouseSensLR"].as<float>();
+    if (doc.containsKey("lsm6dsrGyroMouseSensUD")) opts.gyroMouseSensUD = doc["lsm6dsrGyroMouseSensUD"].as<float>();
     if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
         JsonArray arr = doc["lsm6dsrEngageKeys"];
         opts.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
@@ -2224,7 +2224,6 @@ std::string setAddonOptions()
         lsm6dsrOptions.csPin = (int8_t)csPin;
     }
     docToValue(lsm6dsrOptions.outputMode, doc, "lsm6dsrOutputMode");
-    docToValue(lsm6dsrOptions.outputStick, doc, "lsm6dsrOutputStick");
     docToValue(lsm6dsrOptions.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
     docToValue(lsm6dsrOptions.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
     docToValue(lsm6dsrOptions.offsetGyroZ, doc, "lsm6dsrOffsetGyroZ");
@@ -2241,9 +2240,6 @@ std::string setAddonOptions()
     if (doc.containsKey("lsm6dsrOneEuroFilterEnabled")) {
         lsm6dsrOptions.gyroOneEuroFilterEnabled = doc["lsm6dsrOneEuroFilterEnabled"].as<int>() != 0;
     }
-    docToValue(lsm6dsrOptions.gyroStickThreshold, doc, "lsm6dsrStickThreshold");
-    docToValue(lsm6dsrOptions.gyroStickSensitivity, doc, "lsm6dsrStickSensitivity");
-    docToValue(lsm6dsrOptions.gyroStickInvert, doc, "lsm6dsrStickInvert");
     if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
         JsonArray arr = doc["lsm6dsrEngageKeys"];
         lsm6dsrOptions.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
@@ -2251,6 +2247,10 @@ std::string setAddonOptions()
             lsm6dsrOptions.gyroEngageKeys[i] = (int32_t)arr[i].as<int>();
         }
     }
+    docToValue(lsm6dsrOptions.gyroMouseMapMode, doc, "lsm6dsrGyroMouseMapMode");
+    docToValue(lsm6dsrOptions.gyroMouseInvert, doc, "lsm6dsrGyroMouseInvert");
+    if (doc.containsKey("lsm6dsrGyroMouseSensLR")) lsm6dsrOptions.gyroMouseSensLR = doc["lsm6dsrGyroMouseSensLR"].as<float>();
+    if (doc.containsKey("lsm6dsrGyroMouseSensUD")) lsm6dsrOptions.gyroMouseSensUD = doc["lsm6dsrGyroMouseSensUD"].as<float>();
 
     RotaryOptions& rotaryOptions = Storage::getInstance().getAddonOptions().rotaryOptions;
     docToValue(rotaryOptions.enabled, doc, "RotaryAddonEnabled");
@@ -2721,7 +2721,6 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrBlock", lsm6dsrOptions.spiBlock);
     writeDoc(doc, "lsm6dsrCsPin", lsm6dsrOptions.csPin);
     writeDoc(doc, "lsm6dsrOutputMode", lsm6dsrOptions.outputMode);
-    writeDoc(doc, "lsm6dsrOutputStick", lsm6dsrOptions.outputStick);
     writeDoc(doc, "lsm6dsrOffsetGyroX", lsm6dsrOptions.offsetGyroX);
     writeDoc(doc, "lsm6dsrOffsetGyroY", lsm6dsrOptions.offsetGyroY);
     writeDoc(doc, "lsm6dsrOffsetGyroZ", lsm6dsrOptions.offsetGyroZ);
@@ -2732,9 +2731,10 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrEngageMode", lsm6dsrOptions.engageMode);
     writeDoc(doc, "lsm6dsrSpikeFilterEnabled", lsm6dsrOptions.gyroSpikeFilterEnabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOneEuroFilterEnabled", lsm6dsrOptions.gyroOneEuroFilterEnabled ? 1 : 0);
-    writeDoc(doc, "lsm6dsrStickThreshold", lsm6dsrOptions.gyroStickThreshold);
-    writeDoc(doc, "lsm6dsrStickSensitivity", lsm6dsrOptions.gyroStickSensitivity);
-    writeDoc(doc, "lsm6dsrStickInvert", lsm6dsrOptions.gyroStickInvert);
+    writeDoc(doc, "lsm6dsrGyroMouseMapMode", lsm6dsrOptions.gyroMouseMapMode);
+    writeDoc(doc, "lsm6dsrGyroMouseInvert", lsm6dsrOptions.gyroMouseInvert);
+    writeDoc(doc, "lsm6dsrGyroMouseSensLR", lsm6dsrOptions.gyroMouseSensLR);
+    writeDoc(doc, "lsm6dsrGyroMouseSensUD", lsm6dsrOptions.gyroMouseSensUD);
     {
         JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
         for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count && i < 16; i++) {
