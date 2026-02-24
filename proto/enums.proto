@@ -403,6 +403,12 @@ enum GpioAction
     KEYBOARD_KEY_7               = 167;
     KEYBOARD_KEY_8               = 168;
     KEYBOARD_KEY_9               = 169;
+
+    // Mouse button actions for HID composite device (e.g. back key / touchpad mapping)
+    // Names avoid MOUSE_BUTTON_* to prevent conflict with TinyUSB hid.h enum
+    MOUSE_LEFT_BUTTON            = 170;
+    MOUSE_RIGHT_BUTTON           = 171;
+    MOUSE_MIDDLE_BUTTON          = 172;
 }
 
 enum GpioDirection

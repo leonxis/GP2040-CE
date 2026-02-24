@@ -129,6 +129,9 @@ void Gamepad::setup()
 	mapKeyboardKey7 = new GamepadButtonMapping(0);
 	mapKeyboardKey8 = new GamepadButtonMapping(0);
 	mapKeyboardKey9 = new GamepadButtonMapping(0);
+	mapMouseButtonLeft = new GamepadButtonMapping(0);
+	mapMouseButtonRight = new GamepadButtonMapping(0);
+	mapMouseButtonMiddle = new GamepadButtonMapping(0);
 
 	const auto assignCustomMappingToMaps = [&](GpioMappingInfo mapInfo, Pin_t pin) -> void {
 		if (mapDpadUp->buttonMask & mapInfo.customDpadMask)	mapDpadUp->pinMask |= 1 << pin;
@@ -248,6 +251,9 @@ void Gamepad::setup()
 			case GpioAction::KEYBOARD_KEY_7:	mapKeyboardKey7->pinMask |= 1 << pin; break;
 			case GpioAction::KEYBOARD_KEY_8:	mapKeyboardKey8->pinMask |= 1 << pin; break;
 			case GpioAction::KEYBOARD_KEY_9:	mapKeyboardKey9->pinMask |= 1 << pin; break;
+			case GpioAction::MOUSE_LEFT_BUTTON:	mapMouseButtonLeft->pinMask |= 1 << pin; break;
+			case GpioAction::MOUSE_RIGHT_BUTTON:	mapMouseButtonRight->pinMask |= 1 << pin; break;
+			case GpioAction::MOUSE_MIDDLE_BUTTON:	mapMouseButtonMiddle->pinMask |= 1 << pin; break;
 			default:				break;
 		}
 	}
@@ -326,6 +332,48 @@ void Gamepad::reinit()
 	delete mapAnalogRSYPos;
 	delete map48WayMode;
 	delete mapFocusMode;
+	delete mapKeyboardKeyA;
+	delete mapKeyboardKeyB;
+	delete mapKeyboardKeyC;
+	delete mapKeyboardKeyD;
+	delete mapKeyboardKeyE;
+	delete mapKeyboardKeyF;
+	delete mapKeyboardKeyG;
+	delete mapKeyboardKeyH;
+	delete mapKeyboardKeyI;
+	delete mapKeyboardKeyJ;
+	delete mapKeyboardKeyK;
+	delete mapKeyboardKeyL;
+	delete mapKeyboardKeyM;
+	delete mapKeyboardKeyN;
+	delete mapKeyboardKeyO;
+	delete mapKeyboardKeyP;
+	delete mapKeyboardKeyQ;
+	delete mapKeyboardKeyR;
+	delete mapKeyboardKeyS;
+	delete mapKeyboardKeyT;
+	delete mapKeyboardKeyU;
+	delete mapKeyboardKeyV;
+	delete mapKeyboardKeyW;
+	delete mapKeyboardKeyX;
+	delete mapKeyboardKeyY;
+	delete mapKeyboardKeyZ;
+	delete mapKeyboardKeyCtrl;
+	delete mapKeyboardKeyShift;
+	delete mapKeyboardKeyAltF4;
+	delete mapKeyboardKey0;
+	delete mapKeyboardKey1;
+	delete mapKeyboardKey2;
+	delete mapKeyboardKey3;
+	delete mapKeyboardKey4;
+	delete mapKeyboardKey5;
+	delete mapKeyboardKey6;
+	delete mapKeyboardKey7;
+	delete mapKeyboardKey8;
+	delete mapKeyboardKey9;
+	delete mapMouseButtonLeft;
+	delete mapMouseButtonRight;
+	delete mapMouseButtonMiddle;
 
 	// reinitialize pin mappings
 	this->setup();

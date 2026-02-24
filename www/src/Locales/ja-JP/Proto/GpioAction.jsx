@@ -116,4 +116,7 @@ export default {
 	'MODE_WHEEL_PEDAL_GAS': 'アクセルペダル',
 	'MODE_WHEEL_PEDAL_BRAKE': 'ブレーキペダル',
 	'MODE_WHEEL_PEDAL_CLUTCH': 'クラッチペダル',
+	'MOUSE_LEFT_BUTTON': 'マウス左',
+	'MOUSE_RIGHT_BUTTON': 'マウス右',
+	'MOUSE_MIDDLE_BUTTON': 'マウス中',
 };

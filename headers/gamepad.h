@@ -170,6 +170,11 @@ public:
 	inline bool __attribute__((always_inline)) pressedKeyboardKey8() { return (debouncedGpio & mapKeyboardKey8->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 37)) != 0; }
 	inline bool __attribute__((always_inline)) pressedKeyboardKey9() { return (debouncedGpio & mapKeyboardKey9->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 38)) != 0; }
 
+	// Mouse button mappings for HID composite device (e.g. back key → mouse left/right/middle)
+	inline bool __attribute__((always_inline)) pressedMouseLeft() { return (debouncedGpio & mapMouseButtonLeft->pinMask) != 0; }
+	inline bool __attribute__((always_inline)) pressedMouseRight() { return (debouncedGpio & mapMouseButtonRight->pinMask) != 0; }
+	inline bool __attribute__((always_inline)) pressedMouseMiddle() { return (debouncedGpio & mapMouseButtonMiddle->pinMask) != 0; }
+
 	const GamepadOptions& getOptions() const { return options; }
 	const DpadMode getActiveDpadMode() { return activeDpadMode; }
 
@@ -271,6 +276,9 @@ public:
 	GamepadButtonMapping *mapKeyboardKey7;
 	GamepadButtonMapping *mapKeyboardKey8;
 	GamepadButtonMapping *mapKeyboardKey9;
+	GamepadButtonMapping *mapMouseButtonLeft;
+	GamepadButtonMapping *mapMouseButtonRight;
+	GamepadButtonMapping *mapMouseButtonMiddle;
 
 	// gamepad specific proxy of debounced buttons --- 1 = active (inverse of the raw GPIO)
 	// see GP2040::debounceGpioGetAll for details

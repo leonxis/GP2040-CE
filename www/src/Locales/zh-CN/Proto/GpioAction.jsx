@@ -116,4 +116,7 @@ export default {
 	'MODE_WHEEL_PEDAL_GAS': '油门踏板',
 	'MODE_WHEEL_PEDAL_BRAKE': '刹车踏板',
 	'MODE_WHEEL_PEDAL_CLUTCH': '离合器踏板',
+	'MOUSE_LEFT_BUTTON': '鼠标左键',
+	'MOUSE_RIGHT_BUTTON': '鼠标右键',
+	'MOUSE_MIDDLE_BUTTON': '鼠标中键',
 };

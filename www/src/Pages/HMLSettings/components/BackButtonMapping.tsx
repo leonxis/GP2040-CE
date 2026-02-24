@@ -110,6 +110,27 @@ const keyboardKeyOptions: OptionType[] = [
 	{ label: 'KEYBOARD_KEY_9', value: BUTTON_ACTIONS.KEYBOARD_KEY_9, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
 ];
 
+// Mouse button options (only in back-key mapping; GPIO pin mapping does not show these)
+const mouseButtonValues = BUTTON_ACTIONS as Record<string, number>;
+const mouseKeyOptions: OptionType[] = [
+	{ label: 'MOUSE_LEFT_BUTTON', value: (mouseButtonValues.MOUSE_LEFT_BUTTON ?? 170) as PinActionValues, type: 'mouse', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'MOUSE_RIGHT_BUTTON', value: (mouseButtonValues.MOUSE_RIGHT_BUTTON ?? 171) as PinActionValues, type: 'mouse', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'MOUSE_MIDDLE_BUTTON', value: (mouseButtonValues.MOUSE_MIDDLE_BUTTON ?? 172) as PinActionValues, type: 'mouse', customButtonMask: 0, customDpadMask: 0 },
+];
+
+// 背键映射页 Actions 组仅保留：功能键(FN)、连发、宏1～宏6、菜单返回（其余在 GPIO 引脚映射页使用）
+const BACK_KEY_ALLOWED_ACTIONS = new Set([
+	'BUTTON_PRESS_FN',
+	'BUTTON_PRESS_TURBO',
+	'BUTTON_PRESS_MACRO_1',
+	'BUTTON_PRESS_MACRO_2',
+	'BUTTON_PRESS_MACRO_3',
+	'BUTTON_PRESS_MACRO_4',
+	'BUTTON_PRESS_MACRO_5',
+	'BUTTON_PRESS_MACRO_6',
+	'MENU_NAVIGATION_BACK',
+]);
+
 const groupedOptions = [
 	{
 		label: 'Buttons',
@@ -117,11 +138,15 @@ const groupedOptions = [
 	},
 	{
 		label: 'Actions',
-		options: options.filter(({ type }) => type === 'action'),
+		options: options.filter((opt) => opt.type === 'action' && BACK_KEY_ALLOWED_ACTIONS.has(opt.label)),
 	},
 	{
 		label: 'Keyboard Keys',
 		options: keyboardKeyOptions,
+	},
+	{
+		label: 'Mouse',
+		options: mouseKeyOptions,
 	},
 ];
 
@@ -144,6 +169,11 @@ const getMultiValue = (pinData: MaskPayload) => {
 	const keyboardOption = keyboardKeyOptions.find((opt) => opt.value === pinData.action);
 	if (keyboardOption) {
 		return [keyboardOption];
+	}
+	// Check if it's a mouse button
+	const mouseOption = mouseKeyOptions.find((opt) => opt.value === pinData.action);
+	if (mouseOption) {
+		return [mouseOption];
 	}
 
 	return pinData.action === BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO
@@ -275,6 +305,10 @@ export default function BackButtonMapping() {
 				}
 				// Add 'KB: ' prefix to distinguish keyboard keys from gamepad buttons
 				return `KB: ${keyName || option.label}`;
+			}
+			// Handle mouse buttons (use Proto translation)
+			if (option.type === 'mouse') {
+				return t(`Proto:GpioAction.${option.label}`);
 			}
 			// Handle regular buttons
 			const labelKey = option.label?.split('BUTTON_PRESS_')?.pop();
@@ -459,10 +493,9 @@ export default function BackButtonMapping() {
 										</div>
 										<CustomSelect
 											isClearable
-											isMulti={!isDisabled(pinData.action) && 
-												// Disable multi-select for keyboard keys
+											isMulti={!isDisabled(pinData.action) &&
 												!keyboardKeyOptions.some(opt => opt.value === pinData.action) &&
-												// Disable multi-select for action types (non-button actions)
+												!mouseKeyOptions.some(opt => opt.value === pinData.action) &&
 												!options.some(opt => opt.value === pinData.action && opt.type === 'action')}
 											options={groupedOptions}
 											isDisabled={isDisabled(pinData.action)}
@@ -500,6 +533,7 @@ export default function BackButtonMapping() {
 											isClearable
 											isMulti={!touchpadSelectDisabled &&
 												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
+												!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
 												!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
 											options={groupedOptions}
 											isDisabled={touchpadSelectDisabled}
@@ -549,6 +583,7 @@ export default function BackButtonMapping() {
 											isClearable
 											isMulti={!isDisabled(mappingData.action) &&
 												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
+												!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
 												!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
 											options={groupedOptions}
 											isDisabled={isDisabled(mappingData.action)}
@@ -597,10 +632,9 @@ export default function BackButtonMapping() {
 										</div>
 										<CustomSelect
 											isClearable
-											isMulti={!isDisabled(pinData.action) && 
-												// Disable multi-select for keyboard keys
+											isMulti={!isDisabled(pinData.action) &&
 												!keyboardKeyOptions.some(opt => opt.value === pinData.action) &&
-												// Disable multi-select for action types (non-button actions)
+												!mouseKeyOptions.some(opt => opt.value === pinData.action) &&
 												!options.some(opt => opt.value === pinData.action && opt.type === 'action')}
 											options={groupedOptions}
 											isDisabled={isDisabled(pinData.action)}

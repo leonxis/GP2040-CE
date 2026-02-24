@@ -132,4 +132,7 @@ export default {
 	'MODE_WHEEL_PEDAL_GAS': 'Pédale d’accélérateur',
 	'MODE_WHEEL_PEDAL_BRAKE': 'Pédale de frein',
 	'MODE_WHEEL_PEDAL_CLUTCH': 'Pédale d’embrayage',
+	'MOUSE_LEFT_BUTTON': 'Souris gauche',
+	'MOUSE_RIGHT_BUTTON': 'Souris droite',
+	'MOUSE_MIDDLE_BUTTON': 'Souris milieu',
 };

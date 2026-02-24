@@ -61,6 +61,10 @@ private:
     uint8_t keyboard_keycode[6];
     uint8_t last_keyboard_report[8] = { }; // modifier(1) + reserved(1) + keycode[6] = 8 bytes
 
+    // Mouse report for HID composite device (for gyro-as-mouse: buttons, x, y, wheel)
+    uint8_t mouse_report[4] = { };
+    uint8_t last_mouse_report[4] = { };
+
     InputModeDeviceType deviceType;
 
     // settings for controllerConfig

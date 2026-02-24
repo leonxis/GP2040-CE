@@ -132,4 +132,7 @@ export default {
 	'MODE_WHEEL_PEDAL_GAS': '엑셀 페달',
 	'MODE_WHEEL_PEDAL_BRAKE': '브레이크 페달',
 	'MODE_WHEEL_PEDAL_CLUTCH': '클러치 페달',
+	'MOUSE_LEFT_BUTTON': '마우스 왼쪽',
+	'MOUSE_RIGHT_BUTTON': '마우스 오른쪽',
+	'MOUSE_MIDDLE_BUTTON': '마우스 가운데',
 };

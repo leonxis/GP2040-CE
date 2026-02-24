@@ -132,4 +132,7 @@ export default {
 	'MODE_WHEEL_PEDAL_GAS': 'Gas Pedal',
 	'MODE_WHEEL_PEDAL_BRAKE': 'Brake Pedal',
 	'MODE_WHEEL_PEDAL_CLUTCH': 'Clutch Pedal',
+	'MOUSE_LEFT_BUTTON': 'Mouse Left',
+	'MOUSE_RIGHT_BUTTON': 'Mouse Right',
+	'MOUSE_MIDDLE_BUTTON': 'Mouse Middle',
 };
