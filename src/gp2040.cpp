@@ -53,6 +53,14 @@
 static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 
+// Target main-loop period to align with USB report rate (bInterval=1 → 1ms → 1000 Hz).
+// Sleep at end of each frame so loop rate matches host poll; use absolute-time alignment to avoid drift.
+#ifndef MAIN_LOOP_REPORT_INTERVAL_US
+#define MAIN_LOOP_REPORT_INTERVAL_US  1000
+#endif
+static uint64_t main_loop_t0_us = 0;
+static uint64_t main_loop_frame_count = 0;
+
 const static uint32_t rebootDelayMs = 500;
 static absolute_time_t rebootDelayTimeout = nil_time;
 
@@ -330,6 +338,10 @@ void GP2040::run() {
 			continue;
 		}
 
+		// Align main loop to report rate: record start of first frame for absolute-time grid (no drift).
+		if (main_loop_t0_us == 0)
+			main_loop_t0_us = time_us_64();
+
 		// Pre-Process add-ons for MPGS
 		addons.PreprocessAddons();
 
@@ -422,6 +434,21 @@ void GP2040::run() {
 
 		// Post-Process Add-ons with USB Report Processed Sent
 		addons.PostprocessAddons(processed);
+
+		// Sleep until next report slot (absolute-time alignment to avoid cumulative drift).
+		// Target: frame N starts at main_loop_t0_us + N * MAIN_LOOP_REPORT_INTERVAL_US; sleep until start of frame N+1.
+		{
+			uint64_t now_us = time_us_64();
+			uint64_t next_wake_us = main_loop_t0_us + (main_loop_frame_count + 1) * (uint64_t)MAIN_LOOP_REPORT_INTERVAL_US;
+			int64_t delay_us = (int64_t)(next_wake_us - now_us);
+			if (delay_us > 0) {
+				// Cap in case of clock jump; Pico sleep_us accepts uint64_t
+				if (delay_us > (int64_t)(MAIN_LOOP_REPORT_INTERVAL_US * 2))
+					delay_us = (int64_t)MAIN_LOOP_REPORT_INTERVAL_US;
+				sleep_us((uint64_t)delay_us);
+			}
+			main_loop_frame_count++;
+		}
 
 		// Check if we have a pending save
 		checkSaveRebootState();
