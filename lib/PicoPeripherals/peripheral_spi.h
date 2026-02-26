@@ -92,11 +92,19 @@ public:
     // Deactivate currently active CS pin for this SPI peripheral instance
     void deselect();
 
-    // Begin a SPI transaction
+    // Begin a SPI transaction (sets baudrate/format). When sharing SPI across addons,
+    // each addon only needs one beginTransaction at the start of its SPI work for this
+    // cycle; no need to wrap every single read. endTransaction is optional—the next
+    // addon's beginTransaction will set the new frequency.
     void beginTransaction(uint32_t speedMHz, spi_order_t bitOrder, SPIMode spiMode);
 
-    // End a SPI transaction
+    // End a SPI transaction (no-op today; kept for API symmetry).
     void endTransaction();
+
+    // Set baudrate only (no format change). Lighter than beginTransaction when addons
+    // share the same format (e.g. MSB_FIRST, MODE0). Call once at start of SPI work
+    // to minimize CPU blocking; uses spi_set_baudrate when already initialized.
+    void setBaudrate(uint32_t hz);
 
 private:
     const uint32_t SPI_DEFAULT_SPEED = 1000000; // 1Mhz

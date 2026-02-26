@@ -12,8 +12,6 @@
 #define LSM6DSR_CS_DESELECT(cs) do { gpio_put((uint)(cs), 1); } while (0)
 
 // Register map (ST LSM6DSR, same for I2C/SPI)
-#define LSM6DSR_WHO_AM_I      0x0FU
-#define LSM6DSR_ID            0x6BU
 #define LSM6DSR_CTRL1_XL      0x10U
 #define LSM6DSR_CTRL2_G       0x11U
 #define LSM6DSR_CTRL3_C       0x12U
@@ -45,8 +43,6 @@
 #define LSM6DSR_OUTPUT_RIGHT_STICK  2
 #define LSM6DSR_OUTPUT_MOUSE        3
 
-// 鼠标模式下每帧陀螺仪多采样次数。当前 ODR=1666 Hz（约 0.6 ms 更新一次），一帧内连续读只得同一寄存器值，多采样得不到新数据；设为 1 仅单次读取。若日后 ODR 提高到 6.66 kHz 等，可改为 4～8 以做 Alpakka 式 burst 平均。
-#define LSM6DSR_GYRO_MOUSE_BURST_SAMPLES  1
 
 // 生效方式：0=一直生效, 1=按下按键生效, 2=按下按键暂停
 #define LSM6DSR_ENGAGE_ALWAYS       0
@@ -95,13 +91,7 @@ bool LSM6DSRIMUAddon::available() {
 	gpio_init((uint)csPin);
 	gpio_set_dir((uint)csPin, GPIO_OUT);
 	gpio_put((uint)csPin, true);
-	spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
-	LSM6DSR_CS_SELECT(csPin);
-	(void)spi->transfer(LSM6DSR_SPI_READ | LSM6DSR_WHO_AM_I);
-	uint8_t id = spi->transfer(0);
-	LSM6DSR_CS_DESELECT(csPin);
-	spi->endTransaction();
-	return (id == LSM6DSR_ID);
+	return true;
 }
 
 void LSM6DSRIMUAddon::setup() {
@@ -139,14 +129,10 @@ void LSM6DSRIMUAddon::setup() {
 	gpio_set_dir((uint)csPin, GPIO_OUT);
 	gpio_put((uint)csPin, true);
 
-	// SW_RESET 干净启动：防异常 SPI 状态/FIFO/I3C 残留（WHO_AM_I 已在 available() 中校验）
+	// 本插件 SPI 格式与速率：MSB_FIRST + MODE0 + LSM6DSR_SPI_HZ，在 setup 中设一次即可
 	spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
-	spiWriteReg(spi, csPin, LSM6DSR_CTRL3_C, 0x01);
-	spi->endTransaction();
-	busy_wait_ms(10);
 
 	// Disable FIFO (避免延迟), I3C, High Performance, ODR 1666 Hz, 4g acc, 500 dps gyro, BDU+IF_INC
-	spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 	// CTRL2_G: 0x84 = ODR 1.66kHz (0b10) + FS 500 dps (0b01) → 17.5 mdps/LSB
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL9_XL, 0x02);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL4_C, 0x06);
@@ -156,7 +142,6 @@ void LSM6DSRIMUAddon::setup() {
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL3_C, 0x44);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL1_XL, 0xA8);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL2_G, 0x84);  // 500 dps
-	spi->endTransaction();
 
 	s_spi = spi;
 	s_csPin = csPin;
@@ -210,10 +195,9 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	int32_t offAY = opts.offsetAccelY;
 	int32_t offAZ = opts.offsetAccelZ;
 
-	s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+	s_spi->setBaudrate(LSM6DSR_SPI_HZ);
 	uint8_t buf[12];
 	spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
-	s_spi->endTransaction();
 
 	// 与 preprocess 一致：角速度 X 取反，加速度计 X 取反、Y 与 Z 交换
 	int16_t calG[3];
@@ -268,11 +252,10 @@ bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ
 	if (!s_spi || s_csPin < 0 || !offsetX || !offsetY || !offsetZ) return false;
 	int64_t sumX = 0, sumY = 0, sumZ = 0;
 	const uint32_t n = LSM6DSR_GYRO_CAL_SAMPLES;
+	s_spi->setBaudrate(LSM6DSR_SPI_HZ);
 	for (uint32_t i = 0; i < n; i++) {
-		s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 		uint8_t buf[12];
 		spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
-		s_spi->endTransaction();
 		sumX += read16LE(buf + 0);
 		sumY += read16LE(buf + 2);
 		sumZ += read16LE(buf + 4);
@@ -290,11 +273,10 @@ bool lsm6dsr_calibrate_accel(int32_t* offsetX, int32_t* offsetY, int32_t* offset
 	if (!s_spi || s_csPin < 0 || !offsetX || !offsetY || !offsetZ) return false;
 	int64_t sumX = 0, sumY = 0, sumZ = 0;
 	const uint32_t n = LSM6DSR_ACCEL_CAL_SAMPLES;
+	s_spi->setBaudrate(LSM6DSR_SPI_HZ);
 	for (uint32_t i = 0; i < n; i++) {
-		s_spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 		uint8_t buf[12];
 		spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
-		s_spi->endTransaction();
 		sumX += read16LE(buf + 6);
 		sumY += read16LE(buf + 8);
 		sumZ += read16LE(buf + 10);
@@ -428,37 +410,15 @@ void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3])
 }
 
 void LSM6DSRIMUAddon::preprocess() {
-	spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
-	if (outputMode == LSM6DSR_OUTPUT_MOUSE && LSM6DSR_GYRO_MOUSE_BURST_SAMPLES > 1) {
-		// 仅当 ODR 足够高（如 6.66 kHz）时多采样才有意义：同帧内才能读到多个不同值，做 Alpakka 式 burst 平均
-		int32_t sumG[3] = {0}, sumA[3] = {0};
-		const int n = LSM6DSR_GYRO_MOUSE_BURST_SAMPLES;
-		for (int i = 0; i < n; i++) {
-			spiReadRegs(spi, csPin, LSM6DSR_OUTX_L_G, readBuf, 12);
-			sumG[0] += -(int32_t)read16LE(readBuf + 0);
-			sumG[1] += read16LE(readBuf + 2);
-			sumG[2] += read16LE(readBuf + 4);
-			sumA[0] += -(int32_t)read16LE(readBuf + 6);
-			sumA[1] += read16LE(readBuf + 10);
-			sumA[2] += read16LE(readBuf + 8);
-		}
-		rawG[0] = (int16_t)(sumG[0] / n);
-		rawG[1] = (int16_t)(sumG[1] / n);
-		rawG[2] = (int16_t)(sumG[2] / n);
-		rawA[0] = (int16_t)(sumA[0] / n);
-		rawA[1] = (int16_t)(sumA[1] / n);
-		rawA[2] = (int16_t)(sumA[2] / n);
-	} else {
-		spiReadRegs(spi, csPin, LSM6DSR_OUTX_L_G, readBuf, 12);
-		// 角速度 X 取反；加速度计 X 取反，Y 与 Z 交换（rawA[1]=传感器Z, rawA[2]=传感器Y）；用 int32 再转 int16 避免取反溢出
-		rawG[0] = (int16_t)(-(int32_t)read16LE(readBuf + 0));
-		rawG[1] = read16LE(readBuf + 2);
-		rawG[2] = read16LE(readBuf + 4);
-		rawA[0] = (int16_t)(-(int32_t)read16LE(readBuf + 6));
-		rawA[1] = read16LE(readBuf + 10);  // 逻辑 Y = 传感器 Z
-		rawA[2] = read16LE(readBuf + 8);   // 逻辑 Z = 传感器 Y
-	}
-	spi->endTransaction();
+	spi->setBaudrate(LSM6DSR_SPI_HZ);
+	spiReadRegs(spi, csPin, LSM6DSR_OUTX_L_G, readBuf, 12);
+	// 角速度 X 取反；加速度计 X 取反，Y 与 Z 交换（rawA[1]=传感器Z, rawA[2]=传感器Y）；用 int32 再转 int16 避免取反溢出
+	rawG[0] = (int16_t)(-(int32_t)read16LE(readBuf + 0));
+	rawG[1] = read16LE(readBuf + 2);
+	rawG[2] = read16LE(readBuf + 4);
+	rawA[0] = (int16_t)(-(int32_t)read16LE(readBuf + 6));
+	rawA[1] = read16LE(readBuf + 10);  // 逻辑 Y = 传感器 Z
+	rawA[2] = read16LE(readBuf + 8);   // 逻辑 Z = 传感器 Y
 
 	calG[0] = (int16_t)(rawG[0] - offsetGyroX);
 	calG[1] = (int16_t)(rawG[1] - offsetGyroY);

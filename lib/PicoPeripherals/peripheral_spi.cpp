@@ -129,21 +129,20 @@ void PeripheralSPI::deselect() {
 }
 
 void PeripheralSPI::beginTransaction(uint32_t speedMHz, spi_order_t bitOrder, SPIMode spiMode) {
-    bool hasInitChange = !initialized || speedMHz != _Speed;
+    bool speedChange = speedMHz != _Speed;
+    bool needsFullInit = !initialized;
     bool hasFormatChange = bitOrder != _BitOrder || spiMode != _SpiMode;
 
-    if (hasInitChange || hasFormatChange) {
+    if (needsFullInit || speedChange || hasFormatChange) {
         uint32_t flags = save_and_disable_interrupts();
 
-        if (hasInitChange) {
-            // if (initialized) {
-            //     spi_deinit(_SPI);
-            // }
-
+        if (needsFullInit) {
             _Speed = speedMHz;
             spi_init(_SPI, _Speed);
             initialized = true;
-
+        } else if (speedChange) {
+            (void)spi_set_baudrate(_SPI, speedMHz);
+            _Speed = speedMHz;
         }
 
         if (hasFormatChange) {
@@ -160,4 +159,19 @@ void PeripheralSPI::beginTransaction(uint32_t speedMHz, spi_order_t bitOrder, SP
 
 void PeripheralSPI::endTransaction() {
     (void)0;
+}
+
+void PeripheralSPI::setBaudrate(uint32_t hz) {
+    if (hz == _Speed)
+        return;
+    uint32_t flags = save_and_disable_interrupts();
+    if (!initialized) {
+        _Speed = hz;
+        spi_init(_SPI, _Speed);
+        initialized = true;
+    } else {
+        (void)spi_set_baudrate(_SPI, hz);
+        _Speed = hz;
+    }
+    restore_interrupts(flags);
 }

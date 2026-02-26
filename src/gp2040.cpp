@@ -54,7 +54,7 @@ static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 
 // Target main-loop period to align with USB report rate (bInterval=1 → 1ms → 1000 Hz).
-// Sleep at end of each frame so loop rate matches host poll; use absolute-time alignment to avoid drift.
+// Sleep at start of each frame so loop rate matches host poll; use absolute-time alignment to avoid drift.
 #ifndef MAIN_LOOP_REPORT_INTERVAL_US
 #define MAIN_LOOP_REPORT_INTERVAL_US  1000
 #endif
@@ -342,6 +342,19 @@ void GP2040::run() {
 		if (main_loop_t0_us == 0)
 			main_loop_t0_us = time_us_64();
 
+		// Sleep until start of this frame (before doing work). If sleep were after tud_task(), we would
+		// block for 1ms and miss the host's IN poll → effective report rate drops to ~500 Hz.
+		{
+			uint64_t now_us = time_us_64();
+			uint64_t this_frame_start_us = main_loop_t0_us + main_loop_frame_count * (uint64_t)MAIN_LOOP_REPORT_INTERVAL_US;
+			int64_t delay_us = (int64_t)(this_frame_start_us - now_us);
+			if (delay_us > 0) {
+				if (delay_us > (int64_t)(MAIN_LOOP_REPORT_INTERVAL_US * 2))
+					delay_us = (int64_t)MAIN_LOOP_REPORT_INTERVAL_US;
+				sleep_us((uint64_t)delay_us);
+			}
+		}
+
 		// Pre-Process add-ons for MPGS
 		addons.PreprocessAddons();
 
@@ -429,26 +442,13 @@ void GP2040::run() {
 		// Process Input Driver
 		bool processed = inputDriver->process(gamepad);
 
-		// TinyUSB Task update
+		// TinyUSB Task update (run while awake so host IN poll can be serviced; do not sleep after this).
 		tud_task();
 
 		// Post-Process Add-ons with USB Report Processed Sent
 		addons.PostprocessAddons(processed);
 
-		// Sleep until next report slot (absolute-time alignment to avoid cumulative drift).
-		// Target: frame N starts at main_loop_t0_us + N * MAIN_LOOP_REPORT_INTERVAL_US; sleep until start of frame N+1.
-		{
-			uint64_t now_us = time_us_64();
-			uint64_t next_wake_us = main_loop_t0_us + (main_loop_frame_count + 1) * (uint64_t)MAIN_LOOP_REPORT_INTERVAL_US;
-			int64_t delay_us = (int64_t)(next_wake_us - now_us);
-			if (delay_us > 0) {
-				// Cap in case of clock jump; Pico sleep_us accepts uint64_t
-				if (delay_us > (int64_t)(MAIN_LOOP_REPORT_INTERVAL_US * 2))
-					delay_us = (int64_t)MAIN_LOOP_REPORT_INTERVAL_US;
-				sleep_us((uint64_t)delay_us);
-			}
-			main_loop_frame_count++;
-		}
+		main_loop_frame_count++;
 
 		// Check if we have a pending save
 		checkSaveRebootState();

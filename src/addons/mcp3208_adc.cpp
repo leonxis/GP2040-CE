@@ -20,7 +20,7 @@ static const uint8_t CH25_DEBOUNCE_FRAMES = 4;   // 防抖帧数，建议 1–4�
 // ========== 一轮执行时间估算（每帧 preprocess + process）==========
 // preprocess: readAllChannels 仅做 SPI 读取
 //   - 6 通道 × 每通道 3 字节 = 18 字节 = 144 bit @ 1.5MHz → 144/1.5 ≈ 96 µs 纯 SPI 时钟
-//   - 6 次 select/deselect（GPIO）、1 次 begin/endTransaction，约 10–25 µs
+//   - 6 次 select/deselect（GPIO）、1 次 setBaudrate，约 10–25 µs
 //   - 合计 readAllChannels ≈ 105–125 µs
 // process: 摇杆 + CH2/CH5
 //   - Storage/Driver 访问、曲线预设检测：约 5–15 µs
@@ -135,6 +135,7 @@ void MCP3208ADCAddon::setup() {
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
     if (!spi || !spi->configured) return;
     spi_ = spi;
+    spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 
     const AnalogOptions& o = Storage::getInstance().getAddonOptions().analogOptions;
     usage_curve_profile_1_ = o.curve_profile_1;
@@ -219,7 +220,7 @@ void MCP3208ADCAddon::readAllChannels()
 
     static const uint8_t channels[MCP3208_READ_CHANNELS] = {0, 1, 2, 5, 6, 7};
 
-    spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+    spi_->setBaudrate(MCP3208_SPI_HZ);
 
     for (int i = 0; i < MCP3208_READ_CHANNELS; i++) {
         spi_->select(csPin_);
@@ -238,8 +239,6 @@ void MCP3208ADCAddon::readAllChannels()
 
         adcValues_[ch] = ((rx[1] & 0x0F) << 8) | rx[2];
     }
-
-    spi_->endTransaction();
 }
 
 float MCP3208ADCAddon::getStickRaw(int stick, bool isX) {
