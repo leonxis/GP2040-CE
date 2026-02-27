@@ -11,6 +11,8 @@
 
 static bool usb_mounted;
 static bool usb_suspended;
+static volatile uint32_t usb_sof_count = 0;
+static volatile uint32_t usb_hid_gamepad_in_complete_count = 0;
 
 // Global variable to track current interface for get_report callback
 // This is used by drivers to determine which interface is being queried
@@ -22,6 +24,14 @@ bool get_usb_mounted(void) {
 
 bool get_usb_suspended(void) {
 	return usb_suspended;
+}
+
+uint32_t get_usb_sof_count(void) {
+	return usb_sof_count;
+}
+
+uint32_t get_usb_hid_gamepad_in_complete_count(void) {
+	return usb_hid_gamepad_in_complete_count;
 }
 
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *driver_count) {
@@ -39,6 +49,23 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize) {
 	DriverManager::getInstance().getDriver()->set_report(report_id, report_type, buffer, bufsize);
+}
+
+// Invoked when an IN report transfer is completed on HID endpoint.
+// Track only gamepad HID interface instance (0) to avoid keyboard/mouse events
+// perturbing main-loop cadence.
+void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len) {
+	(void)report;
+	(void)len;
+	if (instance == 0) {
+		usb_hid_gamepad_in_complete_count++;
+	}
+}
+
+// Invoked every USB SOF (1ms on full-speed) when enabled by tud_sof_cb_enable(true).
+void tud_sof_cb(uint32_t frame_count) {
+	(void)frame_count;
+	usb_sof_count++;
 }
 
 // Invoked when device is mounted

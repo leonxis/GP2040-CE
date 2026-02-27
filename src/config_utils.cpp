@@ -1091,6 +1091,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseInvert, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensLR, 1.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensUD, 1.0f);
+    INIT_UNSET_PROPERTY(config.addonOptions, highPerformanceReport, false);
 
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, enabled, KEYBOARD_HOST_ENABLED);

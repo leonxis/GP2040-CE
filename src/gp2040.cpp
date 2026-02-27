@@ -52,14 +52,13 @@
 
 static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
+static uint32_t main_loop_last_sof_count = 0;
+static uint32_t main_loop_last_in_complete_count = 0;
+static uint64_t main_loop_sof_t0_us = 0;
+static uint64_t main_loop_last_frame_run_us = 0;
 
-// Target main-loop period to align with USB report rate (bInterval=1 → 1ms → 1000 Hz).
-// Sleep at start of each frame so loop rate matches host poll; use absolute-time alignment to avoid drift.
-#ifndef MAIN_LOOP_REPORT_INTERVAL_US
-#define MAIN_LOOP_REPORT_INTERVAL_US  1000
-#endif
-static uint64_t main_loop_t0_us = 0;
-static uint64_t main_loop_frame_count = 0;
+extern uint32_t get_usb_sof_count(void);
+extern uint32_t get_usb_hid_gamepad_in_complete_count(void);
 
 const static uint32_t rebootDelayMs = 500;
 static absolute_time_t rebootDelayTimeout = nil_time;
@@ -307,6 +306,7 @@ void GP2040::run() {
 
 	// Start the TinyUSB Device functionality
 	tud_init(TUD_OPT_RHPORT);
+	tud_sof_cb_enable(true);
 
 	// Initialize our USB manager
 	USBHostManager::getInstance().start();
@@ -317,6 +317,62 @@ void GP2040::run() {
 
 	while (1) { // LOOP
 		this->getReinitGamepad(gamepad);
+
+		// IN/SOF-driven fixed-frequency gate:
+		// - Primary trigger: HID IN complete (instance 0), indicating a host poll cycle is serviced.
+		// - Fallback trigger: if SOF advances but no IN complete for >1ms, run one frame to catch up.
+		// HML "highPerformanceReport" bypasses alignment and lets loop run unrestricted.
+		const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+		if (!configMode && !addonOptions.highPerformanceReport) {
+			bool runFrame = false;
+			bool runByInEvent = false;
+			uint64_t now_us = time_us_64();
+			uint32_t inCount = get_usb_hid_gamepad_in_complete_count();
+			if (inCount != main_loop_last_in_complete_count) {
+				runFrame = true;
+				runByInEvent = true;
+			} else {
+				uint32_t sofCount = get_usb_sof_count();
+				if (sofCount != main_loop_last_sof_count) {
+					main_loop_last_sof_count = sofCount;
+					if (main_loop_sof_t0_us == 0) {
+						main_loop_sof_t0_us = now_us;
+					}
+				}
+
+				// Bootstrap fallback when SOF callback is unavailable on this stack/board:
+				// start timeout window from current time so we still release frames.
+				if (main_loop_sof_t0_us == 0) {
+					main_loop_sof_t0_us = now_us;
+				}
+
+				if (main_loop_sof_t0_us != 0) {
+					if ((now_us - main_loop_sof_t0_us) >= 1020) {
+						runFrame = true;
+						main_loop_sof_t0_us = now_us;
+					}
+				}
+			}
+
+			// Hard-rate limiter: never run faster than 1kHz even if callbacks burst.
+			if (runFrame && main_loop_last_frame_run_us != 0 &&
+			    (now_us - main_loop_last_frame_run_us) < 1000) {
+				runFrame = false;
+			}
+
+			if (!runFrame) {
+				tud_task();
+				sleep_us(0);
+				continue;
+			}
+
+			// Consume IN trigger only when frame is actually released.
+			if (runByInEvent) {
+				main_loop_last_in_complete_count = inCount;
+				main_loop_sof_t0_us = 0;
+			}
+			main_loop_last_frame_run_us = now_us;
+		}
 
 		memcpy(&prevState, &gamepad->state, sizeof(GamepadState));
 
@@ -336,23 +392,6 @@ void GP2040::run() {
 			rebootHotkeys.process(gamepad, configMode);
 			checkSaveRebootState();
 			continue;
-		}
-
-		// Align main loop to report rate: record start of first frame for absolute-time grid (no drift).
-		if (main_loop_t0_us == 0)
-			main_loop_t0_us = time_us_64();
-
-		// Sleep until start of this frame (before doing work). If sleep were after tud_task(), we would
-		// block for 1ms and miss the host's IN poll → effective report rate drops to ~500 Hz.
-		{
-			uint64_t now_us = time_us_64();
-			uint64_t this_frame_start_us = main_loop_t0_us + main_loop_frame_count * (uint64_t)MAIN_LOOP_REPORT_INTERVAL_US;
-			int64_t delay_us = (int64_t)(this_frame_start_us - now_us);
-			if (delay_us > 0) {
-				if (delay_us > (int64_t)(MAIN_LOOP_REPORT_INTERVAL_US * 2))
-					delay_us = (int64_t)MAIN_LOOP_REPORT_INTERVAL_US;
-				sleep_us((uint64_t)delay_us);
-			}
 		}
 
 		// Pre-Process add-ons for MPGS
@@ -447,8 +486,6 @@ void GP2040::run() {
 
 		// Post-Process Add-ons with USB Report Processed Sent
 		addons.PostprocessAddons(processed);
-
-		main_loop_frame_count++;
 
 		// Check if we have a pending save
 		checkSaveRebootState();

@@ -24,6 +24,7 @@ export default function HardwareConfig() {
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
 	const [fourKeyTouchpadOptions, setFourKeyTouchpadOptions] = useState({ enabled: 0 });
+	const [highPerformanceReport, setHighPerformanceReport] = useState(0);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
 		brightnessMaximum: 255,
@@ -40,15 +41,17 @@ export default function HardwareConfig() {
 
 	useEffect(() => {
 		async function fetchData() {
-			const [peripheral, display, fourKeyTouchpad, led] = await Promise.all([
+			const [peripheral, display, fourKeyTouchpad, led, addons] = await Promise.all([
 				WebApi.getPeripheralOptions(),
 				WebApi.getDisplayOptions(),
 				WebApi.getFourKeyTouchpadOptions(),
 				WebApi.getLedOptions(),
+				WebApi.getAddonsOptions(),
 			]);
 			setPeripheralOptions(peripheral);
 			setDisplayOptions(display);
 			setFourKeyTouchpadOptions(fourKeyTouchpad || { enabled: 0 });
+			setHighPerformanceReport(addons?.highPerformanceReport ? 1 : 0);
 
 			// 同步显示屏和I2C1的启用状态
 			// 如果两者不一致，以显示屏的enabled为准
@@ -103,6 +106,7 @@ export default function HardwareConfig() {
 				WebApi.setPeripheralOptions(dataToSave),
 				WebApi.setDisplayOptions(displayOptions),
 				WebApi.setFourKeyTouchpadOptions(fourKeyTouchpadOptions),
+				WebApi.setAddonsOptions({ highPerformanceReport }),
 			]);
 			setHostSaveMessage('保存成功！请重启设备');
 			setTimeout(() => setHostSaveMessage(''), 5000);
@@ -231,6 +235,22 @@ export default function HardwareConfig() {
 							/>
 							<span className="text-muted">
 								需要使用触摸板按键请将显示屏替换为触摸板
+							</span>
+						</div>
+
+						{/* 高性能回报开关 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Check
+								type="switch"
+								id="high-performance-report-switch"
+								label="高性能回报"
+								checked={Boolean(highPerformanceReport)}
+								onChange={(e) => {
+									setHighPerformanceReport(e.target.checked ? 1 : 0);
+								}}
+							/>
+							<span className="text-muted">
+								开启后关闭帧对齐，主循环无限制运行；关闭后启用帧对齐，将主循环对齐到回报率
 							</span>
 						</div>
 

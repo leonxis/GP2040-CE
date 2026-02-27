@@ -10,7 +10,7 @@
 
 // SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」与插件配置（spiBlock、csPin）获取
 // 与 MCP3208 等共用 SPI 时若速率不同：改此处即可（如 5MHz 用 5000000u），每次访问前 setBaudrate 一次
-#define LSM6DSR_SPI_HZ      5000000u
+#define LSM6DSR_SPI_HZ      1500000u
 
 // 供 webconfig 按需读取 6 轴 RAW（已应用校准偏移；网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]);
