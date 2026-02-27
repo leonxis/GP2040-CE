@@ -63,6 +63,10 @@ private:
 	int16_t filterG[3];
 	// 一欧元滤波内部状态（浮点，每轴一个）
 	float oneEuroState[3];
+	bool oneEuroInited;
+	// 鼠标亚像素累积（用于 1kHz 下的小速度积分）
+	float mouseSubX;
+	float mouseSubY;
 };
 
 #endif
