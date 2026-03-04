@@ -986,8 +986,8 @@ message AddonOptions
     optional FnKeyMappingOptions fnKeyMappingOptions = 33;
     optional MCP3208Options mcp3208Options = 34;
     optional LSM6DSROptions lsm6dsrOptions = 35;
-    // HML 主循环回报策略：false=启用帧对齐(默认), true=高性能回报(关闭帧对齐)
-    optional bool highPerformanceReport = 36 [default = false];
+    // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz
+    optional uint32 reportRate = 36 [default = 1000];
 }
 
 // MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3

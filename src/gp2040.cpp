@@ -56,6 +56,7 @@ static uint32_t main_loop_last_sof_count = 0;
 static uint32_t main_loop_last_in_complete_count = 0;
 static uint64_t main_loop_sof_t0_us = 0;
 static uint64_t main_loop_last_frame_run_us = 0;
+static uint32_t main_loop_interval_us = 1000u;
 
 extern uint32_t get_usb_sof_count(void);
 extern uint32_t get_usb_hid_gamepad_in_complete_count(void);
@@ -98,6 +99,13 @@ void GP2040::setup() {
 	// now we can load the latest configured profile, which will map the
 	// new set of GPIOs to use...
 	this->initializeStandardGpio();
+
+	// 主循环门控参数（仅在 setup 时从配置读取一次，门控始终启用）
+	{
+		const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+		uint32_t rate_hz = addonOptions.reportRate;
+		main_loop_interval_us = (rate_hz > 0u) ? (1000000u / rate_hz) : 1000u;
+	}
 
 	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
 
@@ -318,12 +326,8 @@ void GP2040::run() {
 	while (1) { // LOOP
 		this->getReinitGamepad(gamepad);
 
-		// IN/SOF-driven fixed-frequency gate:
-		// - Primary trigger: HID IN complete (instance 0), indicating a host poll cycle is serviced.
-		// - Fallback trigger: if SOF advances but no IN complete for >1ms, run one frame to catch up.
-		// HML "highPerformanceReport" bypasses alignment and lets loop run unrestricted.
-		const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-		if (!configMode && !addonOptions.highPerformanceReport) {
+		// IN/SOF-driven gate: 主循环与回报率同步，参数在 setup 中读入；USB 实际回报率由 bInterval 控制；门控始终启用。
+		if (!configMode) {
 			bool runFrame = false;
 			bool runByInEvent = false;
 			uint64_t now_us = time_us_64();
@@ -339,24 +343,17 @@ void GP2040::run() {
 						main_loop_sof_t0_us = now_us;
 					}
 				}
-
-				// Bootstrap fallback when SOF callback is unavailable on this stack/board:
-				// start timeout window from current time so we still release frames.
 				if (main_loop_sof_t0_us == 0) {
 					main_loop_sof_t0_us = now_us;
 				}
-
-				if (main_loop_sof_t0_us != 0) {
-					if ((now_us - main_loop_sof_t0_us) >= 1020) {
-						runFrame = true;
-						main_loop_sof_t0_us = now_us;
-					}
+				if (main_loop_sof_t0_us != 0 &&
+				    (now_us - main_loop_sof_t0_us) >= (main_loop_interval_us + 20u)) {
+					runFrame = true;
+					main_loop_sof_t0_us = now_us;
 				}
 			}
-
-			// Hard-rate limiter: never run faster than 1kHz even if callbacks burst.
 			if (runFrame && main_loop_last_frame_run_us != 0 &&
-			    (now_us - main_loop_last_frame_run_us) < 1000) {
+			    (now_us - main_loop_last_frame_run_us) < main_loop_interval_us) {
 				runFrame = false;
 			}
 
@@ -366,7 +363,6 @@ void GP2040::run() {
 				continue;
 			}
 
-			// Consume IN trigger only when frame is actually released.
 			if (runByInEvent) {
 				main_loop_last_in_complete_count = inCount;
 				main_loop_sof_t0_us = 0;

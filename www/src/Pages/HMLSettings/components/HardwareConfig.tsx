@@ -24,7 +24,7 @@ export default function HardwareConfig() {
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
 	const [fourKeyTouchpadOptions, setFourKeyTouchpadOptions] = useState({ enabled: 0 });
-	const [highPerformanceReport, setHighPerformanceReport] = useState(0);
+	const [reportRate, setReportRate] = useState(1000);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
 		brightnessMaximum: 255,
@@ -51,7 +51,11 @@ export default function HardwareConfig() {
 			setPeripheralOptions(peripheral);
 			setDisplayOptions(display);
 			setFourKeyTouchpadOptions(fourKeyTouchpad || { enabled: 0 });
-			setHighPerformanceReport(addons?.highPerformanceReport ? 1 : 0);
+			setReportRate(
+				[250, 500, 1000, 2000, 4000, 8000].includes(Number(addons?.reportRate))
+					? Number(addons.reportRate)
+					: 1000
+			);
 
 			// 同步显示屏和I2C1的启用状态
 			// 如果两者不一致，以显示屏的enabled为准
@@ -106,7 +110,7 @@ export default function HardwareConfig() {
 				WebApi.setPeripheralOptions(dataToSave),
 				WebApi.setDisplayOptions(displayOptions),
 				WebApi.setFourKeyTouchpadOptions(fourKeyTouchpadOptions),
-				WebApi.setAddonsOptions({ highPerformanceReport }),
+				WebApi.setAddonsOptions({ reportRate }),
 			]);
 			setHostSaveMessage('保存成功！请重启设备');
 			setTimeout(() => setHostSaveMessage(''), 5000);
@@ -238,19 +242,24 @@ export default function HardwareConfig() {
 							</span>
 						</div>
 
-						{/* 高性能回报开关 */}
+						{/* 回报率：下拉框 → 标题在右侧 → 说明 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<Form.Check
-								type="switch"
-								id="high-performance-report-switch"
-								label="高性能回报"
-								checked={Boolean(highPerformanceReport)}
-								onChange={(e) => {
-									setHighPerformanceReport(e.target.checked ? 1 : 0);
-								}}
-							/>
+							<Form.Select
+								id="report-rate-select"
+								value={reportRate}
+								onChange={(e) => setReportRate(Number(e.target.value))}
+								style={{ width: '120px' }}
+							>
+								<option value={250}>250Hz</option>
+								<option value={500}>500Hz</option>
+								<option value={1000}>1KHz</option>
+								<option value={2000}>2KHz</option>
+								<option value={4000}>4KHz</option>
+								<option value={8000}>8KHz</option>
+							</Form.Select>
+							<span className="mb-0">回报率</span>
 							<span className="text-muted">
-								开启后关闭帧对齐，主循环无限制运行；关闭后启用帧对齐，将主循环对齐到回报率
+								调整主机连接回报率，若开启陀螺仪可能造成回报率降低。
 							</span>
 						</div>
 

@@ -8,6 +8,10 @@
 
 #include "tusb.h"
 #include "drivermanager.h"
+#include "storagemanager.h"
+#include "config.pb.h"
+
+#define USB_CONFIG_DESC_COPY_SIZE 512
 
 static bool usb_mounted;
 static bool usb_suspended;
@@ -121,11 +125,35 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t itf) {
 	return DriverManager::getInstance().getDriver()->get_hid_descriptor_report_cb(itf);
 }
 
-// Invoked when received GET CONFIGURATION DESCRIPTOR
-// Application return pointer to descriptor
-// Descriptor contents must exist long enough for transfer to complete
+// HML: Copy configuration descriptor and patch bInterval for all IN endpoints from reportRate (device-level, all modes).
+// Full-speed: bInterval 1=1ms(1kHz), 2=2ms(500Hz), 4=4ms(250Hz). Re-plug required after changing report rate.
+static uint8_t usb_config_descriptor_copy[USB_CONFIG_DESC_COPY_SIZE];
+
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
-	return DriverManager::getInstance().getDriver()->get_descriptor_configuration_cb(index);
+	const uint8_t *raw = DriverManager::getInstance().getDriver()->get_descriptor_configuration_cb(index);
+	if (!raw || raw[0] != 9 || raw[1] != 0x02) return raw;
+	uint16_t total_len = (uint16_t)raw[2] | ((uint16_t)raw[3] << 8);
+	if (total_len > USB_CONFIG_DESC_COPY_SIZE) return raw;
+	for (uint16_t i = 0; i < total_len; i++)
+		usb_config_descriptor_copy[i] = raw[i];
+
+	uint32_t rate_hz = Storage::getInstance().getAddonOptions().reportRate;
+	uint8_t bint = 1;
+	if (rate_hz == 250u) bint = 4;
+	else if (rate_hz == 500u) bint = 2;
+
+	for (uint16_t pos = 0; pos + 2 <= total_len; ) {
+		uint8_t len = usb_config_descriptor_copy[pos];
+		if (len == 0 || pos + len > total_len) break;
+		uint8_t type = usb_config_descriptor_copy[pos + 1];
+		if (type == 0x05 && len >= 7) {
+			uint8_t addr = usb_config_descriptor_copy[pos + 2];
+			if (addr & 0x80)
+				usb_config_descriptor_copy[pos + 6] = bint;
+		}
+		pos += len;
+	}
+	return usb_config_descriptor_copy;
 }
 
 uint8_t const* tud_descriptor_device_qualifier_cb() {

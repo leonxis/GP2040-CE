@@ -2251,7 +2251,7 @@ std::string setAddonOptions()
     docToValue(lsm6dsrOptions.gyroMouseInvert, doc, "lsm6dsrGyroMouseInvert");
     if (doc.containsKey("lsm6dsrGyroMouseSensLR")) lsm6dsrOptions.gyroMouseSensLR = doc["lsm6dsrGyroMouseSensLR"].as<float>();
     if (doc.containsKey("lsm6dsrGyroMouseSensUD")) lsm6dsrOptions.gyroMouseSensUD = doc["lsm6dsrGyroMouseSensUD"].as<float>();
-    docToValue(Storage::getInstance().getAddonOptions().highPerformanceReport, doc, "highPerformanceReport");
+    docToValue(Storage::getInstance().getAddonOptions().reportRate, doc, "reportRate");
 
     RotaryOptions& rotaryOptions = Storage::getInstance().getAddonOptions().rotaryOptions;
     docToValue(rotaryOptions.enabled, doc, "RotaryAddonEnabled");
@@ -2736,7 +2736,7 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrGyroMouseInvert", lsm6dsrOptions.gyroMouseInvert);
     writeDoc(doc, "lsm6dsrGyroMouseSensLR", lsm6dsrOptions.gyroMouseSensLR);
     writeDoc(doc, "lsm6dsrGyroMouseSensUD", lsm6dsrOptions.gyroMouseSensUD);
-    writeDoc(doc, "highPerformanceReport", Storage::getInstance().getAddonOptions().highPerformanceReport ? 1 : 0);
+    writeDoc(doc, "reportRate", Storage::getInstance().getAddonOptions().reportRate);
     {
         JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
         for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count && i < 16; i++) {
