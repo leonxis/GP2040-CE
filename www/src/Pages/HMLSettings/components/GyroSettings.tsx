@@ -391,24 +391,39 @@ export default function GyroSettings({
 					</Form.Select>
 				</div>
 				<div>
-					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-lr-label', '左右灵敏度')} {(Math.max(0.5, Math.min(3, Number(values.lsm6dsrGyroMouseSensLR) || 1))).toFixed(1)}</Form.Label>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-lr-label', '左右灵敏度')} {(Math.max(0.1, Math.min(3, Number(values.lsm6dsrGyroMouseSensLR) || 1))).toFixed(1)}</Form.Label>
 					<Form.Range
-						min={5}
-						max={30}
-						step={1}
-						value={Math.round(Math.max(0.5, Math.min(3, Number(values.lsm6dsrGyroMouseSensLR) || 1)) * 10)}
-						onChange={(e) => setFieldValue('lsm6dsrGyroMouseSensLR', Number(e.target.value) / 10)}
+						min={0.1}
+						max={3}
+						step={0.1}
+						value={Math.max(0.1, Math.min(3, Number(values.lsm6dsrGyroMouseSensLR) || 1))}
+						onChange={(e) => setFieldValue('lsm6dsrGyroMouseSensLR', Number(e.target.value))}
 						style={{ width: '100%' }}
 					/>
 				</div>
 				<div>
-					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-ud-label', '上下灵敏度')} {(Math.max(0.5, Math.min(3, Number(values.lsm6dsrGyroMouseSensUD) || 1))).toFixed(1)}</Form.Label>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-ud-label', '上下灵敏度')} {(Math.max(0.1, Math.min(3, Number(values.lsm6dsrGyroMouseSensUD) || 1))).toFixed(1)}</Form.Label>
 					<Form.Range
-						min={5}
-						max={30}
+						min={0.1}
+						max={3}
+						step={0.1}
+						value={Math.max(0.1, Math.min(3, Number(values.lsm6dsrGyroMouseSensUD) || 1))}
+						onChange={(e) => setFieldValue('lsm6dsrGyroMouseSensUD', Number(e.target.value))}
+						style={{ width: '100%' }}
+					/>
+				</div>
+				<div>
+					<Form.Label className="mb-0">
+						{t('CalibrationSettings:gyro-mouse-deadzone-label', '鼠标死区')}
+						{' '}
+						{Math.max(0, Math.min(80, Number(values.lsm6dsrGyroMouseDeadzone ?? 12))).toFixed(0)}
+					</Form.Label>
+					<Form.Range
+						min={0}
+						max={80}
 						step={1}
-						value={Math.round(Math.max(0.5, Math.min(3, Number(values.lsm6dsrGyroMouseSensUD) || 1)) * 10)}
-						onChange={(e) => setFieldValue('lsm6dsrGyroMouseSensUD', Number(e.target.value) / 10)}
+						value={Math.max(0, Math.min(80, Number(values.lsm6dsrGyroMouseDeadzone ?? 12)))}
+						onChange={(e) => setFieldValue('lsm6dsrGyroMouseDeadzone', Number(e.target.value))}
 						style={{ width: '100%' }}
 					/>
 				</div>

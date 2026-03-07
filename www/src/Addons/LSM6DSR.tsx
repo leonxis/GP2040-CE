@@ -41,6 +41,7 @@ export const lsm6dsrScheme = {
 	lsm6dsrGyroMouseInvert: yup.number().label('LSM6DSR Gyro Mouse Invert'),
 	lsm6dsrGyroMouseSensLR: yup.number().label('LSM6DSR Gyro Mouse Sens LR'),
 	lsm6dsrGyroMouseSensUD: yup.number().label('LSM6DSR Gyro Mouse Sens UD'),
+	lsm6dsrGyroMouseDeadzone: yup.number().label('LSM6DSR Gyro Mouse Deadzone'),
 };
 
 export const lsm6dsrState = {
@@ -63,6 +64,7 @@ export const lsm6dsrState = {
 	lsm6dsrGyroMouseInvert: 0,
 	lsm6dsrGyroMouseSensLR: 1,
 	lsm6dsrGyroMouseSensUD: 1,
+	lsm6dsrGyroMouseDeadzone: 12,
 };
 
 const LSM6DSR = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes) => {

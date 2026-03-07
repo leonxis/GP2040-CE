@@ -5,6 +5,7 @@
 #include "gamepad.h"
 #include "gamepad/GamepadState.h"
 #include "hardware/gpio.h"
+#include "pico/time.h"
 #include <cmath>
 
 // CS 片选：主动推挽驱动，避免 SPI select/deselect 的上拉/下拉驱动不足
@@ -49,15 +50,17 @@
 #define LSM6DSR_ENGAGE_ON_KEY       1
 #define LSM6DSR_ENGAGE_PAUSE_ON_KEY  2
 
-// 陀螺仪变化率限制（slew limit）：每帧允许的最大变化 LSB。量程 ±500 dps 下 17.5 mdps/LSB，2000 LSB ≈ 35 deg/s/帧 → 30～180 deg/s 的开关震动尖峰被摊平到多帧，峰值显著降低
+// 陀螺仪变化率限制（slew limit）：基于 1ms 的每帧允许最大变化 LSB，运行时按 dt 比例缩放。
 #define LSM6DSR_GYRO_SLEW_LSB       2000
 
-// 一欧元滤波：低通 alpha = 1/(1+tau/Te)，tau=1/(2*pi*fc)。Te = 实际采样间隔，与主循环回报周期一致（gp2040 已对齐到 1 ms）
-#define LSM6DSR_ONE_EURO_TE_S       (1e-3f)
+// 一欧元滤波：低通 alpha = 1/(1+tau/Te)，tau=1/(2*pi*fc)。Te 使用运行时 dt（可变回报率）
+#define LSM6DSR_ONE_EURO_TE_FALLBACK_S  (1e-3f)
+#define LSM6DSR_ONE_EURO_TE_MIN_S       (2e-4f)
+#define LSM6DSR_ONE_EURO_TE_MAX_S       (2e-2f)
 #define LSM6DSR_ONE_EURO_FC_HZ      5.0f
 
-// 鼠标零漂抑制死区（单位：gyro LSB，500dps 量程下 1 LSB=0.0175dps，12 LSB≈0.21dps）
-#define LSM6DSR_MOUSE_DRIFT_DEADZONE_LSB 12
+// 点击抖动抑制窗口：检测到按键按下沿后，短时间屏蔽陀螺鼠标输出，抑制按键带来的手柄下压位移。
+#define LSM6DSR_MOUSE_CLICK_SUPPRESS_US 15000u
 
 // 按需读取用（网页模式下 preprocess 不运行，API 调用时现场读一次）
 static PeripheralSPI* s_spi = nullptr;
@@ -65,6 +68,18 @@ static int8_t s_csPin = -1;
 
 static inline int16_t read16LE(const uint8_t* p) {
 	return (int16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+static inline float lsm6dsr_compute_dt_s(uint64_t nowUs, uint64_t& lastUs) {
+	float dtS = LSM6DSR_ONE_EURO_TE_FALLBACK_S;
+	if (lastUs != 0 && nowUs > lastUs) {
+		dtS = (float)(nowUs - lastUs) * 1e-6f;
+		if (dtS < LSM6DSR_ONE_EURO_TE_MIN_S || dtS > LSM6DSR_ONE_EURO_TE_MAX_S) {
+			dtS = LSM6DSR_ONE_EURO_TE_FALLBACK_S;
+		}
+	}
+	lastUs = nowUs;
+	return dtS;
 }
 
 static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
@@ -119,6 +134,7 @@ void LSM6DSRIMUAddon::setup() {
 	gyroMouseInvert = opts.gyroMouseInvert;
 	gyroMouseSensLR = (opts.gyroMouseSensLR > 0.0f) ? opts.gyroMouseSensLR : 1.0f;
 	gyroMouseSensUD = (opts.gyroMouseSensUD > 0.0f) ? opts.gyroMouseSensUD : 1.0f;
+	gyroMouseDeadzone = opts.gyroMouseDeadzone;
 	engageKeysCount = opts.gyroEngageKeys_count <= 16 ? opts.gyroEngageKeys_count : 16;
 	for (size_t i = 0; i < engageKeysCount; i++)
 		engageKeys[i] = opts.gyroEngageKeys[i];
@@ -128,8 +144,11 @@ void LSM6DSRIMUAddon::setup() {
 		oneEuroState[i] = 0.0f;
 	}
 	oneEuroInited = false;
+	lastSampleUs = 0;
 	mouseSubX = 0.0f;
 	mouseSubY = 0.0f;
+	prevButtons = 0;
+	mouseSuppressUntilUs = 0;
 
 	gpio_init((uint)csPin);
 	gpio_set_dir((uint)csPin, GPIO_OUT);
@@ -170,6 +189,7 @@ void LSM6DSRIMUAddon::reinit() {
 	gyroMouseInvert = opts.gyroMouseInvert;
 	gyroMouseSensLR = (opts.gyroMouseSensLR > 0.0f) ? opts.gyroMouseSensLR : 1.0f;
 	gyroMouseSensUD = (opts.gyroMouseSensUD > 0.0f) ? opts.gyroMouseSensUD : 1.0f;
+	gyroMouseDeadzone = opts.gyroMouseDeadzone;
 	engageKeysCount = opts.gyroEngageKeys_count <= 16 ? opts.gyroEngageKeys_count : 16;
 	for (size_t i = 0; i < engageKeysCount; i++)
 		engageKeys[i] = opts.gyroEngageKeys[i];
@@ -179,13 +199,16 @@ void LSM6DSRIMUAddon::reinit() {
 		oneEuroState[i] = 0.0f;
 	}
 	oneEuroInited = false;
+	lastSampleUs = 0;
 	mouseSubX = 0.0f;
 	mouseSubY = 0.0f;
+	prevButtons = 0;
+	mouseSuppressUntilUs = 0;
 }
 
-void LSM6DSRIMUAddon::applyOneEuroFilter() {
+void LSM6DSRIMUAddon::applyOneEuroFilter(float teS) {
 	const float tau = 1.0f / (2.0f * 3.14159265f * LSM6DSR_ONE_EURO_FC_HZ);
-	const float alpha = 1.0f / (1.0f + tau / LSM6DSR_ONE_EURO_TE_S);
+	const float alpha = 1.0f / (1.0f + tau / teS);
 	for (int i = 0; i < 3; i++) {
 		float in = (float)calG[i];
 		if (!oneEuroInited) {
@@ -205,6 +228,7 @@ void LSM6DSRIMUAddon::applyOneEuroFilter() {
 static int16_t s_apiPrevFilterG[3] = {0, 0, 0};
 static float s_apiOneEuroState[3] = {0.0f, 0.0f, 0.0f};
 static bool s_apiOneEuroInited = false;
+static uint64_t s_apiLastSampleUs = 0;
 
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	if (!s_spi || s_csPin < 0) return false;
@@ -228,13 +252,16 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	accel[0] = (int16_t)(-(int32_t)read16LE(buf + 6) - offAX);
 	accel[1] = (int16_t)(read16LE(buf + 10) - offAY);  // 逻辑 Y = 传感器 Z
 	accel[2] = (int16_t)(read16LE(buf + 8) - offAZ);   // 逻辑 Z = 传感器 Y
+	const float teS = lsm6dsr_compute_dt_s(time_us_64(), s_apiLastSampleUs);
 
 	// 尖峰滤波（与 preprocess 中 applyGyroSlewLimit 一致）
 	if (opts.gyroSpikeFilterEnabled) {
+		int32_t slewLsb = (int32_t)((float)LSM6DSR_GYRO_SLEW_LSB * (teS / LSM6DSR_ONE_EURO_TE_FALLBACK_S) + 0.5f);
+		if (slewLsb < 1) slewLsb = 1;
 		for (int i = 0; i < 3; i++) {
 			int32_t delta = (int32_t)calG[i] - (int32_t)s_apiPrevFilterG[i];
-			if (delta > LSM6DSR_GYRO_SLEW_LSB) delta = LSM6DSR_GYRO_SLEW_LSB;
-			else if (delta < -LSM6DSR_GYRO_SLEW_LSB) delta = -LSM6DSR_GYRO_SLEW_LSB;
+			if (delta > slewLsb) delta = slewLsb;
+			else if (delta < -slewLsb) delta = -slewLsb;
 			int32_t next = (int32_t)s_apiPrevFilterG[i] + delta;
 			s_apiPrevFilterG[i] = (int16_t)next;
 			calG[i] = (int16_t)next;
@@ -246,7 +273,7 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	// 一欧元滤波（与 preprocess 中 applyOneEuroFilter 一致）
 	if (opts.gyroOneEuroFilterEnabled) {
 		const float tau = 1.0f / (2.0f * 3.14159265f * LSM6DSR_ONE_EURO_FC_HZ);
-		const float alpha = 1.0f / (1.0f + tau / LSM6DSR_ONE_EURO_TE_S);
+		const float alpha = 1.0f / (1.0f + tau / teS);
 		for (int i = 0; i < 3; i++) {
 			float in = (float)calG[i];
 			if (!s_apiOneEuroInited) {
@@ -336,11 +363,13 @@ void LSM6DSRIMUAddon::buildEngageMasks() {
 	}
 }
 
-void LSM6DSRIMUAddon::applyGyroSlewLimit() {
+void LSM6DSRIMUAddon::applyGyroSlewLimit(float teS) {
+	int32_t slewLsb = (int32_t)((float)LSM6DSR_GYRO_SLEW_LSB * (teS / LSM6DSR_ONE_EURO_TE_FALLBACK_S) + 0.5f);
+	if (slewLsb < 1) slewLsb = 1;
 	for (int i = 0; i < 3; i++) {
 		int32_t delta = (int32_t)calG[i] - (int32_t)filterG[i];
-		if (delta > LSM6DSR_GYRO_SLEW_LSB) delta = LSM6DSR_GYRO_SLEW_LSB;
-		else if (delta < -LSM6DSR_GYRO_SLEW_LSB) delta = -LSM6DSR_GYRO_SLEW_LSB;
+		if (delta > slewLsb) delta = slewLsb;
+		else if (delta < -slewLsb) delta = -slewLsb;
 		int32_t next = (int32_t)filterG[i] + delta;
 		filterG[i] = (int16_t)next;
 		calG[i] = (int16_t)next;
@@ -369,7 +398,7 @@ static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16
 }
 
 // 陀螺仪→鼠标基准灵敏度（LSM6DSR 17.5 mdps/LSB，与 alpakka CFG_GYRO_SENSITIVITY = 2^-9*1.45 一致）。
-// 按「每帧 1 ms」标定（主循环已与 MAIN_LOOP_REPORT_INTERVAL_US 对齐），不乘 dt，与 Alpakka 方式一致。
+// 按「每帧 1 ms」标定，运行时按 dt 缩放，确保 250/500/1000Hz 手感一致。
 #define GYRO_MOUSE_BASE_SENS  (1.45f / 512.0f)
 
 // 低区平滑（alpakka hssnf）：小幅度角速度压缩，减少微小抖动，|x|<t 时应用
@@ -381,8 +410,7 @@ static float hssnf(float t, float k, float x) {
 }
 
 // 将陀螺仪输出到 HID 鼠标：mapMode、灵敏度、低区平滑(hssnf)、亚像素累积、轴向反转。
-// 位移公式不乘 dt，依赖主循环固定 1 ms 周期（方案 A，与 Alpakka 一致）。
-void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3]) {
+void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3], float dtS) {
 	const int mapMode = gyroMouseMapMode;
 	const int inv = gyroMouseInvert;
 	const float sensLR = gyroMouseSensLR;
@@ -390,11 +418,12 @@ void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3])
 
 	int32_t lr_raw = (mapMode == 0) ? (int32_t)calG[1] : (int32_t)calG[2];
 	int32_t ud_raw = (int32_t)calG[0];
-	if (lr_raw < LSM6DSR_MOUSE_DRIFT_DEADZONE_LSB && lr_raw > -LSM6DSR_MOUSE_DRIFT_DEADZONE_LSB) lr_raw = 0;
-	if (ud_raw < LSM6DSR_MOUSE_DRIFT_DEADZONE_LSB && ud_raw > -LSM6DSR_MOUSE_DRIFT_DEADZONE_LSB) ud_raw = 0;
+	if (lr_raw < gyroMouseDeadzone && lr_raw > -gyroMouseDeadzone) lr_raw = 0;
+	if (ud_raw < gyroMouseDeadzone && ud_raw > -gyroMouseDeadzone) ud_raw = 0;
 
-	float lr_float = (float)lr_raw * GYRO_MOUSE_BASE_SENS * sensLR;
-	float ud_float = (float)ud_raw * GYRO_MOUSE_BASE_SENS * sensUD;
+	const float dtScale = dtS / LSM6DSR_ONE_EURO_TE_FALLBACK_S;
+	float lr_float = (float)lr_raw * GYRO_MOUSE_BASE_SENS * sensLR * dtScale;
+	float ud_float = (float)ud_raw * GYRO_MOUSE_BASE_SENS * sensUD * dtScale;
 
 	// 低区平滑（与 alpakka Gyro__report_incremental 一致：t=1.0, k=0.5，仅对 |v|<t 应用）
 	const float hssnf_t = 1.0f;
@@ -441,19 +470,22 @@ void LSM6DSRIMUAddon::preprocess() {
 	rawA[1] = read16LE(readBuf + 10);  // 逻辑 Y = 传感器 Z
 	rawA[2] = read16LE(readBuf + 8);   // 逻辑 Z = 传感器 Y
 
+	const float teS = lsm6dsr_compute_dt_s(time_us_64(), lastSampleUs);
+
 	calG[0] = (int16_t)(rawG[0] - offsetGyroX);
 	calG[1] = (int16_t)(rawG[1] - offsetGyroY);
 	calG[2] = (int16_t)(rawG[2] - offsetGyroZ);
 
 	if (spikeFilterEnabled)
-		applyGyroSlewLimit();
+		applyGyroSlewLimit(teS);
 	if (oneEuroFilterEnabled)
-		applyOneEuroFilter();
+		applyOneEuroFilter(teS);
 	else
 		oneEuroInited = false;
 
 	Gamepad* gamepad = Storage::getInstance().GetGamepad();
 	if (!gamepad) return;
+	const uint64_t nowUs = time_us_64();
 
 	// 根据生效方式决定是否执行陀螺仪输出（运行时仅按位判断预解析的 mask）
 	bool anyEngageKeyPressed = false;
@@ -479,6 +511,17 @@ void LSM6DSRIMUAddon::preprocess() {
 		return;
 	}
 
+	// 鼠标模式：按键按下沿触发短窗口抑制，过滤点击引起的微位移。
+	if (outputMode == LSM6DSR_OUTPUT_MOUSE) {
+		const uint32_t pressedEdge = (gamepad->state.buttons & ~prevButtons);
+		prevButtons = gamepad->state.buttons;
+		if (pressedEdge != 0) {
+			mouseSuppressUntilUs = nowUs + (uint64_t)LSM6DSR_MOUSE_CLICK_SUPPRESS_US;
+		}
+	} else {
+		prevButtons = gamepad->state.buttons;
+	}
+
 	switch (outputMode) {
 	case LSM6DSR_OUTPUT_DS4:
 		gamepad->auxState.sensors.mouse.enabled = false;
@@ -486,7 +529,16 @@ void LSM6DSRIMUAddon::preprocess() {
 		outputGyroToDS4(gamepad, calG, rawA);
 		break;
 	case LSM6DSR_OUTPUT_MOUSE:
-		outputGyroToMouse(gamepad, calG);
+		if (nowUs < mouseSuppressUntilUs) {
+			mouseSubX = 0.0f;
+			mouseSubY = 0.0f;
+			gamepad->auxState.sensors.mouse.x = 0;
+			gamepad->auxState.sensors.mouse.y = 0;
+			gamepad->auxState.sensors.mouse.enabled = true;
+			gamepad->auxState.sensors.mouse.active = true;
+		} else {
+			outputGyroToMouse(gamepad, calG, teS);
+		}
 		break;
 	default:
 		gamepad->auxState.sensors.mouse.enabled = false;

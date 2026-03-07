@@ -614,7 +614,7 @@ std::string setMCP3208Options() {
 }
 
 std::string getLSM6DSROptions() {
-    const size_t capacity = JSON_OBJECT_SIZE(15) + JSON_ARRAY_SIZE(16);
+    const size_t capacity = JSON_OBJECT_SIZE(16) + JSON_ARRAY_SIZE(16);
     DynamicJsonDocument doc(capacity);
     const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
@@ -635,6 +635,7 @@ std::string getLSM6DSROptions() {
     writeDoc(doc, "lsm6dsrGyroMouseInvert", opts.gyroMouseInvert);
     writeDoc(doc, "lsm6dsrGyroMouseSensLR", opts.gyroMouseSensLR);
     writeDoc(doc, "lsm6dsrGyroMouseSensUD", opts.gyroMouseSensUD);
+    writeDoc(doc, "lsm6dsrGyroMouseDeadzone", opts.gyroMouseDeadzone);
     JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
     for (size_t i = 0; i < opts.gyroEngageKeys_count && i < 16; i++) {
         arr.add(opts.gyroEngageKeys[i]);
@@ -737,6 +738,8 @@ std::string setLSM6DSROptions() {
     docToValue(opts.gyroMouseInvert, doc, "lsm6dsrGyroMouseInvert");
     if (doc.containsKey("lsm6dsrGyroMouseSensLR")) opts.gyroMouseSensLR = doc["lsm6dsrGyroMouseSensLR"].as<float>();
     if (doc.containsKey("lsm6dsrGyroMouseSensUD")) opts.gyroMouseSensUD = doc["lsm6dsrGyroMouseSensUD"].as<float>();
+    docToValue(opts.gyroMouseDeadzone, doc, "lsm6dsrGyroMouseDeadzone");
+    if (doc.containsKey("lsm6dsrGyroMouseDeadzone")) opts.has_gyroMouseDeadzone = true;
     if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
         JsonArray arr = doc["lsm6dsrEngageKeys"];
         opts.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
@@ -2251,6 +2254,8 @@ std::string setAddonOptions()
     docToValue(lsm6dsrOptions.gyroMouseInvert, doc, "lsm6dsrGyroMouseInvert");
     if (doc.containsKey("lsm6dsrGyroMouseSensLR")) lsm6dsrOptions.gyroMouseSensLR = doc["lsm6dsrGyroMouseSensLR"].as<float>();
     if (doc.containsKey("lsm6dsrGyroMouseSensUD")) lsm6dsrOptions.gyroMouseSensUD = doc["lsm6dsrGyroMouseSensUD"].as<float>();
+    docToValue(lsm6dsrOptions.gyroMouseDeadzone, doc, "lsm6dsrGyroMouseDeadzone");
+    if (doc.containsKey("lsm6dsrGyroMouseDeadzone")) lsm6dsrOptions.has_gyroMouseDeadzone = true;
     docToValue(Storage::getInstance().getAddonOptions().reportRate, doc, "reportRate");
 
     RotaryOptions& rotaryOptions = Storage::getInstance().getAddonOptions().rotaryOptions;
@@ -2736,6 +2741,7 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrGyroMouseInvert", lsm6dsrOptions.gyroMouseInvert);
     writeDoc(doc, "lsm6dsrGyroMouseSensLR", lsm6dsrOptions.gyroMouseSensLR);
     writeDoc(doc, "lsm6dsrGyroMouseSensUD", lsm6dsrOptions.gyroMouseSensUD);
+    writeDoc(doc, "lsm6dsrGyroMouseDeadzone", lsm6dsrOptions.gyroMouseDeadzone);
     writeDoc(doc, "reportRate", Storage::getInstance().getAddonOptions().reportRate);
     {
         JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");

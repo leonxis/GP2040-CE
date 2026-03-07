@@ -1026,6 +1026,7 @@ message LSM6DSROptions
     optional int32 gyroMouseInvert = 21 [default = 0];    // 0=无, 1=反转左右, 2=反转上下, 3=全部反转
     optional float gyroMouseSensLR = 22 [default = 1.0]; // 左右灵敏度，范围 0.5~3.0
     optional float gyroMouseSensUD = 23 [default = 1.0]; // 上下灵敏度
+    optional int32 gyroMouseDeadzone = 24 [default = 12]; // 鼠标死区（LSB，建议 0~80）
 }
 
 message FourKeyTouchpadOptions

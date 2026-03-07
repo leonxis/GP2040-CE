@@ -154,7 +154,12 @@ export const FormContext = ({ setStoredData }) => {
 };
 
 // 需要保留小数的字段（如外圈放大系数 0.1% 步长），不做 parseInt
-const FLOAT_KEYS = ['joystickFinetuneShapeAmplify1', 'joystickFinetuneShapeAmplify2'];
+const FLOAT_KEYS = [
+	'joystickFinetuneShapeAmplify1',
+	'joystickFinetuneShapeAmplify2',
+	'lsm6dsrGyroMouseSensLR',
+	'lsm6dsrGyroMouseSensUD',
+];
 
 export const sanitizeData = (values) => {
 	const keys = Object.keys(values).filter(

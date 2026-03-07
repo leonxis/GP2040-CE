@@ -30,9 +30,9 @@ public:
 	virtual void reinit();
 private:
 	void buildEngageMasks();   // 根据 engageKeys 填充 engageButtonMask / engageDpadMask（仅支持上下左右、B1-B4、L1/L2/R1/R2、S1/S2）
-	void applyGyroSlewLimit(); // 尖峰滤波：对 calG/filterG 做变化率限制，抑制微动开关震动引起的短时尖峰
-	void applyOneEuroFilter(); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)，在尖峰滤波之后应用
-	void outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3]); // 陀螺仪→HID 鼠标
+	void applyGyroSlewLimit(float teS); // 尖峰滤波：对 calG/filterG 做变化率限制（按 dt 缩放），抑制微动开关震动引起的短时尖峰
+	void applyOneEuroFilter(float teS); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)，在尖峰滤波之后应用
+	void outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3], float dtS); // 陀螺仪→HID 鼠标（按 dt 缩放）
 	PeripheralSPI* spi;
 	int8_t csPin;
 	int32_t offsetGyroX;
@@ -49,6 +49,7 @@ private:
 	int gyroMouseInvert;    // 0=无, 1=反转左右, 2=反转上下, 3=全部反转
 	float gyroMouseSensLR;  // 左右灵敏度
 	float gyroMouseSensUD;  // 上下灵敏度
+	int32_t gyroMouseDeadzone; // 鼠标死区（LSB）
 	int32_t engageKeys[16];  // 生效按键（GpioAction 枚举值），与前端体感设置一致
 	size_t engageKeysCount;
 	// 预解析生效按键为 mask，运行时仅按位判断（同四键触摸板优化）
@@ -64,9 +65,12 @@ private:
 	// 一欧元滤波内部状态（浮点，每轴一个）
 	float oneEuroState[3];
 	bool oneEuroInited;
+	uint64_t lastSampleUs;
 	// 鼠标亚像素累积（用于 1kHz 下的小速度积分）
 	float mouseSubX;
 	float mouseSubY;
+	uint32_t prevButtons;
+	uint64_t mouseSuppressUntilUs;
 };
 
 #endif
