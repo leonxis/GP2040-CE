@@ -27,27 +27,12 @@
 #define GPIO_PIN_22 GpioAction::BUTTON_PRESS_L1     // L1     | LB     | L       | L1       | 5      | P4     |
 #define GPIO_PIN_18 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
 #define GPIO_PIN_19 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
-//#define GPIO_PIN_17 GpioAction::BUTTON_PRESS_L3     // L3     | LS     | LS      | L3       | 11     | LS     | 
-//#define GPIO_PIN_24 GpioAction::BUTTON_PRESS_R3     // R3     | RS     | RS      | R3       | 12     | RS     |
 #define GPIO_PIN_08 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
 #define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
-//#define GPIO_PIN_23 GpioAction::MENU_NAVIGATION_TOGGLE  
 #define GPIO_PIN_24 GpioAction::BUTTON_PRESS_B1     // bkey1
 #define GPIO_PIN_25 GpioAction::BUTTON_PRESS_B2     // bkey2
 #define GPIO_PIN_26 GpioAction::BUTTON_PRESS_B3     // bkey3
 #define GPIO_PIN_27 GpioAction::BUTTON_PRESS_B4     // bkey4
-
-// MCP3208 + LSM6DSR 共用 SPI0，引脚固定不从前端获取
-
-
-// Setting GPIO pins to assigned by add-on
-//
-
-
-#define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON
-#define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON
-#define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON
-#define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON
 
 // Keyboard Mapping Configuration
 //                                            // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
@@ -71,20 +56,97 @@
 #define KEY_BUTTON_A2   HID_KEY_F2            // A2     | ~      | Capture | ~        | 14     | ~      |
 #define KEY_BUTTON_FN   -1                    // Hotkey Function                                        |
 
+// Setting GPIO pins to assigned by add-on
+#define GPIO_PIN_00 GpioAction::ASSIGNED_TO_ADDON // SPI0 RX
+#define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 CS (MCP3208)
+#define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 SCK
+#define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 TX
+#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // CS-LSM6
+#define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON //D+
+#define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON //D-
+#define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON //SDA
+#define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON //SCL
+#define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON //LED
+
+// SPI0: 开启，RX=GPIO0, CS=GPIO1, SCK=GPIO2, TX=GPIO3
+#define SPI0_ENABLED 1
+#define SPI0_PIN_RX 0
+#define SPI0_PIN_CS 1
+#define SPI0_PIN_SCK 2
+#define SPI0_PIN_TX 3
+
+// MCP3208 插件默认：开启，SPI 模块 spi0，片选 CS=1 (GPIO1)
+// LSM6 插件默认：开启，SPI 模块 spi0，片选 CS=4 (GPIO4)
+#define LSM6DSR_DEFAULT_ENABLED 1
+#define LSM6DSR_DEFAULT_CS_PIN 4
+
+// 四键触摸板开关：0=关闭
+#define HML_FOURKEY_TOUCHPAD_ENABLED 0
+
+// 四键触摸板映射：左上=B1, 右上=B2, 左下=B3, 右下=B4（config_utils 在未设置时依此写入）
+#define HML_TOUCH_KEY1_ACTION GpioAction::BUTTON_PRESS_B1  // 左上
+#define HML_TOUCH_KEY2_ACTION GpioAction::BUTTON_PRESS_B3  // 左下
+#define HML_TOUCH_KEY3_ACTION GpioAction::BUTTON_PRESS_B4  // 右下
+#define HML_TOUCH_KEY4_ACTION GpioAction::BUTTON_PRESS_B2  // 右上
+
+// FN/MT 键映射（config_utils 在未设置时依此写入）
+#define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_L1
+#define HML_RIGHT_FN_ACTION GpioAction::BUTTON_PRESS_R1
+#define HML_LEFT_MT_ACTION  GpioAction::BUTTON_PRESS_FN
+#define HML_RIGHT_MT_ACTION GpioAction::MENU_NAVIGATION_TOGGLE  
+
 // LED Configuration
 #define BOARD_LEDS_PIN 20
-#define LED_BRIGHTNESS_MAXIMUM 80
+#define LED_BRIGHTNESS_MAXIMUM 35
 #define CASE_RGB_TYPE  CASE_RGB_TYPE_AMBIENT
 #define CASE_RGB_INDEX 0
 #define CASE_RGB_COUNT 1
 
 // analog stick configuration
+#define ANALOG_INPUT_ENABLED 0
 //#define ANALOG_ADC_1_VRX            27
 //#define ANALOG_ADC_1_VRY            26
 //#define ANALOG_ADC_2_VRX            29
 //#define ANALOG_ADC_2_VRY            28
+#define DEFAULT_INNER_DEADZONE 0
+#define DEFAULT_INNER_DEADZONE2 0
+#define ANAOG_ADC_1_INVERT INVERT_X
+#define ANAOG_ADC_2_INVERT INVERT_X
 
+// Input Modes
+#define DEFAULT_INPUT_MODE INPUT_MODE_PS4B
+#define DEFAULT_INPUT_MODE_B2 -1
+#define DEFAULT_INPUT_MODE_B3 -1
+#define DEFAULT_INPUT_MODE_B4 -1
+#define DEFAULT_INPUT_MODE_B1 -1
+#define DEFAULT_INPUT_MODE_R2 -1
+#define DEFAULT_INPUT_MODE_L2 -1
+#define DEFAULT_INPUT_MODE_R1 -1
+#define DEFAULT_INPUT_MODE_L1 -1
 
+// mini led
+#define MINI_MENU_GAMEPAD_INPUT 0 
+#define HAS_I2C_DISPLAY 1
+#ifndef I2C0_ENABLED
+#define I2C0_ENABLED 0
+#endif
+#ifndef I2C1_ENABLED
+#define I2C1_ENABLED 0
+#endif
+#ifndef I2C1_PIN_SDA
+#define I2C1_PIN_SDA 10
+#endif
+#ifndef I2C1_PIN_SCL
+#define I2C1_PIN_SCL 11
+#endif
+#define SPLASH_MODE SPLASH_MODE_STATIC
+#define SPLASH_DURATION 1000
+
+// USB Passthrough
+#define USB_PERIPHERAL_ENABLED 0
+#ifndef USB_PERIPHERAL_PIN_DPLUS
+#define USB_PERIPHERAL_PIN_DPLUS 5
+#endif
 
 // PS AUTH
 #define DEFAULT_PS4CONTROLLER_TYPE PS4_CONTROLLER
@@ -159,32 +221,6 @@
   0x1D, 0xD3, 0x19, 0x0A, 0x42, 0x50, 0x3A, 0x05, 0x83, 0x3A, 0xFC, 0xB9, 0x7A, 0x25, 0xD9, 0x86, \
   0xA5, 0xF1, 0x67, 0xB0, 0x06, 0x34, 0x57, 0xAB, 0xBC, 0xFB, 0x8B, 0x2A, 0x90, 0xFF, 0x32, 0x82, \
   0x08, 0x2A, 0x83, 0x60, 0x78, 0x2C, 0x86, 0x62, 0x1C, 0xCA, 0x0D, 0xEE, 0xEE, 0xF7, 0x67, 0xF1
-
-// Input Modes
-#define DEFAULT_INPUT_MODE INPUT_MODE_PS4B
-#define DEFAULT_INPUT_MODE_B2 -1
-#define DEFAULT_INPUT_MODE_B3 -1
-#define DEFAULT_INPUT_MODE_B4 -1
-#define DEFAULT_INPUT_MODE_B1 -1
-#define DEFAULT_INPUT_MODE_R2 -1
-#define DEFAULT_INPUT_MODE_L2 -1
-#define DEFAULT_INPUT_MODE_R1 -1
-#define DEFAULT_INPUT_MODE_L1 -1
-
-// mini led
-#define MINI_MENU_GAMEPAD_INPUT 1 
-#define HAS_I2C_DISPLAY 1
-#ifndef I2C1_ENABLED
-#define I2C1_ENABLED 1
-#endif
-#ifndef I2C1_PIN_SDA
-#define I2C1_PIN_SDA 10
-#endif
-#ifndef I2C1_PIN_SCL
-#define I2C1_PIN_SCL 11
-#endif
-#define SPLASH_MODE SPLASH_MODE_STATIC
-#define SPLASH_DURATION 1000
 
 // MINI LED layout
  #define BUTTON_LAYOUT BUTTON_LAYOUT_BOARD_DEFINED_A

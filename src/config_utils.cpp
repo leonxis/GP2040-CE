@@ -1072,12 +1072,25 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerMaxRaw, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerMaxRaw, 0);
 #endif
+#if defined(HML_FOURKEY_TOUCHPAD_ENABLED)
+    INIT_UNSET_PROPERTY(config.addonOptions.fourKeyTouchpadOptions, enabled, HML_FOURKEY_TOUCHPAD_ENABLED);
+#else
     INIT_UNSET_PROPERTY(config.addonOptions.fourKeyTouchpadOptions, enabled, 0);
+#endif
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, 1);
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, spiBlock, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, csPin, 1);
+#if defined(LSM6DSR_DEFAULT_ENABLED)
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);
+#else
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, 0);
+#endif
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, spiBlock, 0);
+#if defined(LSM6DSR_DEFAULT_CS_PIN)
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, csPin, LSM6DSR_DEFAULT_CS_PIN);
+#else
+    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, csPin, -1);
+#endif
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, outputMode, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroX, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroY, 0);
@@ -1093,6 +1106,53 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensUD, 1.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseDeadzone, 12);
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
+
+#if defined(HML_TOUCH_KEY1_ACTION)
+    // 四键触摸板映射：依 boardconfig（左上=B1, 右上=B2, 左下=B3, 右下=B4），仅当未设置时写入
+    if (!config.addonOptions.fourKeyTouchpadOptions.has_key1Mapping) {
+        config.addonOptions.fourKeyTouchpadOptions.key1Mapping.action = HML_TOUCH_KEY1_ACTION;
+        config.addonOptions.fourKeyTouchpadOptions.key1Mapping.has_action = true;
+        config.addonOptions.fourKeyTouchpadOptions.has_key1Mapping = true;
+    }
+    if (!config.addonOptions.fourKeyTouchpadOptions.has_key2Mapping) {
+        config.addonOptions.fourKeyTouchpadOptions.key2Mapping.action = HML_TOUCH_KEY2_ACTION;
+        config.addonOptions.fourKeyTouchpadOptions.key2Mapping.has_action = true;
+        config.addonOptions.fourKeyTouchpadOptions.has_key2Mapping = true;
+    }
+    if (!config.addonOptions.fourKeyTouchpadOptions.has_key3Mapping) {
+        config.addonOptions.fourKeyTouchpadOptions.key3Mapping.action = HML_TOUCH_KEY3_ACTION;
+        config.addonOptions.fourKeyTouchpadOptions.key3Mapping.has_action = true;
+        config.addonOptions.fourKeyTouchpadOptions.has_key3Mapping = true;
+    }
+    if (!config.addonOptions.fourKeyTouchpadOptions.has_key4Mapping) {
+        config.addonOptions.fourKeyTouchpadOptions.key4Mapping.action = HML_TOUCH_KEY4_ACTION;
+        config.addonOptions.fourKeyTouchpadOptions.key4Mapping.has_action = true;
+        config.addonOptions.fourKeyTouchpadOptions.has_key4Mapping = true;
+    }
+#endif
+#if defined(HML_LEFT_FN_ACTION)
+    // FN/MT 键映射：依 boardconfig（左FN=L1, 右FN=R1, 左MT=L2, 右MT=R2），仅当未设置时写入
+    if (!config.addonOptions.fnKeyMappingOptions.has_leftFnMapping) {
+        config.addonOptions.fnKeyMappingOptions.leftFnMapping.action = HML_LEFT_FN_ACTION;
+        config.addonOptions.fnKeyMappingOptions.leftFnMapping.has_action = true;
+        config.addonOptions.fnKeyMappingOptions.has_leftFnMapping = true;
+    }
+    if (!config.addonOptions.fnKeyMappingOptions.has_rightFnMapping) {
+        config.addonOptions.fnKeyMappingOptions.rightFnMapping.action = HML_RIGHT_FN_ACTION;
+        config.addonOptions.fnKeyMappingOptions.rightFnMapping.has_action = true;
+        config.addonOptions.fnKeyMappingOptions.has_rightFnMapping = true;
+    }
+    if (!config.addonOptions.fnKeyMappingOptions.has_leftMtMapping) {
+        config.addonOptions.fnKeyMappingOptions.leftMtMapping.action = HML_LEFT_MT_ACTION;
+        config.addonOptions.fnKeyMappingOptions.leftMtMapping.has_action = true;
+        config.addonOptions.fnKeyMappingOptions.has_leftMtMapping = true;
+    }
+    if (!config.addonOptions.fnKeyMappingOptions.has_rightMtMapping) {
+        config.addonOptions.fnKeyMappingOptions.rightMtMapping.action = HML_RIGHT_MT_ACTION;
+        config.addonOptions.fnKeyMappingOptions.rightMtMapping.has_action = true;
+        config.addonOptions.fnKeyMappingOptions.has_rightMtMapping = true;
+    }
+#endif
 
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, enabled, KEYBOARD_HOST_ENABLED);
