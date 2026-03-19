@@ -985,7 +985,9 @@ message AddonOptions
     optional FourKeyTouchpadOptions fourKeyTouchpadOptions = 32;
     optional FnKeyMappingOptions fnKeyMappingOptions = 33;
     optional MCP3208Options mcp3208Options = 34;
+    optional TwoKeyTouchpadOptions twoKeyTouchpadOptions = 37;
     optional LSM6DSROptions lsm6dsrOptions = 35;
+    optional BackButtonAddonOptions backButtonAddonOptions = 38;
     // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz
     optional uint32 reportRate = 36 [default = 1000];
 }
@@ -1048,6 +1050,23 @@ message FnKeyMappingOptions
     optional GpioMappingInfo rightMtMapping = 4;
     optional GpioMappingInfo leftExtTriggerMapping = 5;
     optional GpioMappingInfo rightExtTriggerMapping = 6;
+}
+
+message TwoKeyTouchpadOptions
+{
+    optional bool enabled = 1 [default = false];
+    // 左触摸键 / 右触摸键，默认由 BoardConfig 的 HML_TWOKEY_LEFT_ACTION / HML_TWOKEY_RIGHT_ACTION 设置
+    optional GpioMappingInfo leftKeyMapping = 2;
+    optional GpioMappingInfo rightKeyMapping = 3;
+}
+
+// 背键设置插件使用的逻辑背键映射（与具体 GPIO 解耦，仅持久化映射值）
+message BackButtonAddonOptions
+{
+    optional GpioMappingInfo leftBack1Mapping = 1;
+    optional GpioMappingInfo rightBack1Mapping = 2;
+    optional GpioMappingInfo leftBack2Mapping = 3;
+    optional GpioMappingInfo rightBack2Mapping = 4;
 }
 
 message MigrationHistory

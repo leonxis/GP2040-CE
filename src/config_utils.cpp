@@ -503,12 +503,14 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     // peripheralOptions
     PeripheralOptions& peripheralOptions = config.peripheralOptions;
     INIT_UNSET_PROPERTY(peripheralOptions.blockI2C0, enabled, (!!I2C0_ENABLED));
-    INIT_UNSET_PROPERTY(peripheralOptions.blockI2C0, sda, (!!I2C0_ENABLED) ? I2C0_PIN_SDA : -1);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockI2C0, scl, (!!I2C0_ENABLED) ? I2C0_PIN_SCL : -1);
+    // Note: even if I2C block is disabled, we still keep SDA/SCL pin defaults from BoardConfig
+    // so add-ons that repurpose I2C pins as GPIO can discover them.
+    INIT_UNSET_PROPERTY(peripheralOptions.blockI2C0, sda, I2C0_PIN_SDA);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockI2C0, scl, I2C0_PIN_SCL);
     INIT_UNSET_PROPERTY(peripheralOptions.blockI2C0, speed, I2C0_SPEED);
     INIT_UNSET_PROPERTY(peripheralOptions.blockI2C1, enabled, (!!I2C1_ENABLED));
-    INIT_UNSET_PROPERTY(peripheralOptions.blockI2C1, sda, (!!I2C1_ENABLED) ? I2C1_PIN_SDA : -1);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockI2C1, scl, (!!I2C1_ENABLED) ? I2C1_PIN_SCL : -1);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockI2C1, sda, I2C1_PIN_SDA);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockI2C1, scl, I2C1_PIN_SCL);
     INIT_UNSET_PROPERTY(peripheralOptions.blockI2C1, speed, I2C1_SPEED);
 
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, enabled, (!!SPI0_ENABLED));
@@ -1152,6 +1154,74 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
         config.addonOptions.fnKeyMappingOptions.rightMtMapping.has_action = true;
         config.addonOptions.fnKeyMappingOptions.has_rightMtMapping = true;
     }
+#endif
+#if defined(HML_EXT_LEFT_ACTION) || defined(HML_EXT_RIGHT_ACTION)
+    // Ext 左/右扳机映射：由 boardconfig 配置，仅当未设置时写入（可单独配置左/右）
+#if defined(HML_EXT_LEFT_ACTION)
+    if (!config.addonOptions.fnKeyMappingOptions.has_leftExtTriggerMapping) {
+        config.addonOptions.fnKeyMappingOptions.leftExtTriggerMapping.action = HML_EXT_LEFT_ACTION;
+        config.addonOptions.fnKeyMappingOptions.leftExtTriggerMapping.has_action = true;
+        config.addonOptions.fnKeyMappingOptions.has_leftExtTriggerMapping = true;
+    }
+#endif
+#if defined(HML_EXT_RIGHT_ACTION)
+    if (!config.addonOptions.fnKeyMappingOptions.has_rightExtTriggerMapping) {
+        config.addonOptions.fnKeyMappingOptions.rightExtTriggerMapping.action = HML_EXT_RIGHT_ACTION;
+        config.addonOptions.fnKeyMappingOptions.rightExtTriggerMapping.has_action = true;
+        config.addonOptions.fnKeyMappingOptions.has_rightExtTriggerMapping = true;
+    }
+#endif
+#endif
+
+#if defined(HML_TWOKEY_TOUCHPAD_ENABLED)
+    INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, HML_TWOKEY_TOUCHPAD_ENABLED);
+#else
+    INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, 0);
+#endif
+#if defined(HML_TWOKEY_LEFT_ACTION)
+    // 2键触摸板映射：左触摸键/右触摸键，由 boardconfig 配置，仅当未设置时写入
+    if (!config.addonOptions.twoKeyTouchpadOptions.has_leftKeyMapping) {
+        config.addonOptions.twoKeyTouchpadOptions.leftKeyMapping.action = HML_TWOKEY_LEFT_ACTION;
+        config.addonOptions.twoKeyTouchpadOptions.leftKeyMapping.has_action = true;
+        config.addonOptions.twoKeyTouchpadOptions.has_leftKeyMapping = true;
+    }
+    if (!config.addonOptions.twoKeyTouchpadOptions.has_rightKeyMapping) {
+        config.addonOptions.twoKeyTouchpadOptions.rightKeyMapping.action = HML_TWOKEY_RIGHT_ACTION;
+        config.addonOptions.twoKeyTouchpadOptions.rightKeyMapping.has_action = true;
+        config.addonOptions.twoKeyTouchpadOptions.has_rightKeyMapping = true;
+    }
+#endif
+
+#if defined(HML_BACK_L1_ACTION) || defined(HML_BACK_R1_ACTION) || defined(HML_BACK_L2_ACTION) || defined(HML_BACK_R2_ACTION)
+    // 背键设置插件：逻辑背键映射（与 GPIO 解耦），仅当未设置时写入（可分别配置每一项）
+#if defined(HML_BACK_L1_ACTION)
+    if (!config.addonOptions.backButtonAddonOptions.has_leftBack1Mapping) {
+        config.addonOptions.backButtonAddonOptions.leftBack1Mapping.action = HML_BACK_L1_ACTION;
+        config.addonOptions.backButtonAddonOptions.leftBack1Mapping.has_action = true;
+        config.addonOptions.backButtonAddonOptions.has_leftBack1Mapping = true;
+    }
+#endif
+#if defined(HML_BACK_R1_ACTION)
+    if (!config.addonOptions.backButtonAddonOptions.has_rightBack1Mapping) {
+        config.addonOptions.backButtonAddonOptions.rightBack1Mapping.action = HML_BACK_R1_ACTION;
+        config.addonOptions.backButtonAddonOptions.rightBack1Mapping.has_action = true;
+        config.addonOptions.backButtonAddonOptions.has_rightBack1Mapping = true;
+    }
+#endif
+#if defined(HML_BACK_L2_ACTION)
+    if (!config.addonOptions.backButtonAddonOptions.has_leftBack2Mapping) {
+        config.addonOptions.backButtonAddonOptions.leftBack2Mapping.action = HML_BACK_L2_ACTION;
+        config.addonOptions.backButtonAddonOptions.leftBack2Mapping.has_action = true;
+        config.addonOptions.backButtonAddonOptions.has_leftBack2Mapping = true;
+    }
+#endif
+#if defined(HML_BACK_R2_ACTION)
+    if (!config.addonOptions.backButtonAddonOptions.has_rightBack2Mapping) {
+        config.addonOptions.backButtonAddonOptions.rightBack2Mapping.action = HML_BACK_R2_ACTION;
+        config.addonOptions.backButtonAddonOptions.rightBack2Mapping.has_action = true;
+        config.addonOptions.backButtonAddonOptions.has_rightBack2Mapping = true;
+    }
+#endif
 #endif
 
     // keyboardMapping

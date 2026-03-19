@@ -236,8 +236,16 @@ export default function BackButtonMapping() {
 	});
 	const [touchpadSaveMsg, setTouchpadSaveMsg] = useState('');
 	const [touchpadSaving, setTouchpadSaving] = useState(false);
-	// 由硬件配置-4键触摸板开关决定触摸板映射栏折叠/展开
+	// 由硬件配置-4键触摸板/2键触摸板开关决定触摸板映射栏显示内容
 	const [fourKeyTouchpadEnabled, setFourKeyTouchpadEnabled] = useState(false);
+	const [twoKeyTouchpadEnabled, setTwoKeyTouchpadEnabled] = useState(false);
+	// 2键触摸板映射（默认 NONE，固件侧由 BoardConfig 的 HML_TWOKEY_LEFT_ACTION/HML_TWOKEY_RIGHT_ACTION 配置）
+	const [twoKeyOptions, setTwoKeyOptions] = useState<Record<string, MaskPayload>>({
+		leftKey:  { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+		rightKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+	});
+	const [twoKeySaveMsg, setTwoKeySaveMsg] = useState('');
+	const [twoKeySaving, setTwoKeySaving] = useState(false);
 	// FN键映射（左FN、右FN、左MT、右MT、Ext左扳机、Ext右扳机；引脚先留空）
 	const [fnOptions, setFnOptions] = useState<Record<string, MaskPayload>>({
 		leftFn: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
@@ -249,6 +257,16 @@ export default function BackButtonMapping() {
 	});
 	const [fnSaveMsg, setFnSaveMsg] = useState('');
 	const [fnSaving, setFnSaving] = useState(false);
+
+	// 背键设置插件：逻辑背键映射（不对应 GPIO，供插件读取）
+	const [backAddonOptions, setBackAddonOptions] = useState<Record<string, MaskPayload>>({
+		leftBack1:  { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		rightBack1: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		leftBack2:  { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		rightBack2: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+	});
+	const [backAddonSaveMsg, setBackAddonSaveMsg] = useState('');
+	const [backAddonSaving, setBackAddonSaving] = useState(false);
 
 	const defaultPinData: MaskPayload = {
 		action: BUTTON_ACTIONS.NONE,
@@ -291,8 +309,14 @@ export default function BackButtonMapping() {
 	const onTouchpadChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
 		setTouchpadOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
 	}, []);
+	const onTwoKeyChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
+		setTwoKeyOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
+	}, []);
 	const onFnChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
 		setFnOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
+	}, []);
+	const onBackAddonChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
+		setBackAddonOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
 	}, []);
 
 	const getOptionLabel = useCallback(
@@ -325,7 +349,7 @@ export default function BackButtonMapping() {
 		useProfilesStore.getState().fetchProfiles();
 		const toPayload = (m: { action?: number; customButtonMask?: number; customDpadMask?: number } | undefined): MaskPayload =>
 			m ? { action: (m.action ?? BUTTON_ACTIONS.NONE) as PinActionValues, customButtonMask: m.customButtonMask ?? 0, customDpadMask: m.customDpadMask ?? 0 } : defaultPinData;
-		Promise.all([WebApi.getFourKeyTouchpadOptions(), WebApi.getFnKeyMappingOptions()]).then(([touchpad, fn]) => {
+		Promise.all([WebApi.getFourKeyTouchpadOptions(), WebApi.getTwoKeyTouchpadOptions(), WebApi.getFnKeyMappingOptions(), WebApi.getBackButtonAddonOptions()]).then(([touchpad, twoKey, fn, backAddon]) => {
 			if (touchpad) {
 				setFourKeyTouchpadEnabled(Boolean(touchpad.enabled));
 				setTouchpadOptions({
@@ -333,6 +357,13 @@ export default function BackButtonMapping() {
 					key4: toPayload(touchpad.key4),
 					key2: toPayload(touchpad.key2),
 					key3: toPayload(touchpad.key3),
+				});
+			}
+			if (twoKey) {
+				setTwoKeyTouchpadEnabled(Boolean(twoKey.enabled));
+				setTwoKeyOptions({
+					leftKey:  twoKey.leftKey  ? toPayload(twoKey.leftKey)  : { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+					rightKey: twoKey.rightKey ? toPayload(twoKey.rightKey) : { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
 				});
 			}
 			if (fn) {
@@ -343,6 +374,14 @@ export default function BackButtonMapping() {
 					rightMt: toPayload(fn.rightMt),
 					extLeftTrigger: toPayload(fn.extLeftTrigger),
 					extRightTrigger: toPayload(fn.extRightTrigger),
+				});
+			}
+			if (backAddon) {
+				setBackAddonOptions({
+					leftBack1:  toPayload(backAddon.leftBack1),
+					rightBack1: toPayload(backAddon.rightBack1),
+					leftBack2:  toPayload(backAddon.leftBack2),
+					rightBack2: toPayload(backAddon.rightBack2),
 				});
 			}
 		});
@@ -369,6 +408,24 @@ export default function BackButtonMapping() {
 		}
 	}, [touchpadOptions, t]);
 
+	const handleSaveTwoKey = useCallback(async () => {
+		setTwoKeySaveMsg('');
+		setTwoKeySaving(true);
+		try {
+			await WebApi.setTwoKeyTouchpadOptions({
+				leftKey:  twoKeyOptions.leftKey,
+				rightKey: twoKeyOptions.rightKey,
+			});
+			setTwoKeySaveMsg(t('Common:saved-success-message'));
+			setTimeout(() => setTwoKeySaveMsg(''), 3000);
+		} catch (e) {
+			setTwoKeySaveMsg(t('Common:saved-error-message'));
+			setTimeout(() => setTwoKeySaveMsg(''), 3000);
+		} finally {
+			setTwoKeySaving(false);
+		}
+	}, [twoKeyOptions, t]);
+
 	const handleSaveFn = useCallback(async () => {
 		setFnSaveMsg('');
 		setFnSaving(true);
@@ -391,6 +448,26 @@ export default function BackButtonMapping() {
 			setFnSaving(false);
 		}
 	}, [fnOptions, t]);
+
+	const handleSaveBackAddon = useCallback(async () => {
+		setBackAddonSaveMsg('');
+		setBackAddonSaving(true);
+		try {
+			await WebApi.setBackButtonAddonOptions({
+				leftBack1:  backAddonOptions.leftBack1,
+				rightBack1: backAddonOptions.rightBack1,
+				leftBack2:  backAddonOptions.leftBack2,
+				rightBack2: backAddonOptions.rightBack2,
+			});
+			setBackAddonSaveMsg(t('Common:saved-success-message'));
+			setTimeout(() => setBackAddonSaveMsg(''), 3000);
+		} catch (e) {
+			setBackAddonSaveMsg(t('Common:saved-error-message'));
+			setTimeout(() => setBackAddonSaveMsg(''), 3000);
+		} finally {
+			setBackAddonSaving(false);
+		}
+	}, [backAddonOptions, t]);
 
 	// 保存引脚映射
 	const handleSave = useCallback(async () => {
@@ -418,15 +495,15 @@ export default function BackButtonMapping() {
 	// 生成pinKey的工具函数
 	const getPinKey = (pin: number) => `pin${pin < 10 ? '0' : ''}${pin}`;
 
-	// 背键映射的GPIO引脚列表（左背键1=24, 右背键1=25, 左背键2=26, 右背键2=27）
-	const gpioPins = [24, 25, 26, 27];
+	// 背键映射的GPIO引脚列表（仅保留物理 EL/ER，逻辑背键1/2 由“背键映射（插件）”管理）
+	// - 左背键EL=GPIO25
+	// - 右背键ER=GPIO24
+	const gpioPins = [25, 24];
 	
 	// 背键GPIO引脚标签映射
 	const backButtonLabels: Record<number, string> = {
-		24: '左背键1',
-		25: '右背键1',
-		26: '左背键2',
-		27: '右背键2',
+		25: '左背键EL',
+		24: '右背键ER',
 	};
 	
 	// 按键交换的GPIO引脚列表（上方的分享/选项/PS/触摸板，再为其余按键）
@@ -480,7 +557,7 @@ export default function BackButtonMapping() {
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>背键映射</Card.Header>
 				<Card.Body>
-					<Row className="g-3">
+					<Row className="g-3 mb-3">
 						{gpioPins.map((pin) => {
 							const pinKey = getPinKey(pin);
 							const pinData = pins[pinKey] || defaultPinData;
@@ -508,37 +585,31 @@ export default function BackButtonMapping() {
 							);
 						})}
 					</Row>
-					{SaveButtonSection}
-				</Card.Body>
-			</Card>
-			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>触摸板映射</Card.Header>
-				<Card.Body>
+					{/* 逻辑背键映射（插件使用）：与 GPIO 解耦，仅持久化动作 */}
 					<Row className="g-3">
 						{[
-							{ key: 'key4', label: '左上触摸键' },
-							{ key: 'key1', label: '右上触摸键' },
-							{ key: 'key3', label: '左下触摸键' },
-							{ key: 'key2', label: '右下触摸键' },
+							{ key: 'leftBack1', label: '左背键1' },
+							{ key: 'rightBack1', label: '右背键1' },
+							{ key: 'leftBack2', label: '左背键2' },
+							{ key: 'rightBack2', label: '右背键2' },
 						].map(({ key, label }) => {
-							const mappingData = touchpadOptions[key] || defaultPinData;
-							const touchpadSelectDisabled = !fourKeyTouchpadEnabled || isDisabled(mappingData.action);
+							const mappingData = backAddonOptions[key] || defaultPinData;
 							return (
-								<Col sm={6} md={6} key={`touchpad-${key}`}>
+								<Col sm={6} md={6} key={`back-addon-${key}`}>
 									<div className="d-flex align-items-center">
-										<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
+										<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
 											<label>{label}</label>
 										</div>
 										<CustomSelect
 											isClearable
-											isMulti={!touchpadSelectDisabled &&
+											isMulti={!isDisabled(mappingData.action) &&
 												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
 												!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
 												!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
 											options={groupedOptions}
-											isDisabled={touchpadSelectDisabled}
+											isDisabled={isDisabled(mappingData.action)}
 											getOptionLabel={getOptionLabel}
-											onChange={onTouchpadChange(key)}
+											onChange={onBackAddonChange(key)}
 											value={getMultiValue(mappingData)}
 										/>
 									</div>
@@ -547,19 +618,146 @@ export default function BackButtonMapping() {
 						})}
 					</Row>
 					<Row className="mt-3">
-						<Col sm={4}>
-							<Button variant="primary" onClick={handleSaveTouchpad} disabled={touchpadSaving || !fourKeyTouchpadEnabled}>
+						<Col sm={4} className="mb-2">
+							<Button
+								variant="primary"
+								onClick={handleSave}
+								disabled={isLoading}
+								className="me-3"
+							>
 								{t('Common:button-save-label')}
 							</Button>
-							{touchpadSaveMsg && (
-								<span className={`ms-3 ${touchpadSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
-									{touchpadSaveMsg}
+							{saveMessage && (
+								<span
+									className={`me-3 ${
+										saveMessage === t('Common:saved-success-message')
+											? 'text-success'
+											: 'text-danger'
+									}`}
+								>
+									{saveMessage}
+								</span>
+							)}
+						</Col>
+						<Col sm={4}>
+							<Button variant="primary" onClick={handleSaveBackAddon} disabled={backAddonSaving}>
+								{t('Common:button-save-label')}
+							</Button>
+							{backAddonSaveMsg && (
+								<span className={`ms-3 ${backAddonSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
+									{backAddonSaveMsg}
 								</span>
 							)}
 						</Col>
 					</Row>
 				</Card.Body>
 			</Card>
+
+		<Card style={{ marginBottom: '1rem' }}>
+			<Card.Header>触摸板映射</Card.Header>
+			<Card.Body>
+				{/* 4键触摸板开启：显示左上/右上/左下/右下四键 */}
+				{fourKeyTouchpadEnabled && (
+					<>
+						<Row className="g-3">
+							{[
+								{ key: 'key4', label: '左上触摸键' },
+								{ key: 'key1', label: '右上触摸键' },
+								{ key: 'key3', label: '左下触摸键' },
+								{ key: 'key2', label: '右下触摸键' },
+							].map(({ key, label }) => {
+								const mappingData = touchpadOptions[key] || defaultPinData;
+								return (
+									<Col sm={6} md={6} key={`touchpad-${key}`}>
+										<div className="d-flex align-items-center">
+											<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
+												<label>{label}</label>
+											</div>
+											<CustomSelect
+												isClearable
+												isMulti={!isDisabled(mappingData.action) &&
+													!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
+													!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
+													!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
+												options={groupedOptions}
+												isDisabled={isDisabled(mappingData.action)}
+												getOptionLabel={getOptionLabel}
+												onChange={onTouchpadChange(key)}
+												value={getMultiValue(mappingData)}
+											/>
+										</div>
+									</Col>
+								);
+							})}
+						</Row>
+						<Row className="mt-3">
+							<Col sm={4}>
+								<Button variant="primary" onClick={handleSaveTouchpad} disabled={touchpadSaving}>
+									{t('Common:button-save-label')}
+								</Button>
+								{touchpadSaveMsg && (
+									<span className={`ms-3 ${touchpadSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
+										{touchpadSaveMsg}
+									</span>
+								)}
+							</Col>
+						</Row>
+					</>
+				)}
+
+				{/* 2键触摸板开启：显示左触摸键/右触摸键（默认L3/R3） */}
+				{!fourKeyTouchpadEnabled && twoKeyTouchpadEnabled && (
+					<>
+						<Row className="g-3">
+							{[
+								{ key: 'leftKey',  label: '左触摸键' },
+								{ key: 'rightKey', label: '右触摸键' },
+							].map(({ key, label }) => {
+								const mappingData = twoKeyOptions[key] || defaultPinData;
+								return (
+									<Col sm={6} md={6} key={`twokey-${key}`}>
+										<div className="d-flex align-items-center">
+											<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
+												<label>{label}</label>
+											</div>
+											<CustomSelect
+												isClearable
+												isMulti={!isDisabled(mappingData.action) &&
+													!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
+													!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
+													!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
+												options={groupedOptions}
+												isDisabled={isDisabled(mappingData.action)}
+												getOptionLabel={getOptionLabel}
+												onChange={onTwoKeyChange(key)}
+												value={getMultiValue(mappingData)}
+											/>
+										</div>
+									</Col>
+								);
+							})}
+						</Row>
+						<Row className="mt-3">
+							<Col sm={4}>
+								<Button variant="primary" onClick={handleSaveTwoKey} disabled={twoKeySaving}>
+									{t('Common:button-save-label')}
+								</Button>
+								{twoKeySaveMsg && (
+									<span className={`ms-3 ${twoKeySaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
+										{twoKeySaveMsg}
+									</span>
+								)}
+							</Col>
+						</Row>
+					</>
+				)}
+
+				{/* 两个触摸板开关均关闭：显示禁用提示 */}
+				{!fourKeyTouchpadEnabled && !twoKeyTouchpadEnabled && (
+					<p className="text-muted mb-0">已禁用触摸板开关</p>
+				)}
+			</Card.Body>
+		</Card>
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>FN键映射</Card.Header>
 				<Card.Body>

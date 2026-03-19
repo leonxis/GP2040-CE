@@ -589,6 +589,51 @@ std::string setFourKeyTouchpadOptions() {
     return serialize_json(doc);
 }
 
+std::string getTwoKeyTouchpadOptions() {
+    const size_t capacity = JSON_OBJECT_SIZE(3) + 2 * (JSON_OBJECT_SIZE(3) + 10);
+    DynamicJsonDocument doc(capacity);
+    const TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
+    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
+    writeMapping(doc, "leftKey", opts.leftKeyMapping);
+    writeMapping(doc, "rightKey", opts.rightKeyMapping);
+    return serialize_json(doc);
+}
+
+std::string setTwoKeyTouchpadOptions() {
+    DynamicJsonDocument doc = get_post_data();
+    TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
+    docToValue(opts.enabled, doc, "enabled");
+    readMapping(opts.leftKeyMapping, doc, "leftKey");
+    readMapping(opts.rightKeyMapping, doc, "rightKey");
+    opts.has_leftKeyMapping = opts.has_rightKeyMapping = true;
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+    return serialize_json(doc);
+}
+
+std::string getBackButtonAddonOptions() {
+    const size_t capacity = JSON_OBJECT_SIZE(12);
+    DynamicJsonDocument doc(capacity);
+    const BackButtonAddonOptions& opts = Storage::getInstance().getAddonOptions().backButtonAddonOptions;
+    writeMapping(doc, "leftBack1", opts.leftBack1Mapping);
+    writeMapping(doc, "rightBack1", opts.rightBack1Mapping);
+    writeMapping(doc, "leftBack2", opts.leftBack2Mapping);
+    writeMapping(doc, "rightBack2", opts.rightBack2Mapping);
+    return serialize_json(doc);
+}
+
+std::string setBackButtonAddonOptions() {
+    DynamicJsonDocument doc = get_post_data();
+    BackButtonAddonOptions& opts = Storage::getInstance().getAddonOptions().backButtonAddonOptions;
+    readMapping(opts.leftBack1Mapping, doc, "leftBack1");
+    readMapping(opts.rightBack1Mapping, doc, "rightBack1");
+    readMapping(opts.leftBack2Mapping, doc, "leftBack2");
+    readMapping(opts.rightBack2Mapping, doc, "rightBack2");
+    opts.has_leftBack1Mapping = opts.has_rightBack1Mapping = true;
+    opts.has_leftBack2Mapping = opts.has_rightBack2Mapping = true;
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+    return serialize_json(doc);
+}
+
 std::string getMCP3208Options() {
     const size_t capacity = JSON_OBJECT_SIZE(6);
     DynamicJsonDocument doc(capacity);
@@ -3251,6 +3296,8 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
     { "/api/setDisplayOptions", setDisplayOptions },
     { "/api/setFourKeyTouchpadOptions", setFourKeyTouchpadOptions },
+    { "/api/setTwoKeyTouchpadOptions", setTwoKeyTouchpadOptions },
+    { "/api/setBackButtonAddonOptions", setBackButtonAddonOptions },
     { "/api/setMCP3208Options", setMCP3208Options },
     { "/api/setLSM6DSROptions", setLSM6DSROptions },
     { "/api/setFnKeyMappingOptions", setFnKeyMappingOptions },
@@ -3282,6 +3329,8 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/reboot", reboot },
     { "/api/getDisplayOptions", getDisplayOptions },
     { "/api/getFourKeyTouchpadOptions", getFourKeyTouchpadOptions },
+    { "/api/getTwoKeyTouchpadOptions", getTwoKeyTouchpadOptions },
+    { "/api/getBackButtonAddonOptions", getBackButtonAddonOptions },
     { "/api/getMCP3208Options", getMCP3208Options },
     { "/api/getLSM6DSROptions", getLSM6DSROptions },
     { "/api/getLSM6DSRImuData", getLSM6DSRImuData },

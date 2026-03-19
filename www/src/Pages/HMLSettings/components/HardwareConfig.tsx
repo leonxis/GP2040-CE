@@ -24,6 +24,7 @@ export default function HardwareConfig() {
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
 	const [fourKeyTouchpadOptions, setFourKeyTouchpadOptions] = useState({ enabled: 0 });
+	const [twoKeyTouchpadOptions, setTwoKeyTouchpadOptions] = useState({ enabled: 0 });
 	const [reportRate, setReportRate] = useState(1000);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
@@ -41,16 +42,18 @@ export default function HardwareConfig() {
 
 	useEffect(() => {
 		async function fetchData() {
-			const [peripheral, display, fourKeyTouchpad, led, addons] = await Promise.all([
+			const [peripheral, display, fourKeyTouchpad, twoKeyTouchpad, led, addons] = await Promise.all([
 				WebApi.getPeripheralOptions(),
 				WebApi.getDisplayOptions(),
 				WebApi.getFourKeyTouchpadOptions(),
+				WebApi.getTwoKeyTouchpadOptions(),
 				WebApi.getLedOptions(),
 				WebApi.getAddonsOptions(),
 			]);
 			setPeripheralOptions(peripheral);
 			setDisplayOptions(display);
 			setFourKeyTouchpadOptions(fourKeyTouchpad || { enabled: 0 });
+			setTwoKeyTouchpadOptions(twoKeyTouchpad || { enabled: 0 });
 			setReportRate(
 				[250, 500, 1000, 2000, 4000, 8000].includes(Number(addons?.reportRate))
 					? Number(addons.reportRate)
@@ -110,6 +113,7 @@ export default function HardwareConfig() {
 				WebApi.setPeripheralOptions(dataToSave),
 				WebApi.setDisplayOptions(displayOptions),
 				WebApi.setFourKeyTouchpadOptions(fourKeyTouchpadOptions),
+				WebApi.setTwoKeyTouchpadOptions(twoKeyTouchpadOptions),
 				WebApi.setAddonsOptions({ reportRate }),
 			]);
 			setHostSaveMessage('保存成功！请重启设备');
@@ -183,64 +187,100 @@ export default function HardwareConfig() {
 						</div>
 
 						{/* 显示屏开关 */}
-						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<Form.Check
-								type="switch"
-								id="display-switch"
-								label="显示屏"
-								checked={Boolean(displayOptions.enabled)}
-								onChange={(e) => {
-									const isEnabled = e.target.checked ? 1 : 0;
-									setDisplayOptions((prev) => ({ ...prev, enabled: isEnabled }));
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Form.Check
+							type="switch"
+							id="display-switch"
+							label="显示屏"
+							checked={Boolean(displayOptions.enabled)}
+							onChange={(e) => {
+								const isEnabled = e.target.checked ? 1 : 0;
+								setDisplayOptions((prev) => ({ ...prev, enabled: isEnabled }));
+								setPeripheralOptions((prev) => ({
+									...prev,
+									peripheral: {
+										...prev.peripheral,
+										i2c1: {
+											...prev.peripheral?.i2c1,
+											enabled: isEnabled,
+										},
+									},
+								}));
+								// 打开显示屏时自动关闭 4键触摸板 和 2键触摸板
+								if (isEnabled) {
+									setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
+									setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
+								}
+							}}
+						/>
+						<span className="text-muted">
+							将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率
+						</span>
+					</div>
+
+					{/* 4键触摸板开关 */}
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Form.Check
+							type="switch"
+							id="four-key-touchpad-switch"
+							label="4键触摸板"
+							checked={Boolean(fourKeyTouchpadOptions.enabled)}
+							onChange={(e) => {
+								const isEnabled = e.target.checked ? 1 : 0;
+								setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
+								// 打开 4 键触摸板时自动关闭显示屏、I2C1 和 2键触摸板
+								if (isEnabled) {
+									setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
 									setPeripheralOptions((prev) => ({
 										...prev,
 										peripheral: {
 											...prev.peripheral,
 											i2c1: {
 												...prev.peripheral?.i2c1,
-												enabled: isEnabled,
+												enabled: 0,
 											},
 										},
 									}));
-									// 打开显示屏时自动关闭 4 键触摸板
-									if (isEnabled) setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
-								}}
-							/>
-							<span className="text-muted">
-								将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率
-							</span>
-						</div>
+									setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
+								}
+							}}
+						/>
+						<span className="text-muted">
+							需要使用触摸板按键请将显示屏替换为触摸板
+						</span>
+					</div>
 
-						{/* 4键触摸板开关 */}
-						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<Form.Check
-								type="switch"
-								id="four-key-touchpad-switch"
-								label="4键触摸板"
-								checked={Boolean(fourKeyTouchpadOptions.enabled)}
-								onChange={(e) => {
-									const isEnabled = e.target.checked ? 1 : 0;
-									setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
-									// 打开 4 键触摸板时自动关闭显示屏及 I2C1
-									if (isEnabled) {
-										setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
-										setPeripheralOptions((prev) => ({
-											...prev,
-											peripheral: {
-												...prev.peripheral,
-												i2c1: {
-													...prev.peripheral?.i2c1,
-													enabled: 0,
-												},
+					{/* 2键触摸板开关 */}
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Form.Check
+							type="switch"
+							id="two-key-touchpad-switch"
+							label="2键触摸板"
+							checked={Boolean(twoKeyTouchpadOptions.enabled)}
+							onChange={(e) => {
+								const isEnabled = e.target.checked ? 1 : 0;
+								setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
+								// 打开 2 键触摸板时自动关闭显示屏、I2C1 和 4键触摸板
+								if (isEnabled) {
+									setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
+									setPeripheralOptions((prev) => ({
+										...prev,
+										peripheral: {
+											...prev.peripheral,
+											i2c1: {
+												...prev.peripheral?.i2c1,
+												enabled: 0,
 											},
-										}));
-									}
-								}}
-							/>
-							<span className="text-muted">
-								需要使用触摸板按键请将显示屏替换为触摸板
-							</span>
-						</div>
+										},
+									}));
+									setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
+								}
+							}}
+						/>
+						<span className="text-muted">
+							同4键触摸板，将会禁用显示屏
+						</span>
+					</div>
 
 						{/* 回报率：下拉框 → 标题在右侧 → 说明 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

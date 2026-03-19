@@ -234,6 +234,44 @@ async function setFourKeyTouchpadOptions(options) {
 	}
 }
 
+async function getTwoKeyTouchpadOptions() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getTwoKeyTouchpadOptions`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+async function setTwoKeyTouchpadOptions(options) {
+	try {
+		await Http.post(`${baseUrl}/api/setTwoKeyTouchpadOptions`, options);
+		return true;
+	} catch (error) {
+		console.error(error);
+		return false;
+	}
+}
+
+async function getBackButtonAddonOptions() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getBackButtonAddonOptions`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+async function setBackButtonAddonOptions(options) {
+	try {
+		await Http.post(`${baseUrl}/api/setBackButtonAddonOptions`, options);
+		return true;
+	} catch (error) {
+		console.error(error);
+		return false;
+	}
+}
+
 async function getMCP3208Options() {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getMCP3208Options`);
@@ -818,6 +856,10 @@ export default {
 	setDisplayOptions,
 	getFourKeyTouchpadOptions,
 	setFourKeyTouchpadOptions,
+	getTwoKeyTouchpadOptions,
+	setTwoKeyTouchpadOptions,
+	getBackButtonAddonOptions,
+	setBackButtonAddonOptions,
 	getMCP3208Options,
 	setMCP3208Options,
 	getFnKeyMappingOptions,

@@ -930,6 +930,23 @@ app.get('/api/calibrateLSM6DSRAccel', (req, res) => {
 	return res.send({ ok: false, offsetAccelX: 0, offsetAccelY: 0, offsetAccelZ: 0 });
 });
 
+app.get('/api/getTwoKeyTouchpadOptions', (req, res) => {
+	return res.send({
+		enabled: 0,
+		leftKey:  { action: 0, customButtonMask: 0, customDpadMask: 0 },
+		rightKey: { action: 0, customButtonMask: 0, customDpadMask: 0 },
+	});
+});
+
+app.get('/api/getBackButtonAddonOptions', (req, res) => {
+	return res.send({
+		leftBack1:  { action: 0, customButtonMask: 0, customDpadMask: 0 },
+		rightBack1: { action: 0, customButtonMask: 0, customDpadMask: 0 },
+		leftBack2:  { action: 0, customButtonMask: 0, customDpadMask: 0 },
+		rightBack2: { action: 0, customButtonMask: 0, customDpadMask: 0 },
+	});
+});
+
 app.post('/api/*', (req, res) => {
 	console.log(req.body);
 	return res.send(req.body);
