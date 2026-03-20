@@ -23,7 +23,7 @@
 #define GPIO_PIN_01 GpioAction::BUTTON_PRESS_L2     // L2     | LT     | ZL      | L2       | 7      | K4     |
 #define GPIO_PIN_02 GpioAction::BUTTON_PRESS_B3     // B3     | X      | Y       | Square   | 1      | P1     |
 #define GPIO_PIN_03 GpioAction::BUTTON_PRESS_B4     // B4     | Y      | X       | Triangle | 4      | P2     |
-#define GPIO_PIN_11 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
+#define GPIO_PIN_11 GpioAction::BUTTON_PRESS_S2     // A1     | Guide  | Home    | PS       | 13     | ~      |
 #define GPIO_PIN_10 GpioAction::BUTTON_PRESS_FN 
 // Setting GPIO pins to assigned by add-on
 //
@@ -55,10 +55,10 @@
 #define KEY_BUTTON_FN   -1                    // Hotkey Function
 
 // Hotkey configuration
-// FN + A1 = reboot GP2040-CE
-// FN corresponds to `AUX_MASK_FUNCTION` (32768). A1 corresponds to `GAMEPAD_MASK_A1` (4096).
+// FN + S2 = reboot GP2040-CE
+// FN corresponds to `AUX_MASK_FUNCTION` (32768). S2 corresponds to `GAMEPAD_MASK_S2` (512).
 #define HOTKEY_08_AUX_MASK 32768
-#define HOTKEY_08_BUTTONS_MASK 4096
+#define HOTKEY_08_BUTTONS_MASK 512
 #define HOTKEY_08_DPAD_MASK 0
 #define HOTKEY_08_ACTION HOTKEY_REBOOT_DEFAULT
 
