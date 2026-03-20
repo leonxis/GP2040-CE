@@ -537,7 +537,8 @@ static void readMapping(GpioMappingInfo& m, const DynamicJsonDocument& doc, cons
 }
 
 std::string getFourKeyTouchpadOptions() {
-    const size_t capacity = JSON_OBJECT_SIZE(2) + 4 * (JSON_OBJECT_SIZE(3) + 10);
+    // Root contains 5 keys: enabled + key1/key2/key3/key4 (each key is a nested mapping object).
+    const size_t capacity = JSON_OBJECT_SIZE(5) + 4 * (JSON_OBJECT_SIZE(3) + 10);
     DynamicJsonDocument doc(capacity);
     const FourKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().fourKeyTouchpadOptions;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
@@ -611,7 +612,10 @@ std::string setTwoKeyTouchpadOptions() {
 }
 
 std::string getBackButtonAddonOptions() {
-    const size_t capacity = JSON_OBJECT_SIZE(12);
+    // We store 4 mappings. Each mapping is an object with 3 fields:
+    // { action, customButtonMask, customDpadMask }.
+    // Capacity must account for both the root keys and nested objects.
+    const size_t capacity = JSON_OBJECT_SIZE(24);
     DynamicJsonDocument doc(capacity);
     const BackButtonAddonOptions& opts = Storage::getInstance().getAddonOptions().backButtonAddonOptions;
     writeMapping(doc, "leftBack1", opts.leftBack1Mapping);
@@ -628,6 +632,11 @@ std::string setBackButtonAddonOptions() {
     readMapping(opts.rightBack1Mapping, doc, "rightBack1");
     readMapping(opts.leftBack2Mapping, doc, "leftBack2");
     readMapping(opts.rightBack2Mapping, doc, "rightBack2");
+    // nanopb: optional `action` is only persisted if `has_action` is set.
+    opts.leftBack1Mapping.has_action = true;
+    opts.rightBack1Mapping.has_action = true;
+    opts.leftBack2Mapping.has_action = true;
+    opts.rightBack2Mapping.has_action = true;
     opts.has_leftBack1Mapping = opts.has_rightBack1Mapping = true;
     opts.has_leftBack2Mapping = opts.has_rightBack2Mapping = true;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
@@ -797,7 +806,10 @@ std::string setLSM6DSROptions() {
 }
 
 std::string getFnKeyMappingOptions() {
-    const size_t capacity = JSON_OBJECT_SIZE(20);
+    // We store 6 mappings. Each mapping is an object with 3 fields:
+    // { action, customButtonMask, customDpadMask }.
+    // Increase capacity so the last fields (e.g. extRightTrigger) don't get dropped.
+    const size_t capacity = JSON_OBJECT_SIZE(48);
     DynamicJsonDocument doc(capacity);
     const FnKeyMappingOptions& fn = Storage::getInstance().getAddonOptions().fnKeyMappingOptions;
     writeMapping(doc, "leftFn", fn.leftFnMapping);
@@ -818,6 +830,13 @@ std::string setFnKeyMappingOptions() {
     readMapping(fn.rightMtMapping, doc, "rightMt");
     readMapping(fn.leftExtTriggerMapping, doc, "extLeftTrigger");
     readMapping(fn.rightExtTriggerMapping, doc, "extRightTrigger");
+    // nanopb: optional `action` is only persisted if `has_action` is set.
+    fn.leftFnMapping.has_action = true;
+    fn.rightFnMapping.has_action = true;
+    fn.leftMtMapping.has_action = true;
+    fn.rightMtMapping.has_action = true;
+    fn.leftExtTriggerMapping.has_action = true;
+    fn.rightExtTriggerMapping.has_action = true;
     fn.has_leftFnMapping = fn.has_rightFnMapping = fn.has_leftMtMapping = fn.has_rightMtMapping = true;
     fn.has_leftExtTriggerMapping = fn.has_rightExtTriggerMapping = true;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));

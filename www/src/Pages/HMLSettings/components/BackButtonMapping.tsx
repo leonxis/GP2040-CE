@@ -827,14 +827,6 @@ export default function BackButtonMapping() {
 							);
 						})}
 					</Row>
-					<Row className="mt-2">
-						<Col>
-							<small className="text-muted">
-								CH2（MCP3208）：0V→左MT键，0.82V→L3(固定)，1.65V→Ext左扳机，2.48V→左FN键；
-								CH5：0V→右MT键，0.82V→R3(固定)，1.65V→Ext右扳机，2.48V→右FN键。
-							</small>
-						</Col>
-					</Row>
 					<Row className="mt-3">
 						<Col sm={4}>
 							<Button variant="primary" onClick={handleSaveFn} disabled={fnSaving}>
