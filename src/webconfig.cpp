@@ -1071,13 +1071,44 @@ std::string getGamepadOptions()
     char usbProductStr[5];
     snprintf(usbProductStr, 5, "%04X", gamepadOptions.usbProductID);
     writeDoc(doc, "usbProductID", usbProductStr);
-    writeDoc(doc, "fnButtonPin", -1);
+    int32_t fnButtonPin = -1;
     GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;
     for (unsigned int pin = 0; pin < NUM_BANK0_GPIOS; pin++) {
         if (gpioMappings[pin].action == GpioAction::BUTTON_PRESS_FN) {
-            writeDoc(doc, "fnButtonPin", pin);
+            fnButtonPin = static_cast<int32_t>(pin);
+            break;
         }
     }
+
+    if (fnButtonPin < 0) {
+        const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+        const auto hasFnAction = [](const GpioMappingInfo& mapping) {
+            return mapping.action == GpioAction::BUTTON_PRESS_FN;
+        };
+
+        // HML virtual mappings can also provide FN without a direct GPIO pin.
+        if (
+            hasFnAction(addonOptions.backButtonAddonOptions.leftBack1Mapping) ||
+            hasFnAction(addonOptions.backButtonAddonOptions.rightBack1Mapping) ||
+            hasFnAction(addonOptions.backButtonAddonOptions.leftBack2Mapping) ||
+            hasFnAction(addonOptions.backButtonAddonOptions.rightBack2Mapping) ||
+            hasFnAction(addonOptions.fourKeyTouchpadOptions.key1Mapping) ||
+            hasFnAction(addonOptions.fourKeyTouchpadOptions.key2Mapping) ||
+            hasFnAction(addonOptions.fourKeyTouchpadOptions.key3Mapping) ||
+            hasFnAction(addonOptions.fourKeyTouchpadOptions.key4Mapping) ||
+            hasFnAction(addonOptions.twoKeyTouchpadOptions.leftKeyMapping) ||
+            hasFnAction(addonOptions.twoKeyTouchpadOptions.rightKeyMapping) ||
+            hasFnAction(addonOptions.fnKeyMappingOptions.leftFnMapping) ||
+            hasFnAction(addonOptions.fnKeyMappingOptions.rightFnMapping) ||
+            hasFnAction(addonOptions.fnKeyMappingOptions.leftMtMapping) ||
+            hasFnAction(addonOptions.fnKeyMappingOptions.rightMtMapping) ||
+            hasFnAction(addonOptions.fnKeyMappingOptions.leftExtTriggerMapping) ||
+            hasFnAction(addonOptions.fnKeyMappingOptions.rightExtTriggerMapping)
+        ) {
+            fnButtonPin = 0; // virtual FN source exists; UI only checks for -1 sentinel
+        }
+    }
+    writeDoc(doc, "fnButtonPin", fnButtonPin);
 
     HotkeyOptions& hotkeyOptions = Storage::getInstance().getHotkeyOptions();
     load_hotkey(&hotkeyOptions.hotkey01, doc, "hotkey01");

@@ -492,6 +492,49 @@ export default function BackButtonMapping() {
 		}
 	}, [saveProfiles, appContext, t]);
 
+	// Back/面向 FN 的一次性保存：确保背键插件（右背键2）与 FN 键映射（Ext右扳机）能随同保存生效。
+	const handleSaveBackCard = useCallback(async () => {
+		setSaveMessage('');
+		setIsLoading(true);
+		try {
+			// 1) 保存 GPIO 引脚映射（与 profile 相关）
+			await saveProfiles();
+
+			// 2) 保存逻辑背键映射（插件：rightBack2 等）
+			await WebApi.setBackButtonAddonOptions({
+				leftBack1: backAddonOptions.leftBack1,
+				rightBack1: backAddonOptions.rightBack1,
+				leftBack2: backAddonOptions.leftBack2,
+				rightBack2: backAddonOptions.rightBack2,
+			});
+
+			// 3) 保存 FN 键映射（插件：extRightTrigger 等）
+			await WebApi.setFnKeyMappingOptions({
+				leftFn: fnOptions.leftFn,
+				rightFn: fnOptions.rightFn,
+				leftMt: fnOptions.leftMt,
+				rightMt: fnOptions.rightMt,
+				extLeftTrigger: fnOptions.extLeftTrigger,
+				extRightTrigger: fnOptions.extRightTrigger,
+			});
+
+			if (appContext) {
+				const { updateUsedPins } = appContext as any;
+				if (updateUsedPins) {
+					updateUsedPins();
+				}
+			}
+			setSaveMessage(t('Common:saved-success-message'));
+			setTimeout(() => setSaveMessage(''), 3000);
+		} catch (error) {
+			console.error('保存背键/FN 映射失败:', error);
+			setSaveMessage(t('Common:saved-error-message'));
+			setTimeout(() => setSaveMessage(''), 3000);
+		} finally {
+			setIsLoading(false);
+		}
+	}, [saveProfiles, appContext, t, backAddonOptions, fnOptions]);
+
 	// 生成pinKey的工具函数
 	const getPinKey = (pin: number) => `pin${pin < 10 ? '0' : ''}${pin}`;
 
@@ -621,7 +664,7 @@ export default function BackButtonMapping() {
 						<Col sm={4} className="mb-2">
 							<Button
 								variant="primary"
-								onClick={handleSave}
+								onClick={handleSaveBackCard}
 								disabled={isLoading}
 								className="me-3"
 							>
@@ -636,16 +679,6 @@ export default function BackButtonMapping() {
 									}`}
 								>
 									{saveMessage}
-								</span>
-							)}
-						</Col>
-						<Col sm={4}>
-							<Button variant="primary" onClick={handleSaveBackAddon} disabled={backAddonSaving}>
-								{t('Common:button-save-label')}
-							</Button>
-							{backAddonSaveMsg && (
-								<span className={`ms-3 ${backAddonSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
-									{backAddonSaveMsg}
 								</span>
 							)}
 						</Col>
