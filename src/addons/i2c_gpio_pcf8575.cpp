@@ -5,6 +5,7 @@
 
 bool PCF8575Addon::available() {
     const DisplayOptions& displayOptions = Storage::getInstance().getDisplayOptions();
+    (void)displayOptions;
     const PCF8575Options& options = Storage::getInstance().getAddonOptions().pcf8575Options;
     if (options.enabled) {
         pcf = new PCF8575();

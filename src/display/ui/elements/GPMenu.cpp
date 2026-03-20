@@ -10,6 +10,10 @@ void GPMenu::draw() {
 
         uint16_t menuWidth = this->menuSizeX * 6;
         uint16_t menuHeight = this->menuSizeY * 8;
+        (void)baseX;
+        (void)baseY;
+        (void)menuWidth;
+        (void)menuHeight;
 
         uint16_t dataSize = this->getDataSize();
         
@@ -160,6 +164,7 @@ void GPMenu::draw() {
             } else if (threeColumnMode && dataSize > 0 && this->menuEntryData->at(0).label == "NONE") {
                 // Three-column layout with NONE on first line
                 uint16_t itemsPerColumn = this->menuSizeY;
+                (void)itemsPerColumn;
                 bool isFirstPage = (itemPage == 0);
                 
                 // Draw NONE on first line if on first page

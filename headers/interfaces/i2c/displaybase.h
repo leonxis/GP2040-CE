@@ -10,7 +10,7 @@
 class GPGFX_DisplayBase : public I2CDeviceBase {
     public:
         GPGFX_DisplayBase() {}
-        ~GPGFX_DisplayBase() {}
+        virtual ~GPGFX_DisplayBase() {}
 
         virtual void init(GPGFX_DisplayTypeOptions options) {}
 

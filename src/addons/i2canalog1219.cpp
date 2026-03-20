@@ -24,6 +24,7 @@ bool I2CAnalog1219Input::available() {
 
 void I2CAnalog1219Input::setup() {
     const AnalogADS1219Options& options = Storage::getInstance().getAddonOptions().analogADS1219Options;
+    (void)options;
 
     memset(&pins, 0, sizeof(ADS_PINS));
     channelHop = 0;

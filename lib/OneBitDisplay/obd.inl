@@ -1701,7 +1701,7 @@ void obdPreciseEllipse(OBDISP *pOBD, int x, int y, int32_t iRadiusX, int32_t iRa
 	long x1 = -iRadiusX, y1 = 0;
 	long e2 = iRadiusY, dx = (1 + 2 * x1) * e2 * e2;
 	long dy = x1 * x1, err = dx + dy;
-	long diff = 0;
+	// long diff = 0; // unused
 
 	do {
 		obdSetPixel(pOBD, x - x1, y + y1, ucColor, 0);

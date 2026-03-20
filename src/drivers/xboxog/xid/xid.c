@@ -159,15 +159,18 @@ bool xid_send_report(uint8_t index, void *report, uint16_t len)
 static bool xid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
     (void)rhport;
-    uint8_t index = get_index_by_ep_addr(ep_addr);
+    int8_t index = get_index_by_ep_addr(ep_addr);
 
     TU_VERIFY(result == XFER_RESULT_SUCCESS, true);
     TU_VERIFY(index != -1, true);
+    uint8_t const idx = (uint8_t)index;
     TU_VERIFY(xferred_bytes < XID_MAX_PACKET_SIZE, true);
 
-    if (ep_addr == _xid_itf[index].ep_out)
+    if (ep_addr == _xid_itf[idx].ep_out)
     {
-        memcpy(_xid_itf[index].out, _xid_itf[index].ep_out_buff, MIN(xferred_bytes, sizeof( _xid_itf[index].ep_out_buff)));
+        memcpy(_xid_itf[idx].out,
+               _xid_itf[idx].ep_out_buff,
+               MIN(xferred_bytes, sizeof(_xid_itf[idx].ep_out_buff)));
     }
 
     return true;
@@ -177,8 +180,9 @@ bool xid_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t c
 {
     TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
-    uint8_t index = get_index_by_itfnum((uint8_t)request->wIndex);
+    int8_t index = get_index_by_itfnum((uint8_t)request->wIndex);
     TU_VERIFY(index != -1, false);
+    uint8_t const idx = (uint8_t)index;
 
     bool ret = false;
 
@@ -188,7 +192,7 @@ bool xid_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t c
         if (stage == CONTROL_STAGE_SETUP)
         {
             TU_LOG1("Sending HID report on control pipe for index %02x\n", request->wIndex);
-            tud_control_xfer(rhport, request, _xid_itf[index].in, MIN(request->wLength, sizeof(_xid_itf[index].in)));
+            tud_control_xfer(rhport, request, _xid_itf[idx].in, MIN(request->wLength, sizeof(_xid_itf[idx].in)));
         }
         return true;
     }
@@ -199,27 +203,27 @@ bool xid_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t c
         if (stage == CONTROL_STAGE_SETUP)
         {
             //Host is sending a rumble command to control pipe. Queue receipt.
-            tud_control_xfer(rhport, request, _xid_itf[index].ep_out_buff, MIN(request->wLength, sizeof(_xid_itf[index].ep_out_buff)));
+            tud_control_xfer(rhport, request, _xid_itf[idx].ep_out_buff, MIN(request->wLength, sizeof(_xid_itf[idx].ep_out_buff)));
         }
         else if (stage == CONTROL_STAGE_ACK)
         {
             //Receipt complete. Copy data to rumble struct
             TU_LOG1("Got HID report from control pipe for index %02x\n", request->wIndex);
-            memcpy(_xid_itf[index].out, _xid_itf[index].ep_out_buff, MIN(request->wLength, sizeof(_xid_itf[index].out)));
+            memcpy(_xid_itf[idx].out, _xid_itf[idx].ep_out_buff, MIN(request->wLength, sizeof(_xid_itf[idx].out)));
         }
         return true;
     }
 
-    switch (_xid_itf[index].type)
+    switch (_xid_itf[idx].type)
     {
     case XID_TYPE_GAMECONTROLLER:
-        ret = duke_control_xfer(rhport, stage, request, &_xid_itf[index]);
+        ret = duke_control_xfer(rhport, stage, request, &_xid_itf[idx]);
         break;
     case XID_TYPE_STEELBATTALION:
-        ret = steelbattalion_control_xfer(rhport, stage, request, &_xid_itf[index]);
+        ret = steelbattalion_control_xfer(rhport, stage, request, &_xid_itf[idx]);
         break;
     case XID_TYPE_XREMOTE:
-        ret = xremote_control_xfer(rhport, stage, request, &_xid_itf[index]);
+        ret = xremote_control_xfer(rhport, stage, request, &_xid_itf[idx]);
         break;
     default:
         break;

@@ -24,6 +24,7 @@ bool WiiExtensionInput::available() {
 
 void WiiExtensionInput::setup() {
     const WiiOptions& options = Storage::getInstance().getAddonOptions().wiiOptions;
+    (void)options;
     nextTimer = getMillis();
 
 #if WII_EXTENSION_DEBUG==true

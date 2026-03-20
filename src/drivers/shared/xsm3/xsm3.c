@@ -34,10 +34,11 @@
 #define XSM3_NO_DEBUGGING true
 
 // disable debugging by specifying XSM3_NO_DEBUGGING at compile time
-#ifndef XSM3_NO_DEBUGGING
-#define XSM3_printf printf
+#ifdef XSM3_NO_DEBUGGING
+// Keep call sites, but compile-time disable the debug printing.
+#define XSM3_printf(...) ((void)0)
 #else
-#define XSM3_printf
+#define XSM3_printf(...) printf(__VA_ARGS__)
 #endif  // XSM3_NO_DEBUGGING
 
 // constant variables

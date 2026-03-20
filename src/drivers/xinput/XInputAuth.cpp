@@ -21,8 +21,9 @@ void XInputAuth::initialize() {
         uint8_t serial[0x0C];
 		pico_unique_board_id_t id;
 		pico_get_unique_board_id(&id);
-        for(int i = 0; i < 0x0C; i++) {
-            serial[i] = 'A' + (id.id[i]%25); // some alphanumeric from 'A' to 'Z'
+        // pico_unique_board_id_t id.id is smaller than 12 bytes; wrap the source index.
+        for (int i = 0; i < 0x0C; i++) {
+            serial[i] = 'A' + (id.id[i % (int)sizeof(id.id)] % 25); // some alphanumeric from 'A' to 'Z'
         }
         xsm3_set_vid_pid(serial, 0x045E, 0x028E);
         xsm3_initialise_state();

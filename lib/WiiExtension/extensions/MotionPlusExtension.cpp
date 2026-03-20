@@ -34,6 +34,11 @@ bool MotionPlusExtension::calibrate(uint8_t *calibrationData) {
     bool result = false;
     // Motion Plus bypasses the base calibration since it does its own
 #if WII_EXTENSION_CALIBRATION==true
+    auto readU16BE = [calibrationData](uint8_t index) -> uint16_t {
+        return (static_cast<uint16_t>(calibrationData[index]) << 8) |
+               static_cast<uint16_t>(calibrationData[index + 1]);
+    };
+
     uint32_t crc32;
     uint8_t calibrationCheck[28];
 
@@ -47,31 +52,33 @@ bool MotionPlusExtension::calibrate(uint8_t *calibrationData) {
 
     calibration = {
         .fastCalibration = {
-            .yawZero = (calibrationData[0] << 8) | (calibrationData[1] << 0),
-            .rollZero = (calibrationData[2] << 8) | (calibrationData[3] << 0),
-            .pitchZero = (calibrationData[4] << 8) | (calibrationData[5] << 0),
-            .yawScale = (calibrationData[6] << 8) | (calibrationData[7] << 0),
-            .rollScale = (calibrationData[8] << 8) | (calibrationData[9] << 0),
-            .pitchScale = (calibrationData[10] << 8) | (calibrationData[11] << 0),
+            .yawZero = readU16BE(0),
+            .rollZero = readU16BE(2),
+            .pitchZero = readU16BE(4),
+            .yawScale = readU16BE(6),
+            .rollScale = readU16BE(8),
+            .pitchScale = readU16BE(10),
             .degreeScale = calibrationData[12],
         },
         .fastUID = calibrationData[13],
-        .crc32MSB = (calibrationData[14] << 8) | (calibrationData[15] << 0),
+        .crc32MSB = readU16BE(14),
         .slowCalibration = {
-            .yawZero = (calibrationData[16] << 8) | (calibrationData[17] << 0),
-            .rollZero = (calibrationData[18] << 8) | (calibrationData[19] << 0),
-            .pitchZero = (calibrationData[20] << 8) | (calibrationData[21] << 0),
-            .yawScale = (calibrationData[22] << 8) | (calibrationData[23] << 0),
-            .rollScale = (calibrationData[24] << 8) | (calibrationData[25] << 0),
-            .pitchScale = (calibrationData[26] << 8) | (calibrationData[27] << 0),
+            .yawZero = readU16BE(16),
+            .rollZero = readU16BE(18),
+            .pitchZero = readU16BE(20),
+            .yawScale = readU16BE(22),
+            .rollScale = readU16BE(24),
+            .pitchScale = readU16BE(26),
             .degreeScale = calibrationData[28],
         },
         .slowUID = calibrationData[29],
-        .crc32LSB = (calibrationData[30] << 8) | (calibrationData[31] << 0)
+        .crc32LSB = readU16BE(30)
     };
 
     crc32 = CRC32::calculate(calibrationCheck, 28);
-    result = (((calibration.crc32MSB << 16) | calibration.crc32LSB) == crc32);
+    uint32_t calibrationCrc32 = (static_cast<uint32_t>(calibration.crc32MSB) << 16) |
+                                 static_cast<uint32_t>(calibration.crc32LSB);
+    result = (calibrationCrc32 == crc32);
 
 #if WII_EXTENSION_DEBUG==true
 //    for (uint8_t i = 0; i < 32; i++) {

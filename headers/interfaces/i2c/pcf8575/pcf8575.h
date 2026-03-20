@@ -19,6 +19,7 @@ class PCF8575 : public I2CDeviceBase {
             this->i2c = i2cController;
             this->address = addr;
         }
+        virtual ~PCF8575() = default;
 
         std::vector<uint8_t> getDeviceAddresses() const override {
             return {0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27};

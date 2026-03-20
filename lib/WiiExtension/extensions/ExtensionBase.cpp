@@ -59,9 +59,9 @@ bool ExtensionBase::calibrate(uint8_t *calibrationData) {
 void ExtensionBase::postProcess() {
     uint8_t i;
 
-    uint16_t minVal, maxVal, cenVal;
+    uint16_t minVal, maxVal;
     int16_t outVal;
-    int16_t centerOffset = 0;
+    // int16_t centerOffset = 0; // debug-only (currently unused)
 
     for (i = 0; i < WiiAnalogs::WII_MAX_ANALOGS; ++i) {
         // scale calibration values before using
@@ -70,22 +70,24 @@ void ExtensionBase::postProcess() {
 
             minVal = map(_analogCalibration[i].minimum, 0, _analogPrecision[WiiAnalogs::WII_ANALOG_CALIBRATION_PRECISION].origin-1, 0, _analogPrecision[WiiAnalogs::WII_ANALOG_CALIBRATION_PRECISION].destination-1);
             maxVal = map(_analogCalibration[i].maximum, 0, _analogPrecision[WiiAnalogs::WII_ANALOG_CALIBRATION_PRECISION].origin-1, 0, _analogPrecision[WiiAnalogs::WII_ANALOG_CALIBRATION_PRECISION].destination-1);
-            cenVal = map(_analogCalibration[i].center, 0, _analogPrecision[WiiAnalogs::WII_ANALOG_CALIBRATION_PRECISION].origin-1, 0, _analogPrecision[WiiAnalogs::WII_ANALOG_CALIBRATION_PRECISION].destination-1);
+            // uint16_t cenVal = map(_analogCalibration[i].center, 0,
+            //                       _analogPrecision[WiiAnalogs::WII_ANALOG_CALIBRATION_PRECISION].origin-1, 0,
+            //                       _analogPrecision[WiiAnalogs::WII_ANALOG_CALIBRATION_PRECISION].destination-1);
             
             if (isFirstRead) {
                 // stash the first read as the initial orientation. will reset on hotswap.
                 initialAnalogState[i] = outVal;
             
                 if (!_hasCalibrationData) {
-                    cenVal = initialAnalogState[i];
+                    // cenVal = initialAnalogState[i];
                 }
             }
             
-            if (_analogCalibration[i].useOffset) {
-                centerOffset = _analogCalibration[i].center-initialAnalogState[i];
-            } else {
-                centerOffset = 0;
-            }
+            // if (_analogCalibration[i].useOffset) {
+            //     centerOffset = _analogCalibration[i].center-initialAnalogState[i];
+            // } else {
+            //     centerOffset = 0;
+            // }
 
             if ((i != WiiAnalogs::WII_ANALOG_LEFT_TRIGGER) && (i != WiiAnalogs::WII_ANALOG_RIGHT_TRIGGER)) {
                 outVal = map(outVal, _analogCalibration[i].minimum, _analogCalibration[i].maximum, minVal, maxVal);

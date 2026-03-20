@@ -1312,6 +1312,7 @@ void gpioMappingsMigrationCore(Config& config)
     KeyboardHostOptions& keyboardHostOptions = config.addonOptions.keyboardHostOptions;
     PSPassthroughOptions& psPassthroughOptions = config.addonOptions.psPassthroughOptions;
     TurboOptions& turboOptions = config.addonOptions.turboOptions;
+    (void)turboOptions;
     TiltOptions& tiltOptions = config.addonOptions.tiltOptions;
     FocusModeOptions& focusModeOptions = config.addonOptions.focusModeOptions;
     ReverseOptions& reverseOptions = config.addonOptions.reverseOptions;

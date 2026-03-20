@@ -258,7 +258,7 @@ void GPGFX_TinySSD1306::drawEllipse(uint16_t x, uint16_t y, uint32_t radiusX, ui
 	long x1 = -radiusX, y1 = 0;
 	long e2 = radiusY, dx = (1 + 2 * x1) * e2 * e2;
 	long dy = x1 * x1, err = dx + dy;
-	long diff = 0;
+	// long diff = 0; // unused
 
 	while (x1 <= 0) {
 		drawPixel(x - x1, y + y1, color);
@@ -289,7 +289,7 @@ void GPGFX_TinySSD1306::drawEllipse(uint16_t x, uint16_t y, uint32_t radiusX, ui
 		}
 	};
 
-	while (y1++ < radiusY) {
+	while (y1++ < static_cast<long>(radiusY)) {
 		drawPixel(x, y + y1, color);
 		drawPixel(x, y - y1, color);
 	}
@@ -578,6 +578,8 @@ void GPGFX_TinySSD1306::drawBuffer(uint8_t* pBuffer) {
         result = _options.i2c->write(_options.address, buffer, sizeof(buffer), false);
     }
 
+	(void)result; // ignore write result (debugging/telemetry only)
+
 	if (framePage < MAX_SCREEN_HEIGHT/8) {
 		framePage++;
 	} else {
@@ -599,4 +601,5 @@ void GPGFX_TinySSD1306::sendCommand(uint8_t command){
 
 void GPGFX_TinySSD1306::sendCommands(uint8_t* commands, uint16_t length){ 
 	int result = _options.i2c->write(_options.address, commands, length, false);
+	(void)result; // ignore write result
 }

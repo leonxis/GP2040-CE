@@ -67,7 +67,23 @@
 #define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON //LED
 
 // SPI0: 开启，RX=GPIO0, CS=GPIO1, SCK=GPIO2, TX=GPIO3
+#ifdef SPI0_ENABLED
+#undef SPI0_ENABLED
+#endif
 #define SPI0_ENABLED 1
+
+#ifdef SPI0_PIN_RX
+#undef SPI0_PIN_RX
+#endif
+#ifdef SPI0_PIN_CS
+#undef SPI0_PIN_CS
+#endif
+#ifdef SPI0_PIN_SCK
+#undef SPI0_PIN_SCK
+#endif
+#ifdef SPI0_PIN_TX
+#undef SPI0_PIN_TX
+#endif
 #define SPI0_PIN_RX 0
 #define SPI0_PIN_CS 1
 #define SPI0_PIN_SCK 2

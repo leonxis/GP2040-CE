@@ -41,6 +41,12 @@ void P5GeneralAuthUSBListener::process() {
     }
 
     switch ( p5GeneralAuthData->passthrough_state ) {
+    case P5GeneralGPAuthState::p5g_auth_idle:
+    case P5GeneralGPAuthState::p5g_auth_send_f0_wait:
+    case P5GeneralGPAuthState::p5g_auth_recv_f1_wait:
+    case P5GeneralGPAuthState::p5g_auth_recv_f2_wait:
+        // Waiting for host callbacks or idle; no action in polling tick.
+        break;
     case P5GeneralGPAuthState::p5g_auth_send_f0:
         memcpy(report_buffer, p5GeneralAuthData->auth_buffer, 64);
         P5LRPINTF("P5L:p5g_auth_send_f0 %d %d %d %d\n", report_buffer[0], report_buffer[1], report_buffer[2], report_buffer[3]);

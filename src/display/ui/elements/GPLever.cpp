@@ -80,6 +80,7 @@ void GPLever::draw() {
 
         // Get the midpoint value for the current mode
         GPDriver * gpDriver = DriverManager::getInstance().getDriver();
+        (void)gpDriver; // gpDriver is kept for parity/debug; we query DriverManager below
         uint32_t joystickMid = GAMEPAD_JOYSTICK_MID;
         uint32_t joystickMax = GAMEPAD_JOYSTICK_MAX;
         if ( DriverManager::getInstance().getDriver() != nullptr ) {

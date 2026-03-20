@@ -10,6 +10,7 @@ bool DualDirectionalInput::available() {
 
 void DualDirectionalInput::setup() {
     const DualDirectionalOptions& options = Storage::getInstance().getAddonOptions().dualDirectionalOptions;
+    (void)options;
 
     mapDpadUp    = new GamepadButtonMapping(GAMEPAD_MASK_UP);
     mapDpadDown  = new GamepadButtonMapping(GAMEPAD_MASK_DOWN);

@@ -561,7 +561,7 @@ static bool isValidButtonLayout(ConfigLegacy::ButtonLayout buttonLayout)
         case BUTTON_LAYOUT_OPENCORE0WASDA:
         case BUTTON_LAYOUT_STICKLESS_13:
         case BUTTON_LAYOUT_STICKLESS_16:
-        case BUTTON_LAYOUT_STICKLESS_R16:
+        case ConfigLegacy::BUTTON_LAYOUT_STICKLESS_R16:
         case BUTTON_LAYOUT_STICKLESS_14:
             return true;
     }
@@ -593,7 +593,7 @@ static bool isValidButtonLayoutRight(ConfigLegacy::ButtonLayoutRight buttonLayou
         case BUTTON_LAYOUT_OPENCORE0WASDB:
         case BUTTON_LAYOUT_STICKLESS_13B:
         case BUTTON_LAYOUT_STICKLESS_16B: 
-        case BUTTON_LAYOUT_STICKLESS_R16B:
+        case ConfigLegacy::BUTTON_LAYOUT_STICKLESS_R16B:
         case BUTTON_LAYOUT_STICKLESS_14B:
             return true;
     }
