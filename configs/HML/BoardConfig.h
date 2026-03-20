@@ -96,37 +96,29 @@
 
 // 四键触摸板开关：0=关闭
 #define HML_FOURKEY_TOUCHPAD_ENABLED 0
-
-// 四键触摸板映射：左上=B1, 右上=B2, 左下=B3, 右下=B4（config_utils 在未设置时依此写入）
 #define HML_TOUCH_KEY1_ACTION GpioAction::BUTTON_PRESS_B1  // 左上
 #define HML_TOUCH_KEY2_ACTION GpioAction::BUTTON_PRESS_B3  // 左下
 #define HML_TOUCH_KEY3_ACTION GpioAction::BUTTON_PRESS_B4  // 右下
 #define HML_TOUCH_KEY4_ACTION GpioAction::BUTTON_PRESS_B2  // 右上
+
+// 2键触摸板开关：0=关闭
+#define HML_TWOKEY_TOUCHPAD_ENABLED 0
+#define HML_TWOKEY_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
+#define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
 // FN/MT 键映射（config_utils 在未设置时依此写入）
 #define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_L1
 #define HML_RIGHT_FN_ACTION GpioAction::BUTTON_PRESS_R1
 #define HML_LEFT_MT_ACTION  GpioAction::BUTTON_PRESS_FN
 #define HML_RIGHT_MT_ACTION GpioAction::MENU_NAVIGATION_TOGGLE
-
-// Ext 左/右扳机映射（config_utils 在未设置时依此写入）
-// 如需默认值可取消注释，否则保持 NONE
 #define HML_EXT_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
 #define HML_EXT_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
-// 2键触摸板开关：0=关闭
-#define HML_TWOKEY_TOUCHPAD_ENABLED 0
-
-// 2键触摸板映射：左触摸键/右触摸键（config_utils 在未设置时依此写入）
-#define HML_TWOKEY_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
-#define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
-
 // 背键设置插件：逻辑背键映射默认值（与 GPIO 解耦，config_utils 在未设置时依此写入）
-// 默认保持 NONE，避免出厂就触发背键动作；如需默认映射请修改为目标动作
-#define HML_BACK_L1_ACTION GpioAction::NONE  // 左背键1
-#define HML_BACK_R1_ACTION GpioAction::NONE  // 右背键1
-#define HML_BACK_L2_ACTION GpioAction::NONE  // 左背键2
-#define HML_BACK_R2_ACTION GpioAction::NONE  // 右背键2
+#define HML_BACK_L1_ACTION GpioAction::BUTTON_PRESS_B1  // 左背键1
+#define HML_BACK_R1_ACTION GpioAction::BUTTON_PRESS_B2  // 右背键1
+#define HML_BACK_L2_ACTION GpioAction::BUTTON_PRESS_B3 // 左背键2
+#define HML_BACK_R2_ACTION GpioAction::BUTTON_PRESS_B4  // 右背键2
 
 // LED Configuration
 #define BOARD_LEDS_PIN 20
