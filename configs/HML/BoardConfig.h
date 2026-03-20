@@ -54,6 +54,14 @@
 #define KEY_BUTTON_A2   HID_KEY_F2            // A2     | ~      | Capture | ~        | 14     | ~      |
 #define KEY_BUTTON_FN   -1                    // Hotkey Function
 
+// Hotkey configuration
+// FN + A1 = reboot GP2040-CE
+// FN corresponds to `AUX_MASK_FUNCTION` (32768). A1 corresponds to `GAMEPAD_MASK_A1` (4096).
+#define HOTKEY_08_AUX_MASK 32768
+#define HOTKEY_08_BUTTONS_MASK 4096
+#define HOTKEY_08_DPAD_MASK 0
+#define HOTKEY_08_ACTION HOTKEY_REBOOT_DEFAULT
+
 
 // LED Configuration
 #define BOARD_LEDS_PIN 16
