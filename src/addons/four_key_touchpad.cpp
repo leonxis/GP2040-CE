@@ -173,6 +173,8 @@ void FourKeyTouchpadAddon::setup() {
 
 void FourKeyTouchpadAddon::reinit() {
     buildMappings();
+    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
+    last_applied_complex_count_ = 0;
 }
 
 void FourKeyTouchpadAddon::preprocess() {
@@ -220,23 +222,42 @@ void FourKeyTouchpadAddon::preprocess() {
     if ((now - enableChangeTime) >= (ENABLE_DEBOUNCE_MS * 1000u))
         enableStable = enableRaw;
 
-    // ③ 输出：使能时按 lastKeyNibble 输出 4 键映射，未使能时只清除（使能键不输出任何按键）
+    // ③ 输出：先撤销上一帧本插件输出；使能成立时再按 lastKeyNibble 输出 4 键映射（使能键本身不映射为按键）
     uint8_t keyNibble = lastKeyNibble;
-    for (int i = 0; i < 4; i++) {
-        gamepad->state.buttons &= ~fastMappings[i].buttonMask;
-        gamepad->state.dpad   &= ~fastMappings[i].dpadMask;
-        gamepad->state.aux    &= ~fastMappings[i].auxMask;
-        if (fastMappings[i].isComplex)
-            clearComplexMapping(gamepad, *fastMappings[i].originalMapping);
+
+    // ① 撤销上一帧本插件实际输出过的按键位（而不是清除配置可能涉及的整段 mask）
+    gamepad->state.buttons &= ~last_out_buttons_;
+    gamepad->state.dpad    &= ~last_out_dpad_;
+    gamepad->state.aux     &= ~last_out_aux_;
+    for (uint8_t i = 0; i < last_applied_complex_count_; i++) {
+        const FastMapping* p = last_applied_complex_[i];
+        if (p && p->isComplex && p->originalMapping) {
+            clearComplexMapping(gamepad, *p->originalMapping);
+        }
     }
-    if (enableStable) {
-        for (int i = 0; i < 4; i++) {
-            if (!(keyNibble & (1u << i))) {
-                gamepad->state.buttons |= fastMappings[i].buttonMask;
-                gamepad->state.dpad    |= fastMappings[i].dpadMask;
-                gamepad->state.aux     |= fastMappings[i].auxMask;
-                if (fastMappings[i].isComplex)
-                    applyComplexMapping(gamepad, *fastMappings[i].originalMapping);
+    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
+    last_applied_complex_count_ = 0;
+
+    // ② 使能不成立时：本帧不输出任何触摸键
+    if (!enableStable)
+        return;
+
+    // ③ 使能成立时：按 lastKeyNibble 输出按键映射
+    for (int i = 0; i < 4; i++) {
+        if (!(keyNibble & (1u << i))) { // bit=0 => pressed
+            gamepad->state.buttons |= fastMappings[i].buttonMask;
+            gamepad->state.dpad    |= fastMappings[i].dpadMask;
+            gamepad->state.aux     |= fastMappings[i].auxMask;
+
+            last_out_buttons_ |= fastMappings[i].buttonMask;
+            last_out_dpad_    |= fastMappings[i].dpadMask;
+            last_out_aux_     |= fastMappings[i].auxMask;
+
+            if (fastMappings[i].isComplex) {
+                applyComplexMapping(gamepad, *fastMappings[i].originalMapping);
+                // 仅记录本帧实际输出过的复杂映射用于下一帧撤销
+                if (last_applied_complex_count_ < 4)
+                    last_applied_complex_[last_applied_complex_count_++] = &fastMappings[i];
             }
         }
     }

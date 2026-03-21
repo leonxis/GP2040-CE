@@ -41,6 +41,13 @@ private:
     uint32_t lastPollTime = 0;
     uint8_t partialByte = 0;
     uint8_t readPhase = 0;
+
+    // 仅撤销上一帧本插件实际输出过的按键位，避免与 GPIO/其它插件同位映射互相误清
+    uint32_t last_out_buttons_ = 0;
+    uint32_t last_out_dpad_ = 0;
+    uint32_t last_out_aux_ = 0;
+    const FastMapping* last_applied_complex_[4] = {};
+    uint8_t last_applied_complex_count_ = 0;
 };
 
 #endif

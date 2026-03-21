@@ -48,6 +48,13 @@ private:
     bool rightStablePressed  = false;
     bool rightPendingPressed = false;
     uint8_t rightDebounceCount = 0;
+
+    // 仅撤销上一帧本插件实际写入的输出（左/右触摸或 GPIO12 直通），避免按配置全量 mask 每帧清空误伤 GPIO
+    uint32_t last_out_buttons_ = 0;
+    uint32_t last_out_dpad_    = 0;
+    uint32_t last_out_aux_     = 0;
+    const TwoKeyFastMapping* last_applied_complex_[2] = {};
+    uint8_t last_applied_complex_count_ = 0;
 };
 
 #endif

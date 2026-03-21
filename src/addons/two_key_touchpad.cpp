@@ -174,6 +174,8 @@ void TwoKeyTouchpadAddon::setup() {
 }
 
 void TwoKeyTouchpadAddon::reinit() {
+    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
+    last_applied_complex_count_ = 0;
     buildMappings();
 }
 
@@ -181,23 +183,41 @@ void TwoKeyTouchpadAddon::preprocess() {
     if (!isValidPin(pin_left) || !isValidPin(pin_right)) return;
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
-    // ① 使能键（GPIO12）低有效，无防抖
+
+    // ① 只清除上一帧本插件实际写入的输出（与背键分压/MCP3208 CH2/CH5 思路一致）
+    gamepad->state.buttons &= ~last_out_buttons_;
+    gamepad->state.dpad    &= ~last_out_dpad_;
+    gamepad->state.aux     &= ~last_out_aux_;
+    for (uint8_t i = 0; i < last_applied_complex_count_; i++) {
+        const TwoKeyFastMapping* p = last_applied_complex_[i];
+        if (p && p->isComplex && p->originalMapping)
+            clearComplexMapping2Key(gamepad, *p->originalMapping);
+    }
+    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
+    last_applied_complex_count_ = 0;
+
+    auto recordApplied = [&](const TwoKeyFastMapping& m) {
+        last_out_buttons_ |= m.buttonMask;
+        last_out_dpad_    |= m.dpadMask;
+        last_out_aux_     |= m.auxMask;
+        if (m.isComplex && last_applied_complex_count_ < 2)
+            last_applied_complex_[last_applied_complex_count_++] = &m;
+    };
+
+    auto applyMappingAndRecord = [&](const TwoKeyFastMapping& m) {
+        gamepad->state.buttons |= m.buttonMask;
+        gamepad->state.dpad    |= m.dpadMask;
+        gamepad->state.aux     |= m.auxMask;
+        if (m.isComplex)
+            applyComplexMapping2Key(gamepad, *m.originalMapping);
+        recordApplied(m);
+    };
+
+    // ② 使能键（GPIO12）低有效，无防抖：未按下时不输出触摸/直通逻辑，GPIO12 由 gamepad->read() 决定
     bool enablePressed = !gpio_get(TOUCHPAD_ENABLE_PIN_2KEY);
 
-    // ② 始终先清除本插件管辖的三路输出（防止与正常 GPIO 映射的重复叠加）
-    auto clearMapping = [&](TwoKeyFastMapping& m) {
-        gamepad->state.buttons &= ~m.buttonMask;
-        gamepad->state.dpad    &= ~m.dpadMask;
-        gamepad->state.aux     &= ~m.auxMask;
-        if (m.isComplex)
-            clearComplexMapping2Key(gamepad, *m.originalMapping);
-    };
-    clearMapping(touchpadMapping);
-    clearMapping(leftMapping);
-    clearMapping(rightMapping);
-
     // ③ 根据使能键状态决定输出
-    if (!enablePressed) return;  // GPIO12 未按下：全部清除，结束
+    if (!enablePressed) return;  // GPIO12 未按下：本插件不叠加输出，结束
 
     bool leftRaw  = !gpio_get((uint)pin_left);
     bool rightRaw = !gpio_get((uint)pin_right);
@@ -226,23 +246,18 @@ void TwoKeyTouchpadAddon::preprocess() {
     bool rightPressed = rightStablePressed;
 
     if (leftPressed || rightPressed) {
-        // 触摸键模式：输出对应触摸键映射，GPIO12 原映射保持抑制
-        auto applyMapping = [&](TwoKeyFastMapping& m) {
-            gamepad->state.buttons |= m.buttonMask;
-            gamepad->state.dpad    |= m.dpadMask;
-            gamepad->state.aux     |= m.auxMask;
-            if (m.isComplex)
-                applyComplexMapping2Key(gamepad, *m.originalMapping);
-        };
-        if (leftPressed)  applyMapping(leftMapping);
-        if (rightPressed) applyMapping(rightMapping);
-    } else {
-        // 无触摸：直通 GPIO12 原映射
-        gamepad->state.buttons |= touchpadMapping.buttonMask;
-        gamepad->state.dpad    |= touchpadMapping.dpadMask;
-        gamepad->state.aux     |= touchpadMapping.auxMask;
+        // 触摸键模式：抑制本帧 gamepad->read() 对 GPIO12 的映射，再输出左/右触摸映射
+        gamepad->state.buttons &= ~touchpadMapping.buttonMask;
+        gamepad->state.dpad    &= ~touchpadMapping.dpadMask;
+        gamepad->state.aux     &= ~touchpadMapping.auxMask;
         if (touchpadMapping.isComplex)
-            applyComplexMapping2Key(gamepad, *touchpadMapping.originalMapping);
+            clearComplexMapping2Key(gamepad, *touchpadMapping.originalMapping);
+
+        if (leftPressed)  applyMappingAndRecord(leftMapping);
+        if (rightPressed) applyMappingAndRecord(rightMapping);
+    } else {
+        // 无触摸：输出 GPIO12 在背键映射中配置的键（与 read() 一致，可再 OR 保证一致）
+        applyMappingAndRecord(touchpadMapping);
     }
 }
 

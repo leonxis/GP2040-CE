@@ -166,6 +166,8 @@ void BackButtonDividerAddon::setup() {
 }
 
 void BackButtonDividerAddon::reinit() {
+    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
+    last_applied_count_ = 0;
     buildMappings();
 }
 
@@ -179,27 +181,36 @@ void BackButtonDividerAddon::applyMapping(Gamepad* gamepad, const BackFastMappin
         applyBackComplex(gamepad, *m.originalMapping);
 }
 
-void BackButtonDividerAddon::clearMapping(Gamepad* gamepad, const BackFastMapping& m) {
-    if (m.originalMapping == nullptr || m.originalMapping->action == GpioAction::NONE)
-        return;
-    gamepad->state.buttons &= ~m.buttonMask;
-    gamepad->state.dpad    &= ~m.dpadMask;
-    gamepad->state.aux     &= ~m.auxMask;
-    if (m.isComplex)
-        clearBackComplex(gamepad, *m.originalMapping);
-}
-
 void BackButtonDividerAddon::preprocess() {
     if (!adcInitialized)
         return;
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
 
-    // 每帧先清除本插件产生的所有输出
-    clearMapping(gamepad, leftBack1);
-    clearMapping(gamepad, leftBack2);
-    clearMapping(gamepad, rightBack1);
-    clearMapping(gamepad, rightBack2);
+    // 只清除上一帧本插件实际写入的输出（与 MCP3208 CH2/CH5 思路一致），避免与 GPIO 等同键位冲突时误清
+    gamepad->state.buttons &= ~last_out_buttons_;
+    gamepad->state.dpad    &= ~last_out_dpad_;
+    gamepad->state.aux     &= ~last_out_aux_;
+    for (uint8_t i = 0; i < last_applied_count_; i++) {
+        const BackFastMapping* p = last_applied_[i];
+        if (p && p->isComplex && p->originalMapping)
+            clearBackComplex(gamepad, *p->originalMapping);
+    }
+    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
+    last_applied_count_ = 0;
+
+    auto recordApplied = [&](const BackFastMapping& m) {
+        last_out_buttons_ |= m.buttonMask;
+        last_out_dpad_    |= m.dpadMask;
+        last_out_aux_     |= m.auxMask;
+        if (m.isComplex && last_applied_count_ < 4)
+            last_applied_[last_applied_count_++] = &m;
+    };
+
+    auto applyAndRecord = [&](const BackFastMapping& m) {
+        applyMapping(gamepad, m);
+        recordApplied(m);
+    };
 
     // 读取左侧（ADC0, GPIO26）
     adc_select_input(0);
@@ -247,12 +258,12 @@ void BackButtonDividerAddon::preprocess() {
     auto applyByStableLevel = [&](int8_t level, BackFastMapping& m1, BackFastMapping& m2) {
         if (level < 0) return;       // 无输出
         if (level == 0) {
-            applyMapping(gamepad, m2);
+            applyAndRecord(m2);
         } else if (level == 1) {
-            applyMapping(gamepad, m1);
+            applyAndRecord(m1);
         } else { // 2 以及其他值都视作 1+2
-            applyMapping(gamepad, m1);
-            applyMapping(gamepad, m2);
+            applyAndRecord(m1);
+            applyAndRecord(m2);
         }
     };
 
