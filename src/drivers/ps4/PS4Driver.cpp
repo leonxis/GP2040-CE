@@ -14,7 +14,7 @@
 
 #include "enums.pb.h"
 
-// force a report to be sent every X ms
+// Minimum idle time before forcing a duplicate report (games / missed reports)
 #define PS4_KEEPALIVE_TIMER 5
 
 // Controller calibration
@@ -390,6 +390,15 @@ void PS4Driver::initialize() {
     last_report_counter = 0; // PS4 Reports
     last_axis_counter = 0;
     last_report_timer = to_ms_since_boot(get_absolute_time());
+    {
+        uint32_t hz = Storage::getInstance().getAddonOptions().reportRate;
+        if (hz == 0u) hz = 1000u;
+        ps4_report_rate_hz_cached_ = hz;
+        uint32_t poll = (1000u + hz - 1u) / hz;
+        if (poll < 1u) poll = 1u;
+        ps4_keepalive_ms_cached_ = (static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) > poll)
+            ? static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) : poll;
+    }
     cur_nonce_id = 1; // PS4 Auth
     cur_nonce_chunk = 0;
 }
@@ -690,29 +699,45 @@ bool PS4Driver::process(Gamepad * gamepad) {
     void * report = &ps4Report;
     uint16_t report_size = sizeof(ps4Report);
 
-    if (memcmp(last_report, report, report_size) != 0)
-    {
-        // HID ready + report sent, copy previous report
-        if (tud_hid_ready() && tud_hid_report(0, report, report_size) == true ) {
-            memcpy(last_report, report, report_size);
-            reportSent = true;
-        }
-        // keep track of our last successful report, for keepalive purposes
-        last_report_timer = now;
-    } else {
-        // some games apparently can miss reports, or they rely on official behavior of getting frequent
-        // updates. we normally only send a report when the value changes; if we increment the counters
-        // every time we generate the report (every GP2040::run loop), we apparently overburden
-        // TinyUSB and introduce roughly 1ms of latency. but we want to loop often and report on every
-        // true update in order to achieve our tight <1ms report timing when we *do* have a different
-        // report to send.
-        if ((now - last_report_timer) > PS4_KEEPALIVE_TIMER) {
-            last_report_counter = (last_report_counter+1) & 0x3F;
-            ps4Report.reportCounter = last_report_counter;		// report counter is 6 bits
+    // Keepalive interval from cached reportRate (recomputed only when reportRate changes).
+    uint32_t hz = Storage::getInstance().getAddonOptions().reportRate;
+    if (hz == 0u) hz = 1000u;
+    if (hz != ps4_report_rate_hz_cached_) {
+        ps4_report_rate_hz_cached_ = hz;
+        uint32_t poll = (1000u + hz - 1u) / hz;
+        if (poll < 1u) poll = 1u;
+        ps4_keepalive_ms_cached_ = (static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) > poll)
+            ? static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) : poll;
+    }
+    const uint32_t keepalive_ms = ps4_keepalive_ms_cached_;
+
+    const bool report_changed = (memcmp(last_report, report, report_size) != 0);
+    const bool keepalive_due = (now - last_report_timer) > keepalive_ms;
+
+    if (report_changed || keepalive_due) {
+        if (tud_hid_ready()) {
+            // New counter must be in the buffer before send (matches DS4 per-packet counter).
+            const uint8_t prev_counter = last_report_counter;
+            const uint16_t prev_axis_timing =
+                (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD)
+                    ? ps4Report.gamepad.axisTiming
+                    : static_cast<uint16_t>(0);
+            last_report_counter = (last_report_counter + 1) & 0x3F;
+            ps4Report.reportCounter = last_report_counter;
             if (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD) {
-                ps4Report.gamepad.axisTiming = now;		 		// axis counter is 16 bits
+                ps4Report.gamepad.axisTiming = static_cast<uint16_t>(now & 0xFFFFu);
             }
-            // the *next* process() will be a forced report (or real user input)
+            if (tud_hid_report(0, report, report_size) == true) {
+                memcpy(last_report, report, report_size);
+                last_report_timer = now;
+                reportSent = true;
+            } else {
+                last_report_counter = prev_counter;
+                ps4Report.reportCounter = prev_counter;
+                if (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD) {
+                    ps4Report.gamepad.axisTiming = prev_axis_timing;
+                }
+            }
         }
     }
 

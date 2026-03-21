@@ -62,6 +62,9 @@ private:
     TouchpadData touchpadData;
     PSSensorData sensorData;
     uint32_t last_report_timer;
+    /** Cached from addonOptions.reportRate; only recomputed when rate changes (hot path). */
+    uint32_t ps4_report_rate_hz_cached_ = 0;
+    uint32_t ps4_keepalive_ms_cached_ = 5;
     PS4Auth * ps4AuthDriver;
     PS4AuthData * ps4AuthData;      // PS4 Authentication Data
     uint8_t cur_nonce_chunk;            // PS4 Encryption Nonce Chunk (Max 19)
