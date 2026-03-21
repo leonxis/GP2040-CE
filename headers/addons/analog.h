@@ -92,9 +92,9 @@ typedef struct
     bool fixed_anti_deadzone;  // true = fixed anti-deadzone, false = linear anti-deadzone
     uint32_t joystick_center_x;
     uint32_t joystick_center_y;
-    // Jitter filter configuration (ADC units). 0 = disabled.
+    // ADC quantize step (raw counts); 0 = full resolution (no quantize). Web maps bits b to step 2^(16-b).
     uint32_t jitter_filter;
-    // Last raw ADC readings for jitter filtering
+    // Last quantized ADC (updated each sample)
     uint16_t last_x_adc;
     uint16_t last_y_adc;
     float range_data[48];  // Circularity data for 48 angular positions

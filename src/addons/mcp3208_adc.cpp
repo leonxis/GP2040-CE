@@ -243,15 +243,23 @@ void MCP3208ADCAddon::readAllChannels()
 
 float MCP3208ADCAddon::getStickRaw(int stick, bool isX) {
     uint16_t adc_value = (stick == 0) ? (isX ? adcValues_[0] : adcValues_[1]) : (isX ? adcValues_[7] : adcValues_[6]);
-    uint32_t threshold = adc_pairs_[stick].jitter_filter;
+    uint32_t step = adc_pairs_[stick].jitter_filter;
     uint16_t* last_adc = isX ? &adc_pairs_[stick].last_x_adc : &adc_pairs_[stick].last_y_adc;
-    if (threshold > 0) {
-        uint32_t diff = (adc_value > *last_adc) ? (adc_value - *last_adc) : (*last_adc - adc_value);
-        if (diff < threshold) return static_cast<float>(*last_adc);
-        *last_adc = adc_value;
-    } else {
-        *last_adc = adc_value;
+    if (step > 0) {
+        constexpr uint32_t kAdcMax12 = 4095u;
+        constexpr uint32_t kMaxQuantStep = kAdcMax12 + 1u;
+        if (step > kMaxQuantStep) {
+            step = kMaxQuantStep;
+        }
+        uint32_t half = step / 2;
+        uint32_t rounded = ((uint32_t)adc_value + half) / step;
+        uint32_t q = rounded * step;
+        if (q > kAdcMax12) {
+            q = kAdcMax12;
+        }
+        adc_value = static_cast<uint16_t>(q);
     }
+    *last_adc = adc_value;
     return static_cast<float>(adc_value);
 }
 
@@ -595,7 +603,7 @@ void MCP3208ADCAddon::process() {
     }
 
     for (int i = 0; i < MCP3208_STICK_COUNT; i++) {
-        // Step 1: Read raw ADC (with jitter filter) and transform to center-relative coordinates
+        // Step 1: Read raw ADC (quantized by step) and transform to center-relative coordinates
         float cx = getStickRaw(i, true) - (float)adc_pairs_[i].x_center;
         float cy = getStickRaw(i, false) - (float)adc_pairs_[i].y_center;
 
@@ -669,6 +677,8 @@ void MCP3208ADCAddon::process() {
 
 void MCP3208ADCAddon::reinit() {
     const AnalogOptions& o = Storage::getInstance().getAddonOptions().analogOptions;
+    adc_pairs_[0].jitter_filter = o.joystick_jitter_filter_1;
+    adc_pairs_[1].jitter_filter = o.joystick_jitter_filter_2;
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     forceReleaseActiveControlPoints(0, gamepad);
     forceReleaseActiveControlPoints(1, gamepad);

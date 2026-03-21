@@ -38,7 +38,7 @@ typedef struct {
     float in_deadzone;
     float anti_deadzone;
     bool fixed_anti_deadzone;
-    uint32_t jitter_filter;   // ADC units, 0 = disabled (match analog)
+    uint32_t jitter_filter;   // ADC quantize step (counts), 0 = full res (match analog)
     uint16_t last_x_adc;
     uint16_t last_y_adc;
     float range_data[MCP3208_CIRCULARITY_SIZE];
@@ -85,7 +85,7 @@ public:
 
 private:
     void readAllChannels();
-    float getStickRaw(int stick, bool isX);  // non-const: applies jitter and updates last_x/y_adc
+    float getStickRaw(int stick, bool isX);  // non-const: quantizes ADC step and updates last_x/y_adc
     float getInterpolatedScale(int stick, float angle) const;
     void applyFinetuneShapeAdjustments(int stick);
     void initializeCurveSegments(int stick, const MCP3208CurvePoint* points, int count);

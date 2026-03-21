@@ -157,12 +157,12 @@ export const analogScheme = {
 	joystickJitterFilter1: yup
 		.number()
 		.min(0)
-		.max(30)
+		.max(4096)
 		.label('Joystick Jitter Filter 1'),
 	joystickJitterFilter2: yup
 		.number()
 		.min(0)
-		.max(30)
+		.max(4096)
 		.label('Joystick Jitter Filter 2'),
 };
 

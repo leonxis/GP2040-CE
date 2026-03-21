@@ -598,41 +598,45 @@ const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
 
 
 /**
- * Applies jitter filter to raw ADC values for visualization.
- * Mirrors backend logic: if |current - last| < threshold, keep last value;
- * otherwise accept current value and update last.
+ * Quantize raw ADC to nearest multiple of step (matches analog.cpp / mcp3208 getStickRaw).
+ * step 0 = full 12-bit; step = 2^(16-b) from config.
  */
-const applyJitterFilterToAdc = (
+const quantizeAdc = (adc: number, step: number): number => {
+	if (!step || step <= 0) return adc;
+	// Match firmware: 12-bit integer ADC; API may return floats.
+	const adcInt = Math.round(adc);
+	const maxStep = ADC_MAX + 1;
+	const s = Math.min(Math.max(1, Math.floor(step)), maxStep);
+	const half = Math.floor(s / 2);
+	let q = Math.floor((adcInt + half) / s) * s;
+	if (q > ADC_MAX) q = ADC_MAX;
+	return q;
+};
+
+const quantizeAdcPair = (
 	rawX: number,
 	rawY: number,
-	threshold: number,
-	lastRef: React.MutableRefObject<{ x: number; y: number } | null>
-): { x: number; y: number } => {
-	// Threshold <= 0 means "no filtering"
-	if (!threshold || threshold <= 0) {
-		lastRef.current = { x: rawX, y: rawY };
-		return { x: rawX, y: rawY };
-	}
+	step: number
+): { x: number; y: number } => ({
+	x: quantizeAdc(rawX, step),
+	y: quantizeAdc(rawY, step),
+});
 
-	const last = lastRef.current ?? { x: rawX, y: rawY };
+/** Firmware stores quantize step; 0 = off. UI uses bits b∈[4,16] with step = 2^(16-b). */
+const JITTER_BITS_MIN = 4;
+const JITTER_BITS_MAX = 16;
 
-	let filteredX = rawX;
-	let filteredY = rawY;
+const bitsToStoredThreshold = (bits: number): number => {
+	const b = Math.round(bits);
+	const clamped = Math.min(JITTER_BITS_MAX, Math.max(JITTER_BITS_MIN, b));
+	return Math.round(Math.pow(2, 16 - clamped));
+};
 
-	if (Math.abs(rawX - last.x) < threshold) {
-		filteredX = last.x;
-	} else {
-		last.x = rawX;
-	}
-
-	if (Math.abs(rawY - last.y) < threshold) {
-		filteredY = last.y;
-	} else {
-		last.y = rawY;
-	}
-
-	lastRef.current = last;
-	return { x: filteredX, y: filteredY };
+/** Map stored threshold to UI bits; 0 (legacy off) displays as 16 bit. */
+const storedThresholdToBits = (threshold: number): number => {
+	if (threshold == null || threshold <= 0) return JITTER_BITS_MAX;
+	const raw = 16 - Math.log2(threshold) / Math.LN2;
+	return Math.min(JITTER_BITS_MAX, Math.max(JITTER_BITS_MIN, Math.round(raw)));
 };
 
 const JoystickCalibration = ({
@@ -664,19 +668,17 @@ const JoystickCalibration = ({
 	// Maximum 3 points (plus start (0,0) and end (1,1)) = 4 segments
 	// Load from config if available - these are used for curve application in stick position canvas
 	
-	// Jitter filter state for main canvas visualization (per stick)
-	const leftCanvasJitterLastRef = useRef<{ x: number; y: number } | null>(null);
-	const rightCanvasJitterLastRef = useRef<{ x: number; y: number } | null>(null);
-
-	// Jitter filter state for stick 1
+	// Jitter filter state for stick 1 (slider = bits 4–16)
 	const [showLeftJitterDataModal, setShowLeftJitterDataModal] = useState(false);
-	const [leftJitterFilter, setLeftJitterFilter] = useState<number>(0);
-	const [leftJitterFilterOriginal, setLeftJitterFilterOriginal] = useState<number>(0);
+	const [leftJitterFilter, setLeftJitterFilter] = useState<number>(JITTER_BITS_MAX);
+	const [leftJitterFilterOriginal, setLeftJitterFilterOriginal] = useState<number>(JITTER_BITS_MAX);
+	const [leftJitterSliderDirty, setLeftJitterSliderDirty] = useState(false);
 
 	// Jitter filter state for stick 2
 	const [showRightJitterDataModal, setShowRightJitterDataModal] = useState(false);
-	const [rightJitterFilter, setRightJitterFilter] = useState<number>(0);
-	const [rightJitterFilterOriginal, setRightJitterFilterOriginal] = useState<number>(0);
+	const [rightJitterFilter, setRightJitterFilter] = useState<number>(JITTER_BITS_MAX);
+	const [rightJitterFilterOriginal, setRightJitterFilterOriginal] = useState<number>(JITTER_BITS_MAX);
+	const [rightJitterSliderDirty, setRightJitterSliderDirty] = useState(false);
 	
 	// Finetune shape modal state - initialize from values
 	const [leftFinetuneShapeForceCircular, setLeftFinetuneShapeForceCircular] = useState(values?.joystickFinetuneShapeForceCircular1 ?? false);
@@ -696,22 +698,24 @@ const JoystickCalibration = ({
 			setRightFinetuneShapeAmplify(values?.joystickFinetuneShapeAmplify2 ?? 0.0);
 	}, [values?.joystickFinetuneShapeForceCircular1, values?.joystickFinetuneShapeAmplify1, values?.joystickFinetuneShapeForceCircular2, values?.joystickFinetuneShapeAmplify2]);
 	
-	// Load jitter filter values when modal opens
+	// Load jitter filter (threshold → bits) when modal opens
 	useEffect(() => {
 		if (showLeftJitterDataModal) {
-			const savedValue = values?.joystickJitterFilter1 ?? 0;
-			setLeftJitterFilter(savedValue);
-			setLeftJitterFilterOriginal(savedValue);
+			setLeftJitterSliderDirty(false);
+			const savedBits = storedThresholdToBits(values?.joystickJitterFilter1 ?? 0);
+			setLeftJitterFilter(savedBits);
+			setLeftJitterFilterOriginal(savedBits);
 		}
-	}, [showLeftJitterDataModal, values]);
+	}, [showLeftJitterDataModal, values?.joystickJitterFilter1]);
 	
 	useEffect(() => {
 		if (showRightJitterDataModal) {
-			const savedValue = values?.joystickJitterFilter2 ?? 0;
-			setRightJitterFilter(savedValue);
-			setRightJitterFilterOriginal(savedValue);
+			setRightJitterSliderDirty(false);
+			const savedBits = storedThresholdToBits(values?.joystickJitterFilter2 ?? 0);
+			setRightJitterFilter(savedBits);
+			setRightJitterFilterOriginal(savedBits);
 		}
-	}, [showRightJitterDataModal, values]);
+	}, [showRightJitterDataModal, values?.joystickJitterFilter2]);
 	
 	// Circularity data for main canvas (used when finetune shape is active)
 	const [leftFinetuneShapeCircularityData, setLeftFinetuneShapeCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
@@ -763,15 +767,10 @@ const JoystickCalibration = ({
 								amplify
 							);
 							
-							// Apply jitter filter for visualization using configured threshold
+							// ADC quantize for visualization (same step as firmware)
 							// @ts-ignore - field exists at runtime
-							const jitterThreshold1 = values?.joystickJitterFilter1 ?? 0;
-							const filtered1 = applyJitterFilterToAdc(
-								data1.x,
-								data1.y,
-								jitterThreshold1,
-								leftCanvasJitterLastRef
-							);
+							const adcStep1 = values?.joystickJitterFilter1 ?? 0;
+							const filtered1 = quantizeAdcPair(data1.x, data1.y, adcStep1);
 
 							const { stickX: rawStickX, stickY: rawStickY, detailData } = processJoystickData(
 								filtered1.x,
@@ -919,15 +918,9 @@ const JoystickCalibration = ({
 								amplify
 							);
 							
-							// Apply jitter filter for visualization using configured threshold
 							// @ts-ignore - field exists at runtime
-							const jitterThreshold2 = values?.joystickJitterFilter2 ?? 0;
-							const filtered2 = applyJitterFilterToAdc(
-								data2.x,
-								data2.y,
-								jitterThreshold2,
-								rightCanvasJitterLastRef
-							);
+							const adcStep2 = values?.joystickJitterFilter2 ?? 0;
+							const filtered2 = quantizeAdcPair(data2.x, data2.y, adcStep2);
 
 							const { stickX: rawStickX, stickY: rawStickY, detailData } = processJoystickData(
 								filtered2.x,
@@ -1490,25 +1483,35 @@ const JoystickCalibration = ({
 			</Modal>
 
 			{/* Left Jitter Data Modal */}
-			<Modal show={showLeftJitterDataModal} onHide={() => setShowLeftJitterDataModal(false)} size="lg">
+			<Modal
+				show={showLeftJitterDataModal}
+				onHide={() => {
+					setLeftJitterFilter(leftJitterFilterOriginal);
+					setShowLeftJitterDataModal(false);
+				}}
+				size="lg"
+			>
 				<Modal.Header closeButton>
 					<Modal.Title>摇杆步长设置 - 左摇杆</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					{/* Jitter Filter Slider */}
 					<div className="mb-4">
-						<Form.Label>摇杆步长设置: {leftJitterFilter}</Form.Label>
+						<Form.Label>
+							摇杆分辨率：{leftJitterFilter} bit，步长：{Math.round(Math.pow(2, 16 - leftJitterFilter))}
+						</Form.Label>
 						<Form.Range
-							min={0}
-							max={30}
+							min={JITTER_BITS_MIN}
+							max={JITTER_BITS_MAX}
 							step={1}
 							value={leftJitterFilter}
-							onChange={(e) => setLeftJitterFilter(parseInt(e.target.value))}
+							onChange={(e) => {
+								setLeftJitterSliderDirty(true);
+								setLeftJitterFilter(parseInt(e.target.value, 10));
+							}}
 						/>
 						<div className="mt-3 small text-muted">
-							<div>摇杆步长设置为硬件读取步长，越小对移动识别越精细；</div>
-							<div>步长设置越小，摇杆硬件识别越精细，更容易受到摇杆硬件噪声影响而产生抖动；</div>
-							<div>手柄输出步长由读取步长再根据手柄协议决定，PS4模式下步长为16，Xinput模式为1。</div>
+							摇杆步长由摇杆分辨率决定。Xinput模式下以分辨率为16bit，步长1；DS4模式下以分辨率为8bit，步长16。
 						</div>
 					</div>
 				</Modal.Body>
@@ -1521,8 +1524,12 @@ const JoystickCalibration = ({
 						取消
 					</Button>
 					<Button variant="primary" onClick={() => {
-						// Save: update field value
-						setFieldValue('joystickJitterFilter1', leftJitterFilter);
+						// Save: store ADC threshold; keep legacy 0 if user never moved slider from "off"
+						const next =
+							(values?.joystickJitterFilter1 ?? 0) === 0 && !leftJitterSliderDirty
+								? 0
+								: bitsToStoredThreshold(leftJitterFilter);
+						setFieldValue('joystickJitterFilter1', next);
 						setLeftJitterFilterOriginal(leftJitterFilter);
 						setShowLeftJitterDataModal(false);
 					}}>
@@ -1532,25 +1539,35 @@ const JoystickCalibration = ({
 			</Modal>
 
 			{/* Right Jitter Data Modal */}
-			<Modal show={showRightJitterDataModal} onHide={() => setShowRightJitterDataModal(false)} size="lg">
+			<Modal
+				show={showRightJitterDataModal}
+				onHide={() => {
+					setRightJitterFilter(rightJitterFilterOriginal);
+					setShowRightJitterDataModal(false);
+				}}
+				size="lg"
+			>
 				<Modal.Header closeButton>
 					<Modal.Title>摇杆步长设置 - 右摇杆</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					{/* Jitter Filter Slider */}
 					<div className="mb-4">
-						<Form.Label>摇杆步长设置: {rightJitterFilter}</Form.Label>
+						<Form.Label>
+							摇杆分辨率：{rightJitterFilter} bit，步长：{Math.round(Math.pow(2, 16 - rightJitterFilter))}
+						</Form.Label>
 						<Form.Range
-							min={0}
-							max={30}
+							min={JITTER_BITS_MIN}
+							max={JITTER_BITS_MAX}
 							step={1}
 							value={rightJitterFilter}
-							onChange={(e) => setRightJitterFilter(parseInt(e.target.value))}
+							onChange={(e) => {
+								setRightJitterSliderDirty(true);
+								setRightJitterFilter(parseInt(e.target.value, 10));
+							}}
 						/>
 						<div className="mt-3 small text-muted">
-							<div>摇杆步长设置为硬件读取步长，越小对移动识别越精细；</div>
-							<div>步长设置越小，摇杆硬件识别越精细，更容易受到摇杆硬件噪声影响而产生抖动；</div>
-							<div>手柄输出步长由读取步长再根据手柄协议决定，PS4模式下步长为16，Xinput模式为1。</div>
+							摇杆步长由摇杆分辨率决定。Xinput模式下以分辨率为16bit，步长1；DS4模式下以分辨率为8bit，步长16。
 						</div>
 					</div>
 				</Modal.Body>
@@ -1563,8 +1580,11 @@ const JoystickCalibration = ({
 						取消
 					</Button>
 					<Button variant="primary" onClick={() => {
-						// Save: update field value
-						setFieldValue('joystickJitterFilter2', rightJitterFilter);
+						const next =
+							(values?.joystickJitterFilter2 ?? 0) === 0 && !rightJitterSliderDirty
+								? 0
+								: bitsToStoredThreshold(rightJitterFilter);
+						setFieldValue('joystickJitterFilter2', next);
 						setRightJitterFilterOriginal(rightJitterFilter);
 						setShowRightJitterDataModal(false);
 					}}>

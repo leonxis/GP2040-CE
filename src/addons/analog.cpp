@@ -69,7 +69,7 @@ void AnalogInput::setup() {
     adc_pairs[0].fixed_anti_deadzone = analogOptions.fixed_anti_deadzone;
     adc_pairs[0].joystick_center_x = analogOptions.joystick_center_x;
     adc_pairs[0].joystick_center_y = analogOptions.joystick_center_y;
-    // Jitter filter (0 = disabled, protobuf default is 0)
+    // ADC quantize step in raw ADC counts (0 = full 12-bit, no quantize). Same field as web "resolution" step 2^(16-b).
     adc_pairs[0].jitter_filter = analogOptions.joystick_jitter_filter_1;
     // Initialize range calibration data (48 angular positions)
     adc_pairs[0].has_range_calibration = (analogOptions.joystick_range_data_1_count > 0);
@@ -108,7 +108,7 @@ void AnalogInput::setup() {
     adc_pairs[1].fixed_anti_deadzone = analogOptions.fixed_anti_deadzone2;
     adc_pairs[1].joystick_center_x = analogOptions.joystick_center_x2;
     adc_pairs[1].joystick_center_y = analogOptions.joystick_center_y2;
-    // Jitter filter (0 = disabled, protobuf default is 0)
+    // ADC quantize step (0 = disabled)
     adc_pairs[1].jitter_filter = analogOptions.joystick_jitter_filter_2;
     // Initialize range calibration data (48 angular positions)
     adc_pairs[1].has_range_calibration = (analogOptions.joystick_range_data_2_count > 0);
@@ -141,14 +141,14 @@ void AnalogInput::setup() {
     applyFinetuneShapeAdjustments(0);
     applyFinetuneShapeAdjustments(1);
     
-    // Initialize hardware-related variables (GPIO, calibration centers, jitter filter state)
+    // Initialize hardware-related variables (GPIO, calibration centers, last ADC snapshot)
     // Setup defaults and helpers
     for (int i = 0; i < ADC_COUNT; i++) {
         adc_pairs[i].x_pin_adc = adc_pairs[i].x_pin - ADC_PIN_OFFSET;
         adc_pairs[i].y_pin_adc = adc_pairs[i].y_pin - ADC_PIN_OFFSET;
         adc_pairs[i].x_value = ANALOG_CENTER;
         adc_pairs[i].y_value = ANALOG_CENTER;
-        // Initialize jitter filter state (0 = no previous sample yet)
+        // Last quantized ADC (optional / debug; quantization is stateless per sample)
         adc_pairs[i].last_x_adc = 0;
         adc_pairs[i].last_y_adc = 0;
     }
@@ -173,6 +173,9 @@ void AnalogInput::setup() {
 
 void AnalogInput::reinit() {
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    // Keep quantize step in sync with storage (setup() only runs once; profile switch calls reinit())
+    adc_pairs[0].jitter_filter = analogOptions.joystick_jitter_filter_1;
+    adc_pairs[1].jitter_filter = analogOptions.joystick_jitter_filter_2;
     // Release old control point buttons before resetting data
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
     forceReleaseActiveControlPoints(0, gamepad); // Release stick 1 virtual buttons
@@ -202,7 +205,7 @@ void AnalogInput::reinit() {
         initializeCurveSegments(1, converted_points, analogOptions.joystick_curve_points_2_count);
     }
 
-    // Note: Hardware initialization (GPIO, calibration, jitter filter) is NOT performed here
+    // Note: Hardware initialization (GPIO, calibration, ADC state) is NOT performed here
     // because curve preset switching only changes curve data, not hardware configuration.
     // Hardware initialization is only done in setup() when the addon is first initialized,
     // or when profile changes (handled by gp2040.cpp which may reload configuration).
@@ -427,27 +430,25 @@ float AnalogInput::readPin(int stick_num, Pin_t pin_adc, uint16_t /* center */, 
     adc_select_input(pin_adc);
     uint16_t adc_value = adc_read();
 
-    // Jitter filtering in ADC domain:
-    // Compare current ADC value with last value for this axis.
-    // If absolute difference is smaller than jitter_filter, keep last value.
-    uint32_t threshold = adc_pairs[stick_num].jitter_filter;
+    // Reduce effective ADC resolution: quantize to nearest multiple of step (same as web UI step = 2^(16-b)).
+    uint32_t step = adc_pairs[stick_num].jitter_filter;
     uint16_t* last_adc = isXAxis ? &adc_pairs[stick_num].last_x_adc : &adc_pairs[stick_num].last_y_adc;
 
-    if (threshold > 0) {
-        // If last_adc is still 0 (first read), diff ≈ adc_value, likely >= threshold, pass through and update last_adc
-        uint32_t diff = (adc_value > *last_adc) ? (adc_value - *last_adc) : (*last_adc - adc_value);
-        if (diff < threshold) {
-            // Difference is smaller than jitter filter threshold, return last ADC value
-            return static_cast<float>(*last_adc);
+    if (step > 0) {
+        // UI / protobuf expect step <= 4096; clamp so rounded*step cannot mis-quantize (e.g. stick stuck at 0).
+        constexpr uint32_t kMaxQuantStep = static_cast<uint32_t>(ADC_MAX) + 1u;
+        if (step > kMaxQuantStep) {
+            step = kMaxQuantStep;
         }
-        // Difference is greater than or equal to threshold, accept new value and update last_adc
-        *last_adc = adc_value;
-    } else {
-        // Threshold is 0: no jitter filtering, but still update last_adc for potential future use
-        *last_adc = adc_value;
+        uint32_t half = step / 2;
+        uint32_t rounded = ((uint32_t)adc_value + half) / step;
+        uint32_t q = rounded * step;
+        if (q > ADC_MAX) {
+            q = ADC_MAX;
+        }
+        adc_value = static_cast<uint16_t>(q);
     }
-
-    // Return (possibly jitter-filtered) ADC value
+    *last_adc = adc_value;
     return static_cast<float>(adc_value);
 }
 
