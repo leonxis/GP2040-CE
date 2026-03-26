@@ -17,6 +17,7 @@
 #include "drivers/xbone/XBOneDriver.h"
 #include "drivers/xboxog/XboxOriginalDriver.h"
 #include "drivers/xinput/XInputDriver.h"
+#include "drivers/xinputb/XInputBDriver.h"
 #include "drivers/p5general/P5GeneralDriver.h"
 
 #include "usbhostmanager.h"
@@ -76,6 +77,9 @@ void DriverManager::setup(InputMode mode) {
             break;
         case INPUT_MODE_XINPUT:
             driver = new XInputDriver();
+            break;
+        case INPUT_MODE_XINPUTB:
+            driver = new XInputBDriver();
             break;
         case INPUT_MODE_SWITCH_PRO:
             driver = new SwitchProDriver();

@@ -453,6 +453,7 @@ void Gamepad::process()
 void Gamepad::read()
 {
 	addonKeyboardKeyMask = 0;
+	addonMouseButtonMask = 0;
 	Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
 
 	// Get the midpoint value for the current mode

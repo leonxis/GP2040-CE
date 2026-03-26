@@ -1,7 +1,6 @@
 #include "drivers/ps4b/PS4BDriver.h"
 #include "drivers/shared/driverhelper.h"
 #include "storagemanager.h"
-#include "class/hid/hid.h"
 #include <string.h>
 
 #include "enums.pb.h"
@@ -275,15 +274,6 @@ void PS4BDriver::initialize() {
         .miscData = {}
     };
     
-    // Initialize keyboard report
-    keyboard_modifier = 0;
-    keyboard_reserved = 0;
-    memset(keyboard_keycode, 0, 6);
-
-    // Initialize mouse report (for gyro-as-mouse later)
-    memset(mouse_report, 0, sizeof(mouse_report));
-    memset(last_mouse_report, 0, sizeof(last_mouse_report));
-
     // see output_0x03
     controllerConfig = {
         .hidUsage = 0x2721,
@@ -768,111 +758,7 @@ bool PS4BDriver::process(Gamepad * gamepad) {
         }
     }
 
-    // Process keyboard report
-    keyboard_modifier = 0;
-    memset(keyboard_keycode, 0, 6);
-    uint8_t keycodeIndex = 0;
-    
-    // Check for modifier keys
-    if (gamepad->pressedKeyboardKeyCtrl()) {
-        keyboard_modifier |= KEYBOARD_MODIFIER_LEFTCTRL;
-    }
-    if (gamepad->pressedKeyboardKeyShift()) {
-        keyboard_modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
-    }
-    
-    // Check for Alt+F4 combination
-    if (gamepad->pressedKeyboardKeyAltF4()) {
-        keyboard_modifier |= KEYBOARD_MODIFIER_LEFTALT;
-        if (keycodeIndex < 6) {
-            keyboard_keycode[keycodeIndex++] = HID_KEY_F4;
-        }
-    } else {
-        // Check for letter keys
-        if (gamepad->pressedKeyboardKeyA() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_A;
-        if (gamepad->pressedKeyboardKeyB() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_B;
-        if (gamepad->pressedKeyboardKeyC() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_C;
-        if (gamepad->pressedKeyboardKeyD() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_D;
-        if (gamepad->pressedKeyboardKeyE() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_E;
-        if (gamepad->pressedKeyboardKeyF() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_F;
-        if (gamepad->pressedKeyboardKeyG() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_G;
-        if (gamepad->pressedKeyboardKeyH() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_H;
-        if (gamepad->pressedKeyboardKeyI() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_I;
-        if (gamepad->pressedKeyboardKeyJ() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_J;
-        if (gamepad->pressedKeyboardKeyK() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_K;
-        if (gamepad->pressedKeyboardKeyL() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_L;
-        if (gamepad->pressedKeyboardKeyM() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_M;
-        if (gamepad->pressedKeyboardKeyN() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_N;
-        if (gamepad->pressedKeyboardKeyO() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_O;
-        if (gamepad->pressedKeyboardKeyP() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_P;
-        if (gamepad->pressedKeyboardKeyQ() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_Q;
-        if (gamepad->pressedKeyboardKeyR() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_R;
-        if (gamepad->pressedKeyboardKeyS() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_S;
-        if (gamepad->pressedKeyboardKeyT() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_T;
-        if (gamepad->pressedKeyboardKeyU() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_U;
-        if (gamepad->pressedKeyboardKeyV() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_V;
-        if (gamepad->pressedKeyboardKeyW() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_W;
-        if (gamepad->pressedKeyboardKeyX() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_X;
-        if (gamepad->pressedKeyboardKeyY() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_Y;
-        if (gamepad->pressedKeyboardKeyZ() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_Z;
-        if (gamepad->pressedKeyboardKey0() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_0;
-        if (gamepad->pressedKeyboardKey1() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_1;
-        if (gamepad->pressedKeyboardKey2() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_2;
-        if (gamepad->pressedKeyboardKey3() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_3;
-        if (gamepad->pressedKeyboardKey4() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_4;
-        if (gamepad->pressedKeyboardKey5() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_5;
-        if (gamepad->pressedKeyboardKey6() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_6;
-        if (gamepad->pressedKeyboardKey7() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_7;
-        if (gamepad->pressedKeyboardKey8() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_8;
-        if (gamepad->pressedKeyboardKey9() && keycodeIndex < 6) keyboard_keycode[keycodeIndex++] = HID_KEY_9;
-    }
-
-    // Send keyboard report (Interface 1, no report ID needed for single-report interface)
-    uint8_t kb_report_data[8]; // modifier(1) + reserved(1) + keycode[6] = 8 bytes
-    kb_report_data[0] = keyboard_modifier;
-    kb_report_data[1] = keyboard_reserved;
-    memcpy(&kb_report_data[2], keyboard_keycode, 6);
-    uint16_t kb_report_size = 8;
-    bool keyboardSent = false;
-    if (memcmp(last_keyboard_report, kb_report_data, kb_report_size) != 0)
-    {
-        // Use interface 1 for keyboard, report_id = 0 for single-report interface
-        // For composite device, use tud_hid_n_ready to check specific interface
-        if (tud_hid_n_ready(KEYBOARD_INTERFACE) && tud_hid_n_report(KEYBOARD_INTERFACE, 0, kb_report_data, kb_report_size) == true ) {
-            memcpy(last_keyboard_report, kb_report_data, kb_report_size);
-            keyboardSent = true;
-        }
-    }
-
-    // Update mouse report from gamepad (back key → mouse left/right/middle); x/y from gyro-as-mouse when enabled
-    mouse_report[0] = (gamepad->pressedMouseLeft() ? 1 : 0) | (gamepad->pressedMouseRight() ? 2 : 0) | (gamepad->pressedMouseMiddle() ? 4 : 0);
-    if (gamepad->auxState.sensors.mouse.enabled) {
-        int16_t mx = gamepad->auxState.sensors.mouse.x;
-        int16_t my = gamepad->auxState.sensors.mouse.y;
-        if (mx > 127) mx = 127;
-        else if (mx < -127) mx = -127;
-        if (my > 127) my = 127;
-        else if (my < -127) my = -127;
-        mouse_report[1] = (int8_t)mx;
-        mouse_report[2] = (int8_t)my;
-    } else {
-        mouse_report[1] = 0;
-        mouse_report[2] = 0;
-    }
-    mouse_report[3] = 0;
-
-    // Send mouse report (Interface 2)
-    const uint16_t mouse_report_size = MOUSE_SIZE;
-    bool mouseSent = false;
-    if (memcmp(last_mouse_report, mouse_report, mouse_report_size) != 0)
-    {
-        if (tud_hid_n_ready(MOUSE_INTERFACE) && tud_hid_n_report(MOUSE_INTERFACE, 0, mouse_report, mouse_report_size) == true) {
-            memcpy(last_mouse_report, mouse_report, mouse_report_size);
-            mouseSent = true;
-        }
-    }
-
-    return reportSent || keyboardSent || mouseSent;
+    return reportSent;
 }
 
 // Called by Core1, PS4 key signing will lock the CPU
@@ -886,28 +772,10 @@ USBListener * PS4BDriver::get_usb_auth_listener() {
     return nullptr;
 }
 
-// External variable to track current interface (set by tud_hid_get_report_cb)
-extern uint8_t current_hid_interface;
-
 // tud_hid_get_report_cb
 uint16_t PS4BDriver::get_report(uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
-    // For single-report interfaces, report_id is always 0
-    // Use current_hid_interface to determine which report to return
+    // For PS4B, only the gamepad HID base interface is served here.
     if (report_type != HID_REPORT_TYPE_FEATURE) {
-        if (current_hid_interface == GAMEPAD_INTERFACE) {
-            memcpy(buffer, &ps4Report, sizeof(ps4Report));
-            return sizeof(ps4Report);
-        } else if (current_hid_interface == KEYBOARD_INTERFACE) {
-            // Return keyboard report data without report_id (TinyUSB handles report_id separately)
-            buffer[0] = keyboard_modifier;
-            buffer[1] = keyboard_reserved;
-            memcpy(&buffer[2], keyboard_keycode, 6);
-            return 8; // modifier(1) + reserved(1) + keycode[6] = 8 bytes
-        } else if (current_hid_interface == MOUSE_INTERFACE) {
-            memcpy(buffer, mouse_report, MOUSE_SIZE);
-            return MOUSE_SIZE;
-        }
-        // Fallback to gamepad report
         memcpy(buffer, &ps4Report, sizeof(ps4Report));
         return sizeof(ps4Report);
     }
@@ -998,13 +866,7 @@ const uint8_t * PS4BDriver::get_descriptor_device_cb() {
 }
 
 const uint8_t * PS4BDriver::get_hid_descriptor_report_cb(uint8_t itf) {
-    if (itf == GAMEPAD_INTERFACE) {
-        return ps4_report_descriptor;
-    } else if (itf == KEYBOARD_INTERFACE) {
-        return ps4b_keyboard_report_descriptor;
-    } else if (itf == MOUSE_INTERFACE) {
-        return ps4b_mouse_report_descriptor;
-    }
+    (void)itf;
     return ps4_report_descriptor;
 }
 

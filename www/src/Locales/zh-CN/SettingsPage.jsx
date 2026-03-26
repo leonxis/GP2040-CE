@@ -9,6 +9,7 @@ export default {
 	'input-mode-options': {
 		none: '未选择模式',
 		xinput: 'XInput',
+		xinputb: 'XINPUT电脑',
 		'nintendo-switch': 'Nintendo Switch',
 		'nintendo-switch-pro': 'Nintendo Switch Pro',
 		ps3: 'PS3',

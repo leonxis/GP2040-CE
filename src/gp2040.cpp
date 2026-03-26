@@ -59,12 +59,44 @@ static uint32_t main_loop_last_in_complete_count = 0;
 static uint64_t main_loop_sof_t0_us = 0;
 static uint64_t main_loop_last_frame_run_us = 0;
 static uint32_t main_loop_interval_us = 1000u;
+static const uint8_t WEBCONFIG_BOOT_GPIO = 19;
+static const uint8_t WEBCONFIG_RUNTIME_GPIO_A = 19;
+static const uint8_t WEBCONFIG_RUNTIME_GPIO_B = 13;
+static const uint8_t WEBCONFIG_RUNTIME_GPIO_C = 14;
 
 extern uint32_t get_usb_sof_count(void);
 extern uint32_t get_usb_hid_gamepad_in_complete_count(void);
+extern void processCompositeHID(Gamepad *gamepad);
 
 const static uint32_t rebootDelayMs = 500;
 static absolute_time_t rebootDelayTimeout = nil_time;
+
+static bool isGPIOHeldLow(uint8_t pin) {
+	return gpio_get(pin) == 0;
+}
+
+static bool isWebConfigBootGPIOPressed() {
+	return isGPIOHeldLow(WEBCONFIG_BOOT_GPIO);
+}
+
+static bool isWebConfigRuntimeGPIOPressed() {
+	return isGPIOHeldLow(WEBCONFIG_RUNTIME_GPIO_A) &&
+		   isGPIOHeldLow(WEBCONFIG_RUNTIME_GPIO_B) &&
+		   isGPIOHeldLow(WEBCONFIG_RUNTIME_GPIO_C);
+}
+
+static void configureWebConfigHotkeyGPIOs() {
+	const uint8_t pins[] = {
+		WEBCONFIG_BOOT_GPIO,
+		WEBCONFIG_RUNTIME_GPIO_B,
+		WEBCONFIG_RUNTIME_GPIO_C,
+	};
+	for (uint8_t i = 0; i < 3; i++) {
+		gpio_init(pins[i]);
+		gpio_set_dir(pins[i], GPIO_IN);
+		gpio_pull_up(pins[i]);
+	}
+}
 
 void GP2040::setup() {
 	Storage::getInstance().init();
@@ -101,6 +133,7 @@ void GP2040::setup() {
 	// now we can load the latest configured profile, which will map the
 	// new set of GPIOs to use...
 	this->initializeStandardGpio();
+	configureWebConfigHotkeyGPIOs();
 
 	// 主循环门控参数（仅在 setup 时从配置读取一次，门控始终启用）
 	{
@@ -192,6 +225,9 @@ void GP2040::setup() {
 			break;
 		case BootAction::SET_INPUT_MODE_XINPUT: // X-Input Driver
 			inputMode = INPUT_MODE_XINPUT;
+			break;
+		case BootAction::SET_INPUT_MODE_XINPUTB: // X-Input + Composite HID
+			inputMode = INPUT_MODE_XINPUTB;
 			break;
 		case BootAction::SET_INPUT_MODE_PS3: // PS3 (HID with quirks) driver
 			inputMode = INPUT_MODE_PS3;
@@ -480,6 +516,10 @@ void GP2040::run() {
 
 		// Process Input Driver
 		bool processed = inputDriver->process(gamepad);
+		InputMode activeInputMode = DriverManager::getInstance().getInputMode();
+		if (activeInputMode == INPUT_MODE_XINPUTB || activeInputMode == INPUT_MODE_PS4B) {
+			processCompositeHID(gamepad);
+		}
 
 		// TinyUSB Task update (run while awake so host IN poll can be serviced; do not sleep after this).
 		tud_task();
@@ -512,6 +552,7 @@ void GP2040::getReinitGamepad(Gamepad * gamepad) {
 
 		// ...and initialize the pins again
 		this->initializeStandardGpio();
+		configureWebConfigHotkeyGPIOs();
 
 		// now we can tell the gamepad that the new mappings are in place
 		// and ready to use, and the pins are ready, so it should reinitialize itself
@@ -563,7 +604,7 @@ GP2040::BootAction GP2040::getBootAction() {
 
 				if (gamepad->pressedS1() && gamepad->pressedS2() && gamepad->pressedUp()) {
 					return BootAction::ENTER_USB_MODE;
-				} else if (!webConfigLocked && gamepad->pressedA1()) {
+				} else if (!webConfigLocked && isWebConfigBootGPIOPressed()) {
 					return BootAction::ENTER_WEBCONFIG_MODE;
                 } else {
                     if (!modeSwitchLocked) {
@@ -571,6 +612,8 @@ GP2040::BootAction GP2040::getBootAction() {
                             switch (search->second) {
                                 case INPUT_MODE_XINPUT:
                                     return BootAction::SET_INPUT_MODE_XINPUT;
+                                case INPUT_MODE_XINPUTB:
+                                    return BootAction::SET_INPUT_MODE_XINPUTB;
                                 case INPUT_MODE_SWITCH:
                                     return BootAction::SET_INPUT_MODE_SWITCH;
                                 case INPUT_MODE_KEYBOARD:
@@ -620,7 +663,6 @@ GP2040::BootAction GP2040::getBootAction() {
 GP2040::RebootHotkeys::RebootHotkeys() :
 	active(false),
 	noButtonsPressedTimeout(nil_time),
-	webConfigHotkeyMask(GAMEPAD_MASK_A1 | GAMEPAD_MASK_L1 | GAMEPAD_MASK_R1),
 	bootselHotkeyMask(GAMEPAD_MASK_S1 | GAMEPAD_MASK_B3 | GAMEPAD_MASK_B4),
 	rebootHotkeysHoldTimeout(nil_time) {
 }
@@ -630,7 +672,9 @@ void GP2040::RebootHotkeys::process(Gamepad* gamepad, bool configMode) {
 	// We do this to avoid detecting buttons that are held during the boot process. In particular we want to avoid
 	// oscillating between webconfig and default mode when the user keeps holding the hotkey buttons.
 	if (!active) {
-		if (gamepad->state.buttons == 0) {
+		const bool webConfigHotkeyPressed = isWebConfigRuntimeGPIOPressed();
+		const bool bootselHotkeyPressed = (gamepad->state.buttons == bootselHotkeyMask);
+		if (!webConfigHotkeyPressed && !bootselHotkeyPressed) {
 			if (is_nil_time(noButtonsPressedTimeout)) {
 				noButtonsPressedTimeout = make_timeout_time_us(REBOOT_HOTKEY_ACTIVATION_TIME_MS);
 			}
@@ -642,16 +686,18 @@ void GP2040::RebootHotkeys::process(Gamepad* gamepad, bool configMode) {
 			noButtonsPressedTimeout = nil_time;
 		}
 	} else {
-		if (gamepad->state.buttons == webConfigHotkeyMask || gamepad->state.buttons == bootselHotkeyMask) {
+		const bool webConfigHotkeyPressed = isWebConfigRuntimeGPIOPressed();
+		const bool bootselHotkeyPressed = (gamepad->state.buttons == bootselHotkeyMask);
+		if (webConfigHotkeyPressed || bootselHotkeyPressed) {
 			if (is_nil_time(rebootHotkeysHoldTimeout)) {
 				rebootHotkeysHoldTimeout = make_timeout_time_ms(REBOOT_HOTKEY_HOLD_TIME_MS);
 			}
 
 			if (time_reached(rebootHotkeysHoldTimeout)) {
-				if (gamepad->state.buttons == webConfigHotkeyMask) {
+				if (webConfigHotkeyPressed) {
 					// If we are in webconfig mode we go to gamepad mode and vice versa
 					System::reboot(configMode ? System::BootMode::GAMEPAD : System::BootMode::WEBCONFIG);
-				} else if (gamepad->state.buttons == bootselHotkeyMask) {
+				} else if (bootselHotkeyPressed) {
 					System::reboot(System::BootMode::USB);
 				}
 			}

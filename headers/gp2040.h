@@ -37,7 +37,6 @@ private:
         bool active;
 
         absolute_time_t noButtonsPressedTimeout;
-        uint16_t webConfigHotkeyMask;
         uint16_t bootselHotkeyMask;
         absolute_time_t rebootHotkeysHoldTimeout;
     };
@@ -49,6 +48,7 @@ private:
         ENTER_USB_MODE,
         SET_INPUT_MODE_SWITCH,
         SET_INPUT_MODE_XINPUT,
+        SET_INPUT_MODE_XINPUTB,
         SET_INPUT_MODE_KEYBOARD,
         SET_INPUT_MODE_GENERIC,
         SET_INPUT_MODE_PS3,

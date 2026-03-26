@@ -9,6 +9,7 @@ export default {
 	'input-mode-options': {
 		none: '선택된 모드 없음',
 		xinput: 'XInput',
+		xinputb: 'XInput + 복합 HID',
 		'nintendo-switch': '닌텐도 스위치',
 		'nintendo-switch-pro': '닌텐도 스위치 프로',
 		ps3: 'PS3',

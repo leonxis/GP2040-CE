@@ -9,6 +9,7 @@ export default {
 	'input-mode-options': {
 		none: 'Ningún Modo Seleccionado',
 		xinput: 'XInput',
+		xinputb: 'XInput + HID compuesto',
 		'nintendo-switch': 'Nintendo Switch',
 		ps3: 'PS3',
 		generic: 'HID Genérico',

@@ -170,10 +170,10 @@ public:
 	inline bool __attribute__((always_inline)) pressedKeyboardKey8() { return (debouncedGpio & mapKeyboardKey8->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 37)) != 0; }
 	inline bool __attribute__((always_inline)) pressedKeyboardKey9() { return (debouncedGpio & mapKeyboardKey9->pinMask) != 0 || (addonKeyboardKeyMask & (1ULL << 38)) != 0; }
 
-	// Mouse button mappings for HID composite device (e.g. back key → mouse left/right/middle)
-	inline bool __attribute__((always_inline)) pressedMouseLeft() { return (debouncedGpio & mapMouseButtonLeft->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedMouseRight() { return (debouncedGpio & mapMouseButtonRight->pinMask) != 0; }
-	inline bool __attribute__((always_inline)) pressedMouseMiddle() { return (debouncedGpio & mapMouseButtonMiddle->pinMask) != 0; }
+	// Mouse button mappings for HID composite device (GPIO + addon mappings)
+	inline bool __attribute__((always_inline)) pressedMouseLeft() { return (debouncedGpio & mapMouseButtonLeft->pinMask) != 0 || (addonMouseButtonMask & (1U << 0)) != 0; }
+	inline bool __attribute__((always_inline)) pressedMouseRight() { return (debouncedGpio & mapMouseButtonRight->pinMask) != 0 || (addonMouseButtonMask & (1U << 1)) != 0; }
+	inline bool __attribute__((always_inline)) pressedMouseMiddle() { return (debouncedGpio & mapMouseButtonMiddle->pinMask) != 0 || (addonMouseButtonMask & (1U << 2)) != 0; }
 
 	const GamepadOptions& getOptions() const { return options; }
 	const DpadMode getActiveDpadMode() { return activeDpadMode; }
@@ -286,6 +286,8 @@ public:
 
 	// Addon-driven keyboard key mask (e.g. 4-key touchpad): bit N = KEYBOARD_KEY at enum 131+N (A=0..Z=25, CTRL=26, SHIFT=27, ALT_F4=28, 0=29..9=38)
 	uint64_t addonKeyboardKeyMask = 0;
+	// Addon-driven mouse buttons: bit0=left, bit1=right, bit2=middle
+	uint8_t addonMouseButtonMask = 0;
 
 	uint32_t lastReinitProfileNumber = 0;
 

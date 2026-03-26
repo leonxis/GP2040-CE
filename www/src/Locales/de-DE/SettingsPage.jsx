@@ -5,6 +5,7 @@ export default {
 	'input-mode-options': {
 		none: 'Kein Modus ausgewählt',
 		xinput: 'XInput',
+		xinputb: 'XInput + Komposit-HID',
 		'nintendo-switch': 'Nintendo Switch',
 		ps3: 'PS3/DirectInput',
 		keyboard: 'Tastatur',

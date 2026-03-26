@@ -305,6 +305,9 @@ void ButtonLayoutScreen::generateHeader() {
                 else
                     statusBar += "INPUT";
                 break;
+            case INPUT_MODE_XINPUTB:
+                statusBar += "XIN PC";
+                break;
             case INPUT_MODE_KEYBOARD: statusBar += "HID-KB"; break;
             case INPUT_MODE_CONFIG: statusBar += "CONFIG"; break;
         }

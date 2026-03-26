@@ -127,6 +127,7 @@ void MCP3208ADCAddon::setup() {
     ch2_debounce_count_ = ch5_debounce_count_ = 0;
     last_ch2_buttons_ = last_ch2_dpad_ = last_ch5_buttons_ = last_ch5_dpad_ = 0;
     last_ch2_keyboard_ = last_ch5_keyboard_ = 0;
+    last_ch2_mouse_ = last_ch5_mouse_ = 0;
 
     const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
     uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;
@@ -447,12 +448,22 @@ void MCP3208ADCAddon::applyPresetCurve(int stick, int preset_index) {
 
 // addonKeyboardKeyMask 位与 GpioAction 对应：KEYBOARD_KEY_A=131 → bit0，KEYBOARD_KEY_9=169 → bit38
 static constexpr uint32_t CH25_KEYBOARD_KEY_BASE = 131;
+static constexpr uint8_t ADDON_MOUSE_LEFT_BIT = (1u << 0);
+static constexpr uint8_t ADDON_MOUSE_RIGHT_BIT = (1u << 1);
+static constexpr uint8_t ADDON_MOUSE_MIDDLE_BIT = (1u << 2);
 
 static void setCh25MappingFromGpio(VoltageSwitchMap& entry, const GpioMappingInfo& m, uint32_t buttonMask, uint32_t dpadMask) {
     entry.buttonMask = buttonMask;
     entry.dpadMask = dpadMask;
+    entry.mouseButtonMask = 0;
     if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9)
         entry.keyboardKeyBit = static_cast<uint8_t>(static_cast<uint32_t>(m.action) - CH25_KEYBOARD_KEY_BASE);
+    else if (m.action == GpioAction::MOUSE_LEFT_BUTTON)
+        entry.keyboardKeyBit = 0xFF, entry.mouseButtonMask = ADDON_MOUSE_LEFT_BIT;
+    else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON)
+        entry.keyboardKeyBit = 0xFF, entry.mouseButtonMask = ADDON_MOUSE_RIGHT_BIT;
+    else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON)
+        entry.keyboardKeyBit = 0xFF, entry.mouseButtonMask = ADDON_MOUSE_MIDDLE_BIT;
     else
         entry.keyboardKeyBit = 0xFF;
 }
@@ -468,6 +479,7 @@ void MCP3208ADCAddon::buildCh25Maps() {
     ch2_map_[1].buttonMask = GAMEPAD_MASK_L3;
     ch2_map_[1].dpadMask = 0;
     ch2_map_[1].keyboardKeyBit = 0xFF;
+    ch2_map_[1].mouseButtonMask = 0;
     ch2_map_[2].threshold = CH25_T3;
     gpioMappingToMasks(fn.leftExtTriggerMapping, &b, &d);
     setCh25MappingFromGpio(ch2_map_[2], fn.leftExtTriggerMapping, b, d);
@@ -482,6 +494,7 @@ void MCP3208ADCAddon::buildCh25Maps() {
     ch5_map_[1].buttonMask = GAMEPAD_MASK_R3;
     ch5_map_[1].dpadMask = 0;
     ch5_map_[1].keyboardKeyBit = 0xFF;
+    ch5_map_[1].mouseButtonMask = 0;
     ch5_map_[2].threshold = CH25_T3;
     gpioMappingToMasks(fn.rightExtTriggerMapping, &b, &d);
     setCh25MappingFromGpio(ch5_map_[2], fn.rightExtTriggerMapping, b, d);
@@ -525,32 +538,41 @@ void MCP3208ADCAddon::applyCh2Ch5Keys(Gamepad* gamepad) {
     gamepad->state.buttons &= ~(last_ch2_buttons_ | last_ch5_buttons_);
     gamepad->state.dpad   &= ~(last_ch2_dpad_   | last_ch5_dpad_);
     gamepad->addonKeyboardKeyMask &= ~(last_ch2_keyboard_ | last_ch5_keyboard_);
+    gamepad->addonMouseButtonMask &= static_cast<uint8_t>(~(last_ch2_mouse_ | last_ch5_mouse_));
     uint32_t curr2_btn = 0, curr2_dpad = 0;
     uint64_t curr2_kb = 0;
+    uint8_t curr2_mouse = 0;
     uint32_t curr5_btn = 0, curr5_dpad = 0;
     uint64_t curr5_kb = 0;
+    uint8_t curr5_mouse = 0;
     if (l2 >= 0) {
         curr2_btn = ch2_map_[l2].buttonMask;
         curr2_dpad = ch2_map_[l2].dpadMask;
         if (ch2_map_[l2].keyboardKeyBit != 0xFF) curr2_kb = (1ULL << ch2_map_[l2].keyboardKeyBit);
+        curr2_mouse = ch2_map_[l2].mouseButtonMask;
         gamepad->state.buttons |= curr2_btn;
         gamepad->state.dpad   |= curr2_dpad;
         gamepad->addonKeyboardKeyMask |= curr2_kb;
+        gamepad->addonMouseButtonMask |= curr2_mouse;
     }
     if (l5 >= 0) {
         curr5_btn = ch5_map_[l5].buttonMask;
         curr5_dpad = ch5_map_[l5].dpadMask;
         if (ch5_map_[l5].keyboardKeyBit != 0xFF) curr5_kb = (1ULL << ch5_map_[l5].keyboardKeyBit);
+        curr5_mouse = ch5_map_[l5].mouseButtonMask;
         gamepad->state.buttons |= curr5_btn;
         gamepad->state.dpad   |= curr5_dpad;
         gamepad->addonKeyboardKeyMask |= curr5_kb;
+        gamepad->addonMouseButtonMask |= curr5_mouse;
     }
     last_ch2_buttons_ = curr2_btn;
     last_ch2_dpad_    = curr2_dpad;
     last_ch2_keyboard_ = curr2_kb;
+    last_ch2_mouse_ = curr2_mouse;
     last_ch5_buttons_ = curr5_btn;
     last_ch5_dpad_    = curr5_dpad;
     last_ch5_keyboard_ = curr5_kb;
+    last_ch5_mouse_ = curr5_mouse;
 }
 
 void MCP3208ADCAddon::process() {

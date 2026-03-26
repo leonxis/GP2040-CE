@@ -4,6 +4,7 @@ export default {
 	'input-mode-extra-label': 'Alternar Touchpad e Share',
 	'input-mode-options': {
 		xinput: 'XInput',
+		xinputb: 'XInput + HID composto',
 		'nintendo-switch': 'Nintendo Switch',
 		ps3: 'PS3/DirectInput',
 		keyboard: 'Teclado',

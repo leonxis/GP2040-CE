@@ -9,6 +9,7 @@ export default {
 	'input-mode-options': {
 		none: 'Mod Seçilmedi',
 		xinput: 'XInput',
+		xinputb: 'XInput + Bileşik HID',
 		'nintendo-switch': 'Nintendo Switch',
 		'nintendo-switch-pro': 'Nintendo Switch Pro',
 		ps3: 'PS3',

@@ -10,6 +10,9 @@
 
 #define TOUCHPAD_ENABLE_PIN_2KEY 12
 static constexpr uint32_t KEYBOARD_KEY_ACTION_BASE_2KEY = 131;
+static constexpr uint8_t ADDON_MOUSE_LEFT_BIT = (1u << 0);
+static constexpr uint8_t ADDON_MOUSE_RIGHT_BIT = (1u << 1);
+static constexpr uint8_t ADDON_MOUSE_MIDDLE_BIT = (1u << 2);
 // 连续多少帧一致才更新触摸键状态
 static constexpr uint8_t TWO_KEY_TOUCH_DEBOUNCE_FRAMES = 3;
 
@@ -92,8 +95,15 @@ static void applyComplexMapping2Key(Gamepad* gamepad, const GpioMappingInfo& m) 
         case GpioAction::MENU_NAVIGATION_BACK:   EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_BACK)); break;
         case GpioAction::MENU_NAVIGATION_TOGGLE: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_TOGGLE)); break;
         default:
-            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9)
+            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9) {
                 gamepad->addonKeyboardKeyMask |= (1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE_2KEY));
+            } else if (m.action == GpioAction::MOUSE_LEFT_BUTTON) {
+                gamepad->addonMouseButtonMask |= ADDON_MOUSE_LEFT_BIT;
+            } else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON) {
+                gamepad->addonMouseButtonMask |= ADDON_MOUSE_RIGHT_BIT;
+            } else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON) {
+                gamepad->addonMouseButtonMask |= ADDON_MOUSE_MIDDLE_BIT;
+            }
             break;
     }
 }
@@ -121,8 +131,15 @@ static void clearComplexMapping2Key(Gamepad* gamepad, const GpioMappingInfo& m) 
         case GpioAction::MENU_NAVIGATION_TOGGLE:
             break;
         default:
-            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9)
+            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9) {
                 gamepad->addonKeyboardKeyMask &= ~(1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE_2KEY));
+            } else if (m.action == GpioAction::MOUSE_LEFT_BUTTON) {
+                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_LEFT_BIT;
+            } else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON) {
+                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_RIGHT_BIT;
+            } else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON) {
+                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_MIDDLE_BIT;
+            }
             break;
     }
 }

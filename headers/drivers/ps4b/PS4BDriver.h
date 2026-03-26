@@ -45,9 +45,7 @@ private:
     uint32_t ps4_report_rate_hz_cached_ = 0;
     uint32_t ps4_keepalive_ms_cached_ = 5;
     PS4Auth * ps4AuthDriver;
-    PS4AuthData * ps4AuthData;      // PS4 Authentication Data
-    uint8_t cur_nonce_chunk;            // PS4 Encryption Nonce Chunk (Max 19)
-    uint8_t cur_nonce_id;
+    PS4AuthData * ps4AuthData;
     bool pointOneTouched = false;
     bool pointTwoTouched = false;
     uint8_t touchCounter;
@@ -57,16 +55,6 @@ private:
     bool authsent;
     PS4ControllerConfig controllerConfig;
     
-    // Keyboard report for HID composite device
-    uint8_t keyboard_modifier;
-    uint8_t keyboard_reserved;
-    uint8_t keyboard_keycode[6];
-    uint8_t last_keyboard_report[8] = { }; // modifier(1) + reserved(1) + keycode[6] = 8 bytes
-
-    // Mouse report for HID composite device (for gyro-as-mouse: buttons, x, y, wheel)
-    uint8_t mouse_report[4] = { };
-    uint8_t last_mouse_report[4] = { };
-
     InputModeDeviceType deviceType;
 
     // settings for controllerConfig

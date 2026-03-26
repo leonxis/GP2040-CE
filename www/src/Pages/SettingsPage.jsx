@@ -140,6 +140,13 @@ const INPUT_MODES = [
 		],
 	},
 	{
+		labelKey: 'input-mode-options.xinputb',
+		value: 18,
+		group: 'primary',
+		authentication: ['none'],
+		deviceTypes: [InputModeDeviceType.INPUT_MODE_DEVICE_TYPE_GAMEPAD],
+	},
+	{
 		labelKey: 'input-mode-options.xbone',
 		value: 5,
 		group: 'primary',
@@ -223,6 +230,7 @@ const INPUT_MODES = [
 const INPUT_BOOT_MODES = [
 	{ labelKey: 'input-mode-options.none', value: -1, group: 'primary' },
 	{ labelKey: 'input-mode-options.xinput', value: 0, group: 'primary' },
+	{ labelKey: 'input-mode-options.xinputb', value: 18, group: 'primary' },
 	{
 		labelKey: 'input-mode-options.xbone',
 		value: 5,
@@ -1434,6 +1442,8 @@ export default function SettingsPage() {
 					handleChange,
 					inputMode,
 				);
+			case 'input-mode-options.xinputb':
+				return null;
 			case 'input-mode-options.xbone':
 				return xboneModeSpecifics(values, errors, setFieldValue, handleChange);
 			default:

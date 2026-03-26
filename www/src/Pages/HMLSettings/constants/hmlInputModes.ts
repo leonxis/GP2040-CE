@@ -13,6 +13,14 @@ export const HML_INPUT_MODES = [
 			InputModeDeviceType.INPUT_MODE_DEVICE_TYPE_DRUM,
 		],
 	},
+	{
+		labelKey: 'input-mode-options.xinputb',
+		value: 18,
+		authentication: ['none'],
+		deviceTypes: [
+			InputModeDeviceType.INPUT_MODE_DEVICE_TYPE_GAMEPAD,
+		],
+	},
 	{ labelKey: 'input-mode-options.xbone', value: 5 },
 	{ labelKey: 'input-mode-options.ps3', value: 2 },
 	{

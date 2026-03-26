@@ -68,6 +68,7 @@ struct VoltageSwitchMap {
     uint32_t buttonMask;
     uint32_t dpadMask;
     uint8_t keyboardKeyBit;  // 0..38 或 0xFF
+    uint8_t mouseButtonMask; // bit0=left, bit1=right, bit2=middle
 };
 
 class MCP3208ADCAddon : public GPAddon {
@@ -116,6 +117,7 @@ private:
     VoltageSwitchMap ch5_map_[MCP3208_CH25_LEVELS];
     uint32_t last_ch2_buttons_, last_ch2_dpad_, last_ch5_buttons_, last_ch5_dpad_;  // 上一帧本插件输出的 mask，只清除这些以不覆盖触摸板/GPIO
     uint64_t last_ch2_keyboard_, last_ch5_keyboard_;
+    uint8_t last_ch2_mouse_, last_ch5_mouse_;
     // CH2/CH5 多帧防抖：连续 N 帧同档位才更新，N = CH25_DEBOUNCE_FRAMES（见 .cpp 顶部）
     int8_t ch2_stable_level_;
     int8_t ch2_pending_level_;

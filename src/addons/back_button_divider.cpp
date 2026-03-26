@@ -29,6 +29,9 @@ static constexpr uint8_t BACK_DIVIDER_DEBOUNCE_FRAMES = 3;
 
 // 复用 four_key_touchpad 中的思想：预解析映射，运行时只 OR mask；复杂映射再进 switch
 static constexpr uint32_t KEYBOARD_KEY_ACTION_BASE_BACK = 131;
+static constexpr uint8_t ADDON_MOUSE_LEFT_BIT = (1u << 0);
+static constexpr uint8_t ADDON_MOUSE_RIGHT_BIT = (1u << 1);
+static constexpr uint8_t ADDON_MOUSE_MIDDLE_BIT = (1u << 2);
 
 static void parseBackMapping(const GpioMappingInfo& src, BackFastMapping& dst) {
     dst.buttonMask = 0;
@@ -106,8 +109,15 @@ static void applyBackComplex(Gamepad* gamepad, const GpioMappingInfo& m) {
         case GpioAction::MENU_NAVIGATION_BACK:   EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_BACK)); break;
         case GpioAction::MENU_NAVIGATION_TOGGLE: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_TOGGLE)); break;
         default:
-            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9)
+            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9) {
                 gamepad->addonKeyboardKeyMask |= (1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE_BACK));
+            } else if (m.action == GpioAction::MOUSE_LEFT_BUTTON) {
+                gamepad->addonMouseButtonMask |= ADDON_MOUSE_LEFT_BIT;
+            } else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON) {
+                gamepad->addonMouseButtonMask |= ADDON_MOUSE_RIGHT_BIT;
+            } else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON) {
+                gamepad->addonMouseButtonMask |= ADDON_MOUSE_MIDDLE_BIT;
+            }
             break;
     }
 }
@@ -135,8 +145,15 @@ static void clearBackComplex(Gamepad* gamepad, const GpioMappingInfo& m) {
         case GpioAction::MENU_NAVIGATION_TOGGLE:
             break;
         default:
-            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9)
+            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9) {
                 gamepad->addonKeyboardKeyMask &= ~(1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE_BACK));
+            } else if (m.action == GpioAction::MOUSE_LEFT_BUTTON) {
+                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_LEFT_BIT;
+            } else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON) {
+                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_RIGHT_BIT;
+            } else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON) {
+                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_MIDDLE_BIT;
+            }
             break;
     }
 }

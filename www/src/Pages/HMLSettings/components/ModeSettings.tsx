@@ -234,6 +234,21 @@ export default function ModeSettings() {
 		);
 	};
 
+	// XINPUTB模式特定配置（固定为电脑模式，不支持认证设置）
+	const xinputbModeSpecifics = () => {
+		return (
+			<div>
+				<Row className="mb-3">
+					<Col sm={10}>
+						<span className="text-info">
+							XINPUT电脑模式：支持XInput手柄与复合HID键鼠，不支持主机认证
+						</span>
+					</Col>
+				</Row>
+			</div>
+		);
+	};
+
 	// 键盘模式特定配置
 	const keyboardModeSpecifics = () => {
 		return (
@@ -297,6 +312,8 @@ export default function ModeSettings() {
 				return ps4bModeSpecifics();
 			case 'input-mode-options.xinput':
 				return xinputModeSpecifics(values, handleChange, inputModeConfig);
+			case 'input-mode-options.xinputb':
+				return xinputbModeSpecifics();
 			case 'input-mode-options.p5general':
 				return p5generalModeSpecifics();
 			default:
@@ -312,6 +329,10 @@ export default function ModeSettings() {
 		// 当PS4模式且识别模式为控制台时，确保认证类型为使用密钥
 		if (inputMode === 4 && data.ps4ControllerIDMode === 0) {
 			data.ps4AuthType = 1; // 使用密钥
+		}
+		// XINPUT电脑模式固定无认证
+		if (inputMode === 18) {
+			data.xinputAuthType = 0;
 		}
 		
 		if (inputMode === 3) {
@@ -344,7 +365,11 @@ export default function ModeSettings() {
 							onChange={(e) => {
 								const newInputMode = parseInt(e.target.value);
 								setInputMode(newInputMode);
-								setValues((prev: any) => ({ ...prev, inputMode: newInputMode }));
+								setValues((prev: any) => ({
+									...prev,
+									inputMode: newInputMode,
+									xinputAuthType: newInputMode === 18 ? 0 : prev.xinputAuthType,
+								}));
 							}}
 						>
 							{translatedInputModes.map((mode, i) => (

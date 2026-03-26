@@ -8,6 +8,8 @@ export default {
 	'input-mode-extra-label': 'Switch タッチパッドと Share',
 	'input-mode-options': {
 		none: 'モード未選択',
+		xinput: 'XInput',
+		xinputb: 'XInput + 複合HID',
 		'nintendo-switch': '任天堂Switch',
 		'nintendo-switch-pro': '任天堂Switch Pro',
 		generic: '標準HID',
