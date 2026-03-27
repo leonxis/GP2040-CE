@@ -8,9 +8,6 @@
 // Note: PS4B mode uses PC host mode (PS4_ID_EMULATION), which does not require PS4 console authentication
 // Therefore, PS4Auth, mbedtls, and CRC32 are not needed for PS4B mode
 
-// Minimum idle time before forcing a duplicate report
-#define PS4_KEEPALIVE_TIMER 5
-
 // Controller calibration
 static constexpr uint8_t output_0x02[] = {
     0xfe, 0xff, 0x0e, 0x00, 0x04, 0x00, 0xd4, 0x22,
@@ -381,15 +378,6 @@ void PS4BDriver::initialize() {
     last_report_counter = 0; // PS4 Reports
     last_axis_counter = 0;
     last_report_timer = to_ms_since_boot(get_absolute_time());
-    {
-        uint32_t hz = Storage::getInstance().getAddonOptions().reportRate;
-        if (hz == 0u) hz = 1000u;
-        ps4_report_rate_hz_cached_ = hz;
-        uint32_t poll = (1000u + hz - 1u) / hz;
-        if (poll < 1u) poll = 1u;
-        ps4_keepalive_ms_cached_ = (static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) > poll)
-            ? static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) : poll;
-    }
     // PS4B mode doesn't need authentication, so no need to initialize nonce variables
 }
 

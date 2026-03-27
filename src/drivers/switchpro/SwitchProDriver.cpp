@@ -2,6 +2,7 @@
 #include "drivers/shared/driverhelper.h"
 #include "storagemanager.h"
 #include "pico/rand.h"
+#include <cstring>
 
 // force a report to be sent every X ms
 #define SWITCH_PRO_KEEPALIVE_TIMER 5
@@ -132,6 +133,12 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
     switchReport.inputs.leftStick.setY(-std::min(std::max(scaleLeftStickY,leftMinY), leftMaxY));
     switchReport.inputs.rightStick.setX(std::min(std::max(scaleRightStickX,rightMinX), rightMaxX));
     switchReport.inputs.rightStick.setY(-std::min(std::max(scaleRightStickY,rightMinY), rightMaxY));
+
+    if (gamepad->auxState.sensors.switchProImuDataActive && isIMUEnabled) {
+        memcpy(switchReport.imuData, gamepad->auxState.sensors.switchProImuData, sizeof(switchReport.imuData));
+    } else {
+        memset(switchReport.imuData, 0, sizeof(switchReport.imuData));
+    }
 
     switchReport.rumbleReport = 0x09;
     //switchReport.reportID = inputMode;

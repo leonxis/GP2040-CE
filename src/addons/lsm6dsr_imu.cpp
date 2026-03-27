@@ -1,5 +1,6 @@
 #include "addons/lsm6dsr_imu.h"
 #include "config.pb.h"
+#include "enums.pb.h"
 #include "storagemanager.h"
 #include "peripheralmanager.h"
 #include "gamepad.h"
@@ -167,6 +168,8 @@ void LSM6DSRIMUAddon::setup() {
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL3_C, 0x44);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL1_XL, 0xA8);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL2_G, 0x84);  // 500 dps
+
+	// 原生陀螺仪路由在 preprocess 中按 Gamepad::options.inputMode 每帧判定（支持热切换）
 
 	s_spi = spi;
 	s_csPin = csPin;
@@ -397,6 +400,48 @@ static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16
 	gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[2];
 }
 
+// 与 outputGyroToDS4 相同的角速度标定；加速度按 LSM6DSR 4g 与 Nintendo 官方 int16 标度（≈ raw/2）对齐 deku 文档
+static void writeLe16(uint8_t* p, int16_t v) {
+	p[0] = (uint8_t)(v & 0xFF);
+	p[1] = (uint8_t)((uint16_t)(v) >> 8);
+}
+
+static void outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
+	int32_t ds4x = (int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
+	int32_t ds4y = (int32_t)calG[1] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
+	int32_t ds4z = (int32_t)calG[2] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
+	if (ds4x > 32767) ds4x = 32767; else if (ds4x < -32767) ds4x = -32767;
+	if (ds4y > 32767) ds4y = 32767; else if (ds4y < -32767) ds4y = -32767;
+	if (ds4z > 32767) ds4z = 32767; else if (ds4z < -32767) ds4z = -32767;
+	int16_t gx = (int16_t)ds4x;
+	int16_t gy = (int16_t)ds4y;
+	int16_t gz = (int16_t)ds4z;
+	int16_t ax = (int16_t)((int32_t)rawA[0] / 2);
+	int16_t ay = (int16_t)((int32_t)rawA[1] / 2);
+	int16_t az = (int16_t)((int32_t)rawA[2] / 2);
+	uint8_t* d = gamepad->auxState.sensors.switchProImuData;
+	for (int s = 0; s < 3; s++) {
+		uint8_t* p = d + s * 12;
+		writeLe16(p + 0, ax);
+		writeLe16(p + 2, ay);
+		writeLe16(p + 4, az);
+		writeLe16(p + 6, gx);
+		writeLe16(p + 8, gy);
+		writeLe16(p + 10, gz);
+	}
+	gamepad->auxState.sensors.switchProImuDataActive = true;
+	gamepad->auxState.sensors.gyroscope.enabled = false;
+	gamepad->auxState.sensors.gyroscope.active = false;
+	gamepad->auxState.sensors.gyroscope.x = 0;
+	gamepad->auxState.sensors.gyroscope.y = 0;
+	gamepad->auxState.sensors.gyroscope.z = 0;
+	gamepad->auxState.sensors.accelerometer.enabled = false;
+	gamepad->auxState.sensors.accelerometer.active = false;
+	gamepad->auxState.sensors.accelerometer.x = 0;
+	gamepad->auxState.sensors.accelerometer.y = 0;
+	gamepad->auxState.sensors.accelerometer.z = 0;
+}
+
 // 陀螺仪→鼠标基准灵敏度（LSM6DSR 17.5 mdps/LSB，与 alpakka CFG_GYRO_SENSITIVITY = 2^-9*1.45 一致）。
 // 按「每帧 1 ms」标定，运行时按 dt 缩放，确保 250/500/1000Hz 手感一致。
 #define GYRO_MOUSE_BASE_SENS  (1.45f / 512.0f)
@@ -460,6 +505,69 @@ void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3],
 }
 
 void LSM6DSRIMUAddon::preprocess() {
+	Gamepad* gamepad = Storage::getInstance().GetGamepad();
+	if (!gamepad) return;
+
+	const InputMode inputMode = gamepad->getOptions().inputMode;
+
+	// DS/NS 原生：仅 USB 为 PS4 / PS4B / NS PRO 时读 SPI；否则跳过本插件以省 CPU
+	if (outputMode == LSM6DSR_OUTPUT_DS4) {
+		const bool nativeUsb =
+			(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B || inputMode == INPUT_MODE_SWITCH_PRO);
+		if (!nativeUsb) {
+			gamepad->auxState.sensors.gyroscope.enabled = false;
+			gamepad->auxState.sensors.gyroscope.active = false;
+			gamepad->auxState.sensors.gyroscope.x = 0;
+			gamepad->auxState.sensors.gyroscope.y = 0;
+			gamepad->auxState.sensors.gyroscope.z = 0;
+			gamepad->auxState.sensors.accelerometer.enabled = false;
+			gamepad->auxState.sensors.accelerometer.active = false;
+			gamepad->auxState.sensors.accelerometer.x = 0;
+			gamepad->auxState.sensors.accelerometer.y = 0;
+			gamepad->auxState.sensors.accelerometer.z = 0;
+			gamepad->auxState.sensors.switchProImuDataActive = false;
+			return;
+		}
+	}
+
+	// 根据生效方式决定是否执行陀螺仪输出（运行时仅按位判断预解析的 mask）
+	bool anyEngageKeyPressed = false;
+	for (size_t i = 0; i < engageKeysCount; i++) {
+		if ((gamepad->state.buttons & engageButtonMask[i]) != 0 ||
+		    (gamepad->state.dpad & engageDpadMask[i]) != 0) {
+			anyEngageKeyPressed = true;
+			break;
+		}
+	}
+	const bool shouldRun = (engageMode == LSM6DSR_ENGAGE_ALWAYS) ||
+	                       (engageMode == LSM6DSR_ENGAGE_ON_KEY && anyEngageKeyPressed) ||
+	                       (engageMode == LSM6DSR_ENGAGE_PAUSE_ON_KEY && !anyEngageKeyPressed);
+	if (!shouldRun) {
+		if (outputMode == LSM6DSR_OUTPUT_MOUSE) {
+			gamepad->auxState.sensors.mouse.enabled = false;
+			gamepad->auxState.sensors.mouse.active = false;
+			gamepad->auxState.sensors.mouse.x = 0;
+			gamepad->auxState.sensors.mouse.y = 0;
+			mouseSubX = 0.0f;
+			mouseSubY = 0.0f;
+		}
+		if (outputMode == LSM6DSR_OUTPUT_DS4) {
+			gamepad->auxState.sensors.gyroscope.enabled = false;
+			gamepad->auxState.sensors.gyroscope.active = false;
+			gamepad->auxState.sensors.gyroscope.x = 0;
+			gamepad->auxState.sensors.gyroscope.y = 0;
+			gamepad->auxState.sensors.gyroscope.z = 0;
+			gamepad->auxState.sensors.accelerometer.enabled = false;
+			gamepad->auxState.sensors.accelerometer.active = false;
+			gamepad->auxState.sensors.accelerometer.x = 0;
+			gamepad->auxState.sensors.accelerometer.y = 0;
+			gamepad->auxState.sensors.accelerometer.z = 0;
+			gamepad->auxState.sensors.switchProImuDataActive = false;
+		}
+		prevButtons = gamepad->state.buttons;
+		return;
+	}
+
 	spi->setBaudrate(LSM6DSR_SPI_HZ);
 	spiReadRegs(spi, csPin, LSM6DSR_OUTX_L_G, readBuf, 12);
 	// 角速度 X 取反；加速度计 X 取反，Y 与 Z 交换（rawA[1]=传感器Z, rawA[2]=传感器Y）；用 int32 再转 int16 避免取反溢出
@@ -483,33 +591,7 @@ void LSM6DSRIMUAddon::preprocess() {
 	else
 		oneEuroInited = false;
 
-	Gamepad* gamepad = Storage::getInstance().GetGamepad();
-	if (!gamepad) return;
 	const uint64_t nowUs = time_us_64();
-
-	// 根据生效方式决定是否执行陀螺仪输出（运行时仅按位判断预解析的 mask）
-	bool anyEngageKeyPressed = false;
-	for (size_t i = 0; i < engageKeysCount; i++) {
-		if ((gamepad->state.buttons & engageButtonMask[i]) != 0 ||
-		    (gamepad->state.dpad & engageDpadMask[i]) != 0) {
-			anyEngageKeyPressed = true;
-			break;
-		}
-	}
-	bool shouldRun = (engageMode == LSM6DSR_ENGAGE_ALWAYS) ||
-	                 (engageMode == LSM6DSR_ENGAGE_ON_KEY && anyEngageKeyPressed) ||
-	                 (engageMode == LSM6DSR_ENGAGE_PAUSE_ON_KEY && !anyEngageKeyPressed);
-	if (!shouldRun) {
-		if (outputMode == LSM6DSR_OUTPUT_MOUSE) {
-			gamepad->auxState.sensors.mouse.enabled = false;
-			gamepad->auxState.sensors.mouse.active = false;
-			gamepad->auxState.sensors.mouse.x = 0;
-			gamepad->auxState.sensors.mouse.y = 0;
-			mouseSubX = 0.0f;
-			mouseSubY = 0.0f;
-		}
-		return;
-	}
 
 	// 鼠标模式：按键按下沿触发短窗口抑制，过滤点击引起的微位移。
 	if (outputMode == LSM6DSR_OUTPUT_MOUSE) {
@@ -526,9 +608,15 @@ void LSM6DSRIMUAddon::preprocess() {
 	case LSM6DSR_OUTPUT_DS4:
 		gamepad->auxState.sensors.mouse.enabled = false;
 		gamepad->auxState.sensors.mouse.active = false;
-		outputGyroToDS4(gamepad, calG, rawA);
+		if (inputMode == INPUT_MODE_SWITCH_PRO) {
+			outputGyroToSwitchPro(gamepad, calG, rawA);
+		} else {
+			gamepad->auxState.sensors.switchProImuDataActive = false;
+			outputGyroToDS4(gamepad, calG, rawA);
+		}
 		break;
 	case LSM6DSR_OUTPUT_MOUSE:
+		gamepad->auxState.sensors.switchProImuDataActive = false;
 		if (nowUs < mouseSuppressUntilUs) {
 			mouseSubX = 0.0f;
 			mouseSubY = 0.0f;
@@ -541,6 +629,7 @@ void LSM6DSRIMUAddon::preprocess() {
 		}
 		break;
 	default:
+		gamepad->auxState.sensors.switchProImuDataActive = false;
 		gamepad->auxState.sensors.mouse.enabled = false;
 		gamepad->auxState.sensors.mouse.active = false;
 		break;

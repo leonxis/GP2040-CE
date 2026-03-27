@@ -1,7 +1,7 @@
 export default {
 	'gyro-settings-title': 'Gyro Settings',
 	'gyro-simulation-mode-label': 'Gyro simulation mode:',
-	'gyro-mode-ds4': 'DS4 native gyro',
+	'gyro-mode-ds4': 'DS/NS native gyro',
 	'gyro-mode-ds4-stick': 'Left stick',
 	'gyro-mode-xbox-stick': 'Right stick',
 	'gyro-mode-left-stick': 'Left stick',

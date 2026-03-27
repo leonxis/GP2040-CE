@@ -14,9 +14,6 @@
 
 #include "enums.pb.h"
 
-// Minimum idle time before forcing a duplicate report (games / missed reports)
-#define PS4_KEEPALIVE_TIMER 5
-
 // Controller calibration
 static constexpr uint8_t output_0x02[] = {
     0xfe, 0xff, 0x0e, 0x00, 0x04, 0x00, 0xd4, 0x22,
@@ -390,15 +387,6 @@ void PS4Driver::initialize() {
     last_report_counter = 0; // PS4 Reports
     last_axis_counter = 0;
     last_report_timer = to_ms_since_boot(get_absolute_time());
-    {
-        uint32_t hz = Storage::getInstance().getAddonOptions().reportRate;
-        if (hz == 0u) hz = 1000u;
-        ps4_report_rate_hz_cached_ = hz;
-        uint32_t poll = (1000u + hz - 1u) / hz;
-        if (poll < 1u) poll = 1u;
-        ps4_keepalive_ms_cached_ = (static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) > poll)
-            ? static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) : poll;
-    }
     cur_nonce_id = 1; // PS4 Auth
     cur_nonce_chunk = 0;
 }

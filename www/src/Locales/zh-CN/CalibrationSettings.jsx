@@ -1,7 +1,7 @@
 export default {
 	'gyro-settings-title': '陀螺仪设置',
 	'gyro-simulation-mode-label': '陀螺仪模拟方式：',
-	'gyro-mode-ds4': 'DS4原生陀螺仪',
+	'gyro-mode-ds4': 'DS/NS原生陀螺仪',
 	'gyro-mode-ds4-stick': '左摇杆',
 	'gyro-mode-xbox-stick': '右摇杆',
 	'gyro-mode-left-stick': '左摇杆',
