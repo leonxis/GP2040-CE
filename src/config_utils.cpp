@@ -1108,6 +1108,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensUD, 1.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseDeadzone, 12);
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
+    INIT_UNSET_PROPERTY(config.addonOptions, enhancedPerformance, false);
 
 #if defined(HML_TOUCH_KEY1_ACTION)
     // 四键触摸板映射：依 boardconfig（左上=B1, 右上=B2, 左下=B3, 右下=B4），仅当未设置时写入

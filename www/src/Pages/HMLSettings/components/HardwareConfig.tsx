@@ -26,6 +26,7 @@ export default function HardwareConfig() {
 	const [fourKeyTouchpadOptions, setFourKeyTouchpadOptions] = useState({ enabled: 0 });
 	const [twoKeyTouchpadOptions, setTwoKeyTouchpadOptions] = useState({ enabled: 0 });
 	const [reportRate, setReportRate] = useState(1000);
+	const [enhancedPerformance, setEnhancedPerformance] = useState(false);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
 		brightnessMaximum: 255,
@@ -59,6 +60,7 @@ export default function HardwareConfig() {
 					? Number(addons.reportRate)
 					: 1000
 			);
+			setEnhancedPerformance(Boolean(addons?.enhancedPerformance));
 
 			// 同步显示屏和I2C1的启用状态
 			// 如果两者不一致，以显示屏的enabled为准
@@ -114,7 +116,7 @@ export default function HardwareConfig() {
 				WebApi.setDisplayOptions(displayOptions),
 				WebApi.setFourKeyTouchpadOptions(fourKeyTouchpadOptions),
 				WebApi.setTwoKeyTouchpadOptions(twoKeyTouchpadOptions),
-				WebApi.setAddonsOptions({ reportRate }),
+				WebApi.setAddonsOptions({ reportRate, enhancedPerformance }),
 			]);
 			setHostSaveMessage('保存成功！请重启设备');
 			setTimeout(() => setHostSaveMessage(''), 5000);
@@ -279,6 +281,20 @@ export default function HardwareConfig() {
 						/>
 						<span className="text-muted">
 							同4键触摸板，将会禁用显示屏
+						</span>
+					</div>
+
+					{/* 强化性能开关 */}
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Form.Check
+							type="switch"
+							id="enhanced-performance-switch"
+							label="强化性能"
+							checked={enhancedPerformance}
+							onChange={(e) => setEnhancedPerformance(e.target.checked)}
+						/>
+						<span className="text-muted">
+							开启后提升25%手柄核心性能（不包括回报率），根据实际使用效果决定是否长期开启。
 						</span>
 					</div>
 

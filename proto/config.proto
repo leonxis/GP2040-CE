@@ -990,6 +990,8 @@ message AddonOptions
     optional BackButtonAddonOptions backButtonAddonOptions = 38;
     // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz
     optional uint32 reportRate = 36 [default = 1000];
+    // HML 强化性能：开启后核心频率固定为 144MHz（不含回报率变更）
+    optional bool enhancedPerformance = 39 [default = false];
 }
 
 // MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3

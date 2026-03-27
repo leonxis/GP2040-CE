@@ -2352,6 +2352,7 @@ std::string setAddonOptions()
     docToValue(lsm6dsrOptions.gyroMouseDeadzone, doc, "lsm6dsrGyroMouseDeadzone");
     if (doc.containsKey("lsm6dsrGyroMouseDeadzone")) lsm6dsrOptions.has_gyroMouseDeadzone = true;
     docToValue(Storage::getInstance().getAddonOptions().reportRate, doc, "reportRate");
+    docToValue(Storage::getInstance().getAddonOptions().enhancedPerformance, doc, "enhancedPerformance");
 
     RotaryOptions& rotaryOptions = Storage::getInstance().getAddonOptions().rotaryOptions;
     docToValue(rotaryOptions.enabled, doc, "RotaryAddonEnabled");
@@ -2838,6 +2839,7 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrGyroMouseSensUD", lsm6dsrOptions.gyroMouseSensUD);
     writeDoc(doc, "lsm6dsrGyroMouseDeadzone", lsm6dsrOptions.gyroMouseDeadzone);
     writeDoc(doc, "reportRate", Storage::getInstance().getAddonOptions().reportRate);
+    writeDoc(doc, "enhancedPerformance", Storage::getInstance().getAddonOptions().enhancedPerformance ? 1 : 0);
     {
         JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
         for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count && i < 16; i++) {
