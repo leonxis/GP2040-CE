@@ -22,7 +22,7 @@ export function useKeyMappings() {
 			}
 		}
 		fetchData();
-		 
+
 	}, []); // 只在组件挂载时执行一次
 
 	const handleKeyChange = (value: number, button: string) => {

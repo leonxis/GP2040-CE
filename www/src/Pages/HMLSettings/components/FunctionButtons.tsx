@@ -7,6 +7,8 @@ import Section from '../../../Components/Section';
 import { useGamepadOptions } from '../hooks/useGamepadOptions';
 import WebApi from '../../../Services/WebApi';
 
+type AddonOptions = Record<string, unknown>;
+
 const DPAD_MODES = [
 	{ labelKey: 'd-pad-mode-options.d-pad', value: 0 },
 	{ labelKey: 'd-pad-mode-options.left-analog', value: 1 },
@@ -30,7 +32,7 @@ export default function FunctionButtons() {
 	const { t } = useTranslation();
 	const { values, setValues, isLoading } = useGamepadOptions();
 	const [saveMessage, setSaveMessage] = useState('');
-	const [addonOptions, setAddonOptions] = useState<any>(null);
+	const [addonOptions, setAddonOptions] = useState<AddonOptions | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -77,39 +79,39 @@ export default function FunctionButtons() {
 
 	const handleDpadModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		const newValue = parseInt(e.target.value);
-		setValues((prev: any) => ({ ...prev, dpadMode: newValue }));
+		setValues((prev) => ({ ...prev, dpadMode: newValue }));
 	};
 
 	const handleFourWayModeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const newValue = e.target.checked ? 1 : 0;
-		setValues((prev: any) => ({ ...prev, fourWayMode: newValue }));
+		setValues((prev) => ({ ...prev, fourWayMode: newValue }));
 	};
 
 	const handleDpadTriggerThresholdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const newValue = parseInt(e.target.value);
-		setValues((prev: any) => ({ ...prev, dpadTriggerThreshold: newValue }));
+		setValues((prev) => ({ ...prev, dpadTriggerThreshold: newValue }));
 	};
 
 	const handleDpadDeadzoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const newValue = parseInt(e.target.value);
-		setValues((prev: any) => ({ ...prev, dpadDeadzone: newValue }));
+		setValues((prev) => ({ ...prev, dpadDeadzone: newValue }));
 	};
 
 	const handleLeftStickModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		const v = parseInt(e.target.value);
-		setAddonOptions((prev: any) => prev ? { ...prev, analogAdc1Mode: v } : prev);
+		setAddonOptions((prev) => (prev ? { ...prev, analogAdc1Mode: v } : prev));
 	};
 	const handleRightStickModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		const v = parseInt(e.target.value);
-		setAddonOptions((prev: any) => prev ? { ...prev, analogAdc2Mode: v } : prev);
+		setAddonOptions((prev) => (prev ? { ...prev, analogAdc2Mode: v } : prev));
 	};
 	const handleLeftStickInvertChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		const v = parseInt(e.target.value);
-		setAddonOptions((prev: any) => prev ? { ...prev, analogAdc1Invert: v } : prev);
+		setAddonOptions((prev) => (prev ? { ...prev, analogAdc1Invert: v } : prev));
 	};
 	const handleRightStickInvertChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		const v = parseInt(e.target.value);
-		setAddonOptions((prev: any) => prev ? { ...prev, analogAdc2Invert: v } : prev);
+		setAddonOptions((prev) => (prev ? { ...prev, analogAdc2Invert: v } : prev));
 	};
 
 	const handleSave = async () => {

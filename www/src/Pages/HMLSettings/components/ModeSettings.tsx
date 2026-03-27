@@ -9,17 +9,37 @@ import { useKeyMappings } from '../hooks/useKeyMappings';
 import { AppContext } from '../../../Contexts/AppContext';
 import WebApi from '../../../Services/WebApi';
 
+type ModeValues = Record<string, number>;
+type InputModeConfig = {
+	labelKey: string;
+	value: number;
+	authentication?: string[];
+};
+type AppContextShape = {
+	buttonLabels?: unknown;
+	setButtonLabels?: (args: { swapTpShareLabels: boolean }) => void;
+};
+
 export default function ModeSettings() {
 	const { t } = useTranslation();
-	const appContext = React.useContext(AppContext);
-	if (!appContext) {
-		return null;
-	}
-	const { buttonLabels, setButtonLabels } = appContext;
+	const appContext = React.useContext(AppContext) as AppContextShape | null;
 	const { values, setValues, inputMode, setInputMode, isLoading, error } =
 		useGamepadOptions();
 	const { keyMappings, handleKeyChange, getKeyMappingForButton } = useKeyMappings();
 	const [saveMessage, setSaveMessage] = React.useState('');
+	const buttonLabels = appContext?.buttonLabels;
+	const setButtonLabels = appContext?.setButtonLabels;
+
+	if (!appContext) {
+		return (
+			<Card>
+				<Card.Header>{t('SettingsPage:hml-mode-settings-title')}</Card.Header>
+				<Card.Body>
+					<p className="text-danger">{t('SettingsPage:hml-error-app-context')}</p>
+				</Card.Body>
+			</Card>
+		);
+	}
 
 	// 如果正在加载或出错，显示相应信息
 	if (isLoading) {
@@ -61,7 +81,7 @@ export default function ModeSettings() {
 	// 处理字段变化
 	const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		const { name, value } = e.target;
-		setValues((prev: any) => ({
+		setValues((prev) => ({
 			...prev,
 			[name]: parseInt(value),
 		}));
@@ -69,11 +89,11 @@ export default function ModeSettings() {
 
 	// 生成认证选择框
 	const generateAuthSelection = (
-		inputModeConfig: any,
+		inputModeConfig: InputModeConfig,
 		label: string,
 		name: string,
 		value: number | undefined,
-		error: any,
+		hasError?: boolean,
 		handleChange: (e: React.ChangeEvent<HTMLSelectElement>) => void,
 	) => {
 		if (!inputModeConfig || !inputModeConfig.authentication) {
@@ -89,7 +109,7 @@ export default function ModeSettings() {
 						className="form-select-sm"
 						value={value ?? 0}
 						onChange={handleChange}
-						isInvalid={error}
+						isInvalid={hasError}
 					>
 						{inputModeConfig.authentication.map((authType: string) => {
 							const authOption = AUTHENTICATION_TYPES.find(
@@ -114,9 +134,9 @@ export default function ModeSettings() {
 
 	// Xinput模式特定配置
 	const xinputModeSpecifics = (
-		values: any,
+		modeValues: ModeValues,
 		handleChange: (e: React.ChangeEvent<HTMLSelectElement>) => void,
-		inputModeConfig: any,
+		inputModeConfig: InputModeConfig,
 	) => {
 		return (
 			<div>
@@ -124,7 +144,7 @@ export default function ModeSettings() {
 					inputModeConfig,
 					t('SettingsPage:auth-settings-label'),
 					'xinputAuthType',
-					values.xinputAuthType,
+					modeValues.xinputAuthType,
 					undefined,
 					handleChange,
 				)}
@@ -142,10 +162,7 @@ export default function ModeSettings() {
 	};
 
 	// PS4模式特定配置
-	const ps4ModeSpecifics = (
-		values: any,
-		handleChange: (e: React.ChangeEvent<HTMLSelectElement>) => void,
-	) => {
+	const ps4ModeSpecifics = (modeValues: ModeValues) => {
 		return (
 			<div>
 				<Row className="mb-3">
@@ -157,16 +174,14 @@ export default function ModeSettings() {
 							label={t('SettingsPage:input-mode-extra-label')}
 							type="switch"
 							name="switchTpShareForDs4"
-							checked={Boolean(values.switchTpShareForDs4)}
+							checked={Boolean(modeValues.switchTpShareForDs4)}
 							onChange={(e) => {
 								const checked = e.target.checked;
-								setValues((prev: any) => ({
+								setValues((prev) => ({
 									...prev,
 									switchTpShareForDs4: checked ? 1 : 0,
 								}));
-								setButtonLabels({
-									swapTpShareLabels: checked,
-								});
+								setButtonLabels?.({ swapTpShareLabels: checked });
 							}}
 						/>
 					</Col>
@@ -189,10 +204,10 @@ export default function ModeSettings() {
 						<Form.Select
 							name="ps4ControllerIDMode"
 							className="form-select-sm"
-							value={values.ps4ControllerIDMode || 0}
+							value={modeValues.ps4ControllerIDMode || 0}
 							onChange={(e) => {
 								const newIDMode = parseInt(e.target.value);
-								setValues((prev: any) => ({
+								setValues((prev) => ({
 									...prev,
 									ps4ControllerIDMode: newIDMode,
 									// 当识别模式为控制台（0）时，自动设置认证类型为使用密钥（1）
@@ -208,7 +223,7 @@ export default function ModeSettings() {
 						</Form.Select>
 					</Col>
 				</Row>
-				{values.ps4ControllerIDMode === 0 && (
+				{modeValues.ps4ControllerIDMode === 0 && (
 					<Row className="mb-3">
 						<Col sm={10}>
 							<span className="text-info">{t('SettingsPage:hml-ps4-auto-console-auth-hint')}</span>
@@ -289,16 +304,16 @@ export default function ModeSettings() {
 
 	// 根据输入模式显示特定配置
 	const inputModeSpecifics = (
-		values: any,
+		modeValues: ModeValues,
 		handleChange: (e: React.ChangeEvent<HTMLSelectElement>) => void,
 	) => {
-		if (Object.keys(values).length === 0) {
+		if (Object.keys(modeValues).length === 0) {
 			return null;
 		}
 
 		const inputModeConfig = HML_INPUT_MODES.find(
-			(o) => o.value == values.inputMode,
-		);
+			(o) => o.value === modeValues.inputMode,
+		) as InputModeConfig | undefined;
 		if (!inputModeConfig) {
 			return null;
 		}
@@ -307,11 +322,11 @@ export default function ModeSettings() {
 			case 'input-mode-options.keyboard':
 				return keyboardModeSpecifics();
 			case 'input-mode-options.ps4':
-				return ps4ModeSpecifics(values, handleChange);
+				return ps4ModeSpecifics(modeValues);
 			case 'input-mode-options.ps4b':
 				return ps4bModeSpecifics();
 			case 'input-mode-options.xinput':
-				return xinputModeSpecifics(values, handleChange, inputModeConfig);
+				return xinputModeSpecifics(modeValues, handleChange, inputModeConfig);
 			case 'input-mode-options.xinputb':
 				return xinputbModeSpecifics();
 			case 'input-mode-options.p5general':
@@ -324,7 +339,7 @@ export default function ModeSettings() {
 	// 保存设置
 	const handleSave = async () => {
 		setSaveMessage('');
-		const data = { ...values, inputMode };
+		const data: ModeValues = { ...values, inputMode };
 		
 		// 当PS4模式且识别模式为控制台时，确保认证类型为使用密钥
 		if (inputMode === 4 && data.ps4ControllerIDMode === 0) {
@@ -365,7 +380,7 @@ export default function ModeSettings() {
 							onChange={(e) => {
 								const newInputMode = parseInt(e.target.value);
 								setInputMode(newInputMode);
-								setValues((prev: any) => ({
+								setValues((prev) => ({
 									...prev,
 									inputMode: newInputMode,
 									xinputAuthType: newInputMode === 18 ? 0 : prev.xinputAuthType,

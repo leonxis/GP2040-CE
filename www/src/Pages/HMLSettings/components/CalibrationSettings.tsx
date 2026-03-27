@@ -9,57 +9,56 @@ import set from 'lodash/set';
 import { AppContext } from '../../../Contexts/AppContext';
 import { hexToInt } from '../../../Services/Utilities';
 import WebApi from '../../../Services/WebApi';
-import Section from '../../../Components/Section';
 import JoystickCalibration from './JoystickCalibration';
 import JoystickCurveSettings from './JoystickCurveSettings';
-import Analog, { analogScheme, analogState } from '../../../Addons/Analog';
-import Analog1256, {
+import { analogScheme, analogState } from '../../../Addons/Analog';
+import {
 	analog1256Scheme,
 	analog1256State,
 } from '../../../Addons/Analog1256';
-import MCP3208, { mcp3208Scheme, mcp3208State } from '../../../Addons/MCP3208';
-import LSM6DSR, { lsm6dsrScheme, lsm6dsrState } from '../../../Addons/LSM6DSR';
-import Bootsel, { bootselScheme, bootselState } from '../../../Addons/Bootsel';
-import Buzzer, { buzzerScheme, buzzerState } from '../../../Addons/Buzzer';
-import DualDirection, {
+import { mcp3208Scheme, mcp3208State } from '../../../Addons/MCP3208';
+import { lsm6dsrScheme, lsm6dsrState } from '../../../Addons/LSM6DSR';
+import { bootselScheme, bootselState } from '../../../Addons/Bootsel';
+import { buzzerScheme, buzzerState } from '../../../Addons/Buzzer';
+import {
 	dualDirectionScheme,
 	dualDirectionState,
 } from '../../../Addons/DualDirection';
-import I2CAnalog1219, {
+import {
 	i2cAnalogScheme,
 	i2cAnalogState,
 } from '../../../Addons/I2CAnalog1219';
-import OnBoardLed, {
+import {
 	onBoardLedScheme,
 	onBoardLedState,
 } from '../../../Addons/OnBoardLed';
-import Reverse, { reverseScheme, reverseState } from '../../../Addons/Reverse';
-import SOCD, { socdScheme, socdState } from '../../../Addons/SOCD';
-import Tilt, { tiltScheme, tiltState } from '../../../Addons/Tilt';
-import Turbo, { turboScheme, turboState } from '../../../Addons/Turbo';
-import Wii, { wiiScheme, wiiState } from '../../../Addons/Wii';
-import SNES, { snesState } from '../../../Addons/SNES';
-import FocusMode, {
+import { reverseScheme, reverseState } from '../../../Addons/Reverse';
+import { socdScheme, socdState } from '../../../Addons/SOCD';
+import { tiltScheme, tiltState } from '../../../Addons/Tilt';
+import { turboScheme, turboState } from '../../../Addons/Turbo';
+import { wiiScheme, wiiState } from '../../../Addons/Wii';
+import { snesState } from '../../../Addons/SNES';
+import {
 	focusModeScheme,
 	focusModeState,
 } from '../../../Addons/FocusMode';
-import Keyboard, { keyboardScheme, keyboardState } from '../../../Addons/Keyboard';
-import GamepadUSBHost, {
+import { keyboardScheme, keyboardState } from '../../../Addons/Keyboard';
+import {
 	gamepadUSBHostScheme,
 	gamepadUSBHostState,
 } from '../../../Addons/GamepadUSBHost';
-import Rotary, { rotaryScheme, rotaryState } from '../../../Addons/Rotary';
-import PCF8575, { pcf8575Scheme, pcf8575State } from '../../../Addons/PCF8575';
-import DRV8833Rumble, {
+import { rotaryScheme, rotaryState } from '../../../Addons/Rotary';
+import { pcf8575Scheme, pcf8575State } from '../../../Addons/PCF8575';
+import {
 	drv8833RumbleScheme,
 	drv8833RumbleState,
 } from '../../../Addons/DRV8833';
-import ReactiveLED, {
+import {
 	reactiveLEDScheme,
 	reactiveLEDState,
 } from '../../../Addons/ReactiveLED';
-import TG16, { tg16State } from '../../../Addons/TG16';
-import HETrigger, {
+import { tg16State } from '../../../Addons/TG16';
+import {
 	HETriggerScheme,
 	HETriggerState,
 } from '../../../Addons/HETrigger';
@@ -187,18 +186,18 @@ export const sanitizeData = (values) => {
 };
 
 export function flattenObject(object) {
-	var toReturn = {};
+	const toReturn = {};
 
-	for (var i in object) {
-		if (!object.hasOwnProperty(i)) continue;
+	for (const i in object) {
+		if (!Object.prototype.hasOwnProperty.call(object, i)) continue;
 
 		// Handle arrays - keep them as arrays, don't flatten
 		if (Array.isArray(object[i])) {
 			toReturn[i] = object[i];
 		} else if (typeof object[i] == 'object' && object[i] !== null) {
-			var flatObject = flattenObject(object[i]);
-			for (var x in flatObject) {
-				if (!flatObject.hasOwnProperty(x)) continue;
+			const flatObject = flattenObject(object[i]);
+			for (const x in flatObject) {
+				if (!Object.prototype.hasOwnProperty.call(flatObject, x)) continue;
 
 				toReturn[i + '.' + x] = flatObject[x];
 			}

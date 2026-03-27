@@ -559,6 +559,10 @@ interface JoystickCurveSettingsProps {
 	onSaveClick?: () => void;
 }
 
+type AppContextShape = {
+	buttonLabels?: { buttonLabelType?: string; swapTpShareLabels?: boolean };
+};
+
 const JoystickCurveSettings = ({
 	values,
 	setFieldValue,
@@ -567,7 +571,7 @@ const JoystickCurveSettings = ({
 }: JoystickCurveSettingsProps) => {
 	const { t } = useTranslation();
 	const { handleSubmit } = useFormikContext();
-	const appContext = useContext(AppContext) as any;
+	const appContext = useContext(AppContext) as AppContextShape | null;
 	
 	// Get button label type from AppContext
 	const buttonLabelType = appContext?.buttonLabels?.buttonLabelType || 'ps4';
@@ -968,7 +972,7 @@ const JoystickCurveSettings = ({
 				})));
 			}
 		} else {
-			setLeftCurveInputValues(leftCurvePoints.map((p, i) => ({ 
+			setLeftCurveInputValues(leftCurvePoints.map((p) => ({ 
 				x: parseFloat(p.x.toFixed(4)).toString(), 
 				y: parseFloat(p.y.toFixed(4)).toString(),
 				buttonMask: p.buttonMask || 0
@@ -990,7 +994,7 @@ const JoystickCurveSettings = ({
 				})));
 			}
 		} else {
-			setRightCurveInputValues(rightCurvePoints.map((p, i) => ({ 
+			setRightCurveInputValues(rightCurvePoints.map((p) => ({ 
 				x: parseFloat(p.x.toFixed(4)).toString(), 
 				y: parseFloat(p.y.toFixed(4)).toString(),
 				buttonMask: p.buttonMask || 0
@@ -1361,14 +1365,19 @@ const JoystickCurveSettings = ({
 	
 	// Load presets from values on mount and when values change
 	useEffect(() => {
-		const presets = (values?.joystickCurvePresets as Array<{ name: string; points: CurvePoint[] }>) || [];
+		const presets =
+			(values?.joystickCurvePresets as Array<{
+				name: string;
+				points: CurvePoint[];
+				activationButtonMask?: number;
+			}>) || [];
 		
 		const loadPreset = (presetIndex: number) => {
 			if (presetIndex < presets.length) {
 				const preset = presets[presetIndex];
 				const name = preset.name || '';
 				const points = preset.points || [];
-				const activationButtonMask = (preset as any).activationButtonMask ?? 0;
+				const activationButtonMask = preset.activationButtonMask ?? 0;
 				
 				const presetPoints: Array<{ x: string; y: string; buttonMask: number }> = [
 					{ x: '0', y: '0', buttonMask: 0 },

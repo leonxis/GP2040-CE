@@ -61,7 +61,7 @@ export default function BackupReset() {
 
 	useEffect(() => {
 		async function fetchData() {
-			let exportData = {};
+			const exportData = {};
 			for (const [key, func] of Object.entries(API_BINDING)) {
 				exportData[key] = await func.get();
 			}
@@ -108,7 +108,7 @@ export default function BackupReset() {
 
 	// Save settings function (from BackupPage)
 	const handleSave = async () => {
-		let exportData = {};
+		const exportData = {};
 		for (const [key] of Object.entries(API_BINDING)) {
 			if (optionState[key] !== undefined) {
 				exportData[key] = optionState[key];
@@ -120,12 +120,12 @@ export default function BackupReset() {
 		const json = JSON.stringify(exportData);
 		const file = new Blob([json], { type: 'text/json;charset=utf-8' });
 
-		let a = document.createElement('a');
+		const a = document.createElement('a');
 		a.href = URL.createObjectURL(file);
 		a.download = name;
 		a.innerHTML = 'Save Backup';
 
-		let container = document.getElementById('root');
+		const container = document.getElementById('root');
 		container.appendChild(a);
 
 		a.click();
@@ -152,7 +152,7 @@ export default function BackupReset() {
 
 		const fileName = input.files[0].name;
 
-		let reader = new FileReader();
+		const reader = new FileReader();
 		reader.onload = function () {
 			let fileData = undefined;
 			try {
@@ -167,7 +167,7 @@ export default function BackupReset() {
 				return;
 			}
 
-			let filteredData = {};
+			const filteredData = {};
 			for (const [key] of Object.entries(API_BINDING)) {
 				if (fileData[key] !== undefined) {
 					const validData = validateValues(optionState[key], fileData[key]);

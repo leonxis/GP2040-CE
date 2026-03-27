@@ -36,7 +36,10 @@ const StickButtons: React.FC<StickButtonsProps> = ({
 					{t('AddonsConfig:joystick-calibration-range-button')}
 				</Button>
 			</div>
-			<div className="mt-2 d-flex gap-2 justify-content-center flex-wrap">
+			<div
+				className="mt-2 d-flex gap-2 justify-content-center flex-wrap"
+				data-finetune-active={finetuneCenterActive ? '1' : '0'}
+			>
 				<Button
 					variant="warning"
 					size="sm"

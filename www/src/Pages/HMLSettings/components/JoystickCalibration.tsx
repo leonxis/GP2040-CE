@@ -768,7 +768,7 @@ const JoystickCalibration = ({
 							);
 							
 							// ADC quantize for visualization (same step as firmware)
-							// @ts-ignore - field exists at runtime
+							// @ts-expect-error -- field exists in runtime payload.
 							const adcStep1 = values?.joystickJitterFilter1 ?? 0;
 							const filtered1 = quantizeAdcPair(data1.x, data1.y, adcStep1);
 
@@ -918,7 +918,7 @@ const JoystickCalibration = ({
 								amplify
 							);
 							
-							// @ts-ignore - field exists at runtime
+							// @ts-expect-error -- field exists in runtime payload.
 							const adcStep2 = values?.joystickJitterFilter2 ?? 0;
 							const filtered2 = quantizeAdcPair(data2.x, data2.y, adcStep2);
 

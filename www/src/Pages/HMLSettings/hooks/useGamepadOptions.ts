@@ -3,9 +3,16 @@ import WebApi from '../../../Services/WebApi';
 import { AppContext } from '../../../Contexts/AppContext';
 import i18n from '../../../i18n';
 
+type GamepadOptionsState = Record<string, number>;
+
+type AppContextShape = {
+	setLoading?: (loading: boolean) => void;
+	setButtonLabels?: (labels: { swapTpShareLabels: boolean }) => void;
+};
+
 interface UseGamepadOptionsReturn {
-	values: any;
-	setValues: Dispatch<SetStateAction<any>>;
+	values: GamepadOptionsState;
+	setValues: Dispatch<SetStateAction<GamepadOptionsState>>;
 	inputMode: number;
 	setInputMode: Dispatch<SetStateAction<number>>;
 	isLoading: boolean;
@@ -13,7 +20,7 @@ interface UseGamepadOptionsReturn {
 }
 
 export function useGamepadOptions(): UseGamepadOptionsReturn {
-	const [values, setValues] = useState<any>({});
+	const [values, setValues] = useState<GamepadOptionsState>({});
 	const [inputMode, setInputMode] = useState(0);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -38,7 +45,7 @@ export function useGamepadOptions(): UseGamepadOptionsReturn {
 			try {
 				setIsLoading(true);
 				setError(null);
-				const { setLoading, setButtonLabels } = appContext;
+				const { setLoading, setButtonLabels } = appContext as AppContextShape;
 				const options = await WebApi.getGamepadOptions(setLoading);
 				if (options) {
 					// 转换数值类型
@@ -58,7 +65,7 @@ export function useGamepadOptions(): UseGamepadOptionsReturn {
 					if (options.switchTpShareForDs4 !== undefined) {
 						options.switchTpShareForDs4 = parseInt(options.switchTpShareForDs4);
 					}
-					setValues(options);
+					setValues(options as GamepadOptionsState);
 					if (setButtonLabels) {
 						setButtonLabels({
 							swapTpShareLabels:
@@ -69,10 +76,11 @@ export function useGamepadOptions(): UseGamepadOptionsReturn {
 				} else {
 					setError(i18n.t('SettingsPage:hml-error-gamepad-options'));
 				}
-			} catch (err: any) {
+			} catch (err: unknown) {
+				const errorMessage = err instanceof Error ? err.message : undefined;
 				console.error('获取游戏手柄选项失败:', err);
 				setError(
-					err?.message || i18n.t('SettingsPage:hml-error-gamepad-options-detail'),
+					errorMessage || i18n.t('SettingsPage:hml-error-gamepad-options-detail'),
 				);
 			} finally {
 				setIsLoading(false);

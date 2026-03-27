@@ -1,13 +1,11 @@
 import { Button } from 'react-bootstrap';
-import { 
-	finetuneButtonStyle, 
-	positionInfoInnerStyle, 
-	positionInfoRowStyle, 
-	positionValueStyle, 
-	positionNormalizedStyle 
+import {
+	finetuneButtonStyle,
+	positionInfoInnerStyle,
+	positionInfoRowStyle,
+	positionValueStyle,
+	positionNormalizedStyle
 } from './JoystickCalibration';
-
-const ADC_CENTER = 2047.5;
 
 interface StickPositionInfoProps {
 	stickData: { x: number; y: number; rawX: number; rawY: number };
