@@ -67,12 +67,10 @@ bool SwitchDriver::process(Gamepad * gamepad) {
 
 	void * report = &switchReport;
 	uint16_t report_size = sizeof(switchReport);
-	if (memcmp(last_report, report, report_size) != 0) {
-		// HID ready + report sent, copy previous report
-		if (tud_hid_ready() && tud_hid_report(0, report, report_size) == true ) {
-			memcpy(last_report, report, report_size);
-			return true;
-		}
+	// Send continuously while endpoint is ready to keep idle report rate pinned.
+	if (tud_hid_ready() && tud_hid_report(0, report, report_size) == true ) {
+		memcpy(last_report, report, report_size);
+		return true;
 	}
 	return false;
 }

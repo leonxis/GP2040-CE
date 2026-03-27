@@ -332,17 +332,15 @@ bool XInputDriver::process(Gamepad * gamepad) {
 
     bool reportSent = false;
 
-    // compare against previous report and send new
-    if ( memcmp(last_report, &xinputReport, sizeof(XInputReport)) != 0) {
-        if ( tud_ready() &&											// Is the device ready?
-            (endpoint_in != 0) && (!usbd_edpt_busy(0, endpoint_in)) ) // Is the IN endpoint available?
-        {
-            usbd_edpt_claim(0, endpoint_in);								// Take control of IN endpoint
-            usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport)); // Send report buffer
-            usbd_edpt_release(0, endpoint_in);								// Release control of IN endpoint
-            memcpy(last_report, &xinputReport, sizeof(XInputReport)); // save if we sent it
-            reportSent = true;
-        }
+    // Send continuously while endpoint is available so idle rate matches USB poll rate.
+    if ( tud_ready() &&											// Is the device ready?
+        (endpoint_in != 0) && (!usbd_edpt_busy(0, endpoint_in)) ) // Is the IN endpoint available?
+    {
+        usbd_edpt_claim(0, endpoint_in);								// Take control of IN endpoint
+        usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport)); // Send report buffer
+        usbd_edpt_release(0, endpoint_in);								// Release control of IN endpoint
+        memcpy(last_report, &xinputReport, sizeof(XInputReport)); // save if we sent it
+        reportSent = true;
     }
 
     // clear potential initial uncaught data in endpoint_out from before registration of xfer_cb

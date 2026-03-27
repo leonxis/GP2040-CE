@@ -59,7 +59,13 @@ static uint32_t main_loop_last_in_complete_count = 0;
 static uint64_t main_loop_sof_t0_us = 0;
 static uint64_t main_loop_last_frame_run_us = 0;
 static uint32_t main_loop_interval_us = 1000u;
-static const uint8_t WEBCONFIG_BOOT_GPIO = 19;
+static bool main_loop_gate_enabled = false;
+static bool composite_hid_enabled = false;
+static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
+static float cached_dpad_deadzone = 0.1f;
+static float cached_dpad_threshold = 0.1f;
+static const int32_t LSM6DSR_OUTPUT_MOUSE_MODE = 3;
+static const uint8_t WEBCONFIG_BOOT_GPIO = 11;
 static const uint8_t WEBCONFIG_RUNTIME_GPIO_A = 19;
 static const uint8_t WEBCONFIG_RUNTIME_GPIO_B = 13;
 static const uint8_t WEBCONFIG_RUNTIME_GPIO_C = 14;
@@ -67,6 +73,11 @@ static const uint8_t WEBCONFIG_RUNTIME_GPIO_C = 14;
 extern uint32_t get_usb_sof_count(void);
 extern uint32_t get_usb_hid_gamepad_in_complete_count(void);
 extern void processCompositeHID(Gamepad *gamepad);
+
+static inline bool shouldUseMainLoopGate() {
+	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+	return addonOptions.lsm6dsrOptions.outputMode == LSM6DSR_OUTPUT_MOUSE_MODE;
+}
 
 const static uint32_t rebootDelayMs = 500;
 static absolute_time_t rebootDelayTimeout = nil_time;
@@ -135,11 +146,12 @@ void GP2040::setup() {
 	this->initializeStandardGpio();
 	configureWebConfigHotkeyGPIOs();
 
-	// 主循环门控参数（仅在 setup 时从配置读取一次，门控始终启用）
+	// 主循环门控参数（仅在 setup 时从配置读取一次）
 	{
 		const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 		uint32_t rate_hz = addonOptions.reportRate;
 		main_loop_interval_us = (rate_hz > 0u) ? (1000000u / rate_hz) : 1000u;
+		main_loop_gate_enabled = shouldUseMainLoopGate();
 	}
 
 	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
@@ -260,6 +272,27 @@ void GP2040::setup() {
 
 	// Setup USB Driver
 	DriverManager::getInstance().setup(inputMode);
+	composite_hid_enabled = (inputMode == INPUT_MODE_XINPUTB || inputMode == INPUT_MODE_PS4B);
+	if (DriverManager::getInstance().getDriver() != nullptr) {
+		cached_joystick_mid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+	}
+	{
+		// Cache profile/config-derived analog swap parameters once at boot.
+		const GamepadOptions& options = gamepad->getOptions();
+		const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+
+		cached_dpad_deadzone = 0.1f;
+		if (options.dpadDeadzone > 0 && options.dpadDeadzone <= 90) {
+			cached_dpad_deadzone = options.dpadDeadzone / 100.0f;
+		} else if (addonOptions.analogOptions.enabled && addonOptions.analogOptions.inner_deadzone > 0) {
+			cached_dpad_deadzone = addonOptions.analogOptions.inner_deadzone / 100.0f;
+		}
+
+		cached_dpad_threshold = 0.1f;
+		if (options.dpadTriggerThreshold > 0 && options.dpadTriggerThreshold <= 90) {
+			cached_dpad_threshold = options.dpadTriggerThreshold / 100.0f;
+		}
+	}
 
 	// save to match user expectations on choosing mode at boot, and this is
 	// before USB host will be used so we can force it to ignore the check
@@ -366,8 +399,8 @@ void GP2040::run() {
 	while (1) { // LOOP
 		this->getReinitGamepad(gamepad);
 
-		// IN/SOF-driven gate: 主循环与回报率同步，参数在 setup 中读入；USB 实际回报率由 bInterval 控制；门控始终启用。
-		if (!configMode) {
+		// IN/SOF-driven gate only when gyro output mode is configured to mouse.
+		if (!configMode && main_loop_gate_enabled) {
 			bool runFrame = false;
 			bool runByInEvent = false;
 			uint64_t now_us = time_us_64();
@@ -452,32 +485,6 @@ void GP2040::run() {
 		
 		DpadMode activeDpadMode = gamepad->getActiveDpadMode();
 		if ((activeDpadMode == DpadMode::DPAD_MODE_LEFT_ANALOG || activeDpadMode == DpadMode::DPAD_MODE_RIGHT_ANALOG) && !macroHasStickDirection) {
-			// Get joystick midpoint value
-			uint16_t joystickMid = GAMEPAD_JOYSTICK_MID;
-			if ( DriverManager::getInstance().getDriver() != nullptr ) {
-				joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
-			}
-			
-			// Get deadzone (distance from center)
-			// Use dpadDeadzone if set, otherwise use Analog addon's inner_deadzone, or default 10%
-			float deadzone = 0.1f; // Default 10%
-			if (gamepad->getOptions().dpadDeadzone > 0 && gamepad->getOptions().dpadDeadzone <= 90) {
-				deadzone = gamepad->getOptions().dpadDeadzone / 100.0f;
-			} else {
-				// Try to use Analog addon's inner_deadzone if available
-				const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-				if (analogOptions.enabled && analogOptions.inner_deadzone > 0) {
-					deadzone = analogOptions.inner_deadzone / 100.0f;
-				}
-			}
-			
-			// Get threshold (X/Y axis component threshold for direction determination)
-			// Use dpadTriggerThreshold if set, otherwise default 10%
-			float threshold = 0.1f; // Default 10%
-			if (gamepad->getOptions().dpadTriggerThreshold > 0 && gamepad->getOptions().dpadTriggerThreshold <= 90) {
-				threshold = gamepad->getOptions().dpadTriggerThreshold / 100.0f;
-			}
-			
 			// Get the original dpad value before mode conversion
 			// dpadOriginal contains the processed dpad value before mode-specific conversion
 			uint8_t originalDpad = gamepad->state.dpadOriginal & 0x0F; // Get mode-specific dpad mask
@@ -488,7 +495,7 @@ void GP2040::run() {
 				uint16_t savedLy = gamepad->state.ly;
 				
 				// Convert physical joystick (left stick) to dpad
-				gamepad->state.dpad = analogToDpad(savedLx, savedLy, joystickMid, deadzone, threshold);
+				gamepad->state.dpad = analogToDpad(savedLx, savedLy, cached_joystick_mid, cached_dpad_deadzone, cached_dpad_threshold);
 				
 				// Convert original dpad input to joystick (left stick)
 				// This overwrites the physical joystick value, completing the bidirectional swap
@@ -500,7 +507,7 @@ void GP2040::run() {
 				uint16_t savedRy = gamepad->state.ry;
 				
 				// Convert physical joystick (right stick) to dpad
-				gamepad->state.dpad = analogToDpad(savedRx, savedRy, joystickMid, deadzone, threshold);
+				gamepad->state.dpad = analogToDpad(savedRx, savedRy, cached_joystick_mid, cached_dpad_deadzone, cached_dpad_threshold);
 				
 				// Convert original dpad input to joystick (right stick)
 				// This overwrites the physical joystick value, completing the bidirectional swap
@@ -516,8 +523,7 @@ void GP2040::run() {
 
 		// Process Input Driver
 		bool processed = inputDriver->process(gamepad);
-		InputMode activeInputMode = DriverManager::getInstance().getInputMode();
-		if (activeInputMode == INPUT_MODE_XINPUTB || activeInputMode == INPUT_MODE_PS4B) {
+		if (composite_hid_enabled) {
 			processCompositeHID(gamepad);
 		}
 

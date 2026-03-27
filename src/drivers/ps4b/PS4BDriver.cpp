@@ -673,42 +673,26 @@ bool PS4BDriver::process(Gamepad * gamepad) {
     void * report = &ps4Report;
     uint16_t report_size = sizeof(ps4Report);
 
-    uint32_t hz = Storage::getInstance().getAddonOptions().reportRate;
-    if (hz == 0u) hz = 1000u;
-    if (hz != ps4_report_rate_hz_cached_) {
-        ps4_report_rate_hz_cached_ = hz;
-        uint32_t poll = (1000u + hz - 1u) / hz;
-        if (poll < 1u) poll = 1u;
-        ps4_keepalive_ms_cached_ = (static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) > poll)
-            ? static_cast<uint32_t>(PS4_KEEPALIVE_TIMER) : poll;
-    }
-    const uint32_t keepalive_ms = ps4_keepalive_ms_cached_;
-
-    const bool report_changed = (memcmp(last_report, report, report_size) != 0);
-    const bool keepalive_due = (now - last_report_timer) > keepalive_ms;
-
-    if (report_changed || keepalive_due) {
-        if (tud_hid_n_ready(GAMEPAD_INTERFACE)) {
-            const uint8_t prev_counter = last_report_counter;
-            const uint16_t prev_axis_timing =
-                (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD)
-                    ? ps4Report.gamepad.axisTiming
-                    : static_cast<uint16_t>(0);
-            last_report_counter = (last_report_counter + 1) & 0x3F;
-            ps4Report.reportCounter = last_report_counter;
+    if (tud_hid_n_ready(GAMEPAD_INTERFACE)) {
+        const uint8_t prev_counter = last_report_counter;
+        const uint16_t prev_axis_timing =
+            (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD)
+                ? ps4Report.gamepad.axisTiming
+                : static_cast<uint16_t>(0);
+        last_report_counter = (last_report_counter + 1) & 0x3F;
+        ps4Report.reportCounter = last_report_counter;
+        if (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD) {
+            ps4Report.gamepad.axisTiming = static_cast<uint16_t>(now & 0xFFFFu);
+        }
+        if (tud_hid_n_report(GAMEPAD_INTERFACE, 0, report, report_size) == true) {
+            memcpy(last_report, report, report_size);
+            last_report_timer = now;
+            reportSent = true;
+        } else {
+            last_report_counter = prev_counter;
+            ps4Report.reportCounter = prev_counter;
             if (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD) {
-                ps4Report.gamepad.axisTiming = static_cast<uint16_t>(now & 0xFFFFu);
-            }
-            if (tud_hid_n_report(GAMEPAD_INTERFACE, 0, report, report_size) == true) {
-                memcpy(last_report, report, report_size);
-                last_report_timer = now;
-                reportSent = true;
-            } else {
-                last_report_counter = prev_counter;
-                ps4Report.reportCounter = prev_counter;
-                if (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD) {
-                    ps4Report.gamepad.axisTiming = prev_axis_timing;
-                }
+                ps4Report.gamepad.axisTiming = prev_axis_timing;
             }
         }
     }
@@ -796,41 +780,36 @@ uint16_t PS4BDriver::get_report(uint8_t report_id, hid_report_type_t report_type
 
     // PS4B mode uses PC host mode - only handle basic feature reports that PC may query
     // Authentication-related reports (SIGNATURE_NONCE, SIGNING_STATE, RESET_AUTH) are not needed
-    uint16_t responseLen = 0;
     switch(report_id) {
         // Basic controller reports that PC host may query
         case PS4AuthReport::PS4_GET_CALIBRATION:
             if (reqlen < sizeof(output_0x02)) {
                 return -1;
             }
-            responseLen = MAX(reqlen, sizeof(output_0x02));
-            memcpy(buffer, output_0x02, responseLen);
-            return responseLen;
+            memcpy(buffer, output_0x02, sizeof(output_0x02));
+            return sizeof(output_0x02);
         case PS4AuthReport::PS4_DEFINITION:
             if (reqlen < sizeof(controllerConfig)) {
                 return -1;
             }
             controllerConfig.controllerType = (uint8_t)controllerType;
-            responseLen = MAX(reqlen, sizeof(controllerConfig));
-            memcpy(buffer, &controllerConfig, responseLen);
-            return responseLen;
+            memcpy(buffer, &controllerConfig, sizeof(controllerConfig));
+            return sizeof(controllerConfig);
         case PS4AuthReport::PS4_GET_MAC_ADDRESS:
             if (reqlen < sizeof(output_0x12)) {
                 return -1;
             }
-            responseLen = MAX(reqlen, sizeof(output_0x12));
-            memcpy(buffer, output_0x12, responseLen);
-            return responseLen;
+            memcpy(buffer, output_0x12, sizeof(output_0x12));
+            return sizeof(output_0x12);
         case PS4AuthReport::PS4_GET_VERSION_DATE:
             if (reqlen < sizeof(output_0xa3)) {
                 return -1;
             }
-            responseLen = MAX(reqlen, sizeof(output_0xa3));
-            memcpy(buffer, output_0xa3, responseLen);
-            return responseLen;
-        // Authentication reports not needed for PC host mode - return default
+            memcpy(buffer, output_0xa3, sizeof(output_0xa3));
+            return sizeof(output_0xa3);
+        // Unknown feature report (same sentinel as PS4Driver::get_report)
         default:
-            return sizeof(ps4Report);
+            return (uint16_t)-1;
     };
 }
 

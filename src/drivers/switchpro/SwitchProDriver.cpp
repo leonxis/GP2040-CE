@@ -156,19 +156,14 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
     processedGamepad->auxState.playerID.value = playerID;
 
     if (isReady && !reportSent) {
-        if ((now - last_report_timer) > SWITCH_PRO_KEEPALIVE_TIMER) {
-            switchReport.timestamp = last_report_counter;
-            void * inputReport = &switchReport;
-            uint16_t report_size = sizeof(switchReport);
-            if (memcmp(last_report, inputReport, report_size) != 0) {
-                // HID ready + report sent, copy previous report
-                if (tud_hid_ready() && sendReport(0, inputReport, report_size) == true ) {
-                    memcpy(last_report, inputReport, report_size);
-                    reportSent = true;
-                }
-
-                last_report_timer = now;
-            }
+        switchReport.timestamp = last_report_counter;
+        void * inputReport = &switchReport;
+        uint16_t report_size = sizeof(switchReport);
+        // Send continuously while endpoint is ready to keep idle report rate pinned.
+        if (tud_hid_ready() && sendReport(0, inputReport, report_size) == true ) {
+            memcpy(last_report, inputReport, report_size);
+            reportSent = true;
+            last_report_timer = now;
         }
     } else {
         if (!isInitialized) {
