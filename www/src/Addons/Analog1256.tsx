@@ -47,7 +47,7 @@ const Analog1256 = ({ values, errors, handleChange, handleCheckbox }: AddonPropT
 	const { t } = useTranslation();
 
 	const handlePeripheralChange = (e) => {
-		let device = getSelectedPeripheral('spi', e.target.value);
+		const device = getSelectedPeripheral('spi', e.target.value);
 		handleChange(e);
 	};
 
@@ -87,7 +87,7 @@ const Analog1256 = ({ values, errors, handleChange, handleCheckbox }: AddonPropT
 			<a
 				href="https://gp2040-ce.info/add-ons/i2c-analog-ads1256-spi"
 				target="_blank"
-				className="text-reset text-decoration-none"
+				className="text-reset text-decoration-none" rel="noreferrer"
 			>
 				{t('AddonsConfig:analog1256-header-text')}
 			</a>

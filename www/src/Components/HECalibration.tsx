@@ -99,7 +99,7 @@ const HECalibration = ({
 
 	const getNextTarget = () => {
 		// Find our next
-		for(var i = target.current+1; i < 32; i++) {
+		for(let i = target.current+1; i < 32; i++) {
 			if (triggers[i].action !== -10) {
 				return i;
 			}
@@ -211,7 +211,7 @@ const HECalibration = ({
 			} else if ( calibrationStep === 1 ) {
 				setVoltage(3500); // max we'll set to 3500
 			} else if ( calibrationStep === 2 || calibrationStep === 3 ) {
-				let time = (new Date()).getTime();
+				const time = (new Date()).getTime();
 				const V = 150+Math.floor((Math.cos((( time/10 ) % 365) * Math.PI / 180)+1.0)*1500);
 				setVoltage(V);
 			}

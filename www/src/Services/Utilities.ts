@@ -10,9 +10,9 @@ const intToHex = (d) => {
 
 // Convert a 32-bit ARGB value to hex format
 const rgbIntToHex = (rgbInt) => {
-	let r = (rgbInt >> 16) & 255;
-	let g = (rgbInt >> 8) & 255;
-	let b = (rgbInt >> 0) & 255;
+	const r = (rgbInt >> 16) & 255;
+	const g = (rgbInt >> 8) & 255;
+	const b = (rgbInt >> 0) & 255;
 
 	return `#${intToHex(r)}${intToHex(g)}${intToHex(b)}`;
 };

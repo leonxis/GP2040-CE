@@ -10,7 +10,7 @@ import { hexToInt } from '../../../Services/Utilities';
 
 export default function HardwareConfig() {
 	const navigate = useNavigate();
-	const { t } = useTranslation('');
+	const { t } = useTranslation();
 
 	const [peripheralOptions, setPeripheralOptions] = useState({
 		peripheral: {
@@ -118,11 +118,11 @@ export default function HardwareConfig() {
 				WebApi.setTwoKeyTouchpadOptions(twoKeyTouchpadOptions),
 				WebApi.setAddonsOptions({ reportRate, enhancedPerformance }),
 			]);
-			setHostSaveMessage('保存成功！请重启设备');
+			setHostSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setHostSaveMessage(''), 5000);
 		} catch (error) {
 			console.error('Failed to save host options:', error);
-			setHostSaveMessage('保存失败');
+			setHostSaveMessage(t('SettingsPage:hml-save-failed'));
 			setTimeout(() => setHostSaveMessage(''), 5000);
 		}
 	};
@@ -144,11 +144,11 @@ export default function HardwareConfig() {
 			};
 			
 			await WebApi.setLedOptions(dataToSave);
-			setLedSaveMessage('保存成功！请重启设备');
+			setLedSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setLedSaveMessage(''), 5000);
 		} catch (error) {
 			console.error('Failed to save LED options:', error);
-			setLedSaveMessage('保存失败');
+			setLedSaveMessage(t('SettingsPage:hml-save-failed'));
 			setTimeout(() => setLedSaveMessage(''), 5000);
 		}
 	};
@@ -160,7 +160,7 @@ export default function HardwareConfig() {
 	return (
 		<div>
 			{/* 主机配置栏 */}
-			<Section title="主机配置">
+			<Section title={t('SettingsPage:hml-section-host-config')}>
 				<div>
 					<div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start' }}>
 						{/* USB验证器开关 */}
@@ -168,7 +168,7 @@ export default function HardwareConfig() {
 							<Form.Check
 								type="switch"
 								id="usb-auth-switch"
-								label="USB验证器"
+								label={t('SettingsPage:hml-usb-authenticator-label')}
 								checked={Boolean(peripheralOptions.peripheral?.usb0?.enabled)}
 								onChange={(e) => {
 									setPeripheralOptions((prev) => ({
@@ -184,7 +184,7 @@ export default function HardwareConfig() {
 								}}
 							/>
 							<span className="text-muted">
-								当设置Xinput模式且使用主机USB认证，或者设置为PS5General模式时，需要打开本开关并插入验证器
+								{t('SettingsPage:hml-usb-authenticator-hint')}
 							</span>
 						</div>
 
@@ -193,7 +193,7 @@ export default function HardwareConfig() {
 						<Form.Check
 							type="switch"
 							id="display-switch"
-							label="显示屏"
+							label={t('SettingsPage:hml-display-label')}
 							checked={Boolean(displayOptions.enabled)}
 							onChange={(e) => {
 								const isEnabled = e.target.checked ? 1 : 0;
@@ -216,7 +216,7 @@ export default function HardwareConfig() {
 							}}
 						/>
 						<span className="text-muted">
-							将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率
+							{t('SettingsPage:hml-display-hint')}
 						</span>
 					</div>
 
@@ -225,7 +225,7 @@ export default function HardwareConfig() {
 						<Form.Check
 							type="switch"
 							id="four-key-touchpad-switch"
-							label="4键触摸板"
+							label={t('SettingsPage:hml-four-key-touchpad-label')}
 							checked={Boolean(fourKeyTouchpadOptions.enabled)}
 							onChange={(e) => {
 								const isEnabled = e.target.checked ? 1 : 0;
@@ -248,7 +248,7 @@ export default function HardwareConfig() {
 							}}
 						/>
 						<span className="text-muted">
-							需要使用触摸板按键请将显示屏替换为触摸板
+							{t('SettingsPage:hml-four-key-touchpad-hint')}
 						</span>
 					</div>
 
@@ -257,7 +257,7 @@ export default function HardwareConfig() {
 						<Form.Check
 							type="switch"
 							id="two-key-touchpad-switch"
-							label="2键触摸板"
+							label={t('SettingsPage:hml-two-key-touchpad-label')}
 							checked={Boolean(twoKeyTouchpadOptions.enabled)}
 							onChange={(e) => {
 								const isEnabled = e.target.checked ? 1 : 0;
@@ -280,7 +280,7 @@ export default function HardwareConfig() {
 							}}
 						/>
 						<span className="text-muted">
-							同4键触摸板，将会禁用显示屏
+							{t('SettingsPage:hml-two-key-touchpad-hint')}
 						</span>
 					</div>
 
@@ -289,12 +289,12 @@ export default function HardwareConfig() {
 						<Form.Check
 							type="switch"
 							id="enhanced-performance-switch"
-							label="强化性能"
+							label={t('SettingsPage:hml-enhanced-performance-label')}
 							checked={enhancedPerformance}
 							onChange={(e) => setEnhancedPerformance(e.target.checked)}
 						/>
 						<span className="text-muted">
-							开启后提升25%手柄核心性能（不包括回报率），根据实际使用效果决定是否长期开启。
+							{t('SettingsPage:hml-enhanced-performance-hint')}
 						</span>
 					</div>
 
@@ -313,16 +313,16 @@ export default function HardwareConfig() {
 								<option value={4000}>4KHz</option>
 								<option value={8000}>8KHz</option>
 							</Form.Select>
-							<span className="mb-0">回报率</span>
+							<span className="mb-0">{t('SettingsPage:hml-report-rate-label')}</span>
 							<span className="text-muted">
-								调整主机连接回报率，若开启陀螺仪可能造成回报率降低。
+								{t('SettingsPage:hml-report-rate-hint')}
 							</span>
 						</div>
 
 						{/* 屏幕个性化按键 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 							<Button variant="primary" onClick={handleSplashImage} style={{ minWidth: '120px' }}>
-								屏幕个性化
+								{t('SettingsPage:hml-screen-customization-button')}
 							</Button>
 						</div>
 
@@ -334,7 +334,9 @@ export default function HardwareConfig() {
 							{hostSaveMessage && (
 								<span
 									className={`ms-3 ${
-										hostSaveMessage.includes('成功') ? 'text-success' : 'text-danger'
+										hostSaveMessage === t('SettingsPage:hml-save-success-reboot')
+											? 'text-success'
+											: 'text-danger'
 									}`}
 								>
 									{hostSaveMessage}
@@ -346,7 +348,7 @@ export default function HardwareConfig() {
 			</Section>
 
 			{/* 灯光配置栏 */}
-			<Section title="灯光配置">
+			<Section title={t('SettingsPage:hml-section-led-config')}>
 				<div>
 					<div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start' }}>
 						{/* LED灯条开关 */}
@@ -354,7 +356,7 @@ export default function HardwareConfig() {
 							<Form.Check
 								type="switch"
 								id="led-strip-switch"
-								label="LED灯条"
+								label={t('SettingsPage:hml-led-strip-label')}
 								checked={ledOptions.dataPin !== -1}
 								onChange={(e) => {
 									setLedOptions((prev) => ({
@@ -365,14 +367,14 @@ export default function HardwareConfig() {
 							/>
 							<span className="text-muted">
 								{ledOptions.dataPin === -1 
-									? 'LED灯条已关闭' 
-									: `LED数据引脚: GPIO${ledOptions.dataPin}`}
+									? t('SettingsPage:hml-led-strip-off') 
+									: t('SettingsPage:hml-led-data-pin', { pin: ledOptions.dataPin })}
 							</span>
 						</div>
 
 						{/* 颜色取色框 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<label style={{ minWidth: '80px' }}>颜色：</label>
+							<label style={{ minWidth: '80px' }}>{t('SettingsPage:hml-color-label')}</label>
 							<div
 								ref={(el) => {
 									if (el && !colorPickerTarget) {
@@ -396,7 +398,7 @@ export default function HardwareConfig() {
 							></div>
 							{showColorPicker && colorPickerTarget && (
 								<ColorPicker
-									types={[{ label: 'LED Color', value: ledOptions.ledColor }]}
+									types={[{ label: t('SettingsPage:hml-led-strip-label'), value: ledOptions.ledColor }]}
 									onChange={(color) => {
 										setLedOptions((prev) => ({
 											...prev,
@@ -413,7 +415,7 @@ export default function HardwareConfig() {
 
 						{/* 亮度调节滑块 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
-							<label style={{ minWidth: '80px' }}>亮度：</label>
+							<label style={{ minWidth: '80px' }}>{t('SettingsPage:hml-brightness-label')}</label>
 							<input
 								type="range"
 								min="0"
@@ -438,7 +440,9 @@ export default function HardwareConfig() {
 							{ledSaveMessage && (
 								<span
 									className={`ms-3 ${
-										ledSaveMessage.includes('成功') ? 'text-success' : 'text-danger'
+										ledSaveMessage === t('SettingsPage:hml-save-success-reboot')
+											? 'text-success'
+											: 'text-danger'
 									}`}
 								>
 									{ledSaveMessage}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext, useRef, Dispatch, SetStateAction } from 'react';
 import WebApi from '../../../Services/WebApi';
 import { AppContext } from '../../../Contexts/AppContext';
+import i18n from '../../../i18n';
 
 interface UseGamepadOptionsReturn {
 	values: any;
@@ -22,7 +23,7 @@ export function useGamepadOptions(): UseGamepadOptionsReturn {
 	useEffect(() => {
 		// 检查AppContext是否可用
 		if (!appContext) {
-			setError('应用上下文未初始化');
+			setError(i18n.t('SettingsPage:hml-error-app-context'));
 			setIsLoading(false);
 			return;
 		}
@@ -66,12 +67,12 @@ export function useGamepadOptions(): UseGamepadOptionsReturn {
 					}
 					isInitialMountRef.current = false;
 				} else {
-					setError('无法获取游戏手柄选项数据');
+					setError(i18n.t('SettingsPage:hml-error-gamepad-options'));
 				}
 			} catch (err: any) {
 				console.error('获取游戏手柄选项失败:', err);
 				setError(
-					err?.message || '获取游戏手柄选项失败，请刷新页面重试',
+					err?.message || i18n.t('SettingsPage:hml-error-gamepad-options-detail'),
 				);
 			} finally {
 				setIsLoading(false);

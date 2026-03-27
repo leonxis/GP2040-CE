@@ -7,7 +7,7 @@ const trTR = () => (
 		width="1em"
 		height="1em"
     >
-      <g fill-rule="evenodd">
+      <g fillRule="evenodd">
         <path fill="#e30a17" d="M0 0h640v480H0z"/>
         <path
             fill="#fff"

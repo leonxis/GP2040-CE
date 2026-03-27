@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Row, Col, Nav } from 'react-bootstrap';
 import ModeSettings from './HMLSettings/components/ModeSettings';
 import BackButtonMapping from './HMLSettings/components/BackButtonMapping';
@@ -10,6 +11,7 @@ import BackupReset from './HMLSettings/components/BackupReset';
 import { TABS } from './HMLSettings/constants/hmlInputModes';
 
 export default function HMLSettingsPage() {
+	const { t } = useTranslation('SettingsPage');
 	const [activeKey, setActiveKey] = useState('mode');
 
 	const renderContent = () => {
@@ -47,7 +49,7 @@ export default function HMLSettingsPage() {
 					>
 						{TABS.map((tab) => (
 							<Nav.Item key={tab.key}>
-								<Nav.Link eventKey={tab.key}>{tab.label}</Nav.Link>
+								<Nav.Link eventKey={tab.key}>{t(tab.labelKey)}</Nav.Link>
 							</Nav.Item>
 						))}
 					</Nav>

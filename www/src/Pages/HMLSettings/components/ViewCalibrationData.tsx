@@ -1,4 +1,5 @@
 import { Button, FormCheck } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 
 interface ViewCalibrationDataProps {
 	errorRateEnabled: boolean;
@@ -14,12 +15,13 @@ const ViewCalibrationData: React.FC<ViewCalibrationDataProps> = ({
 	onViewData,
 	onClearCircularityData,
 }) => {
+	const { t } = useTranslation();
 	return (
 		<>
 			<div className="mt-3">
 				<FormCheck
 					type="switch"
-					label="误差率"
+					label={t('CalibrationSettings:hml-error-rate-label')}
 					checked={errorRateEnabled}
 					onChange={(e) => {
 						const newValue = e.target.checked;
@@ -36,7 +38,7 @@ const ViewCalibrationData: React.FC<ViewCalibrationDataProps> = ({
 					size="sm"
 					onClick={onViewData}
 				>
-					查看校准数据
+					{t('CalibrationSettings:hml-view-calibration-data-button')}
 				</Button>
 			</div>
 		</>

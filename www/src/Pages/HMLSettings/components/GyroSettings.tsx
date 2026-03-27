@@ -14,14 +14,12 @@ import { BUTTON_MASKS, DPAD_MASKS, getButtonLabels } from '../../../Data/Buttons
 import WebApi from '../../../Services/WebApi';
 
 type EngageKeyOption = { value: number; label: string };
-const DROPDOWN_WIDTH = 400;
 const GYRO_BUTTON_WIDTH = 120;
-const COLUMN_GAP = 24;
 const IMU_POLL_INTERVAL_MS = 150;
 
-export const GYRO_ENGAGE_ALWAYS = 0;
-export const GYRO_ENGAGE_ON_KEY = 1;
-export const GYRO_ENGAGE_PAUSE_ON_KEY = 2;
+const GYRO_ENGAGE_ALWAYS = 0;
+const GYRO_ENGAGE_ON_KEY = 1;
+const GYRO_ENGAGE_PAUSE_ON_KEY = 2;
 
 const EXCLUDED_KEYS = ['NONE', 'RESERVED', 'ASSIGNED_TO_ADDON', 'CUSTOM_BUTTON_COMBO'];
 
@@ -74,11 +72,11 @@ export default function GyroSettings({
 	const imuPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	const enabled = Boolean(values.LSM6DSRAddonEnabled);
-		const outputMode = Number(values.lsm6dsrOutputMode) ?? 0;
-		const engageMode = Number(values.lsm6dsrEngageMode) ?? 0;
-		const spikeFilterEnabled = Number(values.lsm6dsrSpikeFilterEnabled) !== 0;
-		const oneEuroFilterEnabled = Number(values.lsm6dsrOneEuroFilterEnabled) !== 0;
-		const engageKeys: number[] = Array.isArray(values.lsm6dsrEngageKeys)
+	const outputMode = Number(values.lsm6dsrOutputMode) ?? 0;
+	const engageMode = Number(values.lsm6dsrEngageMode) ?? 0;
+	const spikeFilterEnabled = Number(values.lsm6dsrSpikeFilterEnabled) !== 0;
+	const oneEuroFilterEnabled = Number(values.lsm6dsrOneEuroFilterEnabled) !== 0;
+	const engageKeys: number[] = Array.isArray(values.lsm6dsrEngageKeys)
 		? (values.lsm6dsrEngageKeys as number[]).filter((k) => typeof k === 'number')
 		: [];
 
@@ -109,7 +107,7 @@ export default function GyroSettings({
 	const [calibrateOk, setCalibrateOk] = useState<boolean | null>(null);
 	const [showGyroModal, setShowGyroModal] = useState(false);
 	const handleCalibrate = async () => {
-		setCalibrateMessage('');
+		setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-in-progress'));
 		setCalibrateOk(null);
 		try {
 			const data = await WebApi.calibrateLSM6DSRGyro();
@@ -117,14 +115,14 @@ export default function GyroSettings({
 				setFieldValue('lsm6dsrOffsetGyroX', data.offsetGyroX ?? 0);
 				setFieldValue('lsm6dsrOffsetGyroY', data.offsetGyroY ?? 0);
 				setFieldValue('lsm6dsrOffsetGyroZ', data.offsetGyroZ ?? 0);
-				setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-success') || '校准完成，请点击保存写入配置');
+				setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-success'));
 				setCalibrateOk(true);
 			} else {
-				setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-fail') || '校准失败，请确认设备静止且 IMU 正常');
+				setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-fail'));
 				setCalibrateOk(false);
 			}
 		} catch {
-			setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-fail') || '校准失败');
+			setCalibrateMessage(t('CalibrationSettings:gyro-calibrate-fail'));
 			setCalibrateOk(false);
 		}
 	};
@@ -137,14 +135,14 @@ export default function GyroSettings({
 				setFieldValue('lsm6dsrOffsetAccelX', data.offsetAccelX ?? 0);
 				setFieldValue('lsm6dsrOffsetAccelY', data.offsetAccelY ?? 0);
 				setFieldValue('lsm6dsrOffsetAccelZ', data.offsetAccelZ ?? 0);
-				setCalibrateMessage(t('CalibrationSettings:accel-calibrate-success') || '水平面校准完成，请点击保存写入配置');
+				setCalibrateMessage(t('CalibrationSettings:accel-calibrate-success'));
 				setCalibrateOk(true);
 			} else {
-				setCalibrateMessage(t('CalibrationSettings:accel-calibrate-fail') || '水平面校准失败，请确认设备静止且 IMU 正常');
+				setCalibrateMessage(t('CalibrationSettings:accel-calibrate-fail'));
 				setCalibrateOk(false);
 			}
 		} catch {
-			setCalibrateMessage(t('CalibrationSettings:accel-calibrate-fail') || '水平面校准失败');
+			setCalibrateMessage(t('CalibrationSettings:accel-calibrate-fail'));
 			setCalibrateOk(false);
 		}
 	};
@@ -204,8 +202,6 @@ export default function GyroSettings({
 		handleChange(e);
 	};
 
-	const twoColStyle = { display: 'flex' as const, gap: COLUMN_GAP };
-
 	return (
 		<>
 		<Section title={t('CalibrationSettings:gyro-settings-title')}>
@@ -252,7 +248,7 @@ export default function GyroSettings({
 				</div>
 				{/* 1 行 3 列：尖峰滤波开关 */}
 				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-					<Form.Label className="mb-0">尖峰滤波</Form.Label>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-spike-filter-label')}</Form.Label>
 					<Form.Check
 						type="switch"
 						id="lsm6dsrSpikeFilterEnabled"
@@ -285,21 +281,30 @@ export default function GyroSettings({
 							{t('CalibrationSettings:gyro-calibrate-button')}
 						</Button>
 						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={handleCalibrateAccel}>
-							水平面校准
+							{t('CalibrationSettings:gyro-accel-calibrate-button')}
 						</Button>
 						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={() => setShowGyroModal(true)}>
 							{t('CalibrationSettings:gyro-view-gyro-button')}
 						</Button>
 					</div>
 					{calibrateMessage ? (
-						<span className={calibrateOk === false ? 'text-danger' : 'text-success'} style={{ fontSize: '0.875rem' }}>
+						<span
+							className={
+								calibrateOk === false
+									? 'text-danger'
+									: calibrateOk === true
+										? 'text-success'
+										: 'text-muted'
+							}
+							style={{ fontSize: '0.875rem' }}
+						>
 							{calibrateMessage}
 						</span>
 					) : null}
 				</div>
 				{/* 2 行 3 列：一欧元滤波开关 */}
 				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-					<Form.Label className="mb-0">一欧元滤波</Form.Label>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-one-euro-filter-label')}</Form.Label>
 					<Form.Check
 						type="switch"
 						id="lsm6dsrOneEuroFilterEnabled"
@@ -342,7 +347,7 @@ export default function GyroSettings({
 						{t('Common:button-save-label')}
 					</Button>
 					{saveMessage ? (
-						<span className={saveMessage.includes('成功') || saveMessage.includes('success') ? 'text-success' : 'text-danger'}>
+						<span className={saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}>
 							{saveMessage}
 						</span>
 					) : null}
@@ -351,7 +356,7 @@ export default function GyroSettings({
 					<Form.Check
 						type="switch"
 						id="gyro-enable-switch"
-						label={t('CalibrationSettings:gyro-enable-label', '启用陀螺仪')}
+						label={t('CalibrationSettings:gyro-enable-label')}
 						checked={enabled}
 						onChange={(e) => {
 							setFieldValue('LSM6DSRAddonEnabled', e.target.checked ? 1 : 0);
@@ -362,36 +367,36 @@ export default function GyroSettings({
 		</Section>
 
 		{outputMode === LSM6DSR_OUTPUT_MOUSE && (
-		<Section title={t('CalibrationSettings:gyro-mouse-options-title', '陀螺仪模拟鼠标')}>
+		<Section title={t('CalibrationSettings:gyro-mouse-options-title')}>
 			<div style={{ display: 'grid', gridTemplateColumns: '400px 400px', gap: '12px 24px', marginBottom: '12px' }}>
 				<div>
-					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-map-mode-label', '鼠标操作方式')}</Form.Label>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-map-mode-label')}</Form.Label>
 					<Form.Select
 						className="form-select-sm mt-1"
 						style={{ width: '350px' }}
 						value={Number(values.lsm6dsrGyroMouseMapMode) ?? 0}
 						onChange={(e) => setFieldValue('lsm6dsrGyroMouseMapMode', Number(e.target.value))}
 					>
-						<option value={0}>{t('CalibrationSettings:gyro-mouse-map-xy', 'XY轴模拟')}</option>
-						<option value={1}>{t('CalibrationSettings:gyro-mouse-map-xz', 'XZ轴模拟')}</option>
+						<option value={0}>{t('CalibrationSettings:gyro-mouse-map-xy')}</option>
+						<option value={1}>{t('CalibrationSettings:gyro-mouse-map-xz')}</option>
 					</Form.Select>
 				</div>
 				<div>
-					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-invert-label', '轴向反转')}</Form.Label>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-invert-label')}</Form.Label>
 					<Form.Select
 						className="form-select-sm mt-1"
 						style={{ width: '350px' }}
 						value={Number(values.lsm6dsrGyroMouseInvert) ?? 0}
 						onChange={(e) => setFieldValue('lsm6dsrGyroMouseInvert', Number(e.target.value))}
 					>
-						<option value={0}>{t('CalibrationSettings:gyro-mouse-invert-none', '无')}</option>
-						<option value={1}>{t('CalibrationSettings:gyro-mouse-invert-lr', '反转左右')}</option>
-						<option value={2}>{t('CalibrationSettings:gyro-mouse-invert-ud', '反转上下')}</option>
-						<option value={3}>{t('CalibrationSettings:gyro-mouse-invert-both', '全部反转')}</option>
+						<option value={0}>{t('CalibrationSettings:gyro-mouse-invert-none')}</option>
+						<option value={1}>{t('CalibrationSettings:gyro-mouse-invert-lr')}</option>
+						<option value={2}>{t('CalibrationSettings:gyro-mouse-invert-ud')}</option>
+						<option value={3}>{t('CalibrationSettings:gyro-mouse-invert-both')}</option>
 					</Form.Select>
 				</div>
 				<div>
-					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-lr-label', '左右灵敏度')} {(Math.max(0.1, Math.min(3, Number(values.lsm6dsrGyroMouseSensLR) || 1))).toFixed(1)}</Form.Label>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-lr-label')} {(Math.max(0.1, Math.min(3, Number(values.lsm6dsrGyroMouseSensLR) || 1))).toFixed(1)}</Form.Label>
 					<Form.Range
 						min={0.1}
 						max={3}
@@ -402,7 +407,7 @@ export default function GyroSettings({
 					/>
 				</div>
 				<div>
-					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-ud-label', '上下灵敏度')} {(Math.max(0.1, Math.min(3, Number(values.lsm6dsrGyroMouseSensUD) || 1))).toFixed(1)}</Form.Label>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-mouse-sens-ud-label')} {(Math.max(0.1, Math.min(3, Number(values.lsm6dsrGyroMouseSensUD) || 1))).toFixed(1)}</Form.Label>
 					<Form.Range
 						min={0.1}
 						max={3}
@@ -414,7 +419,7 @@ export default function GyroSettings({
 				</div>
 				<div>
 					<Form.Label className="mb-0">
-						{t('CalibrationSettings:gyro-mouse-deadzone-label', '鼠标死区')}
+						{t('CalibrationSettings:gyro-mouse-deadzone-label')}
 						{' '}
 						{Math.max(0, Math.min(80, Number(values.lsm6dsrGyroMouseDeadzone ?? 12))).toFixed(0)}
 					</Form.Label>

@@ -231,7 +231,7 @@ const Wii = ({
 	];
 
 	const saveWiiOptions = async () => {
-		let wiiButtonsMap = Array.from(
+		const wiiButtonsMap = Array.from(
 			document.querySelectorAll('#WiiExtensionAddonOptions .wii-buttons'),
 		);
 		let wiiMap = wiiButtonsMap.reduce(
@@ -244,15 +244,15 @@ const Wii = ({
 			{},
 		);
 
-		let wiiAnalogMap = Array.from(
+		const wiiAnalogMap = Array.from(
 			document.querySelectorAll('#WiiExtensionAddonOptions .wii-analogs'),
 		);
 		wiiMap = wiiAnalogMap.reduce((o, i) => {
-			let modeID = i.value;
-			let axes = i.getAttribute('axiscount') || 2;
-			let joyMode = axes == 2 ? getJoystickMode(modeID) : null;
+			const modeID = i.value;
+			const axes = i.getAttribute('axiscount') || 2;
+			const joyMode = axes == 2 ? getJoystickMode(modeID) : null;
 			if (joyMode && joyMode.options) {
-				let r = o;
+				const r = o;
 				Object.keys(joyMode.options).forEach((key) => {
 					Object.assign(r, {
 						[i.getAttribute('controlid') +
@@ -276,7 +276,7 @@ const Wii = ({
 		}, wiiMap);
 
 		try {
-			let success = await WebApi.setWiiControls(wiiMap);
+			const success = await WebApi.setWiiControls(wiiMap);
 
 			if (success) {
 			} else {
@@ -291,10 +291,10 @@ const Wii = ({
 
 	const setWiiAnalogEntry = (controlID, analogID, axes, e) => {
 		let analogEntry = {};
-		let modeID = e.target.value;
-		let joyMode = axes == 2 ? getJoystickMode(modeID) : null;
+		const modeID = e.target.value;
+		const joyMode = axes == 2 ? getJoystickMode(modeID) : null;
 		if (joyMode && joyMode.options) {
-			let r = analogEntry;
+			const r = analogEntry;
 			Object.keys(joyMode.options).forEach((key) => {
 				Object.assign(r, {
 					[controlID.toLowerCase() +
@@ -318,7 +318,7 @@ const Wii = ({
 	};
 
 	const handlePeripheralChange = (e) => {
-		let device = getSelectedPeripheral('i2c', e.target.value);
+		const device = getSelectedPeripheral('i2c', e.target.value);
 		handleChange(e);
 	};
 
@@ -329,15 +329,15 @@ const Wii = ({
 			if (!foundOpt) {
 				Object.keys(mode.options).forEach((opt) => {
 					if (!foundOpt) {
-						let modeEntry = mode.options[opt];
-						let entryID =
+						const modeEntry = mode.options[opt];
+						const entryID =
 							controlObj.id.toLowerCase() +
 							'.analog' +
 							analogObj.id +
 							'.' +
 							opt +
 							'.axisType';
-						let entry = wiiControls[entryID];
+						const entry = wiiControls[entryID];
 						if (wiiControls[entryID] == modeEntry) {
 							foundOpt = true;
 							joystickMode = mode.value;
@@ -354,7 +354,7 @@ const Wii = ({
 			<a
 				href="https://gp2040-ce.info/add-ons/wii-extensions"
 				target="_blank"
-				className="text-reset text-decoration-none"
+				className="text-reset text-decoration-none" rel="noreferrer"
 			>
 				{t('WiiAddon:header-text')}
 			</a>

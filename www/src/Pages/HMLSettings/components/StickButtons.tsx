@@ -49,7 +49,7 @@ const StickButtons: React.FC<StickButtonsProps> = ({
 					size="sm"
 					onClick={onJitterSampling}
 				>
-					摇杆步长设置
+					{t('CalibrationSettings:hml-stick-step-settings')}
 				</Button>
 			</div>
 		</>

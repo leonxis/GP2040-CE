@@ -33,7 +33,7 @@ const Bootsel = ({ values, errors, handleChange, handleCheckbox }: AddonPropType
 			<a
 				href="https://gp2040-ce.info/add-ons/bootsel-button"
 				target="_blank"
-				className="text-reset text-decoration-none"
+				className="text-reset text-decoration-none" rel="noreferrer"
 			>
 				{t('AddonsConfig:bootsel-header-text')}
 			</a>

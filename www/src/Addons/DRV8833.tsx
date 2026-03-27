@@ -59,7 +59,7 @@ const DRV8833Rumble = ({ values, errors, handleChange, handleCheckbox }: AddonPr
 			<a
 				href="https://gp2040-ce.info/add-ons/drv8833-rumble"
 				target="_blank"
-				className="text-reset text-decoration-none"
+				className="text-reset text-decoration-none" rel="noreferrer"
 			>
 				{t('AddonsConfig:drv8833-rumble-header-text')}
 			</a>

@@ -123,7 +123,7 @@ const Rotary = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes
 			<a
 				href="https://gp2040-ce.info/add-ons/rotary-encoders"
 				target="_blank"
-				className="text-reset text-decoration-none"
+				className="text-reset text-decoration-none" rel="noreferrer"
 			>
 				{t('Rotary:header-text')}
 			</a>

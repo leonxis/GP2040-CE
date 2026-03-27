@@ -25,9 +25,9 @@ export default function ModeSettings() {
 	if (isLoading) {
 		return (
 			<Card>
-				<Card.Header>模式设置</Card.Header>
+				<Card.Header>{t('SettingsPage:hml-mode-settings-title')}</Card.Header>
 				<Card.Body>
-					<p className="text-muted">正在加载...</p>
+					<p className="text-muted">{t('SettingsPage:hml-loading')}</p>
 				</Card.Body>
 			</Card>
 		);
@@ -36,7 +36,7 @@ export default function ModeSettings() {
 	if (error) {
 		return (
 			<Card>
-				<Card.Header>模式设置</Card.Header>
+				<Card.Header>{t('SettingsPage:hml-mode-settings-title')}</Card.Header>
 				<Card.Body>
 					<p className="text-danger">{error}</p>
 				</Card.Body>
@@ -211,7 +211,7 @@ export default function ModeSettings() {
 				{values.ps4ControllerIDMode === 0 && (
 					<Row className="mb-3">
 						<Col sm={10}>
-							<span className="text-info">已自动使用主机密钥认证</span>
+							<span className="text-info">{t('SettingsPage:hml-ps4-auto-console-auth-hint')}</span>
 						</Col>
 					</Row>
 				)}
@@ -226,7 +226,7 @@ export default function ModeSettings() {
 				<Row className="mb-3">
 					<Col sm={10}>
 						<span className="text-info">
-							PS4电脑模式：支持键盘背键的PS4手柄模式，不支持主机认证
+							{t('SettingsPage:hml-ps4b-mode-hint')}
 						</span>
 					</Col>
 				</Row>
@@ -241,7 +241,7 @@ export default function ModeSettings() {
 				<Row className="mb-3">
 					<Col sm={10}>
 						<span className="text-info">
-							XINPUT电脑模式：支持XInput手柄与复合HID键鼠，不支持主机认证
+							{t('SettingsPage:hml-xinputb-mode-hint')}
 						</span>
 					</Col>
 				</Row>
@@ -280,7 +280,7 @@ export default function ModeSettings() {
 			<Row className="mb-3">
 				<Col sm={10}>
 					<span className="text-success">
-						使用P5General验证器选择本模式，需要在硬件配置中开启USB验证器，并在手柄内置USB接口插入P5General验证器
+						{t('SettingsPage:hml-p5general-mode-hint')}
 					</span>
 				</Col>
 			</Row>
@@ -341,10 +341,10 @@ export default function ModeSettings() {
 		}
 		const success = await WebApi.setGamepadOptions(data);
 		if (success) {
-			setSaveMessage('保存成功！');
+			setSaveMessage(t('SettingsPage:hml-save-success'));
 			setTimeout(() => setSaveMessage(''), 3000);
 		} else {
-			setSaveMessage('保存失败，请重试。');
+			setSaveMessage(t('SettingsPage:hml-save-failed-retry'));
 		}
 	};
 
@@ -353,11 +353,11 @@ export default function ModeSettings() {
 	return (
 		<div>
 			<Card>
-				<Card.Header>模式设置</Card.Header>
+				<Card.Header>{t('SettingsPage:hml-mode-settings-title')}</Card.Header>
 				<Card.Body>
 				<Row className="mb-3">
 					<Col sm={4}>
-						<Form.Label>手柄模式</Form.Label>
+						<Form.Label>{t('SettingsPage:hml-gamepad-mode-label')}</Form.Label>
 						<Form.Select
 							name="inputMode"
 							className="form-select-sm"
@@ -384,12 +384,14 @@ export default function ModeSettings() {
 				<Row className="mb-3">
 					<Col sm={4}>
 						<Button variant="primary" onClick={handleSave}>
-							保存
+							{t('Common:button-save-label')}
 						</Button>
 						{saveMessage && (
 							<span
 								className={`ms-3 ${
-									saveMessage.includes('成功') ? 'text-success' : 'text-danger'
+									saveMessage === t('SettingsPage:hml-save-success')
+										? 'text-success'
+										: 'text-danger'
 								}`}
 							>
 								{saveMessage}

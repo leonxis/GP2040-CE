@@ -209,8 +209,6 @@ export function flattenObject(object) {
 	return toReturn;
 }
 
-const TRIGGER_MAPPING_ERROR_MSG = '扳机键位设置错误，请在按键映射中恢复扳机映射为对应扳机键';
-
 type SaveSection = 'joystick' | 'curve' | 'trigger';
 
 export default function CalibrationSettings() {
@@ -274,12 +272,12 @@ export default function CalibrationSettings() {
 		<div>
 			<Modal show={triggerErrorModalShow} onHide={() => setTriggerErrorModalShow(false)} centered>
 				<Modal.Header closeButton>
-					<Modal.Title>提示</Modal.Title>
+					<Modal.Title>{t('CalibrationSettings:hml-modal-title-hint')}</Modal.Title>
 				</Modal.Header>
-				<Modal.Body>{TRIGGER_MAPPING_ERROR_MSG}</Modal.Body>
+				<Modal.Body>{t('CalibrationSettings:hml-trigger-mapping-error')}</Modal.Body>
 				<Modal.Footer>
 					<Button variant="primary" onClick={() => setTriggerErrorModalShow(false)}>
-						确定
+						{t('CalibrationSettings:hml-button-ok')}
 					</Button>
 				</Modal.Footer>
 			</Modal>

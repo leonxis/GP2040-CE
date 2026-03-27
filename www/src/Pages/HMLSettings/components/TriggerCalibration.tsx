@@ -6,41 +6,44 @@ import * as yup from 'yup';
 
 import Section from '../../../Components/Section';
 import WebApi from '../../../Services/WebApi';
+import i18n from '../../../i18n';
 
 const MIN_TRAVEL_ABOVE_DEADZONE = 1; // 扳机行程须大于死区，如死区 4% 则行程最小 5%
 const ADC_MAX = 4095;
 
+const tc = (key: string) => i18n.t(`CalibrationSettings:${key}`);
+
 export const triggerCalibrationScheme = {
-	linearTriggerEnabled: yup.number().min(0).max(1).label('启用线性扳机'),
-	leftTriggerDeadzone: yup.number().min(0).max(99).label('左扳机死区'),
-	rightTriggerDeadzone: yup.number().min(0).max(99).label('右扳机死区'),
+	linearTriggerEnabled: yup.number().min(0).max(1).label(tc('hml-yup-linear-trigger')),
+	leftTriggerDeadzone: yup.number().min(0).max(99).label(tc('hml-yup-left-deadzone')),
+	rightTriggerDeadzone: yup.number().min(0).max(99).label(tc('hml-yup-right-deadzone')),
 	// 校准得到的原始 ADC：松开时的值、按到底时的值（0–4095），供后端校准使用，与行程滑块独立
-	leftTriggerReleasedRaw: yup.number().min(-1).max(ADC_MAX).label('左扳机松开值'),
-	rightTriggerReleasedRaw: yup.number().min(-1).max(ADC_MAX).label('右扳机松开值'),
-	leftTriggerMaxRaw: yup.number().min(-1).max(ADC_MAX).label('左扳机最大行程原始值'),
-	rightTriggerMaxRaw: yup.number().min(-1).max(ADC_MAX).label('右扳机最大行程原始值'),
+	leftTriggerReleasedRaw: yup.number().min(-1).max(ADC_MAX).label(tc('hml-yup-left-released')),
+	rightTriggerReleasedRaw: yup.number().min(-1).max(ADC_MAX).label(tc('hml-yup-right-released')),
+	leftTriggerMaxRaw: yup.number().min(-1).max(ADC_MAX).label(tc('hml-yup-left-max')),
+	rightTriggerMaxRaw: yup.number().min(-1).max(ADC_MAX).label(tc('hml-yup-right-max')),
 	leftTriggerTravel: yup
 		.number()
 		.min(1)
 		.max(100)
 		.test(
 			'travel-above-deadzone',
-			'左扳机行程须大于死区（如死区4%则行程最小5%）',
+			tc('hml-yup-travel-above-deadzone'),
 			(value, ctx) =>
 				Number(value) > Number(ctx.parent?.leftTriggerDeadzone ?? 0),
 		)
-		.label('左扳机行程'),
+		.label(tc('hml-yup-left-travel')),
 	rightTriggerTravel: yup
 		.number()
 		.min(1)
 		.max(100)
 		.test(
 			'travel-above-deadzone',
-			'右扳机行程须大于死区（如死区4%则行程最小5%）',
+			tc('hml-yup-travel-above-deadzone'),
 			(value, ctx) =>
 				Number(value) > Number(ctx.parent?.rightTriggerDeadzone ?? 0),
 		)
-		.label('右扳机行程'),
+		.label(tc('hml-yup-right-travel')),
 };
 
 // 与后端一致：硬件为扳机下压=低 ADC，未校准时松开=4095、按到底=0（全量程）
@@ -67,6 +70,7 @@ type TriggerCalibrationBlockProps = {
 };
 
 function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBlockProps) {
+	const { t } = useTranslation();
 	const leftCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightCanvasRef = useRef<HTMLCanvasElement>(null);
 	const [showCalibrateModal, setShowCalibrateModal] = useState(false);
@@ -317,14 +321,14 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 							gap: '8px',
 						}}
 					>
-						<div style={{ marginBottom: '2px' }}>左扳机死区：{leftDeadzone}%</div>
+						<div style={{ marginBottom: '2px' }}>{t('CalibrationSettings:hml-left-trigger-deadzone', { pct: leftDeadzone })}</div>
 						<Form.Range
 							min={0}
 							max={99}
 							value={leftDeadzone}
 							onChange={(e) => applyLeftDeadzone(Number(e.target.value))}
 						/>
-						<div style={{ marginBottom: '2px', marginTop: '4px' }}>左扳机行程：{leftTravel}%</div>
+						<div style={{ marginBottom: '2px', marginTop: '4px' }}>{t('CalibrationSettings:hml-left-trigger-travel', { pct: leftTravel })}</div>
 						<Form.Range
 							min={1}
 							max={100}
@@ -333,7 +337,7 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 						/>
 						<div style={{ marginTop: '8px', display: 'flex', justifyContent: 'center' }}>
 							<Button variant="primary" size="sm" onClick={() => openCalibrateModal('left')}>
-								校准左扳机
+								{t('CalibrationSettings:hml-calibrate-left-trigger')}
 							</Button>
 						</div>
 					</div>
@@ -348,14 +352,14 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 							gap: '8px',
 						}}
 					>
-						<div style={{ marginBottom: '2px' }}>右扳机死区：{rightDeadzone}%</div>
+						<div style={{ marginBottom: '2px' }}>{t('CalibrationSettings:hml-right-trigger-deadzone', { pct: rightDeadzone })}</div>
 						<Form.Range
 							min={0}
 							max={99}
 							value={rightDeadzone}
 							onChange={(e) => applyRightDeadzone(Number(e.target.value))}
 						/>
-						<div style={{ marginBottom: '2px', marginTop: '4px' }}>右扳机行程：{rightTravel}%</div>
+						<div style={{ marginBottom: '2px', marginTop: '4px' }}>{t('CalibrationSettings:hml-right-trigger-travel', { pct: rightTravel })}</div>
 						<Form.Range
 							min={1}
 							max={100}
@@ -364,7 +368,7 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 						/>
 						<div style={{ marginTop: '8px', display: 'flex', justifyContent: 'center' }}>
 							<Button variant="primary" size="sm" onClick={() => openCalibrateModal('right')}>
-								校准右扳机
+								{t('CalibrationSettings:hml-calibrate-right-trigger')}
 							</Button>
 						</div>
 					</div>
@@ -384,23 +388,27 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 			{/* 扳机校准模态框：第一步松开扳机点确定，第二步按到底点确定，得到松开值与最大行程两段数据 */}
 			<Modal show={showCalibrateModal} onHide={handleCalibrateClose} centered>
 				<Modal.Header closeButton>
-					<Modal.Title>{calibrateSide === 'left' ? '校准左扳机' : '校准右扳机'}</Modal.Title>
+					<Modal.Title>
+						{calibrateSide === 'left'
+							? t('CalibrationSettings:hml-modal-calibrate-left-title')
+							: t('CalibrationSettings:hml-modal-calibrate-right-title')}
+					</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					{calibrateStep === 1
 						? (calibrateSide === 'left'
-							? '请彻底松开左扳机后点击确定键。'
-							: '请彻底松开右扳机后点击确定键。')
+							? t('CalibrationSettings:hml-modal-calibrate-step1-left')
+							: t('CalibrationSettings:hml-modal-calibrate-step1-right'))
 						: (calibrateSide === 'left'
-							? '请将左扳机按到底后点击确定键。'
-							: '请将右扳机按到底后点击确定键。')}
+							? t('CalibrationSettings:hml-modal-calibrate-step2-left')
+							: t('CalibrationSettings:hml-modal-calibrate-step2-right'))}
 				</Modal.Body>
 				<Modal.Footer style={{ justifyContent: 'flex-end' }}>
 					<Button variant="secondary" onClick={handleCalibrateClose}>
-						取消
+						{t('CalibrationSettings:hml-button-cancel')}
 					</Button>
 					<Button variant="primary" onClick={handleCalibrateConfirm}>
-						确定
+						{t('CalibrationSettings:hml-button-ok')}
 					</Button>
 				</Modal.Footer>
 			</Modal>
@@ -426,9 +434,10 @@ export default function TriggerCalibrationSettings({
 }: TriggerCalibrationSettingsProps) {
 	const { t } = useTranslation();
 	const { handleSubmit } = useFormikContext();
+	const saveOk = saveMessage === t('Common:saved-success-message');
 
 	return (
-		<Section title="扳机校准">
+		<Section title={t('CalibrationSettings:hml-section-trigger-calibration')}>
 			{values?.linearTriggerEnabled ? (
 				<TriggerCalibrationBlock values={values} setFieldValue={setFieldValue} />
 			) : null}
@@ -444,7 +453,7 @@ export default function TriggerCalibrationSettings({
 						{t('Common:button-save-label')}
 					</Button>
 					{saveMessage && (
-						<span className={saveMessage.includes('成功') || saveMessage.includes('success') ? 'text-success' : 'text-danger'}>
+						<span className={saveOk ? 'text-success' : 'text-danger'}>
 							{saveMessage}
 						</span>
 					)}
@@ -453,7 +462,7 @@ export default function TriggerCalibrationSettings({
 					<Form.Check
 						type="switch"
 						id="linear-trigger-enabled"
-						label="启用线性扳机"
+						label={t('CalibrationSettings:hml-enable-linear-trigger-label')}
 						checked={Boolean(values?.linearTriggerEnabled)}
 						onChange={(e) => {
 							const enabled = e.target.checked ? 1 : 0;

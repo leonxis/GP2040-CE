@@ -1664,7 +1664,7 @@ const JoystickCurveSettings = ({
 	};
 	
 	return (
-		<Section title="摇杆曲线设置">
+		<Section title={t('CalibrationSettings:hml-stick-curve-title')}>
 			{isExpanded && (
 			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gridTemplateRows: 'auto auto auto', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
 				{/* Row 1, Column 1: Left stick curve canvas */}
@@ -1691,7 +1691,7 @@ const JoystickCurveSettings = ({
 				{/* Row 1, Column 2: Left stick control points */}
 				<div style={{ width: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start' }}>
 					<div style={{ width: '260px', textAlign: 'left' }}>
-						<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>控制点</div>
+						<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>{t('CalibrationSettings:hml-control-points')}</div>
 						{leftCurvePoints.length > 0 ? (
 							<div style={{ fontSize: '0.875rem' }}>
 								{leftCurvePoints.map((point, originalIndex) => ({ point, originalIndex }))
@@ -1731,11 +1731,11 @@ const JoystickCurveSettings = ({
 													onClick={() => handleLeftDelete(originalIndex)}
 													style={{ padding: '2px 8px', fontSize: '0.75rem' }}
 												>
-													删除
+													{t('CalibrationSettings:hml-delete')}
 												</Button>
 												</div>
 												<div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-													<span style={{ width: '40px', fontSize: '0.8rem' }}>按键:</span>
+													<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
 													<Form.Select
 														size="sm"
 														value={inputValue.buttonMask || 0}
@@ -1762,7 +1762,7 @@ const JoystickCurveSettings = ({
 									})}
 							</div>
 						) : (
-							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>暂无控制点</div>
+							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>{t('CalibrationSettings:hml-no-control-points')}</div>
 						)}
 						{/* Reset and confirm buttons */}
 						<div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px', gap: '8px' }}>
@@ -1771,14 +1771,14 @@ const JoystickCurveSettings = ({
 								size="sm"
 								onClick={handleLeftReset}
 							>
-								重置
+								{t('CalibrationSettings:hml-reset')}
 							</Button>
 							<Button
 								variant="primary"
 								size="sm"
 								onClick={handleLeftConfirm}
 							>
-								确定
+								{t('CalibrationSettings:hml-button-ok')}
 							</Button>
 						</div>
 					</div>
@@ -1787,7 +1787,7 @@ const JoystickCurveSettings = ({
 				{/* Row 1, Column 3: Right stick control points */}
 				<div style={{ width: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start' }}>
 					<div style={{ width: '260px', textAlign: 'left' }}>
-						<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>控制点</div>
+						<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>{t('CalibrationSettings:hml-control-points')}</div>
 						{rightCurvePoints.length > 0 ? (
 							<div style={{ fontSize: '0.875rem' }}>
 								{rightCurvePoints.map((point, originalIndex) => ({ point, originalIndex }))
@@ -1827,11 +1827,11 @@ const JoystickCurveSettings = ({
 													onClick={() => handleRightDelete(originalIndex)}
 													style={{ padding: '2px 8px', fontSize: '0.75rem' }}
 												>
-													删除
+													{t('CalibrationSettings:hml-delete')}
 												</Button>
 												</div>
 												<div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-													<span style={{ width: '40px', fontSize: '0.8rem' }}>按键:</span>
+													<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
 													<Form.Select
 														size="sm"
 														value={inputValue.buttonMask || 0}
@@ -1858,7 +1858,7 @@ const JoystickCurveSettings = ({
 									})}
 							</div>
 						) : (
-							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>暂无控制点</div>
+							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>{t('CalibrationSettings:hml-no-control-points')}</div>
 						)}
 						{/* Reset and confirm buttons */}
 						<div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px', gap: '8px' }}>
@@ -1867,14 +1867,14 @@ const JoystickCurveSettings = ({
 								size="sm"
 								onClick={handleRightReset}
 							>
-								重置
+								{t('CalibrationSettings:hml-reset')}
 							</Button>
 							<Button
 								variant="primary"
 								size="sm"
 								onClick={handleRightConfirm}
 							>
-								确定
+								{t('CalibrationSettings:hml-button-ok')}
 							</Button>
 						</div>
 					</div>
@@ -1904,8 +1904,8 @@ const JoystickCurveSettings = ({
 				{/* Row 2, Column 1: Left stick physical/output distance */}
 				<div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '260px', gridColumn: '1', gap: '8px' }}>
 					<div style={{ fontSize: '0.875rem', textAlign: 'center' }}>
-						<div>当前摇杆物理距离：{(leftLightX !== undefined ? leftLightX * 100 : 0).toFixed(1)}%</div>
-						<div>当前摇杆输出距离：{(leftLightY !== undefined ? leftLightY * 100 : 0).toFixed(1)}%</div>
+						<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftLightX !== undefined ? leftLightX * 100 : 0).toFixed(1) })}</div>
+						<div>{t('CalibrationSettings:hml-out-distance-left', { pct: (leftLightY !== undefined ? leftLightY * 100 : 0).toFixed(1) })}</div>
 					</div>
 				</div>
 
@@ -1914,7 +1914,7 @@ const JoystickCurveSettings = ({
 					<div style={{ width: '260px', textAlign: 'left' }}>
 						<div style={{ marginBottom: '6px' }}>
 							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								内部死区: {(values?.inner_deadzone || 0).toFixed(1)}%
+								{t('CalibrationSettings:hml-inner-deadzone-left', { pct: (values?.inner_deadzone || 0).toFixed(1) })}
 							</Form.Label>
 							<Form.Range
 								min={0}
@@ -1927,11 +1927,11 @@ const JoystickCurveSettings = ({
 						<div style={{ marginBottom: '6px' }}>
 							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
 								<Form.Label className="mb-0" style={{ textAlign: 'left', fontSize: '0.875rem', marginBottom: '0' }}>
-									反死区: {(values?.anti_deadzone || 0).toFixed(1)}%
+									{t('CalibrationSettings:hml-anti-deadzone-left', { pct: (values?.anti_deadzone || 0).toFixed(1) })}
 								</Form.Label>
 								<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 									<span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
-										{values?.fixed_anti_deadzone ? '固定' : '线性'}
+										{values?.fixed_anti_deadzone ? t('CalibrationSettings:hml-fixed') : t('CalibrationSettings:hml-linear')}
 									</span>
 									<Form.Check
 										type="switch"
@@ -1958,7 +1958,7 @@ const JoystickCurveSettings = ({
 					<div style={{ width: '260px', textAlign: 'left' }}>
 						<div style={{ marginBottom: '6px' }}>
 							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								内部死区: {(values?.inner_deadzone2 || 0).toFixed(1)}%
+								{t('CalibrationSettings:hml-inner-deadzone-right', { pct: (values?.inner_deadzone2 || 0).toFixed(1) })}
 							</Form.Label>
 							<Form.Range
 								min={0}
@@ -1971,11 +1971,11 @@ const JoystickCurveSettings = ({
 						<div style={{ marginBottom: '6px' }}>
 							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
 								<Form.Label className="mb-0" style={{ textAlign: 'left', fontSize: '0.875rem', marginBottom: '0' }}>
-									反死区: {(values?.anti_deadzone2 || 0).toFixed(1)}%
+									{t('CalibrationSettings:hml-anti-deadzone-right', { pct: (values?.anti_deadzone2 || 0).toFixed(1) })}
 								</Form.Label>
 								<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 									<span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
-										{values?.fixed_anti_deadzone2 ? '固定' : '线性'}
+										{values?.fixed_anti_deadzone2 ? t('CalibrationSettings:hml-fixed') : t('CalibrationSettings:hml-linear')}
 									</span>
 									<Form.Check
 										type="switch"
@@ -2000,8 +2000,8 @@ const JoystickCurveSettings = ({
 				{/* Row 2, Column 4: Right stick physical/output distance */}
 				<div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '260px', gridColumn: '4', gap: '8px' }}>
 					<div style={{ fontSize: '0.875rem', textAlign: 'center' }}>
-						<div>当前摇杆物理距离：{(rightLightX !== undefined ? rightLightX * 100 : 0).toFixed(1)}%</div>
-						<div>当前摇杆输出距离：{(rightLightY !== undefined ? rightLightY * 100 : 0).toFixed(1)}%</div>
+						<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightLightX !== undefined ? rightLightX * 100 : 0).toFixed(1) })}</div>
+						<div>{t('CalibrationSettings:hml-out-distance-right', { pct: (rightLightY !== undefined ? rightLightY * 100 : 0).toFixed(1) })}</div>
 					</div>
 				</div>
 
@@ -2012,7 +2012,7 @@ const JoystickCurveSettings = ({
 						<Form.Control
 							type="text"
 							size="sm"
-							placeholder="预设名称"
+							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
 							value={presetInputs[0].name}
 							onChange={(e) => handlePresetNameChange(0, e.target.value)}
 							style={{ flex: 1, fontSize: '0.875rem' }}
@@ -2023,7 +2023,7 @@ const JoystickCurveSettings = ({
 							onClick={() => handleApplyPresetToLeft(0)}
 							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
 						>
-							应用左
+							{t('CalibrationSettings:hml-apply-left')}
 						</Button>
 						<Button
 							variant="outline-primary"
@@ -2031,12 +2031,12 @@ const JoystickCurveSettings = ({
 							onClick={() => handleApplyPresetToRight(0)}
 							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
 						>
-							应用右
+							{t('CalibrationSettings:hml-apply-right')}
 						</Button>
 					</div>
 					{/* Row 2: Activation button with label */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>右摇杆快切键：</span>
+						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
 						<Form.Select
 							size="sm"
 							value={presetInputs[0].activationButtonMask ?? 0}
@@ -2052,14 +2052,14 @@ const JoystickCurveSettings = ({
 								// Check if activation button is already used by another preset
 								if (isActivationButtonMaskUsed(0, finalButtonMask, tempPresets)) {
 									// Button mask is already used, keep current value
-									alert('该激活按键已被其他预设使用，请选择其他按键');
+									alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
 									return;
 								}
 								
 								// Check if activation button conflicts with curve control point button masks
 								if (isActivationButtonMaskConflictingWithCurvePoints(0, finalButtonMask, tempPresets)) {
 									// Button mask conflicts with curve control points, keep current value
-									alert('该激活按键与摇杆曲线控制点的触发按键冲突，请选择其他按键');
+									alert(t('CalibrationSettings:hml-alert-preset-key-conflict-curve'));
 									return;
 								}
 								
@@ -2107,7 +2107,7 @@ const JoystickCurveSettings = ({
 							/>
 						</div>
 							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem' }}>
-								<span style={{ width: '40px', fontSize: '0.8rem' }}>按键:</span>
+								<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
 								<Form.Select
 									size="sm"
 									value={presetInputs[0].points[idx].buttonMask || 0}
@@ -2137,7 +2137,7 @@ const JoystickCurveSettings = ({
 						<Form.Control
 							type="text"
 							size="sm"
-							placeholder="预设名称"
+							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
 							value={presetInputs[1].name}
 							onChange={(e) => handlePresetNameChange(1, e.target.value)}
 							style={{ flex: 1, fontSize: '0.875rem' }}
@@ -2148,7 +2148,7 @@ const JoystickCurveSettings = ({
 							onClick={() => handleApplyPresetToLeft(1)}
 							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
 						>
-							应用左
+							{t('CalibrationSettings:hml-apply-left')}
 						</Button>
 						<Button
 							variant="outline-primary"
@@ -2156,12 +2156,12 @@ const JoystickCurveSettings = ({
 							onClick={() => handleApplyPresetToRight(1)}
 							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
 						>
-							应用右
+							{t('CalibrationSettings:hml-apply-right')}
 						</Button>
 					</div>
 					{/* Row 2: Activation button with label */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>右摇杆快切键：</span>
+						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
 						<Form.Select
 							size="sm"
 							value={presetInputs[1].activationButtonMask ?? 0}
@@ -2177,14 +2177,14 @@ const JoystickCurveSettings = ({
 								// Check if activation button is already used by another preset
 								if (isActivationButtonMaskUsed(1, finalButtonMask, tempPresets)) {
 									// Button mask is already used, keep current value
-									alert('该激活按键已被其他预设使用，请选择其他按键');
+									alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
 									return;
 								}
 								
 								// Check if activation button conflicts with curve control point button masks
 								if (isActivationButtonMaskConflictingWithCurvePoints(1, finalButtonMask, tempPresets)) {
 									// Button mask conflicts with curve control points, keep current value
-									alert('该激活按键与摇杆曲线控制点的触发按键冲突，请选择其他按键');
+									alert(t('CalibrationSettings:hml-alert-preset-key-conflict-curve'));
 									return;
 								}
 								
@@ -2231,7 +2231,7 @@ const JoystickCurveSettings = ({
 							/>
 						</div>
 							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem' }}>
-								<span style={{ width: '40px', fontSize: '0.8rem' }}>按键:</span>
+								<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
 								<Form.Select
 									size="sm"
 									value={presetInputs[1].points[idx].buttonMask || 0}
@@ -2261,7 +2261,7 @@ const JoystickCurveSettings = ({
 						<Form.Control
 							type="text"
 							size="sm"
-							placeholder="预设名称"
+							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
 							value={presetInputs[2].name}
 							onChange={(e) => handlePresetNameChange(2, e.target.value)}
 							style={{ flex: 1, fontSize: '0.875rem' }}
@@ -2272,7 +2272,7 @@ const JoystickCurveSettings = ({
 							onClick={() => handleApplyPresetToLeft(2)}
 							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
 						>
-							应用左
+							{t('CalibrationSettings:hml-apply-left')}
 						</Button>
 						<Button
 							variant="outline-primary"
@@ -2280,12 +2280,12 @@ const JoystickCurveSettings = ({
 							onClick={() => handleApplyPresetToRight(2)}
 							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
 						>
-							应用右
+							{t('CalibrationSettings:hml-apply-right')}
 						</Button>
 					</div>
 					{/* Row 2: Activation button with label */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>右摇杆快切键：</span>
+						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
 						<Form.Select
 							size="sm"
 							value={presetInputs[2].activationButtonMask ?? 0}
@@ -2301,14 +2301,14 @@ const JoystickCurveSettings = ({
 								// Check if activation button is already used by another preset
 								if (isActivationButtonMaskUsed(2, finalButtonMask, tempPresets)) {
 									// Button mask is already used, keep current value
-									alert('该激活按键已被其他预设使用，请选择其他按键');
+									alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
 									return;
 								}
 								
 								// Check if activation button conflicts with curve control point button masks
 								if (isActivationButtonMaskConflictingWithCurvePoints(2, finalButtonMask, tempPresets)) {
 									// Button mask conflicts with curve control points, keep current value
-									alert('该激活按键与摇杆曲线控制点的触发按键冲突，请选择其他按键');
+									alert(t('CalibrationSettings:hml-alert-preset-key-conflict-curve'));
 									return;
 								}
 								
@@ -2355,7 +2355,7 @@ const JoystickCurveSettings = ({
 							/>
 						</div>
 							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem' }}>
-								<span style={{ width: '40px', fontSize: '0.8rem' }}>按键:</span>
+								<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
 								<Form.Select
 									size="sm"
 									value={presetInputs[2].points[idx].buttonMask || 0}
@@ -2385,7 +2385,7 @@ const JoystickCurveSettings = ({
 						<Form.Control
 							type="text"
 							size="sm"
-							placeholder="预设名称"
+							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
 							value={presetInputs[3].name}
 							onChange={(e) => handlePresetNameChange(3, e.target.value)}
 							style={{ flex: 1, fontSize: '0.875rem' }}
@@ -2396,7 +2396,7 @@ const JoystickCurveSettings = ({
 							onClick={() => handleApplyPresetToLeft(3)}
 							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
 						>
-							应用左
+							{t('CalibrationSettings:hml-apply-left')}
 						</Button>
 						<Button
 							variant="outline-primary"
@@ -2404,12 +2404,12 @@ const JoystickCurveSettings = ({
 							onClick={() => handleApplyPresetToRight(3)}
 							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
 						>
-							应用右
+							{t('CalibrationSettings:hml-apply-right')}
 						</Button>
 					</div>
 					{/* Row 2: Activation button with label */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>右摇杆快切键：</span>
+						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
 						<Form.Select
 							size="sm"
 							value={presetInputs[3].activationButtonMask ?? 0}
@@ -2425,14 +2425,14 @@ const JoystickCurveSettings = ({
 								// Check if activation button is already used by another preset
 								if (isActivationButtonMaskUsed(3, finalButtonMask, tempPresets)) {
 									// Button mask is already used, keep current value
-									alert('该激活按键已被其他预设使用，请选择其他按键');
+									alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
 									return;
 								}
 								
 								// Check if activation button conflicts with curve control point button masks
 								if (isActivationButtonMaskConflictingWithCurvePoints(3, finalButtonMask, tempPresets)) {
 									// Button mask conflicts with curve control points, keep current value
-									alert('该激活按键与摇杆曲线控制点的触发按键冲突，请选择其他按键');
+									alert(t('CalibrationSettings:hml-alert-preset-key-conflict-curve'));
 									return;
 								}
 								
@@ -2479,7 +2479,7 @@ const JoystickCurveSettings = ({
 							/>
 						</div>
 							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem' }}>
-								<span style={{ width: '40px', fontSize: '0.8rem' }}>按键:</span>
+								<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
 								<Form.Select
 									size="sm"
 									value={presetInputs[3].points[idx].buttonMask || 0}
@@ -2518,7 +2518,7 @@ const JoystickCurveSettings = ({
 						{t('Common:button-save-label')}
 					</Button>
 					{saveMessage && (
-						<span className={saveMessage.includes('成功') || saveMessage.includes('success') ? 'text-success' : 'text-danger'}>
+						<span className={saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}>
 							{saveMessage}
 						</span>
 					)}
@@ -2528,7 +2528,7 @@ const JoystickCurveSettings = ({
 					<Form.Check
 						type="switch"
 						id="joystick-curve-enabled"
-						label="启用摇杆曲线"
+						label={t('CalibrationSettings:hml-enable-stick-curve-label')}
 						checked={isExpanded}
 						onChange={(e) => {
 							const enabled = e.target.checked;

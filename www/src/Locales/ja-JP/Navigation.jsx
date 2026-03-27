@@ -7,6 +7,7 @@ export default {
 	'docs-label': '公式サイト',
 
 	'home-label': 'ホーム',
+	'hml-settings-label': 'HML設定',
 	'led-config-label': 'LED 設定',
 	'links-label': 'リンク',
 	'macro-label': 'マクロ設定',

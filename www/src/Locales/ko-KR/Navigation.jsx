@@ -7,6 +7,7 @@ export default {
 	'docs-label': '공식 사이트',
 	'github-label': 'GitHub',
 	'home-label': '홈',
+	'hml-settings-label': 'HML settings',
 	'led-config-label': 'LED 구성',
 	'links-label': '링크',
 	'macro-label': '매크로',

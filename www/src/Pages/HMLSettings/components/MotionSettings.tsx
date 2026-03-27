@@ -64,12 +64,12 @@ export default function MotionSettings() {
 		<div>
 			<Modal show={errorModalShow} onHide={() => setErrorModalShow(false)} centered>
 				<Modal.Header closeButton>
-					<Modal.Title>提示</Modal.Title>
+					<Modal.Title>{t('CalibrationSettings:hml-modal-title-hint')}</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>{t('Common:saved-error-message')}</Modal.Body>
 				<Modal.Footer>
 					<Button variant="primary" onClick={() => setErrorModalShow(false)}>
-						确定
+						{t('CalibrationSettings:hml-button-confirm')}
 					</Button>
 				</Modal.Footer>
 			</Modal>

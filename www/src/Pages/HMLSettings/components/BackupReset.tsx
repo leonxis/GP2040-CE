@@ -52,7 +52,7 @@ const API_BINDING = {
 
 export default function BackupReset() {
 	const inputFileSelect = useRef();
-	const { t } = useTranslation('');
+	const { t } = useTranslation();
 
 	const [optionState, setOptionStateData] = useState({});
 	const [noticeMessage, setNoticeMessage] = useState('');
@@ -202,7 +202,7 @@ export default function BackupReset() {
 
 	return (
 		<div>
-			<Section title="备份重置">
+			<Section title={t('SettingsPage:hml-section-backup-reset')}>
 			<div style={{ paddingLeft: '100px' }}>
 				<div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-start' }}>
 					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -214,7 +214,7 @@ export default function BackupReset() {
 							{t('Common:button-reset-settings-label')}
 						</Button>
 						<span className="text-muted">
-							重置手柄所有设置为出厂默认
+							{t('SettingsPage:hml-reset-hint')}
 						</span>
 					</div>
 					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -226,7 +226,7 @@ export default function BackupReset() {
 							{t('Common:button-save-label')}
 						</Button>
 						<span className="text-muted">
-							保存手柄所有设置备份文件到本地磁盘
+							{t('SettingsPage:hml-backup-hint')}
 						</span>
 					</div>
 					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -238,7 +238,7 @@ export default function BackupReset() {
 							{t('Common:button-load-label')}
 						</Button>
 						<span className="text-muted">
-							导入保存在本地的设置备份到手柄
+							{t('SettingsPage:hml-load-hint')}
 						</span>
 					</div>
 					{/* Hidden file input for load */}

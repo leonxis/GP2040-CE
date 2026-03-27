@@ -21,6 +21,12 @@ type OptionType = {
 	customDpadMask: number;
 };
 
+/** Minimal AppContext shape used by this component (full context is defined in JS). */
+type AppContextShape = {
+	updateUsedPins?: () => void | Promise<void>;
+	buttonLabels?: { buttonLabelType?: string; swapTpShareLabels?: boolean };
+};
+
 const disabledOptions = [
 	BUTTON_ACTIONS.RESERVED,
 	BUTTON_ACTIONS.ASSIGNED_TO_ADDON,
@@ -44,8 +50,10 @@ const isDisabled = (action: PinActionValues) =>
 // Check if action is a keyboard key (KEYBOARD_KEY_* actions)
 const isKeyboardKey = (action: PinActionValues) => {
 	// Keyboard key actions range from KEYBOARD_KEY_A (131) to KEYBOARD_KEY_9 (169)
-	return action >= BUTTON_ACTIONS.KEYBOARD_KEY_A && 
-	       action <= BUTTON_ACTIONS.KEYBOARD_KEY_9;
+	return (
+		action >= BUTTON_ACTIONS.KEYBOARD_KEY_A &&
+		action <= BUTTON_ACTIONS.KEYBOARD_KEY_9
+	);
 };
 
 const options = Object.entries(BUTTON_ACTIONS)
@@ -178,12 +186,12 @@ const getMultiValue = (pinData: MaskPayload) => {
 
 	return pinData.action === BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO
 		? options.filter(
-				({ type, customButtonMask, customDpadMask }) =>
-					(pinData.customButtonMask & customButtonMask &&
-						type === 'customButtonMask') ||
-					(pinData.customDpadMask & customDpadMask &&
-						type === 'customDpadMask'),
-		  )
+			({ type, customButtonMask, customDpadMask }) =>
+				(pinData.customButtonMask & customButtonMask &&
+					type === 'customButtonMask') ||
+				(pinData.customDpadMask & customDpadMask &&
+					type === 'customDpadMask'),
+		)
 		: options.filter((option) => option.value === pinData.action);
 };
 
@@ -265,8 +273,6 @@ export default function BackButtonMapping() {
 		leftBack2:  { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 		rightBack2: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 	});
-	const [backAddonSaveMsg, setBackAddonSaveMsg] = useState('');
-	const [backAddonSaving, setBackAddonSaving] = useState(false);
 
 	const defaultPinData: MaskPayload = {
 		action: BUTTON_ACTIONS.NONE,
@@ -287,7 +293,7 @@ export default function BackButtonMapping() {
 		if (!appContext) {
 			return omit(defaultButtons, ['label', 'value']);
 		}
-		const { buttonLabels } = appContext as any;
+		const { buttonLabels } = appContext as AppContextShape;
 		if (!buttonLabels) {
 			return omit(defaultButtons, ['label', 'value']);
 		}
@@ -449,26 +455,6 @@ export default function BackButtonMapping() {
 		}
 	}, [fnOptions, t]);
 
-	const handleSaveBackAddon = useCallback(async () => {
-		setBackAddonSaveMsg('');
-		setBackAddonSaving(true);
-		try {
-			await WebApi.setBackButtonAddonOptions({
-				leftBack1:  backAddonOptions.leftBack1,
-				rightBack1: backAddonOptions.rightBack1,
-				leftBack2:  backAddonOptions.leftBack2,
-				rightBack2: backAddonOptions.rightBack2,
-			});
-			setBackAddonSaveMsg(t('Common:saved-success-message'));
-			setTimeout(() => setBackAddonSaveMsg(''), 3000);
-		} catch (e) {
-			setBackAddonSaveMsg(t('Common:saved-error-message'));
-			setTimeout(() => setBackAddonSaveMsg(''), 3000);
-		} finally {
-			setBackAddonSaving(false);
-		}
-	}, [backAddonOptions, t]);
-
 	// 保存引脚映射
 	const handleSave = useCallback(async () => {
 		setSaveMessage('');
@@ -476,7 +462,7 @@ export default function BackButtonMapping() {
 		try {
 			await saveProfiles();
 			if (appContext) {
-				const { updateUsedPins } = appContext as any;
+				const { updateUsedPins } = appContext as AppContextShape;
 				if (updateUsedPins) {
 					updateUsedPins();
 				}
@@ -519,7 +505,7 @@ export default function BackButtonMapping() {
 			});
 
 			if (appContext) {
-				const { updateUsedPins } = appContext as any;
+				const { updateUsedPins } = appContext as AppContextShape;
 				if (updateUsedPins) {
 					updateUsedPins();
 				}
@@ -543,30 +529,28 @@ export default function BackButtonMapping() {
 	// - 右背键ER=GPIO24
 	const gpioPins = [25, 24];
 	
-	// 背键GPIO引脚标签映射
-	const backButtonLabels: Record<number, string> = {
-		25: '左背键EL',
-		24: '右背键ER',
+	const backGpioLabelKey: Record<number, string> = {
+		25: 'hml-paddle-left-el',
+		24: 'hml-paddle-right-er',
 	};
-	
-	// 按键交换的GPIO引脚列表（上方的分享/选项/PS/触摸板，再为其余按键）
+
 	const swapGpioPins = [
-		{ pin: 18, label: '分享键', pinKey: getPinKey(18) },
-		{ pin: 19, label: '选项键', pinKey: getPinKey(19) },
-		{ pin: 8, label: 'PS键', pinKey: getPinKey(8) },
-		{ pin: 12, label: '触摸板', pinKey: getPinKey(12) },
-		{ pin: 16, label: '左键', pinKey: getPinKey(16) },
-		{ pin: 17, label: '右键', pinKey: getPinKey(17) },
-		{ pin: 23, label: '上键', pinKey: getPinKey(23) },
-		{ pin: 7, label: '下键', pinKey: getPinKey(7) },
-		{ pin: 9, label: '圆圈', pinKey: getPinKey(9) },
-		{ pin: 15, label: '叉叉', pinKey: getPinKey(15) },
-		{ pin: 14, label: '三角', pinKey: getPinKey(14) },
-		{ pin: 13, label: '方块', pinKey: getPinKey(13) },
-		{ pin: 22, label: '左肩键', pinKey: getPinKey(22) },
-		{ pin: 21, label: '右肩键', pinKey: getPinKey(21) },
-		{ pin: 29, label: '左扳机', pinKey: getPinKey(29) },
-		{ pin: 28, label: '右扳机', pinKey: getPinKey(28) },
+		{ pin: 18, labelKey: 'hml-pin-share', pinKey: getPinKey(18) },
+		{ pin: 19, labelKey: 'hml-pin-options', pinKey: getPinKey(19) },
+		{ pin: 8, labelKey: 'hml-pin-ps', pinKey: getPinKey(8) },
+		{ pin: 12, labelKey: 'hml-pin-touchpad', pinKey: getPinKey(12) },
+		{ pin: 16, labelKey: 'hml-pin-mouse-left', pinKey: getPinKey(16) },
+		{ pin: 17, labelKey: 'hml-pin-mouse-right', pinKey: getPinKey(17) },
+		{ pin: 23, labelKey: 'hml-pin-up', pinKey: getPinKey(23) },
+		{ pin: 7, labelKey: 'hml-pin-down', pinKey: getPinKey(7) },
+		{ pin: 9, labelKey: 'hml-pin-circle', pinKey: getPinKey(9) },
+		{ pin: 15, labelKey: 'hml-pin-cross', pinKey: getPinKey(15) },
+		{ pin: 14, labelKey: 'hml-pin-triangle', pinKey: getPinKey(14) },
+		{ pin: 13, labelKey: 'hml-pin-square', pinKey: getPinKey(13) },
+		{ pin: 22, labelKey: 'hml-pin-l1', pinKey: getPinKey(22) },
+		{ pin: 21, labelKey: 'hml-pin-r1', pinKey: getPinKey(21) },
+		{ pin: 29, labelKey: 'hml-pin-l2', pinKey: getPinKey(29) },
+		{ pin: 28, labelKey: 'hml-pin-r2', pinKey: getPinKey(28) },
 	];
 
 	// 保存按钮组件（避免重复代码）
@@ -598,13 +582,15 @@ export default function BackButtonMapping() {
 	return (
 		<div>
 			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>背键映射</Card.Header>
+				<Card.Header>{t('SettingsPage:hml-tab-back-buttons')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3 mb-3">
 						{gpioPins.map((pin) => {
 							const pinKey = getPinKey(pin);
 							const pinData = pins[pinKey] || defaultPinData;
-							const label = backButtonLabels[pin] || `GPIO${pin}`;
+							const label = backGpioLabelKey[pin]
+								? t(`CalibrationSettings:${backGpioLabelKey[pin]}`)
+								: `GPIO${pin}`;
 							return (
 								<Col sm={6} md={6} key={`gpio-${pin}`}>
 									<div className="d-flex align-items-center">
@@ -631,11 +617,12 @@ export default function BackButtonMapping() {
 					{/* 逻辑背键映射（插件使用）：与 GPIO 解耦，仅持久化动作 */}
 					<Row className="g-3">
 						{[
-							{ key: 'leftBack1', label: '左背键1' },
-							{ key: 'rightBack1', label: '右背键1' },
-							{ key: 'leftBack2', label: '左背键2' },
-							{ key: 'rightBack2', label: '右背键2' },
-						].map(({ key, label }) => {
+							{ key: 'leftBack1', labelKey: 'hml-paddle-left-1' },
+							{ key: 'rightBack1', labelKey: 'hml-paddle-right-1' },
+							{ key: 'leftBack2', labelKey: 'hml-paddle-left-2' },
+							{ key: 'rightBack2', labelKey: 'hml-paddle-right-2' },
+						].map(({ key, labelKey }) => {
+							const label = t(`CalibrationSettings:${labelKey}`);
 							const mappingData = backAddonOptions[key] || defaultPinData;
 							return (
 								<Col sm={6} md={6} key={`back-addon-${key}`}>
@@ -687,24 +674,24 @@ export default function BackButtonMapping() {
 			</Card>
 
 		<Card style={{ marginBottom: '1rem' }}>
-			<Card.Header>触摸板映射</Card.Header>
+			<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
 			<Card.Body>
 				{/* 4键触摸板开启：显示左上/右上/左下/右下四键 */}
 				{fourKeyTouchpadEnabled && (
 					<>
 						<Row className="g-3">
 							{[
-								{ key: 'key4', label: '左上触摸键' },
-								{ key: 'key1', label: '右上触摸键' },
-								{ key: 'key3', label: '左下触摸键' },
-								{ key: 'key2', label: '右下触摸键' },
-							].map(({ key, label }) => {
+								{ key: 'key4', labelKey: 'hml-touch-upper-left' },
+								{ key: 'key1', labelKey: 'hml-touch-upper-right' },
+								{ key: 'key3', labelKey: 'hml-touch-lower-left' },
+								{ key: 'key2', labelKey: 'hml-touch-lower-right' },
+							].map(({ key, labelKey }) => {
 								const mappingData = touchpadOptions[key] || defaultPinData;
 								return (
 									<Col sm={6} md={6} key={`touchpad-${key}`}>
 										<div className="d-flex align-items-center">
 											<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
-												<label>{label}</label>
+												<label>{t(`CalibrationSettings:${labelKey}`)}</label>
 											</div>
 											<CustomSelect
 												isClearable
@@ -743,15 +730,15 @@ export default function BackButtonMapping() {
 					<>
 						<Row className="g-3">
 							{[
-								{ key: 'leftKey',  label: '左触摸键' },
-								{ key: 'rightKey', label: '右触摸键' },
-							].map(({ key, label }) => {
+								{ key: 'leftKey', labelKey: 'hml-touch-left' },
+								{ key: 'rightKey', labelKey: 'hml-touch-right' },
+							].map(({ key, labelKey }) => {
 								const mappingData = twoKeyOptions[key] || defaultPinData;
 								return (
 									<Col sm={6} md={6} key={`twokey-${key}`}>
 										<div className="d-flex align-items-center">
 											<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
-												<label>{label}</label>
+												<label>{t(`CalibrationSettings:${labelKey}`)}</label>
 											</div>
 											<CustomSelect
 												isClearable
@@ -787,28 +774,28 @@ export default function BackButtonMapping() {
 
 				{/* 两个触摸板开关均关闭：显示禁用提示 */}
 				{!fourKeyTouchpadEnabled && !twoKeyTouchpadEnabled && (
-					<p className="text-muted mb-0">已禁用触摸板开关</p>
+					<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
 				)}
 			</Card.Body>
 		</Card>
 			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>FN键映射</Card.Header>
+				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
 						{[
-							{ key: 'leftFn', label: '左FN键' },
-							{ key: 'rightFn', label: '右FN键' },
-							{ key: 'leftMt', label: '左MT键' },
-							{ key: 'rightMt', label: '右MT键' },
-							{ key: 'extLeftTrigger', label: 'Ext左扳机' },
-							{ key: 'extRightTrigger', label: 'Ext右扳机' },
-						].map(({ key, label }) => {
+							{ key: 'leftFn', labelKey: 'hml-fn-left' },
+							{ key: 'rightFn', labelKey: 'hml-fn-right' },
+							{ key: 'leftMt', labelKey: 'hml-mt-left' },
+							{ key: 'rightMt', labelKey: 'hml-mt-right' },
+							{ key: 'extLeftTrigger', labelKey: 'hml-ext-l2' },
+							{ key: 'extRightTrigger', labelKey: 'hml-ext-r2' },
+						].map(({ key, labelKey }) => {
 							const mappingData = fnOptions[key] || defaultPinData;
 							return (
 								<Col sm={6} md={6} key={`fn-${key}`}>
 									<div className="d-flex align-items-center">
 										<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
-											<label>{label}</label>
+											<label>{t(`CalibrationSettings:${labelKey}`)}</label>
 										</div>
 										<CustomSelect
 											isClearable
@@ -842,16 +829,16 @@ export default function BackButtonMapping() {
 				</Card.Body>
 			</Card>
 			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>按键交换</Card.Header>
+				<Card.Header>{t('SettingsPage:hml-key-swap-title')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{swapGpioPins.map(({ pin, label, pinKey }) => {
+						{swapGpioPins.map(({ pin, labelKey, pinKey }) => {
 							const pinData = pins[pinKey] || defaultPinData;
 							return (
 								<Col sm={6} md={6} key={`swap-gpio-${pin}`}>
 									<div className="d-flex align-items-center">
 										<div className="d-flex flex-shrink-0" style={{ width: '8rem' }}>
-											<label>{label}</label>
+											<label>{t(`CalibrationSettings:${labelKey}`)}</label>
 										</div>
 										<CustomSelect
 											isClearable

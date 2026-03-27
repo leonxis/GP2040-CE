@@ -64,7 +64,7 @@ const Navigation = () => {
 			<Navbar.Collapse id="basic-navbar-nav">
 				<Nav className="me-auto nav-menu">
 					<Nav.Link as={NavLink} to="/hml-settings" eventKey={eventKey++}>
-						HML设置
+						{t('Navigation:hml-settings-label')}
 					</Nav.Link>
 					<Nav.Link as={NavLink} to="/settings" eventKey={eventKey++}>
 						{t('Navigation:settings-label')}

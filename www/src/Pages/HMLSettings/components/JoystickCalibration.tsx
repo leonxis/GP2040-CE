@@ -1225,7 +1225,7 @@ const JoystickCalibration = ({
 
 					{/* Row 1, Column 2: Left finetune shape controls */}
 					<FinetuneShapeControls
-						title="左摇杆外圈调教"
+						title={t('CalibrationSettings:hml-outer-tune-left-title')}
 						forceCircular={leftFinetuneShapeForceCircular}
 						amplify={leftFinetuneShapeAmplify}
 						onForceCircularChange={(value) => {
@@ -1240,7 +1240,7 @@ const JoystickCalibration = ({
 
 					{/* Row 1, Column 3: Right finetune shape controls */}
 					<FinetuneShapeControls
-						title="右摇杆外圈调教"
+						title={t('CalibrationSettings:hml-outer-tune-right-title')}
 						forceCircular={rightFinetuneShapeForceCircular}
 						amplify={rightFinetuneShapeAmplify}
 						onForceCircularChange={(value) => {
@@ -1400,21 +1400,21 @@ const JoystickCalibration = ({
 			{/* Range Data Detail Modals */}
 			<Modal show={showLeftRangeDataModal} onHide={() => setShowLeftRangeDataModal(false)} size="lg">
 				<Modal.Header closeButton>
-					<Modal.Title>左摇杆外圈校准数据</Modal.Title>
+					<Modal.Title>{t('CalibrationSettings:hml-modal-outer-ring-left-title')}</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					<div className="mb-3">
-						<strong>摇杆中心数据:</strong> ({leftStickDetailData.centerX.toFixed(1)}, {leftStickDetailData.centerY.toFixed(1)})
+						<strong>{t('CalibrationSettings:hml-stick-center-data')}</strong> ({leftStickDetailData.centerX.toFixed(1)}, {leftStickDetailData.centerY.toFixed(1)})
 					</div>
 					<div className="mb-2 small text-muted">
-						数据条目数: {leftRangeDataSnapshot.length} / {CIRCULARITY_DATA_SIZE}
+						{t('CalibrationSettings:hml-data-count', { n: leftRangeDataSnapshot.length, max: CIRCULARITY_DATA_SIZE })}
 					</div>
 					<Table striped bordered hover size="sm">
 						<thead>
 							<tr>
-								<th>序号</th>
-								<th>角度范围</th>
-								<th>缩放比</th>
+								<th>{t('CalibrationSettings:hml-table-index')}</th>
+								<th>{t('CalibrationSettings:hml-table-angle-range')}</th>
+								<th>{t('CalibrationSettings:hml-table-scale')}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -1435,28 +1435,28 @@ const JoystickCalibration = ({
 				</Modal.Body>
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => setShowLeftRangeDataModal(false)}>
-						关闭
+						{t('CalibrationSettings:hml-button-close')}
 					</Button>
 				</Modal.Footer>
 			</Modal>
 			
 			<Modal show={showRightRangeDataModal} onHide={() => setShowRightRangeDataModal(false)} size="lg">
 				<Modal.Header closeButton>
-					<Modal.Title>右摇杆外圈校准数据</Modal.Title>
+					<Modal.Title>{t('CalibrationSettings:hml-modal-outer-ring-right-title')}</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					<div className="mb-3">
-						<strong>摇杆中心数据:</strong> ({rightStickDetailData.centerX.toFixed(1)}, {rightStickDetailData.centerY.toFixed(1)})
+						<strong>{t('CalibrationSettings:hml-stick-center-data')}</strong> ({rightStickDetailData.centerX.toFixed(1)}, {rightStickDetailData.centerY.toFixed(1)})
 					</div>
 					<div className="mb-2 small text-muted">
-						数据条目数: {rightRangeDataSnapshot.length} / {CIRCULARITY_DATA_SIZE}
+						{t('CalibrationSettings:hml-data-count', { n: rightRangeDataSnapshot.length, max: CIRCULARITY_DATA_SIZE })}
 					</div>
 					<Table striped bordered hover size="sm">
 						<thead>
 							<tr>
-								<th>序号</th>
-								<th>角度范围</th>
-								<th>缩放比</th>
+								<th>{t('CalibrationSettings:hml-table-index')}</th>
+								<th>{t('CalibrationSettings:hml-table-angle-range')}</th>
+								<th>{t('CalibrationSettings:hml-table-scale')}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -1477,7 +1477,7 @@ const JoystickCalibration = ({
 				</Modal.Body>
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => setShowRightRangeDataModal(false)}>
-						关闭
+						{t('CalibrationSettings:hml-button-close')}
 					</Button>
 				</Modal.Footer>
 			</Modal>
@@ -1492,13 +1492,13 @@ const JoystickCalibration = ({
 				size="lg"
 			>
 				<Modal.Header closeButton>
-					<Modal.Title>摇杆步长设置 - 左摇杆</Modal.Title>
+					<Modal.Title>{t('CalibrationSettings:hml-modal-stick-step-left-title')}</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					{/* Jitter Filter Slider */}
 					<div className="mb-4">
 						<Form.Label>
-							摇杆分辨率：{leftJitterFilter} bit，步长：{Math.round(Math.pow(2, 16 - leftJitterFilter))}
+							{t('CalibrationSettings:hml-stick-resolution-bit', { bits: leftJitterFilter, step: Math.round(Math.pow(2, 16 - leftJitterFilter)) })}
 						</Form.Label>
 						<Form.Range
 							min={JITTER_BITS_MIN}
@@ -1511,7 +1511,7 @@ const JoystickCalibration = ({
 							}}
 						/>
 						<div className="mt-3 small text-muted">
-							摇杆步长由摇杆分辨率决定。Xinput模式下以分辨率为16bit，步长1；DS4模式下以分辨率为8bit，步长16。
+							{t('CalibrationSettings:hml-stick-step-help')}
 						</div>
 					</div>
 				</Modal.Body>
@@ -1521,7 +1521,7 @@ const JoystickCalibration = ({
 						setLeftJitterFilter(leftJitterFilterOriginal);
 						setShowLeftJitterDataModal(false);
 					}}>
-						取消
+						{t('CalibrationSettings:hml-button-cancel')}
 					</Button>
 					<Button variant="primary" onClick={() => {
 						// Save: store ADC threshold; keep legacy 0 if user never moved slider from "off"
@@ -1533,7 +1533,7 @@ const JoystickCalibration = ({
 						setLeftJitterFilterOriginal(leftJitterFilter);
 						setShowLeftJitterDataModal(false);
 					}}>
-						确定
+						{t('CalibrationSettings:hml-button-ok')}
 					</Button>
 				</Modal.Footer>
 			</Modal>
@@ -1548,13 +1548,13 @@ const JoystickCalibration = ({
 				size="lg"
 			>
 				<Modal.Header closeButton>
-					<Modal.Title>摇杆步长设置 - 右摇杆</Modal.Title>
+					<Modal.Title>{t('CalibrationSettings:hml-modal-stick-step-right-title')}</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					{/* Jitter Filter Slider */}
 					<div className="mb-4">
 						<Form.Label>
-							摇杆分辨率：{rightJitterFilter} bit，步长：{Math.round(Math.pow(2, 16 - rightJitterFilter))}
+							{t('CalibrationSettings:hml-stick-resolution-bit', { bits: rightJitterFilter, step: Math.round(Math.pow(2, 16 - rightJitterFilter)) })}
 						</Form.Label>
 						<Form.Range
 							min={JITTER_BITS_MIN}
@@ -1567,7 +1567,7 @@ const JoystickCalibration = ({
 							}}
 						/>
 						<div className="mt-3 small text-muted">
-							摇杆步长由摇杆分辨率决定。Xinput模式下以分辨率为16bit，步长1；DS4模式下以分辨率为8bit，步长16。
+							{t('CalibrationSettings:hml-stick-step-help')}
 						</div>
 					</div>
 				</Modal.Body>
@@ -1577,7 +1577,7 @@ const JoystickCalibration = ({
 						setRightJitterFilter(rightJitterFilterOriginal);
 						setShowRightJitterDataModal(false);
 					}}>
-						取消
+						{t('CalibrationSettings:hml-button-cancel')}
 					</Button>
 					<Button variant="primary" onClick={() => {
 						const next =
@@ -1588,7 +1588,7 @@ const JoystickCalibration = ({
 						setRightJitterFilterOriginal(rightJitterFilter);
 						setShowRightJitterDataModal(false);
 					}}>
-						确定
+						{t('CalibrationSettings:hml-button-ok')}
 					</Button>
 				</Modal.Footer>
 			</Modal>
@@ -1599,7 +1599,7 @@ const JoystickCalibration = ({
 					{t('Common:button-save-label')}
 				</Button>
 				{saveMessage && (
-					<span className={saveMessage.includes('成功') || saveMessage.includes('success') ? 'text-success' : 'text-danger'}>
+					<span className={saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}>
 						{saveMessage}
 					</span>
 				)}
@@ -1612,14 +1612,14 @@ const JoystickCalibration = ({
 				centered
 			>
 				<Modal.Header closeButton>
-					<Modal.Title>提示</Modal.Title>
+					<Modal.Title>{t('CalibrationSettings:hml-modal-title-hint')}</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
-					<p className="mb-0">请先进行外圈校准。</p>
+					<p className="mb-0">{t('CalibrationSettings:hml-modal-calibrate-outer-first')}</p>
 				</Modal.Body>
 				<Modal.Footer>
 					<Button variant="primary" onClick={() => setShowRangeCalibrationWarning(false)}>
-						确定
+						{t('CalibrationSettings:hml-button-ok')}
 					</Button>
 				</Modal.Footer>
 			</Modal>

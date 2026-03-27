@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Button, Form, Row, Col } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 import Section from '../../../Components/Section';
 import { useGamepadOptions } from '../hooks/useGamepadOptions';
@@ -13,16 +13,16 @@ const DPAD_MODES = [
 	{ labelKey: 'd-pad-mode-options.right-analog', value: 2 },
 ];
 
-// 与功能配置-插件配置-模拟摇杆 一致：左/右摇杆模式、反转
+// 与功能配置-插件配置-模拟摇杆 一致：左/右摇杆模式、反转（文案见 SettingsPage hml-*）
 const ANALOG_STICK_MODES = [
-	{ label: '左摇杆', value: 1 },
-	{ label: '右摇杆', value: 2 },
+	{ labelKey: 'hml-analog-stick-left', value: 1 },
+	{ labelKey: 'hml-analog-stick-right', value: 2 },
 ];
 const INVERT_MODES = [
-	{ label: '无', value: 0 },
-	{ label: 'X 轴', value: 1 },
-	{ label: 'Y 轴', value: 2 },
-	{ label: 'X/Y 轴', value: 3 },
+	{ labelKey: 'hml-invert-none', value: 0 },
+	{ labelKey: 'hml-invert-x', value: 1 },
+	{ labelKey: 'hml-invert-y', value: 2 },
+	{ labelKey: 'hml-invert-xy', value: 3 },
 ];
 
 export default function FunctionButtons() {
@@ -47,6 +47,23 @@ export default function FunctionButtons() {
 		label: t(`SettingsPage:${labelKey}`),
 		value,
 	}));
+
+	const translatedAnalogStickModes = useMemo(
+		() =>
+			ANALOG_STICK_MODES.map(({ labelKey, value }) => ({
+				label: t(`SettingsPage:${labelKey}`),
+				value,
+			})),
+		[t],
+	);
+	const translatedInvertModes = useMemo(
+		() =>
+			INVERT_MODES.map(({ labelKey, value }) => ({
+				label: t(`SettingsPage:${labelKey}`),
+				value,
+			})),
+		[t],
+	);
 
 	const handleHotkeySettings = () => {
 		// Navigate to settings page with hotkey tab
@@ -101,22 +118,22 @@ export default function FunctionButtons() {
 			const gamepadOk = await WebApi.setGamepadOptions(values);
 			const addonOk = addonOptions ? await WebApi.setAddonsOptions(addonOptions) : true;
 			if (gamepadOk && addonOk) {
-				setSaveMessage('保存成功！');
+				setSaveMessage(t('SettingsPage:hml-save-success'));
 				setTimeout(() => setSaveMessage(''), 3000);
 			} else {
-				setSaveMessage('保存失败，请重试。');
+				setSaveMessage(t('SettingsPage:hml-save-failed-retry'));
 			}
 		} catch (error) {
 			console.error('保存失败:', error);
-			setSaveMessage('保存失败，请重试。');
+			setSaveMessage(t('SettingsPage:hml-save-failed-retry'));
 		}
 	};
 
 	if (isLoading) {
 		return (
 			<div>
-				<Section title="功能按键">
-					<p className="text-muted">正在加载...</p>
+				<Section title={t('SettingsPage:hml-section-function-buttons')}>
+					<p className="text-muted">{t('SettingsPage:hml-loading')}</p>
 				</Section>
 			</div>
 		);
@@ -124,7 +141,7 @@ export default function FunctionButtons() {
 
 	return (
 		<div>
-			<Section title="功能按键">
+			<Section title={t('SettingsPage:hml-section-function-buttons')}>
 				<div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-start' }}>
 					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 						<Button
@@ -132,10 +149,10 @@ export default function FunctionButtons() {
 							onClick={handleHotkeySettings}
 							style={{ minWidth: '120px' }}
 						>
-							热键设置
+							{t('SettingsPage:hml-hotkey-settings-button')}
 						</Button>
 						<span className="text-muted">
-							热键需要在将某个按键设为FN键以实现热键功能。
+							{t('SettingsPage:hml-hotkey-settings-hint')}
 						</span>
 					</div>
 					<Button
@@ -143,34 +160,34 @@ export default function FunctionButtons() {
 						onClick={handleMacroSettings}
 						style={{ minWidth: '120px' }}
 					>
-						宏设置
+						{t('SettingsPage:hml-macro-settings-button')}
 					</Button>
 				</div>
 			</Section>
 
-			<Section title="摇杆配置">
+			<Section title={t('SettingsPage:hml-section-stick-config')}>
 				<Form.Group className="mb-3">
 					<Row>
 						<Col sm={6} md={3}>
-							<Form.Label>左摇杆模式</Form.Label>
+							<Form.Label>{t('SettingsPage:hml-stick-mode-left')}</Form.Label>
 							<Form.Select
 								className="form-select-sm"
 								value={addonOptions?.analogAdc1Mode ?? 1}
 								onChange={handleLeftStickModeChange}
 							>
-								{ANALOG_STICK_MODES.map((o, i) => (
+								{translatedAnalogStickModes.map((o, i) => (
 									<option key={`hml-left-mode-${i}`} value={o.value}>{o.label}</option>
 								))}
 							</Form.Select>
 						</Col>
 						<Col sm={6} md={3}>
-							<Form.Label>右摇杆模式</Form.Label>
+							<Form.Label>{t('SettingsPage:hml-stick-mode-right')}</Form.Label>
 							<Form.Select
 								className="form-select-sm"
 								value={addonOptions?.analogAdc2Mode ?? 2}
 								onChange={handleRightStickModeChange}
 							>
-								{ANALOG_STICK_MODES.map((o, i) => (
+								{translatedAnalogStickModes.map((o, i) => (
 									<option key={`hml-right-mode-${i}`} value={o.value}>{o.label}</option>
 								))}
 							</Form.Select>
@@ -178,25 +195,25 @@ export default function FunctionButtons() {
 					</Row>
 					<Row className="mt-2">
 						<Col sm={6} md={3}>
-							<Form.Label>左摇杆反转</Form.Label>
+							<Form.Label>{t('SettingsPage:hml-stick-invert-left')}</Form.Label>
 							<Form.Select
 								className="form-select-sm"
 								value={addonOptions?.analogAdc1Invert ?? 0}
 								onChange={handleLeftStickInvertChange}
 							>
-								{INVERT_MODES.map((o, i) => (
+								{translatedInvertModes.map((o, i) => (
 									<option key={`hml-left-invert-${i}`} value={o.value}>{o.label}</option>
 								))}
 							</Form.Select>
 						</Col>
 						<Col sm={6} md={3}>
-							<Form.Label>右摇杆反转</Form.Label>
+							<Form.Label>{t('SettingsPage:hml-stick-invert-right')}</Form.Label>
 							<Form.Select
 								className="form-select-sm"
 								value={addonOptions?.analogAdc2Invert ?? 0}
 								onChange={handleRightStickInvertChange}
 							>
-								{INVERT_MODES.map((o, i) => (
+								{translatedInvertModes.map((o, i) => (
 									<option key={`hml-right-invert-${i}`} value={o.value}>{o.label}</option>
 								))}
 							</Form.Select>
@@ -205,7 +222,7 @@ export default function FunctionButtons() {
 				</Form.Group>
 			</Section>
 
-			<Section title="方向键配置">
+			<Section title={t('SettingsPage:hml-section-dpad-config')}>
 				<Form.Group className="mb-3">
 					<Form.Label>
 						{t('SettingsPage:d-pad-mode-label')}
@@ -274,12 +291,14 @@ export default function FunctionButtons() {
 				<Form.Group className="row mb-3">
 					<Col sm={4}>
 						<Button variant="primary" onClick={handleSave}>
-							保存
+							{t('Common:button-save-label')}
 						</Button>
 						{saveMessage && (
 							<span
 								className={`ms-3 ${
-									saveMessage.includes('成功') ? 'text-success' : 'text-danger'
+									saveMessage === t('SettingsPage:hml-save-success')
+										? 'text-success'
+										: 'text-danger'
 								}`}
 							>
 								{saveMessage}
