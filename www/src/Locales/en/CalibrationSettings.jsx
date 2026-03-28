@@ -154,4 +154,7 @@ export default {
 	'hml-mt-right': 'Right MT',
 	'hml-ext-l2': 'Ext L2',
 	'hml-ext-r2': 'Ext R2',
+	'hml-axis-x-short': 'X:',
+	'hml-axis-y-short': 'Y:',
+	'hml-angle-range-value': '{{start}}° ~ {{end}}°',
 };

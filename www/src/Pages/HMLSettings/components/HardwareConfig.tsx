@@ -306,12 +306,12 @@ export default function HardwareConfig() {
 								onChange={(e) => setReportRate(Number(e.target.value))}
 								style={{ width: '120px' }}
 							>
-								<option value={250}>250Hz</option>
-								<option value={500}>500Hz</option>
-								<option value={1000}>1KHz</option>
-								<option value={2000}>2KHz</option>
-								<option value={4000}>4KHz</option>
-								<option value={8000}>8KHz</option>
+								<option value={250}>{t('SettingsPage:hml-report-rate-250hz')}</option>
+								<option value={500}>{t('SettingsPage:hml-report-rate-500hz')}</option>
+								<option value={1000}>{t('SettingsPage:hml-report-rate-1khz')}</option>
+								<option value={2000}>{t('SettingsPage:hml-report-rate-2khz')}</option>
+								<option value={4000}>{t('SettingsPage:hml-report-rate-4khz')}</option>
+								<option value={8000}>{t('SettingsPage:hml-report-rate-8khz')}</option>
 							</Form.Select>
 							<span className="mb-0">{t('SettingsPage:hml-report-rate-label')}</span>
 							<span className="text-muted">

@@ -152,4 +152,7 @@ export default {
 	'hml-mt-right': '右MT键',
 	'hml-ext-l2': 'Ext左扳机',
 	'hml-ext-r2': 'Ext右扳机',
+	'hml-axis-x-short': 'X:',
+	'hml-axis-y-short': 'Y:',
+	'hml-angle-range-value': '{{start}}° ~ {{end}}°',
 };

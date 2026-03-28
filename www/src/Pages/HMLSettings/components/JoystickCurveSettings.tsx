@@ -1710,7 +1710,7 @@ const JoystickCurveSettings = ({
 										return (
 											<div key={originalIndex} style={{ marginBottom: '8px' }}>
 												<div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
-													<span style={{ width: '16px', fontSize: '0.8rem' }}>X:</span>
+													<span style={{ width: '16px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-axis-x-short')}</span>
 												<Form.Control
 													type="number"
 													size="sm"
@@ -1722,7 +1722,7 @@ const JoystickCurveSettings = ({
 													onChange={(e) => handleLeftInputChange(originalIndex, 'x', e.target.value)}
 													onBlur={() => handleLeftInputBlur(originalIndex)}
 												/>
-													<span style={{ width: '16px', fontSize: '0.8rem' }}>Y:</span>
+													<span style={{ width: '16px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-axis-y-short')}</span>
 												<Form.Control
 													type="number"
 													size="sm"
@@ -1806,7 +1806,7 @@ const JoystickCurveSettings = ({
 										return (
 											<div key={originalIndex} style={{ marginBottom: '8px' }}>
 												<div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
-													<span style={{ width: '16px', fontSize: '0.8rem' }}>X:</span>
+													<span style={{ width: '16px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-axis-x-short')}</span>
 												<Form.Control
 													type="number"
 													size="sm"
@@ -1818,7 +1818,7 @@ const JoystickCurveSettings = ({
 													onChange={(e) => handleRightInputChange(originalIndex, 'x', e.target.value)}
 													onBlur={() => handleRightInputBlur(originalIndex)}
 												/>
-													<span style={{ width: '16px', fontSize: '0.8rem' }}>Y:</span>
+													<span style={{ width: '16px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-axis-y-short')}</span>
 												<Form.Control
 													type="number"
 													size="sm"

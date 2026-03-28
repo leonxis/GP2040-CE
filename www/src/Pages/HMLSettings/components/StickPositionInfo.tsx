@@ -1,4 +1,5 @@
 import { Button } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import {
 	finetuneButtonStyle,
 	positionInfoInnerStyle,
@@ -26,10 +27,12 @@ const StickPositionInfo: React.FC<StickPositionInfoProps> = ({
 	onCenterYChange,
 	convertToDS4Normalized,
 }) => {
+	const { t } = useTranslation();
+
 	return (
 		<div className="small" style={positionInfoInnerStyle}>
 			<div style={positionInfoRowStyle}>
-				<span>X:</span>
+				<span>{t('CalibrationSettings:hml-axis-x-short')}</span>
 				{finetuneCenterActive && (
 					<Button
 						variant="light"
@@ -58,7 +61,7 @@ const StickPositionInfo: React.FC<StickPositionInfoProps> = ({
 				</span>
 			</div>
 			<div style={positionInfoRowStyle}>
-				<span>Y:</span>
+				<span>{t('CalibrationSettings:hml-axis-y-short')}</span>
 				{finetuneCenterActive && (
 					<Button
 						variant="light"

@@ -1425,7 +1425,7 @@ const JoystickCalibration = ({
 								return (
 									<tr key={index} className={index === leftAngleIndexSnapshot ? 'table-primary' : ''}>
 										<td>{index}</td>
-										<td>{angleStart}° ~ {angleEnd}°</td>
+										<td>{t('CalibrationSettings:hml-angle-range-value', { start: angleStart, end: angleEnd })}</td>
 										<td>{scale !== undefined && scale !== null && scale > 0 ? scale.toFixed(4) : 'N/A'}</td>
 									</tr>
 								);
@@ -1467,7 +1467,7 @@ const JoystickCalibration = ({
 								return (
 									<tr key={index} className={index === rightAngleIndexSnapshot ? 'table-primary' : ''}>
 										<td>{index}</td>
-										<td>{angleStart}° ~ {angleEnd}°</td>
+										<td>{t('CalibrationSettings:hml-angle-range-value', { start: angleStart, end: angleEnd })}</td>
 										<td>{scale !== undefined && scale !== null && scale > 0 ? scale.toFixed(4) : 'N/A'}</td>
 									</tr>
 								);

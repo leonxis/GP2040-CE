@@ -241,4 +241,10 @@ export default {
 	'hml-touchpad-mapping-title': 'タッチパッド割り当て',
 	'hml-fn-key-mapping-title': 'FNキー割り当て',
 	'hml-key-swap-title': 'ボタン入れ替え',
+	'hml-report-rate-250hz': '250Hz',
+	'hml-report-rate-500hz': '500Hz',
+	'hml-report-rate-1khz': '1KHz',
+	'hml-report-rate-2khz': '2KHz',
+	'hml-report-rate-4khz': '4KHz',
+	'hml-report-rate-8khz': '8KHz',
 };
