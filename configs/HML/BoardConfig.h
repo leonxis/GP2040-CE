@@ -150,7 +150,7 @@
 #define DEFAULT_INPUT_MODE_L1 -1
 
 // mini led
-#define MINI_MENU_GAMEPAD_INPUT 0
+#define MINI_MENU_GAMEPAD_INPUT 1
 #define HAS_I2C_DISPLAY 0
 // HML 显示屏走 I2C1（I2C0 仅由外设映射开关控制）
 #define DISPLAY_I2C_BLOCK i2c1
