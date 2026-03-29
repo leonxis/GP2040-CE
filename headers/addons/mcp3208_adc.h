@@ -36,6 +36,7 @@ typedef struct {
     InvertMode analog_invert;
     DpadMode analog_dpad;
     float in_deadzone;
+    float deadzone_sq;      // cached in_deadzone^2, avoid per-frame multiply
     float anti_deadzone;
     bool fixed_anti_deadzone;
     uint32_t jitter_filter;   // ADC quantize step (counts), 0 = full res (match analog)
@@ -86,6 +87,8 @@ public:
 
 private:
     void readAllChannels();
+    void readStickChannels();
+    void readSwitchChannels();
     float getStickRaw(int stick, bool isX);  // non-const: quantizes ADC step and updates last_x/y_adc
     float getInterpolatedScale(int stick, float angle) const;
     void applyFinetuneShapeAdjustments(int stick);
@@ -97,6 +100,8 @@ private:
     void applyPresetCurve(int stick, int preset_index);
     void applyCh2Ch5Keys(class Gamepad* gamepad);
     void buildCh25Maps();   // 从 FnKeyMappingOptions 预构建 CH2/CH5 映射表，setup/reinit 时调用
+    void rebuildCurveActivationCache(const AnalogOptions& o); // 预构建需要扫描的曲线激活预设索引
+    void refreshJoystickMaxCache(); // 缓存当前输入驱动的 joystickMax
 
     static MCP3208ADCAddon* s_instance;
     PeripheralSPI* spi_;
@@ -106,11 +111,15 @@ private:
     MCP3208StickInstance adc_pairs_[MCP3208_STICK_COUNT];
     uint32_t usage_curve_profile_1_;
     uint32_t usage_curve_profile_2_;
+    uint32_t cached_joystick_max_;
     struct {
         bool is_saved;
         MCP3208CurvePoint saved_points[3];
         uint8_t saved_points_count;
     } temp_curve_storage_[MCP3208_STICK_COUNT];
+    uint8_t activation_preset_indices_[4];
+    uint8_t activation_preset_count_;
+    bool has_activation_presets_;
     uint8_t active_activation_preset_[MCP3208_STICK_COUNT];
     // CH2/CH5 四档开关：预构建映射表（setup/reinit 时填充），process 中只查表应用
     VoltageSwitchMap ch2_map_[MCP3208_CH25_LEVELS];
@@ -125,6 +134,7 @@ private:
     int8_t ch5_stable_level_;
     int8_t ch5_pending_level_;
     uint8_t ch5_debounce_count_;
+    uint8_t ch25_sample_counter_;
 };
 
 #endif

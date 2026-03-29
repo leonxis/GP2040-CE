@@ -15,7 +15,8 @@
 
 // ========== CH2/CH5 四档开关防抖（编译时修改） ==========
 // 连续 N 帧同档位才更新输出，避免电压过渡误触发。主循环约 1ms/帧，N 帧 ≈ N ms 延迟。
-static const uint8_t CH25_DEBOUNCE_FRAMES = 4;   // 防抖帧数，建议 1–4，按需改
+static const uint8_t CH25_DEBOUNCE_FRAMES = 2;   // 防抖帧数，建议 1–4，按需改
+static const uint8_t CH25_SAMPLE_DIVIDER = 4;    // CH2/CH5 降采样：每 N 帧读取一次
 
 // ========== 一轮执行时间估算（每帧 preprocess + process）==========
 // preprocess: readAllChannels 仅做 SPI 读取
@@ -34,6 +35,16 @@ static const uint16_t CH25_T1 = 496;   // 0.4V
 static const uint16_t CH25_T2 = 1488;  // 1.2V
 static const uint16_t CH25_T3 = 2482;  // 2.0V
 static const uint16_t CH25_T4 = 3596;  // 2.9V，raw >= T4 视为无效(-1)
+
+static const uint8_t MCP3208_CHANNELS[MCP3208_READ_CHANNELS] = {0, 1, 2, 5, 6, 7};
+static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
+    {0x06, 0x00, 0x00}, // CH0
+    {0x06, 0x40, 0x00}, // CH1
+    {0x06, 0x80, 0x00}, // CH2
+    {0x07, 0x40, 0x00}, // CH5
+    {0x07, 0x80, 0x00}, // CH6
+    {0x07, 0xC0, 0x00}, // CH7
+};
 
 // 从 GpioMappingInfo 得到要写入 gamepad state 的 (buttons, dpad) mask
 static void gpioMappingToMasks(const GpioMappingInfo& m, uint32_t* out_buttons, uint32_t* out_dpad) {
@@ -125,6 +136,10 @@ void MCP3208ADCAddon::setup() {
     adcValues_[0] = adcValues_[1] = adcValues_[6] = adcValues_[7] = center;
     ch2_stable_level_ = ch2_pending_level_ = ch5_stable_level_ = ch5_pending_level_ = -1;
     ch2_debounce_count_ = ch5_debounce_count_ = 0;
+    ch25_sample_counter_ = 0;
+    cached_joystick_max_ = GAMEPAD_JOYSTICK_MAX;
+    activation_preset_count_ = 0;
+    has_activation_presets_ = false;
     last_ch2_buttons_ = last_ch2_dpad_ = last_ch5_buttons_ = last_ch5_dpad_ = 0;
     last_ch2_keyboard_ = last_ch5_keyboard_ = 0;
     last_ch2_mouse_ = last_ch5_mouse_ = 0;
@@ -137,8 +152,11 @@ void MCP3208ADCAddon::setup() {
     if (!spi || !spi->configured) return;
     spi_ = spi;
     spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+    spi_->setBaudrate(MCP3208_SPI_HZ);
 
     const AnalogOptions& o = Storage::getInstance().getAddonOptions().analogOptions;
+    refreshJoystickMaxCache();
+    rebuildCurveActivationCache(o);
     usage_curve_profile_1_ = o.curve_profile_1;
     usage_curve_profile_2_ = o.curve_profile_2;
     temp_curve_storage_[1].is_saved = false;
@@ -151,6 +169,7 @@ void MCP3208ADCAddon::setup() {
     adc_pairs_[0].analog_invert = o.analogAdc1Invert;
     adc_pairs_[0].analog_dpad = DpadMode::DPAD_MODE_LEFT_ANALOG;
     adc_pairs_[0].in_deadzone = o.inner_deadzone / 100.0f;
+    adc_pairs_[0].deadzone_sq = adc_pairs_[0].in_deadzone * adc_pairs_[0].in_deadzone;
     adc_pairs_[0].anti_deadzone = std::clamp(o.anti_deadzone / 100.0f, 0.0f, 1.0f);
     adc_pairs_[0].fixed_anti_deadzone = o.fixed_anti_deadzone;
     adc_pairs_[0].jitter_filter = o.joystick_jitter_filter_1;
@@ -182,6 +201,7 @@ void MCP3208ADCAddon::setup() {
     adc_pairs_[1].analog_invert = o.analogAdc2Invert;
     adc_pairs_[1].analog_dpad = DpadMode::DPAD_MODE_RIGHT_ANALOG;
     adc_pairs_[1].in_deadzone = o.inner_deadzone2 / 100.0f;
+    adc_pairs_[1].deadzone_sq = adc_pairs_[1].in_deadzone * adc_pairs_[1].in_deadzone;
     adc_pairs_[1].anti_deadzone = std::clamp(o.anti_deadzone2 / 100.0f, 0.0f, 1.0f);
     adc_pairs_[1].fixed_anti_deadzone = o.fixed_anti_deadzone2;
     adc_pairs_[1].jitter_filter = o.joystick_jitter_filter_2;
@@ -213,31 +233,74 @@ void MCP3208ADCAddon::setup() {
     applyFinetuneShapeAdjustments(1);
     buildCh25Maps();
     spiOk_ = true;
+    readSwitchChannels();
+}
+
+void MCP3208ADCAddon::refreshJoystickMaxCache() {
+    cached_joystick_max_ = GAMEPAD_JOYSTICK_MAX;
+    GPDriver* driver = DriverManager::getInstance().getDriver();
+    if (driver != nullptr) {
+        cached_joystick_max_ = driver->GetJoystickMidValue() * 2;
+    }
+}
+
+void MCP3208ADCAddon::rebuildCurveActivationCache(const AnalogOptions& o) {
+    activation_preset_count_ = 0;
+    has_activation_presets_ = false;
+    const uint8_t maxPresets = static_cast<uint8_t>(std::min<int>(4, (int)o.joystick_curve_presets_count));
+    for (uint8_t pi = 0; pi < maxPresets; pi++) {
+        if (o.joystick_curve_presets[pi].activationButtonMask == 0) {
+            continue;
+        }
+        activation_preset_indices_[activation_preset_count_++] = pi;
+    }
+    has_activation_presets_ = (activation_preset_count_ > 0);
 }
 
 void MCP3208ADCAddon::readAllChannels()
 {
     if (!spi_ || !spiOk_) return;
 
-    static const uint8_t channels[MCP3208_READ_CHANNELS] = {0, 1, 2, 5, 6, 7};
-
-    spi_->setBaudrate(MCP3208_SPI_HZ);
-
     for (int i = 0; i < MCP3208_READ_CHANNELS; i++) {
         spi_->select(csPin_);
 
-        uint8_t ch = channels[i];
-        uint8_t tx[3] = {
-            static_cast<uint8_t>(0x06 | ((ch >> 2) & 0x01)),
-            static_cast<uint8_t>((ch & 0x03) << 6),
-            0x00
-        };
+        uint8_t ch = MCP3208_CHANNELS[i];
         uint8_t rx[3];
 
-        spi_->transfer(tx, rx, 3);
+        spi_->transfer(MCP3208_TX_COMMANDS[i], rx, 3);
 
         spi_->deselect();
 
+        adcValues_[ch] = ((rx[1] & 0x0F) << 8) | rx[2];
+    }
+}
+
+void MCP3208ADCAddon::readStickChannels() {
+    if (!spi_ || !spiOk_) return;
+
+    static const uint8_t stickIndices[4] = {0, 1, 4, 5}; // CH0,CH1,CH6,CH7
+    for (int i = 0; i < 4; i++) {
+        const uint8_t idx = stickIndices[i];
+        const uint8_t ch = MCP3208_CHANNELS[idx];
+        uint8_t rx[3];
+        spi_->select(csPin_);
+        spi_->transfer(MCP3208_TX_COMMANDS[idx], rx, 3);
+        spi_->deselect();
+        adcValues_[ch] = ((rx[1] & 0x0F) << 8) | rx[2];
+    }
+}
+
+void MCP3208ADCAddon::readSwitchChannels() {
+    if (!spi_ || !spiOk_) return;
+
+    static const uint8_t switchIndices[2] = {2, 3}; // CH2,CH5
+    for (int i = 0; i < 2; i++) {
+        const uint8_t idx = switchIndices[i];
+        const uint8_t ch = MCP3208_CHANNELS[idx];
+        uint8_t rx[3];
+        spi_->select(csPin_);
+        spi_->transfer(MCP3208_TX_COMMANDS[idx], rx, 3);
+        spi_->deselect();
         adcValues_[ch] = ((rx[1] & 0x0F) << 8) | rx[2];
     }
 }
@@ -266,7 +329,11 @@ float MCP3208ADCAddon::getStickRaw(int stick, bool isX) {
 
 void MCP3208ADCAddon::preprocess() {
     if (!spiOk_) return;
-    readAllChannels();
+    readStickChannels();
+    if (++ch25_sample_counter_ >= CH25_SAMPLE_DIVIDER) {
+        ch25_sample_counter_ = 0;
+        readSwitchChannels();
+    }
 }
 
 float MCP3208ADCAddon::getInterpolatedScale(int stick, float angle) const {
@@ -584,9 +651,9 @@ void MCP3208ADCAddon::process() {
         int stick_num = 1;
         bool found = false;
         int pressed_idx = -1;
-        for (int pi = 0; pi < 4 && pi < (int)analogOptions.joystick_curve_presets_count; pi++) {
+        for (uint8_t i = 0; has_activation_presets_ && i < activation_preset_count_; i++) {
+            const int pi = activation_preset_indices_[i];
             uint32_t am = analogOptions.joystick_curve_presets[pi].activationButtonMask;
-            if (am == 0) continue;
             uint32_t dpad_m = am & (GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
             uint32_t reg_m = am & ~(GAMEPAD_MASK_DU|GAMEPAD_MASK_DD|GAMEPAD_MASK_DL|GAMEPAD_MASK_DR);
             bool on = (reg_m && (gamepad->state.buttons & reg_m) == reg_m) ||
@@ -617,12 +684,8 @@ void MCP3208ADCAddon::process() {
 
     // 与模拟摇杆一致：按当前模式输出 16bit 范围。12bit ADC 经归一化到 [0,1] 后乘 joystickMax
     // XInput 等模式：driver->GetJoystickMidValue()=32767，joystickMax=65535
-    // 每帧只取一次 driver，不缓存在 setup()：若将来支持运行时切换输入模式，缓存的指针会失效
-    uint32_t joystickMax = GAMEPAD_JOYSTICK_MAX;
-    GPDriver* driver = DriverManager::getInstance().getDriver();
-    if (driver != nullptr) {
-        joystickMax = driver->GetJoystickMidValue() * 2;
-    }
+    // 缓存在 setup/reinit，减少每帧 DriverManager 调用。
+    uint32_t joystickMax = cached_joystick_max_;
 
     for (int i = 0; i < MCP3208_STICK_COUNT; i++) {
         // Step 1: Read raw ADC (quantized by step) and transform to center-relative coordinates
@@ -642,7 +705,7 @@ void MCP3208ADCAddon::process() {
 
         // Step 4: Apply deadzone and anti-deadzone (match analog)
         float dist_sq = nx * nx + ny * ny;
-        float deadzone_sq = adc_pairs_[i].in_deadzone * adc_pairs_[i].in_deadzone;
+        float deadzone_sq = adc_pairs_[i].deadzone_sq;
         if (dist_sq < deadzone_sq) {
             nx = 0.0f;
             ny = 0.0f;
@@ -699,8 +762,14 @@ void MCP3208ADCAddon::process() {
 
 void MCP3208ADCAddon::reinit() {
     const AnalogOptions& o = Storage::getInstance().getAddonOptions().analogOptions;
+    refreshJoystickMaxCache();
+    rebuildCurveActivationCache(o);
     adc_pairs_[0].jitter_filter = o.joystick_jitter_filter_1;
     adc_pairs_[1].jitter_filter = o.joystick_jitter_filter_2;
+    adc_pairs_[0].in_deadzone = o.inner_deadzone / 100.0f;
+    adc_pairs_[1].in_deadzone = o.inner_deadzone2 / 100.0f;
+    adc_pairs_[0].deadzone_sq = adc_pairs_[0].in_deadzone * adc_pairs_[0].in_deadzone;
+    adc_pairs_[1].deadzone_sq = adc_pairs_[1].in_deadzone * adc_pairs_[1].in_deadzone;
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     forceReleaseActiveControlPoints(0, gamepad);
     forceReleaseActiveControlPoints(1, gamepad);
@@ -720,4 +789,6 @@ void MCP3208ADCAddon::reinit() {
         }
     }
     buildCh25Maps();
+    ch25_sample_counter_ = 0;
+    readSwitchChannels();
 }

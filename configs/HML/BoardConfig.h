@@ -91,7 +91,7 @@
 
 // MCP3208 插件默认：开启，SPI 模块 spi0，片选 CS=1 (GPIO1)
 // LSM6 插件默认：开启，SPI 模块 spi0，片选 CS=4 (GPIO4)
-#define LSM6DSR_DEFAULT_ENABLED 1
+#define LSM6DSR_DEFAULT_ENABLED 0
 #define LSM6DSR_DEFAULT_CS_PIN 4
 
 // 四键触摸板开关：0=关闭
@@ -150,8 +150,8 @@
 #define DEFAULT_INPUT_MODE_L1 -1
 
 // mini led
-#define MINI_MENU_GAMEPAD_INPUT 0 
-#define HAS_I2C_DISPLAY 1
+#define MINI_MENU_GAMEPAD_INPUT 0
+#define HAS_I2C_DISPLAY 0
 // HML 显示屏走 I2C1（I2C0 仅由外设映射开关控制）
 #define DISPLAY_I2C_BLOCK i2c1
 #ifndef I2C0_ENABLED

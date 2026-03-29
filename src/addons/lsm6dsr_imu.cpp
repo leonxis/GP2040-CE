@@ -150,6 +150,8 @@ void LSM6DSRIMUAddon::setup() {
 	mouseSubY = 0.0f;
 	prevButtons = 0;
 	mouseSuppressUntilUs = 0;
+	mouseOutputCleared = false;
+	gyroOutputCleared = false;
 
 	gpio_init((uint)csPin);
 	gpio_set_dir((uint)csPin, GPIO_OUT);
@@ -207,6 +209,8 @@ void LSM6DSRIMUAddon::reinit() {
 	mouseSubY = 0.0f;
 	prevButtons = 0;
 	mouseSuppressUntilUs = 0;
+	mouseOutputCleared = false;
+	gyroOutputCleared = false;
 }
 
 void LSM6DSRIMUAddon::applyOneEuroFilter(float teS) {
@@ -243,7 +247,6 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	int32_t offAY = opts.offsetAccelY;
 	int32_t offAZ = opts.offsetAccelZ;
 
-	s_spi->setBaudrate(LSM6DSR_SPI_HZ);
 	uint8_t buf[12];
 	spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
 
@@ -303,7 +306,6 @@ bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ
 	if (!s_spi || s_csPin < 0 || !offsetX || !offsetY || !offsetZ) return false;
 	int64_t sumX = 0, sumY = 0, sumZ = 0;
 	const uint32_t n = LSM6DSR_GYRO_CAL_SAMPLES;
-	s_spi->setBaudrate(LSM6DSR_SPI_HZ);
 	for (uint32_t i = 0; i < n; i++) {
 		uint8_t buf[12];
 		spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
@@ -324,7 +326,6 @@ bool lsm6dsr_calibrate_accel(int32_t* offsetX, int32_t* offsetY, int32_t* offset
 	if (!s_spi || s_csPin < 0 || !offsetX || !offsetY || !offsetZ) return false;
 	int64_t sumX = 0, sumY = 0, sumZ = 0;
 	const uint32_t n = LSM6DSR_ACCEL_CAL_SAMPLES;
-	s_spi->setBaudrate(LSM6DSR_SPI_HZ);
 	for (uint32_t i = 0; i < n; i++) {
 		uint8_t buf[12];
 		spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
@@ -341,6 +342,9 @@ bool lsm6dsr_calibrate_accel(int32_t* offsetX, int32_t* offsetY, int32_t* offset
 
 // 将 GpioAction 解析为 buttonMask/dpadMask（仅支持上下左右、B1-B4、L1/L2/R1/R2、S1/S2）；在 setup/reinit 时调用，运行时仅按位判断
 void LSM6DSRIMUAddon::buildEngageMasks() {
+	engageButtonMaskAny = 0;
+	engageDpadMaskAny = 0;
+	hasEngageKeys = (engageKeysCount > 0);
 	for (size_t i = 0; i < 16; i++) {
 		engageButtonMask[i] = 0;
 		engageDpadMask[i] = 0;
@@ -363,7 +367,10 @@ void LSM6DSRIMUAddon::buildEngageMasks() {
 		default:
 			break;
 		}
+		engageButtonMaskAny |= engageButtonMask[i];
+		engageDpadMaskAny |= engageDpadMask[i];
 	}
+	hasEngageKeys = hasEngageKeys && (engageButtonMaskAny != 0 || engageDpadMaskAny != 0);
 }
 
 void LSM6DSRIMUAddon::applyGyroSlewLimit(float teS) {
@@ -502,6 +509,32 @@ void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3],
 	gamepad->auxState.sensors.mouse.y = (int16_t)dy;
 	gamepad->auxState.sensors.mouse.enabled = true;
 	gamepad->auxState.sensors.mouse.active = true;
+	mouseOutputCleared = false;
+}
+
+void LSM6DSRIMUAddon::clearMouseOutput(Gamepad* gamepad) {
+	if (mouseOutputCleared) return;
+	gamepad->auxState.sensors.mouse.enabled = false;
+	gamepad->auxState.sensors.mouse.active = false;
+	gamepad->auxState.sensors.mouse.x = 0;
+	gamepad->auxState.sensors.mouse.y = 0;
+	mouseOutputCleared = true;
+}
+
+void LSM6DSRIMUAddon::clearGyroOutput(Gamepad* gamepad) {
+	if (gyroOutputCleared) return;
+	gamepad->auxState.sensors.gyroscope.enabled = false;
+	gamepad->auxState.sensors.gyroscope.active = false;
+	gamepad->auxState.sensors.gyroscope.x = 0;
+	gamepad->auxState.sensors.gyroscope.y = 0;
+	gamepad->auxState.sensors.gyroscope.z = 0;
+	gamepad->auxState.sensors.accelerometer.enabled = false;
+	gamepad->auxState.sensors.accelerometer.active = false;
+	gamepad->auxState.sensors.accelerometer.x = 0;
+	gamepad->auxState.sensors.accelerometer.y = 0;
+	gamepad->auxState.sensors.accelerometer.z = 0;
+	gamepad->auxState.sensors.switchProImuDataActive = false;
+	gyroOutputCleared = true;
 }
 
 void LSM6DSRIMUAddon::preprocess() {
@@ -515,60 +548,31 @@ void LSM6DSRIMUAddon::preprocess() {
 		const bool nativeUsb =
 			(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B || inputMode == INPUT_MODE_SWITCH_PRO);
 		if (!nativeUsb) {
-			gamepad->auxState.sensors.gyroscope.enabled = false;
-			gamepad->auxState.sensors.gyroscope.active = false;
-			gamepad->auxState.sensors.gyroscope.x = 0;
-			gamepad->auxState.sensors.gyroscope.y = 0;
-			gamepad->auxState.sensors.gyroscope.z = 0;
-			gamepad->auxState.sensors.accelerometer.enabled = false;
-			gamepad->auxState.sensors.accelerometer.active = false;
-			gamepad->auxState.sensors.accelerometer.x = 0;
-			gamepad->auxState.sensors.accelerometer.y = 0;
-			gamepad->auxState.sensors.accelerometer.z = 0;
-			gamepad->auxState.sensors.switchProImuDataActive = false;
+			clearGyroOutput(gamepad);
 			return;
 		}
 	}
 
 	// 根据生效方式决定是否执行陀螺仪输出（运行时仅按位判断预解析的 mask）
-	bool anyEngageKeyPressed = false;
-	for (size_t i = 0; i < engageKeysCount; i++) {
-		if ((gamepad->state.buttons & engageButtonMask[i]) != 0 ||
-		    (gamepad->state.dpad & engageDpadMask[i]) != 0) {
-			anyEngageKeyPressed = true;
-			break;
-		}
-	}
+	const bool anyEngageKeyPressed = hasEngageKeys &&
+		(((gamepad->state.buttons & engageButtonMaskAny) != 0) ||
+		 ((gamepad->state.dpad & engageDpadMaskAny) != 0));
 	const bool shouldRun = (engageMode == LSM6DSR_ENGAGE_ALWAYS) ||
 	                       (engageMode == LSM6DSR_ENGAGE_ON_KEY && anyEngageKeyPressed) ||
 	                       (engageMode == LSM6DSR_ENGAGE_PAUSE_ON_KEY && !anyEngageKeyPressed);
 	if (!shouldRun) {
 		if (outputMode == LSM6DSR_OUTPUT_MOUSE) {
-			gamepad->auxState.sensors.mouse.enabled = false;
-			gamepad->auxState.sensors.mouse.active = false;
-			gamepad->auxState.sensors.mouse.x = 0;
-			gamepad->auxState.sensors.mouse.y = 0;
+			clearMouseOutput(gamepad);
 			mouseSubX = 0.0f;
 			mouseSubY = 0.0f;
 		}
 		if (outputMode == LSM6DSR_OUTPUT_DS4) {
-			gamepad->auxState.sensors.gyroscope.enabled = false;
-			gamepad->auxState.sensors.gyroscope.active = false;
-			gamepad->auxState.sensors.gyroscope.x = 0;
-			gamepad->auxState.sensors.gyroscope.y = 0;
-			gamepad->auxState.sensors.gyroscope.z = 0;
-			gamepad->auxState.sensors.accelerometer.enabled = false;
-			gamepad->auxState.sensors.accelerometer.active = false;
-			gamepad->auxState.sensors.accelerometer.x = 0;
-			gamepad->auxState.sensors.accelerometer.y = 0;
-			gamepad->auxState.sensors.accelerometer.z = 0;
-			gamepad->auxState.sensors.switchProImuDataActive = false;
+			clearGyroOutput(gamepad);
 		}
 		prevButtons = gamepad->state.buttons;
 		return;
 	}
 
-	spi->setBaudrate(LSM6DSR_SPI_HZ);
 	spiReadRegs(spi, csPin, LSM6DSR_OUTX_L_G, readBuf, 12);
 	// 角速度 X 取反；加速度计 X 取反，Y 与 Z 交换（rawA[1]=传感器Z, rawA[2]=传感器Y）；用 int32 再转 int16 避免取反溢出
 	rawG[0] = (int16_t)(-(int32_t)read16LE(readBuf + 0));
@@ -578,7 +582,8 @@ void LSM6DSRIMUAddon::preprocess() {
 	rawA[1] = read16LE(readBuf + 10);  // 逻辑 Y = 传感器 Z
 	rawA[2] = read16LE(readBuf + 8);   // 逻辑 Z = 传感器 Y
 
-	const float teS = lsm6dsr_compute_dt_s(time_us_64(), lastSampleUs);
+	const uint64_t nowUs = time_us_64();
+	const float teS = lsm6dsr_compute_dt_s(nowUs, lastSampleUs);
 
 	calG[0] = (int16_t)(rawG[0] - offsetGyroX);
 	calG[1] = (int16_t)(rawG[1] - offsetGyroY);
@@ -590,8 +595,6 @@ void LSM6DSRIMUAddon::preprocess() {
 		applyOneEuroFilter(teS);
 	else
 		oneEuroInited = false;
-
-	const uint64_t nowUs = time_us_64();
 
 	// 鼠标模式：按键按下沿触发短窗口抑制，过滤点击引起的微位移。
 	if (outputMode == LSM6DSR_OUTPUT_MOUSE) {
@@ -606,17 +609,17 @@ void LSM6DSRIMUAddon::preprocess() {
 
 	switch (outputMode) {
 	case LSM6DSR_OUTPUT_DS4:
-		gamepad->auxState.sensors.mouse.enabled = false;
-		gamepad->auxState.sensors.mouse.active = false;
+		clearMouseOutput(gamepad);
 		if (inputMode == INPUT_MODE_SWITCH_PRO) {
 			outputGyroToSwitchPro(gamepad, calG, rawA);
+			gyroOutputCleared = false;
 		} else {
-			gamepad->auxState.sensors.switchProImuDataActive = false;
 			outputGyroToDS4(gamepad, calG, rawA);
+			gyroOutputCleared = false;
 		}
 		break;
 	case LSM6DSR_OUTPUT_MOUSE:
-		gamepad->auxState.sensors.switchProImuDataActive = false;
+		clearGyroOutput(gamepad);
 		if (nowUs < mouseSuppressUntilUs) {
 			mouseSubX = 0.0f;
 			mouseSubY = 0.0f;
@@ -624,14 +627,14 @@ void LSM6DSRIMUAddon::preprocess() {
 			gamepad->auxState.sensors.mouse.y = 0;
 			gamepad->auxState.sensors.mouse.enabled = true;
 			gamepad->auxState.sensors.mouse.active = true;
+			mouseOutputCleared = false;
 		} else {
 			outputGyroToMouse(gamepad, calG, teS);
 		}
 		break;
 	default:
-		gamepad->auxState.sensors.switchProImuDataActive = false;
-		gamepad->auxState.sensors.mouse.enabled = false;
-		gamepad->auxState.sensors.mouse.active = false;
+		clearGyroOutput(gamepad);
+		clearMouseOutput(gamepad);
 		break;
 	}
 }

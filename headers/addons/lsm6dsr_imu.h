@@ -9,7 +9,7 @@
 #define LSM6DSR_IMU_ADDON_NAME "LSM6DSR IMU"
 
 // SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」与插件配置（spiBlock、csPin）获取
-// 与 MCP3208 等共用 SPI 时若速率不同：改此处即可（如 5MHz 用 5000000u），每次访问前 setBaudrate 一次
+// 与 MCP3208 等共用 SPI 时若速率相同，setup 阶段初始化一次即可；若速率不同需在访问前切换波特率
 #define LSM6DSR_SPI_HZ      1500000u
 
 // 供 webconfig 按需读取 6 轴 RAW（已应用校准偏移；网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）
@@ -33,6 +33,8 @@ private:
 	void applyGyroSlewLimit(float teS); // 尖峰滤波：对 calG/filterG 做变化率限制（按 dt 缩放），抑制微动开关震动引起的短时尖峰
 	void applyOneEuroFilter(float teS); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)，在尖峰滤波之后应用
 	void outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3], float dtS); // 陀螺仪→HID 鼠标（按 dt 缩放）
+	void clearMouseOutput(Gamepad* gamepad); // 仅在状态切换时清零鼠标输出
+	void clearGyroOutput(Gamepad* gamepad);  // 仅在状态切换时清零陀螺仪/加速度与Switch Pro IMU输出
 	PeripheralSPI* spi;
 	int8_t csPin;
 	int32_t offsetGyroX;
@@ -55,6 +57,9 @@ private:
 	// 预解析生效按键为 mask，运行时仅按位判断（同四键触摸板优化）
 	uint32_t engageButtonMask[16];
 	uint8_t engageDpadMask[16];
+	uint32_t engageButtonMaskAny;
+	uint8_t engageDpadMaskAny;
+	bool hasEngageKeys;
 	// preprocess 复用缓冲区，避免每帧栈上分配
 	uint8_t readBuf[12];
 	int16_t rawG[3];
@@ -71,6 +76,8 @@ private:
 	float mouseSubY;
 	uint32_t prevButtons;
 	uint64_t mouseSuppressUntilUs;
+	bool mouseOutputCleared;
+	bool gyroOutputCleared;
 };
 
 #endif
