@@ -38,54 +38,61 @@ export default function HardwareConfig() {
 
 	const [hostSaveMessage, setHostSaveMessage] = useState('');
 	const [ledSaveMessage, setLedSaveMessage] = useState('');
-	const [colorPickerTarget, setColorPickerTarget] = useState(null);
+	const [colorPickerTarget, setColorPickerTarget] = useState<any>(null);
 	const [showColorPicker, setShowColorPicker] = useState(false);
+	const [isLoading, setIsLoading] = useState(true);
 
 	useEffect(() => {
 		async function fetchData() {
-			const [peripheral, display, fourKeyTouchpad, twoKeyTouchpad, led, addons] = await Promise.all([
-				WebApi.getPeripheralOptions(),
-				WebApi.getDisplayOptions(),
-				WebApi.getFourKeyTouchpadOptions(),
-				WebApi.getTwoKeyTouchpadOptions(),
-				WebApi.getLedOptions(),
-				WebApi.getAddonsOptions(),
-			]);
-			setPeripheralOptions(peripheral);
-			setDisplayOptions(display);
-			setFourKeyTouchpadOptions(fourKeyTouchpad || { enabled: 0 });
-			setTwoKeyTouchpadOptions(twoKeyTouchpad || { enabled: 0 });
-			setReportRate(
-				[250, 500, 1000, 2000, 4000, 8000].includes(Number(addons?.reportRate))
-					? Number(addons.reportRate)
-					: 1000
-			);
-			setEnhancedPerformance(Boolean(addons?.enhancedPerformance));
+			try {
+				const [peripheral, display, fourKeyTouchpad, twoKeyTouchpad, led, addons] = await Promise.all([
+					WebApi.getPeripheralOptions(),
+					WebApi.getDisplayOptions(),
+					WebApi.getFourKeyTouchpadOptions(),
+					WebApi.getTwoKeyTouchpadOptions(),
+					WebApi.getLedOptions(),
+					WebApi.getAddonsOptions(),
+				]);
+				setPeripheralOptions(peripheral);
+				setDisplayOptions(display);
+				setFourKeyTouchpadOptions(fourKeyTouchpad || { enabled: 0 });
+				setTwoKeyTouchpadOptions(twoKeyTouchpad || { enabled: 0 });
+				setReportRate(
+					[250, 500, 1000, 2000, 4000, 8000].includes(Number(addons?.reportRate))
+						? Number(addons.reportRate)
+						: 1000
+				);
+				setEnhancedPerformance(Boolean(addons?.enhancedPerformance));
 
-			// 同步显示屏和I2C1的启用状态
-			// 如果两者不一致，以显示屏的enabled为准
-			if (display.enabled !== peripheral.peripheral?.i2c1?.enabled) {
-				setPeripheralOptions((prev) => ({
-					...prev,
-					peripheral: {
-						...prev.peripheral,
-						i2c1: {
-							...prev.peripheral?.i2c1,
-							enabled: display.enabled,
+				// 同步显示屏和I2C1的启用状态
+				// 如果两者不一致，以显示屏的enabled为准
+				if (display.enabled !== peripheral.peripheral?.i2c1?.enabled) {
+					setPeripheralOptions((prev) => ({
+						...prev,
+						peripheral: {
+							...prev.peripheral,
+							i2c1: {
+								...prev.peripheral?.i2c1,
+								enabled: display.enabled,
+							},
 						},
-					},
-				}));
+					}));
+				}
+				
+				// pledColor is already converted to hex string by WebApi.getLedOptions()
+				setLedOptions({
+					dataPin: led.dataPin !== undefined ? led.dataPin : -1,
+					brightnessMaximum: led.brightnessMaximum || 255,
+					ledColor: led.pledColor || '#00ff00',
+					ledFormat: led.ledFormat || 0,
+					ledLayout: led.ledLayout || 0,
+					ledsPerButton: led.ledsPerButton || 2,
+				});
+			} catch (error) {
+				console.error('Failed to fetch hardware config:', error);
+			} finally {
+				setIsLoading(false);
 			}
-			
-			// pledColor is already converted to hex string by WebApi.getLedOptions()
-			setLedOptions({
-				dataPin: led.dataPin !== undefined ? led.dataPin : -1,
-				brightnessMaximum: led.brightnessMaximum || 255,
-				ledColor: led.pledColor || '#00ff00',
-				ledFormat: led.ledFormat || 0,
-				ledLayout: led.ledLayout || 0,
-				ledsPerButton: led.ledsPerButton || 2,
-			});
 		}
 		fetchData();
 	}, []);
@@ -156,6 +163,10 @@ export default function HardwareConfig() {
 	const handleSplashImage = () => {
 		navigate('/display-config');
 	};
+
+	if (isLoading) {
+		return <div className="text-muted">{t('SettingsPage:hml-loading')}</div>;
+	}
 
 	return (
 		<div>
@@ -399,16 +410,18 @@ export default function HardwareConfig() {
 							{showColorPicker && colorPickerTarget && (
 								<ColorPicker
 									types={[{ label: t('SettingsPage:hml-led-strip-label'), value: ledOptions.ledColor }]}
-									onChange={(color) => {
+									onChange={(color: string) => {
 										setLedOptions((prev) => ({
 											...prev,
 											ledColor: color,
 										}));
 									}}
 									onDismiss={() => setShowColorPicker(false)}
+									pickerOnly={false}
 									placement="top"
 									show={showColorPicker}
 									target={colorPickerTarget}
+									title=""
 								/>
 							)}
 						</div>

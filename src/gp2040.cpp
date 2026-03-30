@@ -63,10 +63,10 @@ static bool main_loop_gate_enabled = false;
 static bool composite_hid_enabled = false;
 static const uint32_t CPU_FREQ_USB_HOST_KHZ = 120000;
 static const uint32_t CPU_FREQ_ENHANCED_KHZ = 144000;
+static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
-static const int32_t LSM6DSR_OUTPUT_MOUSE_MODE = 3;
 static const uint8_t WEBCONFIG_BOOT_GPIO = 19; //修改为GPIO19
 static const uint8_t WEBCONFIG_RUNTIME_GPIO_A = 19;
 static const uint8_t WEBCONFIG_RUNTIME_GPIO_B = 13;
@@ -78,7 +78,7 @@ extern void processCompositeHID(Gamepad *gamepad);
 
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-	return addonOptions.lsm6dsrOptions.outputMode == LSM6DSR_OUTPUT_MOUSE_MODE;
+	return addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ;
 }
 
 const static uint32_t rebootDelayMs = 500;
@@ -404,7 +404,7 @@ void GP2040::run() {
 	while (1) { // LOOP
 		this->getReinitGamepad(gamepad);
 
-		// IN/SOF-driven gate only when gyro output mode is configured to mouse.
+		// IN/SOF-driven gate only when report rate is configured to 1kHz.
 		if (!configMode && main_loop_gate_enabled) {
 			bool runFrame = false;
 			bool runByInEvent = false;
