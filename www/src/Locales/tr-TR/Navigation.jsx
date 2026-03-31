@@ -7,7 +7,7 @@ export default {
 	'docs-label': 'Dokümantasyon',
 	'github-label': 'GitHub',
 	'home-label': 'Ana sayfa',
-	'hml-settings-label': 'HML settings',
+	'hml-settings-label': 'GNS settings',
 	'led-config-label': 'LED Yapılandırması',
 	'links-label': 'Linkler',
 	'macro-label': 'Makro Yapılandırması',

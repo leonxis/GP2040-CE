@@ -7,7 +7,7 @@ export default {
 	'docs-label': '文档',
 	'github-label': 'GitHub',
 	'home-label': '首页',
-	'hml-settings-label': 'HML设置',
+	'hml-settings-label': 'GNS设置',
 	'led-config-label': 'LED 配置',
 	'links-label': '链接',
 	'macro-label': '宏配置',

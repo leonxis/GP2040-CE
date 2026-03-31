@@ -7,7 +7,7 @@ export default {
 	'docs-label': 'Documentation',
 	'github-label': 'GitHub',
 	'home-label': 'Home',
-	'hml-settings-label': 'HML settings',
+	'hml-settings-label': 'GNS settings',
 	'led-config-label': 'LED Configuration',
 	'links-label': 'Links',
 	'macro-label': 'Macros Configuration',
