@@ -78,7 +78,9 @@ extern void processCompositeHID(Gamepad *gamepad);
 
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-	return addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ;
+	const InputMode inputMode = DriverManager::getInstance().getInputMode();
+	const bool excludedMode = (inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
+	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && !excludedMode;
 }
 
 const static uint32_t rebootDelayMs = 500;
@@ -156,7 +158,6 @@ void GP2040::setup() {
 		const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 		uint32_t rate_hz = addonOptions.reportRate;
 		main_loop_interval_us = (rate_hz > 0u) ? (1000000u / rate_hz) : 1000u;
-		main_loop_gate_enabled = shouldUseMainLoopGate();
 	}
 
 	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
@@ -277,6 +278,7 @@ void GP2040::setup() {
 
 	// Setup USB Driver
 	DriverManager::getInstance().setup(inputMode);
+	main_loop_gate_enabled = shouldUseMainLoopGate();
 	composite_hid_enabled = (inputMode == INPUT_MODE_XINPUTB || inputMode == INPUT_MODE_PS4B);
 	if (DriverManager::getInstance().getDriver() != nullptr) {
 		cached_joystick_mid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
