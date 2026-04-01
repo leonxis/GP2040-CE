@@ -2,7 +2,7 @@
 	flex-grow: 1;
 	.react-select__menu {
 		background-color: var(--bs-body-bg);
-		border: var(--bs-border-width) solid var(--bs-border-color-translucent);
+		border: var(--bs-border-width) solid #b6bcc2;
 	}
 }
 
@@ -10,7 +10,7 @@
 	&.react-select__control {
 		background-color: transparent;
 		line-height: var(--bs-select-line-height);
-		border: var(--bs-border-width) solid var(--bs-border-color);
+		border: var(--bs-border-width) solid #b6bcc2;
 		transition:
 			border-color 0.15s ease-in-out,
 			box-shadow 0.15s ease-in-out;
@@ -18,10 +18,11 @@
 			background-color: var(--bs-secondary-bg);
 		}
 		&--is-focused {
+			border-color: #b6bcc2;
 			box-shadow: none;
 		}
 		&:hover {
-			border: var(--bs-border-width) solid var(--bs-border-color);
+			border: var(--bs-border-width) solid #b6bcc2;
 		}
 	}
 }

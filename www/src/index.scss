@@ -62,6 +62,20 @@ input.form-control {
 	}
 }
 
+// Global select border color (all themes/pages).
+.form-select,
+.form-select-sm,
+select.form-control {
+	border-color: #b6bcc2; //普通下拉框未选颜色
+}
+
+.form-select:focus,
+.form-select-sm:focus,
+select.form-control:focus {
+	border-color: #b6bcc2;  //普通下拉框选择颜色
+	box-shadow: 0 0 0 0.2rem rgba(212, 217, 221, 0.25);
+}
+
 button {
 	display: flex;
 	flex-direction: row;
@@ -115,11 +129,11 @@ button {
 
 [data-bs-theme="eva"] {
 	body {
-		background-color: #ab000a;
+		background-color: #ab000a; //主题背景填充区域颜色
 	}
 
 	.body-content {
-		background-color: #ab000a;
+		background-color: #ab000a;  //主题背景中心范围颜色
 	}
 
 	.hml-settings-page {
@@ -129,21 +143,47 @@ button {
 
 		.nav-pills .nav-link.active,
 		.nav-pills .show > .nav-link {
-			background-color: #353535 !important;
+			background-color: #353535 !important;  //选项背景颜色
 		}
 
 		.card-header {
-			background-color: #ffcc00!important;
+			background-color: #ffcc00!important;  //顶栏颜色
 		}
 
 		.card-body {
-			background-color: #FFFFFF !important;
+			background-color: #f6f6f6 !important;  //卡片背景颜色
 			background-clip: padding-box;
 		}
 
 		.card .btn-primary {
-			background-color: #bb000a !important;
-			border-color: #80000b !important;
+			background-color: #bb000a !important;  //保存键填充色
+			border-color: #80000b !important;  //保存键描边色
+		}
+
+		.form-range::-webkit-slider-runnable-track {
+			background-color: #d4d9dd;  //滑块背景颜色
+			border: 1px solid #b6bcc2;  //滑块描边颜色
+			border-radius: 999px;
+			box-sizing: border-box;
+		}
+
+		.form-range::-moz-range-track {
+			background-color: #d4d9dd;  //滑块背景颜色
+			border: 1px solid #b6bcc2;  //滑块描边颜色
+			border-radius: 999px;
+			box-sizing: border-box;
+		}
+
+		.form-switch .form-check-input {
+			border-color: #b6bcc2;
+		}
+
+		.form-switch .form-check-input:checked {
+			border-color: #b6bcc2;
+		}
+
+		.form-switch .form-check-input:focus {
+			border-color: #b6bcc2;
 		}
 	}
 }
