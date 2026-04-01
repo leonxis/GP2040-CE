@@ -137,6 +137,38 @@ button {
 	}
 
 	.hml-settings-page {
+		position: relative;
+
+		&::before {
+			content: '';
+			position: fixed;
+			left: 0;
+			bottom: 0;
+			width: 400px;
+			height: 400px;
+			background-image: url('/images/aska.png');
+			background-repeat: no-repeat;
+			background-position: left bottom;
+			background-size: contain;
+			pointer-events: none;
+			z-index: 0;
+		}
+
+		> * {
+			position: relative;
+			z-index: 1;
+		}
+
+		.nav.flex-column {
+			background-color: #e5e5e5;
+			border-radius: 12px;
+			padding: 8px;
+
+			.nav-link {
+				text-align: center;
+			}
+		}
+
 		.card {
 			overflow: hidden;
 		}
@@ -148,6 +180,9 @@ button {
 
 		.card-header {
 			background-color: #ffcc00!important;  //顶栏颜色
+			color: #ab000a !important;
+			font-family: "SimHei", "Microsoft YaHei", sans-serif;
+			font-weight: 500;
 		}
 
 		.card-body {
