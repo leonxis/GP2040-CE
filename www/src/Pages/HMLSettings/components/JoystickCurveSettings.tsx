@@ -149,15 +149,14 @@ const drawCurveStaticBackground = (
 	const canvas = document.createElement('canvas');
 	canvas.width = width;
 	canvas.height = height;
-	const ctx = canvas.getContext('2d', { alpha: false })!;
+	const ctx = canvas.getContext('2d')!;
 
 	// Use integer coordinates for better performance
 	const intWidth = Math.round(width);
 	const intHeight = Math.round(height);
 
-	// Fill dark gray background first
-	ctx.fillStyle = '#1b1b1d';
-	ctx.fillRect(0, 0, intWidth, intHeight);
+	// Keep canvas background transparent so card background can show through.
+	ctx.clearRect(0, 0, intWidth, intHeight);
 
 	// Draw border
 	ctx.strokeStyle = '#000000';
@@ -894,7 +893,7 @@ const JoystickCurveSettings = ({
 			}
 			lastUpdateTime = currentTime;
 
-			const ctx = leftCurveCanvasRef.current?.getContext('2d', { alpha: false });
+			const ctx = leftCurveCanvasRef.current?.getContext('2d');
 			if (ctx) {
 				const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
 				const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
@@ -934,7 +933,7 @@ const JoystickCurveSettings = ({
 			}
 			lastUpdateTime = currentTime;
 
-			const ctx = rightCurveCanvasRef.current?.getContext('2d', { alpha: false });
+			const ctx = rightCurveCanvasRef.current?.getContext('2d');
 			if (ctx) {
 				const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
 				const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;

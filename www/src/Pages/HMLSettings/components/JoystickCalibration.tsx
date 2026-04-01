@@ -370,9 +370,8 @@ const drawStaticBackground = (
 	const intCenterY = Math.round(centerY);
 	const intRadius = Math.round(radius);
 
-	// Fill white background first
-	ctx.fillStyle = '#1b1b1d';
-	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	// Keep canvas background transparent so card background can show through.
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 	// Calculate effective radius and scale based on zoom mode
 	let effectiveRadius = intRadius;
@@ -1112,7 +1111,7 @@ const JoystickCalibration = ({
 
 			// Draw left stick
 			if (leftStickCanvasRef.current) {
-				const ctx = leftStickCanvasRef.current.getContext('2d', { alpha: false }); // Disable alpha for better performance
+				const ctx = leftStickCanvasRef.current.getContext('2d');
 				if (ctx) {
 					const canvas = leftStickCanvasRef.current;
 					
@@ -1142,7 +1141,7 @@ const JoystickCalibration = ({
 
 			// Draw right stick
 			if (rightStickCanvasRef.current) {
-				const ctx = rightStickCanvasRef.current.getContext('2d', { alpha: false }); // Disable alpha for better performance
+				const ctx = rightStickCanvasRef.current.getContext('2d');
 				if (ctx) {
 					const canvas = rightStickCanvasRef.current;
 					

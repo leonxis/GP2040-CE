@@ -277,7 +277,7 @@ export const AppContextProvider = ({ children, ...props }) => {
 	useEffect(() => {}, [availablePeripherals, setAvailablePeripherals]);
 
 	const [savedColorScheme, _setSavedColorScheme] = useState(
-		localStorage.getItem('savedColorScheme') || 'dark',
+		localStorage.getItem('savedColorScheme') || 'eva',
 	);
 	const setSavedColorScheme = (savedColorScheme) => {
 		localStorage.setItem('savedColorScheme', savedColorScheme);

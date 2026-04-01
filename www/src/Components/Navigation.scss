@@ -38,6 +38,12 @@ nav.navbar {
 	}
 }
 
+[data-bs-theme="eva"] {
+	nav.navbar {
+		background-color: #f1b000;
+	}
+}
+
 .title-logo {
 	height: 40px;
 	margin: 0.25rem 0rem 0.25rem $nav-outer-margin;

@@ -36,7 +36,7 @@ export default function HMLSettingsPage() {
 	};
 
 	return (
-		<div className="mt-4">
+		<div className="mt-4 hml-settings-page">
 			<Row style={{ flexWrap: 'nowrap' }}>
 				<Col style={{ width: '150px', flex: '0 0 150px', maxWidth: '150px' }}>
 					<Nav

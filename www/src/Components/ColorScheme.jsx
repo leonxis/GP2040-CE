@@ -11,6 +11,7 @@ const dropdownOptions = [
 	{ scheme: 'light', icon: SunIcon },
 	{ scheme: 'dark', icon: MoonStarsIcon },
 	{ scheme: 'auto', icon: CircleHalfIcon },
+	{ scheme: 'eva', icon: CircleHalfIcon },
 ];
 
 const setTheme = function (theme) {
@@ -36,7 +37,10 @@ const ColorScheme = () => {
 
 	const translatedDropdownOptions = dropdownOptions.map((option) => ({
 		...option,
-		label: t(`Components:color-scheme.${option.scheme}`),
+		label:
+			option.scheme === 'eva'
+				? 'EVA'
+				: t(`Components:color-scheme.${option.scheme}`),
 	}));
 
 	setTheme(savedColorScheme);

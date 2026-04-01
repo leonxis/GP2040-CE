@@ -112,3 +112,38 @@ button {
 		margin-left: 10px;
 	}
 }
+
+[data-bs-theme="eva"] {
+	body {
+		background-color: #ab000a;
+	}
+
+	.body-content {
+		background-color: #ab000a;
+	}
+
+	.hml-settings-page {
+		.card {
+			overflow: hidden;
+		}
+
+		.nav-pills .nav-link.active,
+		.nav-pills .show > .nav-link {
+			background-color: #353535 !important;
+		}
+
+		.card-header {
+			background-color: #ffcc00!important;
+		}
+
+		.card-body {
+			background-color: #FFFFFF !important;
+			background-clip: padding-box;
+		}
+
+		.card .btn-primary {
+			background-color: #bb000a !important;
+			border-color: #80000b !important;
+		}
+	}
+}
