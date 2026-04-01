@@ -250,14 +250,14 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	uint8_t buf[12];
 	spiReadRegs(s_spi, s_csPin, LSM6DSR_OUTX_L_G, buf, 12);
 
-	// 与 preprocess 一致：角速度 X 取反，加速度计 X 取反、Y 与 Z 交换
+	// 与 preprocess 一致：角速度/加速度计都按传感器原始轴返回
 	int16_t calG[3];
-	calG[0] = (int16_t)(-(int32_t)read16LE(buf + 0) - offX);
+	calG[0] = (int16_t)(read16LE(buf + 0) - offX);
 	calG[1] = (int16_t)(read16LE(buf + 2) - offY);
 	calG[2] = (int16_t)(read16LE(buf + 4) - offZ);
-	accel[0] = (int16_t)(-(int32_t)read16LE(buf + 6) - offAX);
-	accel[1] = (int16_t)(read16LE(buf + 10) - offAY);  // 逻辑 Y = 传感器 Z
-	accel[2] = (int16_t)(read16LE(buf + 8) - offAZ);   // 逻辑 Z = 传感器 Y
+	accel[0] = (int16_t)(read16LE(buf + 6) - offAX);
+	accel[1] = (int16_t)(read16LE(buf + 8) - offAY);
+	accel[2] = (int16_t)(read16LE(buf + 10) - offAZ);
 	const float teS = lsm6dsr_compute_dt_s(time_us_64(), s_apiLastSampleUs);
 
 	// 尖峰滤波（与 preprocess 中 applyGyroSlewLimit 一致）
@@ -314,8 +314,8 @@ bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ
 		sumZ += read16LE(buf + 4);
 		busy_wait_ms(LSM6DSR_GYRO_CAL_DELAY_MS);
 	}
-	// 角速度 X 取反：逻辑 raw = -传感器X，故存储 offset = -avg(传感器X)，使 calG[0] = -raw - offset 零均
-	*offsetX = (int32_t)(-(sumX / (int64_t)n));
+	// 角速度按传感器原始轴：offset = avg(raw)
+	*offsetX = (int32_t)(sumX / (int64_t)n);
 	*offsetY = (int32_t)(sumY / (int64_t)n);
 	*offsetZ = (int32_t)(sumZ / (int64_t)n);
 	return true;
@@ -333,10 +333,10 @@ bool lsm6dsr_calibrate_accel(int32_t* offsetX, int32_t* offsetY, int32_t* offset
 		sumY += read16LE(buf + 8);
 		sumZ += read16LE(buf + 10);
 	}
-	// 加速度计 X 取反、Y 与 Z 交换：逻辑 X=-传感器X, 逻辑Y=传感器Z, 逻辑Z=传感器Y；静止时逻辑 Z 为 1G
-	*offsetX = (int32_t)(-(sumX / (int64_t)n));
-	*offsetY = (int32_t)(sumZ / (int64_t)n);
-	*offsetZ = (int32_t)(sumY / (int64_t)n) - LSM6DSR_ACCEL_1G_LSB_INT;
+	// 按传感器原始轴计算 offset，协议层再做各自轴映射。
+	*offsetX = (int32_t)(sumX / (int64_t)n);
+	*offsetY = (int32_t)(sumY / (int64_t)n);
+	*offsetZ = (int32_t)(sumZ / (int64_t)n) - LSM6DSR_ACCEL_1G_LSB_INT;
 	return true;
 }
 
@@ -389,7 +389,8 @@ void LSM6DSRIMUAddon::applyGyroSlewLimit(float teS) {
 // 将陀螺仪/加速度计写入 DS4 协议（原生陀螺仪）
 static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
 	// 换算到 DS4 协议单位：主机 deg/s = report * (61/1000)，LSM6DSR @500dps 为 0.0175 deg/s/LSB → report = calG * 175/610
-	int32_t ds4x = (int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
+	// DS4 协议轴约定：X 轴取反在此处处理（而非源数据层）。
+	int32_t ds4x = -(int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	int32_t ds4y = (int32_t)calG[1] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	int32_t ds4z = (int32_t)calG[2] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	if (ds4x > 32767) ds4x = 32767; else if (ds4x < -32767) ds4x = -32767;
@@ -402,9 +403,10 @@ static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16
 	gamepad->auxState.sensors.gyroscope.z = (uint16_t)(int16_t)ds4z;
 	gamepad->auxState.sensors.accelerometer.enabled = true;
 	gamepad->auxState.sensors.accelerometer.active = true;
-	gamepad->auxState.sensors.accelerometer.x = (uint16_t)(int16_t)rawA[0];
-	gamepad->auxState.sensors.accelerometer.y = (uint16_t)(int16_t)rawA[1];
-	gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[2];
+	// DS4 协议轴映射：X 取反，Y/Z 交换。
+	gamepad->auxState.sensors.accelerometer.x = (uint16_t)(int16_t)(-(int32_t)rawA[0]);
+	gamepad->auxState.sensors.accelerometer.y = (uint16_t)(int16_t)rawA[2];
+	gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[1];
 }
 
 // 与 outputGyroToDS4 相同的角速度标定；加速度按 LSM6DSR 4g 与 Nintendo 官方 int16 标度（≈ raw/2）对齐 deku 文档
@@ -414,18 +416,23 @@ static void writeLe16(uint8_t* p, int16_t v) {
 }
 
 static void outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
-	int32_t ds4x = (int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
+	// 先换算到协议单位（与 DS4 同量纲，X 轴在此处完成协议向取反）。
+	int32_t ds4x = -(int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	int32_t ds4y = (int32_t)calG[1] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	int32_t ds4z = (int32_t)calG[2] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	if (ds4x > 32767) ds4x = 32767; else if (ds4x < -32767) ds4x = -32767;
 	if (ds4y > 32767) ds4y = 32767; else if (ds4y < -32767) ds4y = -32767;
 	if (ds4z > 32767) ds4z = 32767; else if (ds4z < -32767) ds4z = -32767;
-	int16_t gx = (int16_t)ds4x;
-	int16_t gy = (int16_t)ds4y;
-	int16_t gz = (int16_t)ds4z;
-	int16_t ax = (int16_t)((int32_t)rawA[0] / 2);
-	int16_t ay = (int16_t)((int32_t)rawA[1] / 2);
-	int16_t az = (int16_t)((int32_t)rawA[2] / 2);
+
+	// NS Pro 最终映射（保持当前已验证结果）：
+	// Gyro : gx=-ds4y, gy=-ds4x, gz=ds4z
+	// Accel: ax=-rawA[2]/2, ay=-rawA[0]/2, az=rawA[1]/2
+	int16_t gx = (int16_t)(-ds4y);
+	int16_t gy = (int16_t)(-ds4x);
+	int16_t gz = (int16_t)(ds4z);
+	int16_t ax = (int16_t)(-(int32_t)rawA[2] / 2);
+	int16_t ay = (int16_t)(-(int32_t)rawA[0] / 2);
+	int16_t az = (int16_t)((int32_t)rawA[1] / 2);
 	uint8_t* d = gamepad->auxState.sensors.switchProImuData;
 	for (int s = 0; s < 3; s++) {
 		uint8_t* p = d + s * 12;
@@ -469,7 +476,8 @@ void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3],
 	const float sensUD = gyroMouseSensUD;
 
 	int32_t lr_raw = (mapMode == 0) ? (int32_t)calG[1] : (int32_t)calG[2];
-	int32_t ud_raw = (int32_t)calG[0];
+	// 保持既有鼠标体感方向：UD 轴继续使用 X 反向语义。
+	int32_t ud_raw = -(int32_t)calG[0];
 	if (lr_raw < gyroMouseDeadzone && lr_raw > -gyroMouseDeadzone) lr_raw = 0;
 	if (ud_raw < gyroMouseDeadzone && ud_raw > -gyroMouseDeadzone) ud_raw = 0;
 
@@ -574,13 +582,13 @@ void LSM6DSRIMUAddon::preprocess() {
 	}
 
 	spiReadRegs(spi, csPin, LSM6DSR_OUTX_L_G, readBuf, 12);
-	// 角速度 X 取反；加速度计 X 取反，Y 与 Z 交换（rawA[1]=传感器Z, rawA[2]=传感器Y）；用 int32 再转 int16 避免取反溢出
-	rawG[0] = (int16_t)(-(int32_t)read16LE(readBuf + 0));
+	// 角速度/加速度计都保持传感器原始轴；协议映射在输出函数中处理
+	rawG[0] = read16LE(readBuf + 0);
 	rawG[1] = read16LE(readBuf + 2);
 	rawG[2] = read16LE(readBuf + 4);
-	rawA[0] = (int16_t)(-(int32_t)read16LE(readBuf + 6));
-	rawA[1] = read16LE(readBuf + 10);  // 逻辑 Y = 传感器 Z
-	rawA[2] = read16LE(readBuf + 8);   // 逻辑 Z = 传感器 Y
+	rawA[0] = read16LE(readBuf + 6);
+	rawA[1] = read16LE(readBuf + 8);
+	rawA[2] = read16LE(readBuf + 10);
 
 	const uint64_t nowUs = time_us_64();
 	const float teS = lsm6dsr_compute_dt_s(nowUs, lastSampleUs);

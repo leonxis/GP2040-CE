@@ -134,6 +134,7 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
     switchReport.inputs.rightStick.setX(std::min(std::max(scaleRightStickX,rightMinX), rightMaxX));
     switchReport.inputs.rightStick.setY(-std::min(std::max(scaleRightStickY,rightMinY), rightMaxY));
 
+    // Follow Switch Pro protocol: only send IMU payload when host enables IMU.
     if (gamepad->auxState.sensors.switchProImuDataActive && isIMUEnabled) {
         memcpy(switchReport.imuData, gamepad->auxState.sensors.switchProImuData, sizeof(switchReport.imuData));
     } else {
