@@ -154,6 +154,21 @@ button {
 			z-index: 0;
 		}
 
+		&::after {
+			content: '';
+			position: fixed;
+			right: 0;
+			bottom: 0;
+			width: 400px;
+			height: 400px;
+			background-image: url('/images/ayami.png');
+			background-repeat: no-repeat;
+			background-position: right bottom;
+			background-size: contain;
+			pointer-events: none;
+			z-index: 0;
+		}
+
 		> * {
 			position: relative;
 			z-index: 1;
@@ -205,6 +220,102 @@ button {
 		.form-range::-moz-range-track {
 			background-color: #d4d9dd;  //滑块背景颜色
 			border: 1px solid #b6bcc2;  //滑块描边颜色
+			border-radius: 999px;
+			box-sizing: border-box;
+		}
+
+		.form-switch .form-check-input {
+			border-color: #b6bcc2;
+		}
+
+		.form-switch .form-check-input:checked {
+			border-color: #b6bcc2;
+		}
+
+		.form-switch .form-check-input:focus {
+			border-color: #b6bcc2;
+		}
+	}
+}
+
+[data-bs-theme="light"] {
+	body {
+		background-color: #e5e5e5; //主题背景填充区域颜色（明亮主题）
+	}
+
+	.body-content {
+		background-color: #e5e5e5 //主题背景中心范围颜色（明亮主题）
+	}
+
+	.hml-settings-page {
+		position: relative;
+
+		&::before {
+			content: '';
+			position: fixed;
+			left: 0;
+			bottom: 0;
+			width: 400px;
+			height: 400px;
+			background-image: url('/images/aska.png');
+			background-repeat: no-repeat;
+			background-position: left bottom;
+			background-size: contain;
+			pointer-events: none;
+			z-index: 0;
+		}
+
+		> * {
+			position: relative;
+			z-index: 1;
+		}
+
+		.nav.flex-column {
+			background-color: #d2d2d2;
+			border-radius: 12px;
+			padding: 8px;
+
+			.nav-link {
+				text-align: center;
+			}
+		}
+
+		.card {
+			overflow: hidden;
+		}
+
+		.nav-pills .nav-link.active,
+		.nav-pills .show > .nav-link {
+			background-color: #bb000a !important; //选项背景颜色（明亮主题）
+		}
+
+		.card-header {
+			background-color: #bb000a !important; //顶栏颜色（明亮主题）
+			color: #212529 !important;
+			font-family: "SimHei", "Microsoft YaHei", sans-serif;
+			font-weight: 500;
+		}
+
+		.card-body {
+			background-color: #e5e5e5 !important; //卡片背景颜色（明亮主题）
+			background-clip: padding-box;
+		}
+
+		.card .btn-primary {
+			background-color: #bb000a !important; //保存键填充色（明亮主题）
+			border-color: #ab000a !important; //保存键描边色（明亮主题）
+		}
+
+		.form-range::-webkit-slider-runnable-track {
+			background-color: #d4d9dd; //滑块背景颜色
+			border: 1px solid #b6bcc2; //滑块描边颜色
+			border-radius: 999px;
+			box-sizing: border-box;
+		}
+
+		.form-range::-moz-range-track {
+			background-color: #d4d9dd; //滑块背景颜色
+			border: 1px solid #b6bcc2; //滑块描边颜色
 			border-radius: 999px;
 			box-sizing: border-box;
 		}

@@ -44,6 +44,12 @@ nav.navbar {
 	}
 }
 
+[data-bs-theme="light"] {
+	nav.navbar {
+		background-color: #bb000a;
+	}
+}
+
 .title-logo {
 	height: 40px;
 	margin: 0.25rem 0rem 0.25rem $nav-outer-margin;
