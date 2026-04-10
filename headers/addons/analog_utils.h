@@ -13,9 +13,10 @@
  * @param stickNum Stick number (0 for stick 1, 1 for stick 2)
  * @param x Output parameter for X-axis ADC value
  * @param y Output parameter for Y-axis ADC value
+ * @param adcMax Output parameter for raw ADC max of the current source
  * @return true if successful, false if analog input is not enabled or pins are invalid
  */
-bool readJoystickADC(uint8_t stickNum, uint16_t& x, uint16_t& y);
+bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax);
 
 /**
  * Calculate average center value from four calibration points

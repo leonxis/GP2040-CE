@@ -1,12 +1,15 @@
 #include "spi_analog_ads1256.h"
 #include "storagemanager.h"
 
+SPIAnalog1256Input* SPIAnalog1256Input::s_instance = nullptr;
+
 bool SPIAnalog1256Input::available() {
     const AnalogADS1256Options& options = Storage::getInstance().getAddonOptions().analogADS1256Options;
     return (options.enabled && PeripheralManager::getInstance().isSPIEnabled(options.spiBlock));
 }
 
 void SPIAnalog1256Input::setup() {
+    s_instance = this;
     const AnalogADS1256Options& options = Storage::getInstance().getAddonOptions().analogADS1256Options;
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(options.spiBlock);
     enableTriggers = options.enableTriggers;
@@ -53,4 +56,25 @@ uint8_t SPIAnalog1256Input::convert24to8bit(float voltage) {
 uint16_t SPIAnalog1256Input::convert24to16bit(float voltage) {
     float ratio = std::clamp(voltage, 0.0f, analogMax) / analogMax;
     return (uint16_t)(65535.f * ratio);
+}
+
+bool SPIAnalog1256Input::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {
+    if (s_instance == nullptr || s_instance->ads == nullptr || stickNum > 1) {
+        return false;
+    }
+
+    for (uint8_t i = 0; i < 4; i++) {
+        s_instance->values[i] = s_instance->ads->convertToVoltage(s_instance->ads->cycleSingle());
+    }
+    s_instance->ads->stopConversion();
+
+    adcMax = 65535u;
+    if (stickNum == 0) {
+        x = s_instance->convert24to16bit(s_instance->values[0]);
+        y = s_instance->convert24to16bit(s_instance->values[1]);
+    } else {
+        x = s_instance->convert24to16bit(s_instance->values[2]);
+        y = s_instance->convert24to16bit(s_instance->values[3]);
+    }
+    return true;
 }

@@ -48,12 +48,14 @@ public:
     virtual void postprocess(bool sent) {}
     virtual void reinit() {}
     virtual std::string name() { return I2CAnalog1219Name; }
+    static bool getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax);
 private:
     ADS1219Device * ads;
     ADS_PINS pins;
     int channelHop;
     uint32_t uIntervalMS;       // ADS1219 Interval
     uint32_t nextTimer;         // Turbo Timer
+    static I2CAnalog1219Input* s_instance;
 };
 
 #endif  // _I2CAnalog_H_

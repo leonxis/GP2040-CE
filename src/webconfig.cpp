@@ -3365,12 +3365,12 @@ std::string reboot() {
 
 // NEW API: return current raw ADC reading for the configured analog pins
 std:: string getJoystickCenter() {
-    const size_t capacity = JSON_OBJECT_SIZE(10);
+    const size_t capacity = JSON_OBJECT_SIZE(12);
     DynamicJsonDocument doc(capacity);
     
-    uint16_t x = 0, y = 0;
-    bool success = readJoystickADC(0, x, y);
-    std::string error_msg = success ? "" : "Analog input is not enabled or pins are invalid";
+    uint32_t x = 0, y = 0, adcMax = 0;
+    bool success = readJoystickADC(0, x, y, adcMax);
+    std::string error_msg = success ? "" : "No joystick ADC source is available";
     
     JsonObject o = doc.to<JsonObject>();
     o["success"] = success;
@@ -3379,18 +3379,19 @@ std:: string getJoystickCenter() {
     } else {
         o["x"] = x;
         o["y"] = y;
+        o["adcMax"] = adcMax;
     }
     return serialize_json(doc);
 }
 
 // NEW API: return current raw ADC reading for stick 2
 std:: string getJoystickCenter2() {
-    const size_t capacity = JSON_OBJECT_SIZE(10);
+    const size_t capacity = JSON_OBJECT_SIZE(12);
     DynamicJsonDocument doc(capacity);
     
-    uint16_t x = 0, y = 0;
-    bool success = readJoystickADC(1, x, y);
-    std::string error_msg = success ? "" : "Analog input is not enabled or pins are invalid";
+    uint32_t x = 0, y = 0, adcMax = 0;
+    bool success = readJoystickADC(1, x, y, adcMax);
+    std::string error_msg = success ? "" : "No joystick ADC source is available";
     
     JsonObject o = doc.to<JsonObject>();
     o["success"] = success;
@@ -3399,6 +3400,7 @@ std:: string getJoystickCenter2() {
     } else {
         o["x"] = x;
         o["y"] = y;
+        o["adcMax"] = adcMax;
     }
     return serialize_json(doc);
 }

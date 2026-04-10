@@ -1,6 +1,9 @@
 #include "addons/analog_utils.h"
 #include "addons/analog.h"  // For ADC_PIN_OFFSET definition
 #include "addons/mcp3208_adc.h"
+#include "addons/ads8332_adc.h"
+#include "addons/i2canalog1219.h"
+#include "addons/spi_analog_ads1256.h"
 #include "storagemanager.h"
 #include "eventmanager.h"
 #include "hardware/adc.h"
@@ -13,39 +16,53 @@
 #define ADC_PIN_OFFSET 26
 #endif
 
-bool readJoystickADC(uint8_t stickNum, uint16_t& x, uint16_t& y) {
+bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {
     x = 0;
     y = 0;
-    // When MCP3208 addon is active, use its raw values for web calibration/curve
-    if (MCP3208ADCAddon::getRawStickForWebConfig(stickNum, x, y)) {
+    adcMax = 0;
+
+    // Match Core0 addon write priority for stick fields:
+    // SPI ADS1256 -> I2C ADS1219 -> ADS8332 -> MCP3208 -> Onboard ADC
+    if (SPIAnalog1256Input::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
         return true;
     }
+    if (I2CAnalog1219Input::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
+        return true;
+    }
+    if (ADS8332ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
+        return true;
+    }
+
+    uint16_t x16 = 0;
+    uint16_t y16 = 0;
+    if (MCP3208ADCAddon::getRawStickForWebConfig(stickNum, x16, y16)) {
+        x = x16;
+        y = y16;
+        adcMax = 4095u;
+        return true;
+    }
+
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     if (!analogOptions.enabled) {
         return false;
     }
-    
-    // Initialize ADC if not already initialized
+
     adc_init();
-    
-    // Get pin configuration for the requested stick
     Pin_t xPin = (stickNum == 0) ? analogOptions.analogAdc1PinX : analogOptions.analogAdc2PinX;
     Pin_t yPin = (stickNum == 0) ? analogOptions.analogAdc1PinY : analogOptions.analogAdc2PinY;
-    
-    // Read X pin
+
     if (isValidPin(xPin)) {
         adc_gpio_init(xPin);
         adc_select_input(xPin - ADC_PIN_OFFSET);
         x = adc_read();
     }
-    
-    // Read Y pin
     if (isValidPin(yPin)) {
         adc_gpio_init(yPin);
         adc_select_input(yPin - ADC_PIN_OFFSET);
         y = adc_read();
     }
-    
+
+    adcMax = 4095u;
     return true;
 }
 

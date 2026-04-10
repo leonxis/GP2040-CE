@@ -18,6 +18,8 @@ static inline uint16_t ads8332ChannelCommand(uint8_t channel) {
 }
 } // namespace
 
+ADS8332ADCAddon* ADS8332ADCAddon::s_instance_ = nullptr;
+
 bool ADS8332ADCAddon::available() {
     const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     if (!opts.enabled) {
@@ -28,6 +30,7 @@ bool ADS8332ADCAddon::available() {
 }
 
 void ADS8332ADCAddon::setup() {
+    s_instance_ = this;
     spiOk_ = false;
     spi_ = nullptr;
     csPin_ = -1;
@@ -119,4 +122,20 @@ void ADS8332ADCAddon::process() {
     gamepad->state.ly = normalizeToJoystick(ch1);
     gamepad->state.ry = normalizeToJoystick(ch6);
     gamepad->state.rx = normalizeToJoystick(ch7);
+}
+
+bool ADS8332ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {
+    if (s_instance_ == nullptr || !s_instance_->spiOk_ || stickNum > 1) {
+        return false;
+    }
+
+    adcMax = ADS8332_RAW_MAX;
+    if (stickNum == 0) {
+        x = s_instance_->readChannelRaw(0);
+        y = s_instance_->readChannelRaw(1);
+    } else {
+        x = s_instance_->readChannelRaw(7);
+        y = s_instance_->readChannelRaw(6);
+    }
+    return true;
 }

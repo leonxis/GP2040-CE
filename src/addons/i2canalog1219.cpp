@@ -2,9 +2,12 @@
 #include "storagemanager.h"
 #include "helper.h"
 #include "config.pb.h"
+#include <algorithm>
 
 #define ADS_MAX (float)((1 << 23) - 1)
 #define VREF_VOLTAGE 2.048f
+
+I2CAnalog1219Input* I2CAnalog1219Input::s_instance = nullptr;
 
 bool I2CAnalog1219Input::available() {
     const AnalogADS1219Options& options = Storage::getInstance().getAddonOptions().analogADS1219Options;
@@ -23,6 +26,7 @@ bool I2CAnalog1219Input::available() {
 }
 
 void I2CAnalog1219Input::setup() {
+    s_instance = this;
     const AnalogADS1219Options& options = Storage::getInstance().getAddonOptions().analogADS1219Options;
     (void)options;
 
@@ -63,4 +67,20 @@ void I2CAnalog1219Input::process()
     gamepad->state.rx = (uint16_t)(65535.f*pins.A[2]);
     gamepad->state.ry = (uint16_t)(65535.f*pins.A[3]);
 
+}
+
+bool I2CAnalog1219Input::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {
+    if (s_instance == nullptr || s_instance->ads == nullptr || stickNum > 1) {
+        return false;
+    }
+
+    const float rawX = static_cast<float>(s_instance->ads->readSingleEnded(stickNum == 0 ? 0 : 2));
+    const float rawY = static_cast<float>(s_instance->ads->readSingleEnded(stickNum == 0 ? 1 : 3));
+    const float clampedX = std::clamp(rawX, 0.0f, ADS_MAX);
+    const float clampedY = std::clamp(rawY, 0.0f, ADS_MAX);
+
+    adcMax = 65535u;
+    x = static_cast<uint32_t>((clampedX / ADS_MAX) * static_cast<float>(adcMax));
+    y = static_cast<uint32_t>((clampedY / ADS_MAX) * static_cast<float>(adcMax));
+    return true;
 }

@@ -41,6 +41,7 @@ public:
     virtual void postprocess(bool sent) {}
     virtual void reinit() {}
     virtual std::string name() { return SPIAnalog1256Name; }
+    static bool getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax);
 private:
     uint8_t convert24to8bit(float voltage);
     uint16_t convert24to16bit(float voltage);
@@ -50,6 +51,7 @@ private:
     bool enableTriggers;
     uint8_t readChannelCount; // Number of channels to read from the ADC
     float analogMax = ADS1256_MAX_3V;
+    static SPIAnalog1256Input* s_instance;
 };
 
 #endif  // SPI_ANALOG_ADS1256_H_

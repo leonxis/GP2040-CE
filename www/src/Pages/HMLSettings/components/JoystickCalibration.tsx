@@ -16,8 +16,8 @@ import ViewCalibrationData from './ViewCalibrationData';
 type CurvePoint = { x: number; y: number };
 
 const CIRCULARITY_DATA_SIZE = 48; // Number of angular positions to sample
-const ADC_MAX = 4095;
-const ADC_CENTER = ADC_MAX / 2.0;  // 2047.5, matches backend
+const DEFAULT_ADC_MAX = 4095;
+const DEFAULT_ADC_CENTER = DEFAULT_ADC_MAX / 2.0;
 
 // Layout constants
 const COLUMN_WIDTH = '260px';
@@ -248,17 +248,19 @@ const processJoystickData = (
 	rawY: number,
 	centerX: number,
 	centerY: number,
-	rangeData: number[]
+	rangeData: number[],
+	adcMax: number
 ) => {
+	const adcCenter = adcMax / 2.0;
 	// Step 1: Transform to center-relative coordinates (matches backend Step 1)
 	// Backend: cx = readPin(...) - x_center
-	// Frontend: offset_center_x = (rawX - (centerX - ADC_CENTER)) - ADC_CENTER = rawX - centerX
-	const dX_value = centerX - ADC_CENTER;
-	const dY_value = centerY - ADC_CENTER;
+	// Frontend: offset_center_x = (rawX - (centerX - adcCenter)) - adcCenter = rawX - centerX
+	const dX_value = centerX - adcCenter;
+	const dY_value = centerY - adcCenter;
 	const offset_x = rawX - dX_value;
 	const offset_y = rawY - dY_value;
-	const offset_center_x = offset_x - ADC_CENTER;  // Equivalent to rawX - centerX
-	const offset_center_y = offset_y - ADC_CENTER;  // Equivalent to rawY - centerY
+	const offset_center_x = offset_x - adcCenter;  // Equivalent to rawX - centerX
+	const offset_center_y = offset_y - adcCenter;  // Equivalent to rawY - centerY
 	
 	// Step 2: Range calibration scaling (matches backend Step 2)
 	// Backend: scale = getInterpolatedScale(i, atan2(cy, cx)); sx = cx / scale
@@ -274,8 +276,8 @@ const processJoystickData = (
 	// Step 3: Normalize to [-1, 1] range (matches backend Step 3, before inversion)
 	// Backend: nx = sx / ADC_MAX_HALF
 	// Note: Inversion, deadzone/anti-deadzone, square trimming, and curve are applied separately
-	const stickX = scaled_center_x / (ADC_MAX / 2.0);  // Equivalent to scaled_center_x / ADC_MAX_HALF
-	const stickY = scaled_center_y / (ADC_MAX / 2.0);  // Equivalent to scaled_center_y / ADC_MAX_HALF
+	const stickX = scaled_center_x / adcCenter;  // Equivalent to scaled_center_x / ADC_MAX_HALF
+	const stickY = scaled_center_y / adcCenter;  // Equivalent to scaled_center_y / ADC_MAX_HALF
 	
 		return {
 			stickX,
@@ -600,25 +602,26 @@ const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
  * Quantize raw ADC to nearest multiple of step (matches analog.cpp / mcp3208 getStickRaw).
  * step 0 = full 12-bit; step = 2^(16-b) from config.
  */
-const quantizeAdc = (adc: number, step: number): number => {
+const quantizeAdc = (adc: number, step: number, adcMax: number): number => {
 	if (!step || step <= 0) return adc;
 	// Match firmware: 12-bit integer ADC; API may return floats.
 	const adcInt = Math.round(adc);
-	const maxStep = ADC_MAX + 1;
+	const maxStep = adcMax + 1;
 	const s = Math.min(Math.max(1, Math.floor(step)), maxStep);
 	const half = Math.floor(s / 2);
 	let q = Math.floor((adcInt + half) / s) * s;
-	if (q > ADC_MAX) q = ADC_MAX;
+	if (q > adcMax) q = adcMax;
 	return q;
 };
 
 const quantizeAdcPair = (
 	rawX: number,
 	rawY: number,
-	step: number
+	step: number,
+	adcMax: number
 ): { x: number; y: number } => ({
-	x: quantizeAdc(rawX, step),
-	y: quantizeAdc(rawY, step),
+	x: quantizeAdc(rawX, step, adcMax),
+	y: quantizeAdc(rawY, step, adcMax),
 });
 
 /** Firmware stores quantize step; 0 = off. UI uses bits b∈[4,16] with step = 2^(16-b). */
@@ -736,24 +739,23 @@ const JoystickCalibration = ({
 		currentDistance: 0,
 	});
 
-	// Fetch joystick data periodically and update canvas (Analog addon or MCP3208 addon)
-	const joystickSourceEnabled = Boolean(values?.AnalogInputEnabled) || Boolean(values?.MCP3208AddonEnabled);
+	// Fetch joystick data periodically from unified joystick endpoints.
 	useEffect(() => {
-		if (!values || !joystickSourceEnabled) {
+		if (!values) {
 			return;
 		}
 
 		const fetchJoystickData = async () => {
 			try {
-				// Fetch left stick (stick 1): when Analog pins configured or MCP3208 enabled
-				const leftStickAvailable = (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) || Boolean(values.MCP3208AddonEnabled);
-				if (leftStickAvailable) {
-					const res1 = await fetch('/api/getJoystickCenter');
-					if (res1.ok) {
-						const data1 = await res1.json();
-						if (data1.success) {
-							const centerX = values.joystickCenterX || ADC_CENTER;
-							const centerY = values.joystickCenterY || ADC_CENTER;
+				// Fetch left stick (stick 1) from unified API.
+				const res1 = await fetch('/api/getJoystickCenter');
+				if (res1.ok) {
+					const data1 = await res1.json();
+					if (data1.success) {
+							const adcMax1 = Number(data1?.adcMax) > 0 ? Number(data1.adcMax) : DEFAULT_ADC_MAX;
+							const adcCenter1 = adcMax1 / 2.0;
+							const centerX = values.joystickCenterX || adcCenter1;
+							const centerY = values.joystickCenterY || adcCenter1;
 							const originalRangeData = values?.joystickRangeData1 || [];
 							
 							// Use current state values for real-time updates
@@ -767,16 +769,16 @@ const JoystickCalibration = ({
 							);
 							
 							// ADC quantize for visualization (same step as firmware)
-							// @ts-expect-error -- field exists in runtime payload.
 							const adcStep1 = values?.joystickJitterFilter1 ?? 0;
-							const filtered1 = quantizeAdcPair(data1.x, data1.y, adcStep1);
+							const filtered1 = quantizeAdcPair(data1.x, data1.y, adcStep1, adcMax1);
 
 							const { stickX: rawStickX, stickY: rawStickY, detailData } = processJoystickData(
 								filtered1.x,
 								filtered1.y,
 								centerX,
 								centerY,
-								adjustedRangeData
+								adjustedRangeData,
+								adcMax1
 							);
 							
 							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y) - matches backend Step 3
@@ -857,14 +859,10 @@ const JoystickCalibration = ({
 							// rawDist = currentDistance - distance from center in ADC units (before range calibration scaling)
 							// This is the raw distance before applying range calibration
 							const rawDist = detailData.currentDistance;
-							// l = scale * ADC_CENTER - outer calibration ADC value length for this direction
-							// rangeData stores scale = distance / ADC_CENTER for each angle
-							// So when stick reaches outer boundary: distance = scale * ADC_CENTER
-							// Therefore: l = scale * ADC_CENTER (the maximum distance for this direction)
-							// When scale = 1.0 (no calibration), l = ADC_CENTER
-							// When scale > 1.0 (calibrated), l > ADC_CENTER (larger outer boundary)
-							// When scale < 1.0 (calibrated), l < ADC_CENTER (smaller outer boundary)
-							const l = detailData.scale > 0 ? detailData.scale * ADC_CENTER : ADC_CENTER;
+							// l = scale * adcCenter - outer calibration ADC value length for this direction
+							// rangeData stores scale = distance / adcCenter for each angle
+							// So when stick reaches outer boundary: distance = scale * adcCenter
+							const l = detailData.scale > 0 ? detailData.scale * adcCenter1 : adcCenter1;
 							// progressRatio = rawDist / l (clamped to [0, 1])
 							// This represents how far along the outer boundary the stick has reached
 							// When rawDist = l, the stick has reached the outer boundary, progressRatio = 1
@@ -892,19 +890,18 @@ const JoystickCalibration = ({
 									return newData;
 								});
 							}
-						}
 					}
 				}
 
-				// Fetch right stick (stick 2): when Analog pins configured or MCP3208 enabled
-				const rightStickAvailable = (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) || Boolean(values.MCP3208AddonEnabled);
-				if (rightStickAvailable) {
-					const res2 = await fetch('/api/getJoystickCenter2');
-					if (res2.ok) {
-						const data2 = await res2.json();
-						if (data2.success) {
-							const centerX = values.joystickCenterX2 || ADC_CENTER;
-							const centerY = values.joystickCenterY2 || ADC_CENTER;
+				// Fetch right stick (stick 2) from unified API.
+				const res2 = await fetch('/api/getJoystickCenter2');
+				if (res2.ok) {
+					const data2 = await res2.json();
+					if (data2.success) {
+							const adcMax2 = Number(data2?.adcMax) > 0 ? Number(data2.adcMax) : DEFAULT_ADC_MAX;
+							const adcCenter2 = adcMax2 / 2.0;
+							const centerX = values.joystickCenterX2 || adcCenter2;
+							const centerY = values.joystickCenterY2 || adcCenter2;
 							const originalRangeData = values?.joystickRangeData2 || [];
 							
 							// Use current state values for real-time updates
@@ -917,16 +914,16 @@ const JoystickCalibration = ({
 								amplify
 							);
 							
-							// @ts-expect-error -- field exists in runtime payload.
 							const adcStep2 = values?.joystickJitterFilter2 ?? 0;
-							const filtered2 = quantizeAdcPair(data2.x, data2.y, adcStep2);
+							const filtered2 = quantizeAdcPair(data2.x, data2.y, adcStep2, adcMax2);
 
 							const { stickX: rawStickX, stickY: rawStickY, detailData } = processJoystickData(
 								filtered2.x,
 								filtered2.y,
 								centerX,
 								centerY,
-								adjustedRangeData
+								adjustedRangeData,
+								adcMax2
 							);
 							
 							// Apply invert settings (0=None, 1=X, 2=Y, 3=X/Y) - matches backend Step 3
@@ -1007,14 +1004,8 @@ const JoystickCalibration = ({
 							// rawDist = currentDistance - distance from center in ADC units (before range calibration scaling)
 							// This is the raw distance before applying range calibration
 							const rawDist = detailData.currentDistance;
-							// l = scale * ADC_CENTER - outer calibration ADC value length for this direction
-							// rangeData stores scale = distance / ADC_CENTER for each angle
-							// So when stick reaches outer boundary: distance = scale * ADC_CENTER
-							// Therefore: l = scale * ADC_CENTER (the maximum distance for this direction)
-							// When scale = 1.0 (no calibration), l = ADC_CENTER
-							// When scale > 1.0 (calibrated), l > ADC_CENTER (larger outer boundary)
-							// When scale < 1.0 (calibrated), l < ADC_CENTER (smaller outer boundary)
-							const l = detailData.scale > 0 ? detailData.scale * ADC_CENTER : ADC_CENTER;
+							// l = scale * adcCenter - outer calibration ADC value length for this direction
+							const l = detailData.scale > 0 ? detailData.scale * adcCenter2 : adcCenter2;
 							// progressRatio = rawDist / l (clamped to [0, 1])
 							// This represents how far along the outer boundary the stick has reached
 							// When rawDist = l, the stick has reached the outer boundary, progressRatio = 1
@@ -1042,7 +1033,6 @@ const JoystickCalibration = ({
 									return newData;
 								});
 							}
-						}
 					}
 				}
 			} catch (error) {
@@ -1057,8 +1047,6 @@ const JoystickCalibration = ({
 			clearInterval(intervalId);
 		};
 	}, [
-		joystickSourceEnabled,
-		values?.MCP3208AddonEnabled,
 		values?.analogAdc1PinX, 
 		values.analogAdc1PinY, 
 		values.analogAdc2PinX, 
@@ -1207,7 +1195,7 @@ const JoystickCalibration = ({
 
 	return (
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
-			<div id="JoystickCalibrationOptions" hidden={!values || !joystickSourceEnabled} style={{ overflowX: 'auto' }}>
+			<div id="JoystickCalibrationOptions" hidden={!values} style={{ overflowX: 'auto' }}>
 				{/* 4 columns x 2 rows grid layout */}
 				<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: `repeat(4, ${COLUMN_WIDTH})`, gridTemplateRows: '270px auto auto', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
 					{/* Row 1, Column 1: Left stick canvas (position or curve) */}
@@ -1269,8 +1257,8 @@ const JoystickCalibration = ({
 						<StickPositionInfo
 							stickData={leftStickData}
 							finetuneCenterActive={leftFinetuneCenterActive}
-							centerX={values?.joystickCenterX || ADC_CENTER}
-							centerY={values?.joystickCenterY || ADC_CENTER}
+							centerX={values?.joystickCenterX || DEFAULT_ADC_CENTER}
+							centerY={values?.joystickCenterY || DEFAULT_ADC_CENTER}
 							onCenterXChange={(value) => setFieldValue('joystickCenterX', value)}
 							onCenterYChange={(value) => setFieldValue('joystickCenterY', value)}
 							convertToDS4Normalized={convertToDS4Normalized}
@@ -1283,8 +1271,8 @@ const JoystickCalibration = ({
 						<StickPositionInfo
 							stickData={rightStickData}
 							finetuneCenterActive={rightFinetuneCenterActive}
-							centerX={values?.joystickCenterX2 || ADC_CENTER}
-							centerY={values?.joystickCenterY2 || ADC_CENTER}
+							centerX={values?.joystickCenterX2 || DEFAULT_ADC_CENTER}
+							centerY={values?.joystickCenterY2 || DEFAULT_ADC_CENTER}
 							onCenterXChange={(value) => setFieldValue('joystickCenterX2', value)}
 							onCenterYChange={(value) => setFieldValue('joystickCenterY2', value)}
 							convertToDS4Normalized={convertToDS4Normalized}

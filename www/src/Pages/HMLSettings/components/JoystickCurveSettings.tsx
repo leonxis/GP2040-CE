@@ -12,8 +12,7 @@ import { AppContext } from '../../../Contexts/AppContext';
 type CurvePoint = { x: number; y: number; buttonMask?: number };
 type CurvePointInput = { x: string; y: string; buttonMask?: number };
 
-const ADC_MAX = 4095;
-const ADC_CENTER = ADC_MAX / 2.0;  // 2047.5, matches backend
+const DEFAULT_ADC_MAX = 4095;
 const CIRCULARITY_DATA_SIZE = 48;
 
 /**
@@ -42,15 +41,17 @@ const processJoystickData = (
 	rawY: number,
 	centerX: number,
 	centerY: number,
-	rangeData: number[]
+	rangeData: number[],
+	adcMax: number
 ) => {
+	const adcCenter = adcMax / 2.0;
 	// Step 1: Transform to center-relative coordinates
-	const dX_value = centerX - ADC_CENTER;
-	const dY_value = centerY - ADC_CENTER;
+	const dX_value = centerX - adcCenter;
+	const dY_value = centerY - adcCenter;
 	const offset_x = rawX - dX_value;
 	const offset_y = rawY - dY_value;
-	const offset_center_x = offset_x - ADC_CENTER;
-	const offset_center_y = offset_y - ADC_CENTER;
+	const offset_center_x = offset_x - adcCenter;
+	const offset_center_y = offset_y - adcCenter;
 	
 	// Step 2: Range calibration scaling
 	const current_distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
@@ -61,8 +62,8 @@ const processJoystickData = (
 	const scaled_center_y = offset_center_y / scale;
 	
 	// Step 3: Normalize to [-1, 1] range
-	const stickX = scaled_center_x / (ADC_MAX / 2.0);
-	const stickY = scaled_center_y / (ADC_MAX / 2.0);
+	const stickX = scaled_center_x / adcCenter;
+	const stickY = scaled_center_y / adcCenter;
 	
 	return {
 		stickX,
@@ -667,205 +668,168 @@ const JoystickCurveSettings = ({
 		let intervalId: ReturnType<typeof setInterval> | null = null;
 		
 		const fetchJoystickData = async () => {
-			const joystickEnabled = Boolean(values.AnalogInputEnabled) || Boolean(values.MCP3208AddonEnabled);
-			if (!joystickEnabled) return;
-			
-			// Fetch left stick (Analog pins or MCP3208)
-			const leftAvailable = (values.analogAdc1PinX != null && values.analogAdc1PinX >= 0 && values.analogAdc1PinY != null && values.analogAdc1PinY >= 0) || Boolean(values.MCP3208AddonEnabled);
-			if (leftAvailable) {
-				try {
-					const res = await fetch('/api/getJoystickCenter');
-					if (res.ok) {
-						const data = await res.json();
-						if (data.success) {
-							const centerX = values.joystickCenterX || 2047.5;
-							const centerY = values.joystickCenterY || 2047.5;
-							const rawX = data.x;
-							const rawY = data.y;
-							const rangeData = values?.joystickRangeData1 || [];
-							
-							// Process joystick data through pipeline (Steps 1-3)
-							// Use default scale of 1.0 if no range data
-							const { stickX: rawStickX, stickY: rawStickY } = rangeData.length > 0
-								? processJoystickData(rawX, rawY, centerX, centerY, rangeData)
-								: (() => {
-									// Simple processing without range calibration
-									const offset_center_x = rawX - centerX;
-									const offset_center_y = rawY - centerY;
-									const stickX = offset_center_x / (ADC_MAX / 2.0);
-									const stickY = offset_center_y / (ADC_MAX / 2.0);
-									return { stickX, stickY };
-								})();
-							
-							// Step 3.5: Apply inversion
-							const invert1 = values?.analogAdc1Invert ?? 0;
-							let stickX = (invert1 === 1 || invert1 === 3) ? -rawStickX : rawStickX;
-							let stickY = (invert1 === 2 || invert1 === 3) ? -rawStickY : rawStickY;
-							
-							// Step 4: Apply deadzone and anti-deadzone
-							const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
-							const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
-							const dist_sq = stickX * stickX + stickY * stickY;
-							const deadzone_sq = innerDeadzone * innerDeadzone;
-							
-							// Calculate lightX = sqrt(dist_sq) as percentage (before deadzone/anti-deadzone)
-							const lightX = Math.sqrt(dist_sq);
-							
-							if (dist_sq < deadzone_sq) {
-								stickX = 0.0;
-								stickY = 0.0;
-							} else if (antiDeadzone > 0.0) {
-								const dist = Math.sqrt(dist_sq);
-								const baseline = antiDeadzone;
-								const fixedAntiDeadzone = values?.fixed_anti_deadzone || false;
-								
-								if (fixedAntiDeadzone) {
-									if (dist > 0.0 && dist < baseline) {
-										const scale_factor = baseline / dist;
-										stickX = stickX * scale_factor;
-										stickY = stickY * scale_factor;
-									}
-								} else {
-									if (dist > 0.0) {
-										const new_dist = dist + baseline;
-										const scale_factor = new_dist / dist;
-										stickX = stickX * scale_factor;
-										stickY = stickY * scale_factor;
-									}
+			// Fetch left stick from unified joystick API.
+			try {
+				const res = await fetch('/api/getJoystickCenter');
+				if (res.ok) {
+					const data = await res.json();
+					if (data.success) {
+						const adcMax1 = Number(data?.adcMax) > 0 ? Number(data.adcMax) : DEFAULT_ADC_MAX;
+						const adcCenter1 = adcMax1 / 2.0;
+						const centerX = values.joystickCenterX || adcCenter1;
+						const centerY = values.joystickCenterY || adcCenter1;
+						const rawX = data.x;
+						const rawY = data.y;
+						const rangeData = values?.joystickRangeData1 || [];
+
+						const { stickX: rawStickX, stickY: rawStickY } = rangeData.length > 0
+							? processJoystickData(rawX, rawY, centerX, centerY, rangeData, adcMax1)
+							: (() => {
+								const offset_center_x = rawX - centerX;
+								const offset_center_y = rawY - centerY;
+								const stickX = offset_center_x / adcCenter1;
+								const stickY = offset_center_y / adcCenter1;
+								return { stickX, stickY };
+							})();
+
+						const invert1 = values?.analogAdc1Invert ?? 0;
+						let stickX = (invert1 === 1 || invert1 === 3) ? -rawStickX : rawStickX;
+						let stickY = (invert1 === 2 || invert1 === 3) ? -rawStickY : rawStickY;
+
+						const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+						const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+						const dist_sq = stickX * stickX + stickY * stickY;
+						const deadzone_sq = innerDeadzone * innerDeadzone;
+						const lightX = Math.sqrt(dist_sq);
+
+						if (dist_sq < deadzone_sq) {
+							stickX = 0.0;
+							stickY = 0.0;
+						} else if (antiDeadzone > 0.0) {
+							const dist = Math.sqrt(dist_sq);
+							const baseline = antiDeadzone;
+							const fixedAntiDeadzone = values?.fixed_anti_deadzone || false;
+
+							if (fixedAntiDeadzone) {
+								if (dist > 0.0 && dist < baseline) {
+									const scale_factor = baseline / dist;
+									stickX *= scale_factor;
+									stickY *= scale_factor;
 								}
+							} else if (dist > 0.0) {
+								const new_dist = dist + baseline;
+								const scale_factor = new_dist / dist;
+								stickX *= scale_factor;
+								stickY *= scale_factor;
 							}
-							
-							// Step 5: Square trimming
-							stickX = Math.max(-1.0, Math.min(1.0, stickX));
-							stickY = Math.max(-1.0, Math.min(1.0, stickY));
-							
-							// Step 6: Apply response curve if configured
-							// Use current state leftCurvePoints instead of values to reflect real-time editing
-							const curveEnabled = values?.joystickCurveEnabled ?? false;
-							if (curveEnabled && leftCurvePoints.length > 0) {
-								if (stickX !== 0.0 || stickY !== 0.0) {
-									const magnitude_sq = stickX * stickX + stickY * stickY;
-									if (magnitude_sq > 0.0) {
-										const magnitude = Math.sqrt(magnitude_sq);
-										const curvedMagnitude = applyResponseCurve(magnitude, leftCurvePoints);
-										if (magnitude > 0) {
-											const scale = curvedMagnitude / magnitude;
-											stickX = stickX * scale;
-											stickY = stickY * scale;
-										}
-									}
-								}
-							}
-							
-							// Calculate lightY = sqrt(stickX*stickX + stickY*stickY) as percentage
-							const lightY = Math.sqrt(stickX * stickX + stickY * stickY);
-							
-							setLeftLightX(lightX);
-							setLeftLightY(lightY);
 						}
+
+						stickX = Math.max(-1.0, Math.min(1.0, stickX));
+						stickY = Math.max(-1.0, Math.min(1.0, stickY));
+
+						const curveEnabled = values?.joystickCurveEnabled ?? false;
+						if (curveEnabled && leftCurvePoints.length > 0 && (stickX !== 0.0 || stickY !== 0.0)) {
+							const magnitude_sq = stickX * stickX + stickY * stickY;
+							if (magnitude_sq > 0.0) {
+								const magnitude = Math.sqrt(magnitude_sq);
+								const curvedMagnitude = applyResponseCurve(magnitude, leftCurvePoints);
+								if (magnitude > 0) {
+									const scale = curvedMagnitude / magnitude;
+									stickX *= scale;
+									stickY *= scale;
+								}
+							}
+						}
+
+						const lightY = Math.sqrt(stickX * stickX + stickY * stickY);
+						setLeftLightX(lightX);
+						setLeftLightY(lightY);
 					}
-				} catch (e) {
-					// Ignore errors
 				}
+			} catch (e) {
+				// Ignore errors
 			}
 			
-			// Fetch right stick (Analog pins or MCP3208)
-			const rightAvailable = (values.analogAdc2PinX != null && values.analogAdc2PinX >= 0 && values.analogAdc2PinY != null && values.analogAdc2PinY >= 0) || Boolean(values.MCP3208AddonEnabled);
-			if (rightAvailable) {
-				try {
-					const res = await fetch('/api/getJoystickCenter2');
-					if (res.ok) {
-						const data = await res.json();
-						if (data.success) {
-							const centerX = values.joystickCenterX2 || 2047.5;
-							const centerY = values.joystickCenterY2 || 2047.5;
-							const rawX = data.x;
-							const rawY = data.y;
-							const rangeData = values?.joystickRangeData2 || [];
-							
-							// Process joystick data through pipeline (Steps 1-3)
-							// Use default scale of 1.0 if no range data
-							const { stickX: rawStickX, stickY: rawStickY } = rangeData.length > 0
-								? processJoystickData(rawX, rawY, centerX, centerY, rangeData)
-								: (() => {
-									// Simple processing without range calibration
-									const offset_center_x = rawX - centerX;
-									const offset_center_y = rawY - centerY;
-									const stickX = offset_center_x / (ADC_MAX / 2.0);
-									const stickY = offset_center_y / (ADC_MAX / 2.0);
-									return { stickX, stickY };
-								})();
-							
-							// Step 3.5: Apply inversion
-							const invert2 = values?.analogAdc2Invert ?? 0;
-							let stickX = (invert2 === 1 || invert2 === 3) ? -rawStickX : rawStickX;
-							let stickY = (invert2 === 2 || invert2 === 3) ? -rawStickY : rawStickY;
-							
-							// Step 4: Apply deadzone and anti-deadzone
-							const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
-							const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
-							const dist_sq = stickX * stickX + stickY * stickY;
-							const deadzone_sq = innerDeadzone * innerDeadzone;
-							
-							// Calculate lightX = sqrt(dist_sq) as percentage (before deadzone/anti-deadzone)
-							const lightX = Math.sqrt(dist_sq);
-							
-							if (dist_sq < deadzone_sq) {
-								stickX = 0.0;
-								stickY = 0.0;
-							} else if (antiDeadzone > 0.0) {
-								const dist = Math.sqrt(dist_sq);
-								const baseline = antiDeadzone;
-								const fixedAntiDeadzone = values?.fixed_anti_deadzone2 || false;
-								
-								if (fixedAntiDeadzone) {
-									if (dist > 0.0 && dist < baseline) {
-										const scale_factor = baseline / dist;
-										stickX = stickX * scale_factor;
-										stickY = stickY * scale_factor;
-									}
-								} else {
-									if (dist > 0.0) {
-										const new_dist = dist + baseline;
-										const scale_factor = new_dist / dist;
-										stickX = stickX * scale_factor;
-										stickY = stickY * scale_factor;
-									}
+			// Fetch right stick from unified joystick API.
+			try {
+				const res = await fetch('/api/getJoystickCenter2');
+				if (res.ok) {
+					const data = await res.json();
+					if (data.success) {
+						const adcMax2 = Number(data?.adcMax) > 0 ? Number(data.adcMax) : DEFAULT_ADC_MAX;
+						const adcCenter2 = adcMax2 / 2.0;
+						const centerX = values.joystickCenterX2 || adcCenter2;
+						const centerY = values.joystickCenterY2 || adcCenter2;
+						const rawX = data.x;
+						const rawY = data.y;
+						const rangeData = values?.joystickRangeData2 || [];
+
+						const { stickX: rawStickX, stickY: rawStickY } = rangeData.length > 0
+							? processJoystickData(rawX, rawY, centerX, centerY, rangeData, adcMax2)
+							: (() => {
+								const offset_center_x = rawX - centerX;
+								const offset_center_y = rawY - centerY;
+								const stickX = offset_center_x / adcCenter2;
+								const stickY = offset_center_y / adcCenter2;
+								return { stickX, stickY };
+							})();
+
+						const invert2 = values?.analogAdc2Invert ?? 0;
+						let stickX = (invert2 === 1 || invert2 === 3) ? -rawStickX : rawStickX;
+						let stickY = (invert2 === 2 || invert2 === 3) ? -rawStickY : rawStickY;
+
+						const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+						const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+						const dist_sq = stickX * stickX + stickY * stickY;
+						const deadzone_sq = innerDeadzone * innerDeadzone;
+						const lightX = Math.sqrt(dist_sq);
+
+						if (dist_sq < deadzone_sq) {
+							stickX = 0.0;
+							stickY = 0.0;
+						} else if (antiDeadzone > 0.0) {
+							const dist = Math.sqrt(dist_sq);
+							const baseline = antiDeadzone;
+							const fixedAntiDeadzone = values?.fixed_anti_deadzone2 || false;
+
+							if (fixedAntiDeadzone) {
+								if (dist > 0.0 && dist < baseline) {
+									const scale_factor = baseline / dist;
+									stickX *= scale_factor;
+									stickY *= scale_factor;
 								}
+							} else if (dist > 0.0) {
+								const new_dist = dist + baseline;
+								const scale_factor = new_dist / dist;
+								stickX *= scale_factor;
+								stickY *= scale_factor;
 							}
-							
-							// Step 5: Square trimming
-							stickX = Math.max(-1.0, Math.min(1.0, stickX));
-							stickY = Math.max(-1.0, Math.min(1.0, stickY));
-							
-							// Step 6: Apply response curve if configured
-							// Use current state rightCurvePoints instead of values to reflect real-time editing
-							const curveEnabled = values?.joystickCurveEnabled ?? false;
-							if (curveEnabled && rightCurvePoints.length > 0) {
-								if (stickX !== 0.0 || stickY !== 0.0) {
-									const magnitude_sq = stickX * stickX + stickY * stickY;
-									if (magnitude_sq > 0.0) {
-										const magnitude = Math.sqrt(magnitude_sq);
-										const curvedMagnitude = applyResponseCurve(magnitude, rightCurvePoints);
-										if (magnitude > 0) {
-											const scale = curvedMagnitude / magnitude;
-											stickX = stickX * scale;
-											stickY = stickY * scale;
-										}
-									}
-								}
-							}
-							
-							// Calculate lightY = sqrt(stickX*stickX + stickY*stickY) as percentage
-							const lightY = Math.sqrt(stickX * stickX + stickY * stickY);
-							
-							setRightLightX(lightX);
-							setRightLightY(lightY);
 						}
+
+						stickX = Math.max(-1.0, Math.min(1.0, stickX));
+						stickY = Math.max(-1.0, Math.min(1.0, stickY));
+
+						const curveEnabled = values?.joystickCurveEnabled ?? false;
+						if (curveEnabled && rightCurvePoints.length > 0 && (stickX !== 0.0 || stickY !== 0.0)) {
+							const magnitude_sq = stickX * stickX + stickY * stickY;
+							if (magnitude_sq > 0.0) {
+								const magnitude = Math.sqrt(magnitude_sq);
+								const curvedMagnitude = applyResponseCurve(magnitude, rightCurvePoints);
+								if (magnitude > 0) {
+									const scale = curvedMagnitude / magnitude;
+									stickX *= scale;
+									stickY *= scale;
+								}
+							}
+						}
+
+						const lightY = Math.sqrt(stickX * stickX + stickY * stickY);
+						setRightLightX(lightX);
+						setRightLightY(lightY);
 					}
-				} catch (e) {
-					// Ignore errors
 				}
+			} catch (e) {
+				// Ignore errors
 			}
 		};
 		
@@ -874,7 +838,7 @@ const JoystickCurveSettings = ({
 		return () => {
 			if (intervalId) clearInterval(intervalId);
 		};
-	}, [values.AnalogInputEnabled, values.MCP3208AddonEnabled, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, leftCurvePoints, rightCurvePoints]);
+	}, [values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, leftCurvePoints, rightCurvePoints]);
 	
 	// Draw left curve canvas (optimized with requestAnimationFrame throttling)
 	useEffect(() => {

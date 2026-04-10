@@ -34,9 +34,10 @@ void StickCalibrationScreen::readJoystickCenter(uint8_t stickNum, uint16_t& x, u
     int validSamples = 0;
 
     for (int i = 0; i < sampleCount; i++) {
-        uint16_t sx = 0;
-        uint16_t sy = 0;
-        if (!readJoystickADC(stickNum, sx, sy)) {
+        uint32_t sx = 0;
+        uint32_t sy = 0;
+        uint32_t adcMax = 0;
+        if (!readJoystickADC(stickNum, sx, sy, adcMax)) {
             // If analog input is not enabled or pins are invalid, stop sampling
             break;
         }

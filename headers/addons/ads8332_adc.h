@@ -16,6 +16,7 @@ public:
     virtual void postprocess(bool) {}
     virtual std::string name() { return ADS8332_ADC_ADDON_NAME; }
     virtual void reinit();
+    static bool getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax);
 
 private:
     uint16_t readChannelRaw(uint8_t channel);
@@ -26,6 +27,7 @@ private:
     int8_t convstPin_ = -1;
     bool spiOk_ = false;
     uint32_t cached_joystick_max_ = 65535u;
+    static ADS8332ADCAddon* s_instance_;
 };
 
 #endif
