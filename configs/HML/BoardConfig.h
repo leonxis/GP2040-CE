@@ -90,6 +90,7 @@
 #define SPI0_PIN_TX 3
 
 // MCP3208 插件默认：开启，SPI 模块 spi0，片选 CS=1 (GPIO1)
+#define MCP3208_DEFAULT_CONVST_PIN 4
 // LSM6 插件默认：开启，SPI 模块 spi0，片选 CS=4 (GPIO4)
 #define LSM6DSR_DEFAULT_ENABLED 0
 #define LSM6DSR_DEFAULT_CS_PIN 4
@@ -129,14 +130,19 @@
 
 // analog stick configuration
 #define ANALOG_INPUT_ENABLED 0
-//#define ANALOG_ADC_1_VRX            27
-//#define ANALOG_ADC_1_VRY            26
-//#define ANALOG_ADC_2_VRX            29
-//#define ANALOG_ADC_2_VRY            28
+#define ANALOG_ADC_1_VRX            -1
+#define ANALOG_ADC_1_VRY            -1
+#define ANALOG_ADC_1_MODE           DPAD_MODE_LEFT_ANALOG
+#define ANALOG_ADC_2_VRX            -1
+#define ANALOG_ADC_2_VRY            -1
+#define ANALOG_ADC_2_MODE           DPAD_MODE_RIGHT_ANALOG
 #define DEFAULT_INNER_DEADZONE 0
 #define DEFAULT_INNER_DEADZONE2 0
-#define ANAOG_ADC_1_INVERT INVERT_X
-#define ANAOG_ADC_2_INVERT INVERT_X
+#define DEFAULT_ANTI_DEADZONE 0
+#define DEFAULT_ANTI_DEADZONE2 0
+#define ANALOG_ADC_1_INVERT         INVERT_X
+#define ANALOG_ADC_2_INVERT         INVERT_X
+
 
 // Input Modes
 #define DEFAULT_INPUT_MODE INPUT_MODE_PS4B

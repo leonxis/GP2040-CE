@@ -644,12 +644,13 @@ std::string setBackButtonAddonOptions() {
 }
 
 std::string getMCP3208Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(6);
+    const size_t capacity = JSON_OBJECT_SIZE(8);
     DynamicJsonDocument doc(capacity);
     const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
     writeDoc(doc, "mcp3208Block", opts.spiBlock);
     writeDoc(doc, "mcp3208CsPin", opts.csPin);
+    writeDoc(doc, "mcp3208ConvstPin", opts.convstPin);
     return serialize_json(doc);
 }
 
@@ -663,6 +664,41 @@ std::string setMCP3208Options() {
     Pin_t csPinRef = opts.csPin;
     cleanAddonGpioMappings(csPinRef, oldCsPin);
     opts.csPin = (int8_t)csPinRef;
+    Pin_t oldConvstPin = opts.convstPin;
+    docToValue(opts.convstPin, doc, "mcp3208ConvstPin");
+    Pin_t convstPinRef = opts.convstPin;
+    cleanAddonGpioMappings(convstPinRef, oldConvstPin);
+    opts.convstPin = (int8_t)convstPinRef;
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+    return serialize_json(doc);
+}
+
+std::string getADS8332Options() {
+    const size_t capacity = JSON_OBJECT_SIZE(8);
+    DynamicJsonDocument doc(capacity);
+    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
+    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
+    writeDoc(doc, "ads8332Block", opts.spiBlock);
+    writeDoc(doc, "ads8332CsPin", opts.csPin);
+    writeDoc(doc, "ads8332ConvstPin", opts.convstPin);
+    return serialize_json(doc);
+}
+
+std::string setADS8332Options() {
+    DynamicJsonDocument doc = get_post_data();
+    ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
+    docToValue(opts.enabled, doc, "enabled");
+    docToValue(opts.spiBlock, doc, "ads8332Block");
+    Pin_t oldCsPin = opts.csPin;
+    docToValue(opts.csPin, doc, "ads8332CsPin");
+    Pin_t csPinRef = opts.csPin;
+    cleanAddonGpioMappings(csPinRef, oldCsPin);
+    opts.csPin = (int8_t)csPinRef;
+    Pin_t oldConvstPin = opts.convstPin;
+    docToValue(opts.convstPin, doc, "ads8332ConvstPin");
+    Pin_t convstPinRef = opts.convstPin;
+    cleanAddonGpioMappings(convstPinRef, oldConvstPin);
+    opts.convstPin = (int8_t)convstPinRef;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -2312,6 +2348,24 @@ std::string setAddonOptions()
         docToPin(csPin, doc, "mcp3208CsPin");
         mcp3208Options.csPin = (int8_t)csPin;
     }
+    {
+        Pin_t convstPin = (Pin_t)mcp3208Options.convstPin;
+        docToPin(convstPin, doc, "mcp3208ConvstPin");
+        mcp3208Options.convstPin = (int8_t)convstPin;
+    }
+    ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
+    docToValue(ads8332Options.enabled, doc, "ADS8332AddonEnabled");
+    docToValue(ads8332Options.spiBlock, doc, "ads8332Block");
+    {
+        Pin_t csPin = (Pin_t)ads8332Options.csPin;
+        docToPin(csPin, doc, "ads8332CsPin");
+        ads8332Options.csPin = (int8_t)csPin;
+    }
+    {
+        Pin_t convstPin = (Pin_t)ads8332Options.convstPin;
+        docToPin(convstPin, doc, "ads8332ConvstPin");
+        ads8332Options.convstPin = (int8_t)convstPin;
+    }
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
@@ -2818,6 +2872,12 @@ std::string getAddonOptions()
     writeDoc(doc, "MCP3208AddonEnabled", mcp3208Options.enabled ? 1 : 0);
     writeDoc(doc, "mcp3208Block", mcp3208Options.spiBlock);
     writeDoc(doc, "mcp3208CsPin", mcp3208Options.csPin);
+    writeDoc(doc, "mcp3208ConvstPin", mcp3208Options.convstPin);
+    const ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
+    writeDoc(doc, "ADS8332AddonEnabled", ads8332Options.enabled ? 1 : 0);
+    writeDoc(doc, "ads8332Block", ads8332Options.spiBlock);
+    writeDoc(doc, "ads8332CsPin", ads8332Options.csPin);
+    writeDoc(doc, "ads8332ConvstPin", ads8332Options.convstPin);
     const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrBlock", lsm6dsrOptions.spiBlock);
@@ -3351,6 +3411,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setTwoKeyTouchpadOptions", setTwoKeyTouchpadOptions },
     { "/api/setBackButtonAddonOptions", setBackButtonAddonOptions },
     { "/api/setMCP3208Options", setMCP3208Options },
+    { "/api/setADS8332Options", setADS8332Options },
     { "/api/setLSM6DSROptions", setLSM6DSROptions },
     { "/api/setFnKeyMappingOptions", setFnKeyMappingOptions },
     { "/api/setPreviewDisplayOptions", setPreviewDisplayOptions },
@@ -3384,6 +3445,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getTwoKeyTouchpadOptions", getTwoKeyTouchpadOptions },
     { "/api/getBackButtonAddonOptions", getBackButtonAddonOptions },
     { "/api/getMCP3208Options", getMCP3208Options },
+    { "/api/getADS8332Options", getADS8332Options },
     { "/api/getLSM6DSROptions", getLSM6DSROptions },
     { "/api/getLSM6DSRImuData", getLSM6DSRImuData },
     { "/api/calibrateLSM6DSRGyro", calibrateLSM6DSRGyro },

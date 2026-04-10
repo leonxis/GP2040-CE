@@ -1,6 +1,6 @@
 import { AppContext } from '../Contexts/AppContext';
 import { useContext, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import * as yup from 'yup';
 
@@ -13,42 +13,37 @@ import boards from '../Data/Boards.json';
 import { SPI_BLOCKS } from '../Data/Peripherals';
 import WebApi from '../Services/WebApi';
 import { AddonPropTypes } from '../Pages/AddonsConfigPage';
-import { Trans } from 'react-i18next';
 
-export const mcp3208Scheme = {
-	MCP3208AddonEnabled: yup.number().label('MCP3208 Addon Enabled'),
-	mcp3208Block: yup
+export const ads8332Scheme = {
+	ADS8332AddonEnabled: yup.number().label('ADS8332 Addon Enabled'),
+	ads8332Block: yup
 		.number()
-		.label('MCP3208 SPI Block')
-		.validateSelectionWhenValue('MCP3208AddonEnabled', SPI_BLOCKS),
-	mcp3208CsPin: yup.number().label('MCP3208 CS Pin'),
-	mcp3208ConvstPin: yup.number().label('MCP3208 CONVST Pin'),
+		.label('ADS8332 SPI Block')
+		.validateSelectionWhenValue('ADS8332AddonEnabled', SPI_BLOCKS),
+	ads8332CsPin: yup.number().label('ADS8332 CS Pin'),
+	ads8332ConvstPin: yup.number().label('ADS8332 CONVST Pin'),
 };
 
-export const mcp3208State = {
-	MCP3208AddonEnabled: 0,
-	mcp3208Block: 0,
-	mcp3208CsPin: -1,
-	mcp3208ConvstPin: -1,
+export const ads8332State = {
+	ADS8332AddonEnabled: 0,
+	ads8332Block: 0,
+	ads8332CsPin: -1,
+	ads8332ConvstPin: -1,
 };
 
-const MCP3208 = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes) => {
+const ADS8332 = ({ values, errors, handleChange, handleCheckbox }: AddonPropTypes) => {
 	const { getAvailablePeripherals, setLoading, usedPins } = useContext(AppContext);
-	const [csPins, setCsPins] = useState<Array<{ pin: number; hwcs: boolean }>>([]);
+	const [gpioPins, setGpioPins] = useState<Array<{ pin: number; hwcs: boolean }>>([]);
 	const { t } = useTranslation();
 
-	const handlePeripheralChange = (e) => {
-		handleChange(e);
-	};
-
-	const getAvailableCsPins = async (spiBlock: number) => {
-		const csPins: Array<{ pin: number; hwcs: boolean }> = [];
+	const getAvailablePins = async (spiBlock: number) => {
+		const pins: Array<{ pin: number; hwcs: boolean }> = [];
 		const peripheralOptions = await WebApi.getPeripheralOptions(setLoading);
 		if (
 			peripheralOptions?.peripheral?.[`spi${spiBlock}`] &&
 			peripheralOptions.peripheral[`spi${spiBlock}`].cs > -1
 		) {
-			csPins.push({
+			pins.push({
 				pin: peripheralOptions.peripheral[`spi${spiBlock}`].cs,
 				hwcs: true,
 			});
@@ -56,26 +51,26 @@ const MCP3208 = ({ values, errors, handleChange, handleCheckbox }: AddonPropType
 		const availablePins = [
 			...Array(boards[import.meta.env.VITE_GP2040_BOARD].maxPin + 1).keys(),
 		].filter((p) => (usedPins || []).indexOf(p) === -1);
-		csPins.push(...availablePins.map((pin) => ({ pin, hwcs: false })));
-		return csPins;
+		pins.push(...availablePins.map((pin) => ({ pin, hwcs: false })));
+		return pins;
 	};
 
 	useEffect(() => {
 		async function fetchData() {
-			const pins = await getAvailableCsPins(values.mcp3208Block ?? 0);
-			setCsPins(pins);
+			const pins = await getAvailablePins(values.ads8332Block ?? 0);
+			setGpioPins(pins);
 		}
 		fetchData();
-	}, [values.mcp3208Block, usedPins]);
+	}, [values.ads8332Block, usedPins]);
 
 	return (
-		<Section title={t('AddonsConfig:mcp3208-header-text')}>
+		<Section title={t('AddonsConfig:ads8332-header-text')}>
 			<div
-				id="MCP3208InputOptions"
-				hidden={!(values.MCP3208AddonEnabled && getAvailablePeripherals?.('spi'))}
+				id="ADS8332InputOptions"
+				hidden={!(values.ADS8332AddonEnabled && getAvailablePeripherals?.('spi'))}
 			>
 				<div className="alert alert-info" role="alert">
-					{t('AddonsConfig:mcp3208-peripheral-note')}{' '}
+					{t('AddonsConfig:ads8332-peripheral-note')}{' '}
 					<NavLink to="/peripheral-mapping" className="alert-link">
 						{t('PeripheralMapping:header-text')}
 					</NavLink>
@@ -83,51 +78,51 @@ const MCP3208 = ({ values, errors, handleChange, handleCheckbox }: AddonPropType
 				<Row className="mb-3">
 					{getAvailablePeripherals?.('spi') ? (
 						<FormSelect
-							label={t('AddonsConfig:mcp3208-block-label')}
-							name="mcp3208Block"
+							label={t('AddonsConfig:ads8332-block-label')}
+							name="ads8332Block"
 							className="form-select-sm"
 							groupClassName="col-sm-3 mb-3"
-							value={values.mcp3208Block ?? 0}
-							error={errors.mcp3208Block}
-							isInvalid={Boolean(errors.mcp3208Block)}
-							onChange={handlePeripheralChange}
+							value={values.ads8332Block ?? 0}
+							error={errors.ads8332Block}
+							isInvalid={Boolean(errors.ads8332Block)}
+							onChange={handleChange}
 						>
 							{getAvailablePeripherals('spi').map((o, i) => (
-								<option key={`mcp3208-spi-option-${i}`} value={o.value}>
+								<option key={`ads8332-spi-option-${i}`} value={o.value}>
 									{o.label}
 								</option>
 							))}
 						</FormSelect>
 					) : null}
 					<FormSelect
-						label={t('AddonsConfig:mcp3208-cs-pin')}
-						name="mcp3208CsPin"
+						label={t('AddonsConfig:ads8332-cs-pin')}
+						name="ads8332CsPin"
 						className="form-select-sm"
 						groupClassName="col-sm-3 mb-3"
-						value={values.mcp3208CsPin ?? -1}
-						error={errors.mcp3208CsPin}
-						isInvalid={Boolean(errors.mcp3208CsPin)}
+						value={values.ads8332CsPin ?? -1}
+						error={errors.ads8332CsPin}
+						isInvalid={Boolean(errors.ads8332CsPin)}
 						onChange={handleChange}
 					>
-						{csPins.map((p, i) => (
-							<option key={`mcp3208-cs-${i}`} value={p.pin}>
+						{gpioPins.map((p, i) => (
+							<option key={`ads8332-cs-${i}`} value={p.pin}>
 								{p.pin}
 								{p.hwcs ? ' (HW)' : ''}
 							</option>
 						))}
 					</FormSelect>
 					<FormSelect
-						label={t('AddonsConfig:mcp3208-convst-pin')}
-						name="mcp3208ConvstPin"
+						label={t('AddonsConfig:ads8332-convst-pin')}
+						name="ads8332ConvstPin"
 						className="form-select-sm"
 						groupClassName="col-sm-3 mb-3"
-						value={values.mcp3208ConvstPin ?? -1}
-						error={errors.mcp3208ConvstPin}
-						isInvalid={Boolean(errors.mcp3208ConvstPin)}
+						value={values.ads8332ConvstPin ?? -1}
+						error={errors.ads8332ConvstPin}
+						isInvalid={Boolean(errors.ads8332ConvstPin)}
 						onChange={handleChange}
 					>
-						{csPins.map((p, i) => (
-							<option key={`mcp3208-convst-${i}`} value={p.pin}>
+						{gpioPins.map((p, i) => (
+							<option key={`ads8332-convst-${i}`} value={p.pin}>
 								{p.pin}
 							</option>
 						))}
@@ -138,14 +133,12 @@ const MCP3208 = ({ values, errors, handleChange, handleCheckbox }: AddonPropType
 				<FormCheck
 					label={t('Common:switch-enabled')}
 					type="switch"
-					id="MCP3208AddonEnabled"
+					id="ADS8332AddonEnabled"
 					reverse
 					isInvalid={false}
-					checked={
-						Boolean(values.MCP3208AddonEnabled) && getAvailablePeripherals('spi')
-					}
+					checked={Boolean(values.ADS8332AddonEnabled) && getAvailablePeripherals('spi')}
 					onChange={() => {
-						handleCheckbox('MCP3208AddonEnabled');
+						handleCheckbox('ADS8332AddonEnabled');
 					}}
 				/>
 			) : (
@@ -163,4 +156,4 @@ const MCP3208 = ({ values, errors, handleChange, handleCheckbox }: AddonPropType
 	);
 };
 
-export default MCP3208;
+export default ADS8332;

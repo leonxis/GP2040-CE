@@ -18,6 +18,7 @@ import Analog1256, {
 	analog1256State,
 } from '../Addons/Analog1256';
 import MCP3208, { mcp3208Scheme, mcp3208State } from '../Addons/MCP3208';
+import ADS8332, { ads8332Scheme, ads8332State } from '../Addons/ADS8332';
 import LSM6DSR, { lsm6dsrScheme, lsm6dsrState } from '../Addons/LSM6DSR';
 import Bootsel, { bootselScheme, bootselState } from '../Addons/Bootsel';
 import Buzzer, { buzzerScheme, buzzerState } from '../Addons/Buzzer';
@@ -76,6 +77,7 @@ const schema = yup.object().shape({
 	...analogScheme,
 	...analog1256Scheme,
 	...mcp3208Scheme,
+	...ads8332Scheme,
 	...lsm6dsrScheme,
 	...bootselScheme,
 	...onBoardLedScheme,
@@ -101,6 +103,7 @@ export const DEFAULT_VALUES = {
 	...analogState,
 	...analog1256State,
 	...mcp3208State,
+	...ads8332State,
 	...lsm6dsrState,
 	...bootselState,
 	...onBoardLedState,
@@ -133,6 +136,7 @@ const ADDONS = [
 	I2CAnalog1219,
 	Analog1256,
 	MCP3208,
+	ADS8332,
 	LSM6DSR,
 	DualDirection,
 	Tilt,

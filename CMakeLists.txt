@@ -273,6 +273,7 @@ src/config_legacy.cpp
 src/config_utils.cpp
 src/webconfig.cpp
 src/addons/analog.cpp
+src/addons/unified_analog_processor.cpp
 src/addons/analog_utils.cpp
 src/addons/board_led.cpp
 src/addons/bootsel_button.cpp
@@ -283,6 +284,7 @@ src/addons/four_key_touchpad.cpp
 src/addons/two_key_touchpad.cpp
 src/addons/back_button_divider.cpp
 src/addons/mcp3208_adc.cpp
+src/addons/ads8332_adc.cpp
 src/addons/lsm6dsr_imu.cpp
 src/addons/buzzerspeaker.cpp
 src/addons/dualdirectional.cpp

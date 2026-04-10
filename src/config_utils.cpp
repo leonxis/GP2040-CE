@@ -37,6 +37,7 @@
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
 #include "addons/mcp3208_adc.h"
+#include "addons/ads8332_adc.h"
 #include "addons/lsm6dsr_imu.h"
 #include "addons/tg16_input.h"
 
@@ -1082,6 +1083,15 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, 1);
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, spiBlock, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, csPin, 1);
+#if defined(MCP3208_DEFAULT_CONVST_PIN)
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, convstPin, MCP3208_DEFAULT_CONVST_PIN);
+#else
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, convstPin, -1);
+#endif
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, spiBlock, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, csPin, -1);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, convstPin, -1);
 #if defined(LSM6DSR_DEFAULT_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);
 #else
@@ -1780,6 +1790,9 @@ void gpioMappingsMigrationCore(Config& config)
     }
 
     markAddonPinIfUsed((Pin_t)config.addonOptions.mcp3208Options.csPin);
+    markAddonPinIfUsed((Pin_t)config.addonOptions.mcp3208Options.convstPin);
+    markAddonPinIfUsed((Pin_t)config.addonOptions.ads8332Options.csPin);
+    markAddonPinIfUsed((Pin_t)config.addonOptions.ads8332Options.convstPin);
     markAddonPinIfUsed((Pin_t)config.addonOptions.lsm6dsrOptions.csPin);
 
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {

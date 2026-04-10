@@ -992,6 +992,7 @@ message AddonOptions
     optional uint32 reportRate = 36 [default = 1000];
     // HML 强化性能：开启后核心频率固定为 144MHz（不含回报率变更）
     optional bool enhancedPerformance = 39 [default = false];
+    optional ADS8332Options ads8332Options = 40;
 }
 
 // MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
@@ -1000,6 +1001,17 @@ message MCP3208Options
     optional bool enabled = 1 [default = false];
     optional int32 spiBlock = 2;
     optional int32 csPin = 3;
+    optional int32 convstPin = 4;
+}
+
+// ADS8332 ADC: 仅实现基础摇杆输出（CH0/CH1/CH6/CH7 -> LX/LY/RY/RX）
+// SPI 引脚由外设映射提供，插件仅读取 spiBlock/csPin/convstPin
+message ADS8332Options
+{
+    optional bool enabled = 1 [default = false];
+    optional int32 spiBlock = 2;
+    optional int32 csPin = 3;
+    optional int32 convstPin = 4;
 }
 
 // LSM6DSR 陀螺仪：SPI 与 CS 引脚仅从插件配置（与外设映射）获取

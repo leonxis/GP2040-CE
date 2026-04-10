@@ -2,160 +2,61 @@
 #define _Analog_H
 
 #include "gpaddon.h"
-#include "GamepadEnums.h"
-#include "BoardConfig.h"
 #include "enums.pb.h"
 #include "types.h"
 
-// Forward declaration
-class Gamepad;
 
-#ifndef ANALOG_INPUT_ENABLED
-#define ANALOG_INPUT_ENABLED 0
-#endif
 
-#ifndef ANALOG_ADC_1_VRX
-#define ANALOG_ADC_1_VRX    -1
-#endif
 
-#ifndef ANALOG_ADC_1_VRY
-#define ANALOG_ADC_1_VRY    -1
-#endif
-
-#ifndef ANALOG_ADC_1_MODE
-#define ANALOG_ADC_1_MODE DPAD_MODE_LEFT_ANALOG
-#endif
-
-#ifndef ANALOG_ADC_1_INVERT
-#define ANALOG_ADC_1_INVERT INVERT_NONE
-#endif
-
-#ifndef ANALOG_ADC_2_VRX
-#define ANALOG_ADC_2_VRX    -1
-#endif
-
-#ifndef ANALOG_ADC_2_VRY
-#define ANALOG_ADC_2_VRY    -1
-#endif
-
-#ifndef ANALOG_ADC_2_MODE
-#define ANALOG_ADC_2_MODE DPAD_MODE_RIGHT_ANALOG
-#endif
-
-#ifndef ANALOG_ADC_2_INVERT
-#define ANALOG_ADC_2_INVERT INVERT_NONE
-#endif
-
-#ifndef DEFAULT_INNER_DEADZONE
-#define DEFAULT_INNER_DEADZONE 5
-#endif
-
-#ifndef DEFAULT_INNER_DEADZONE2
-#define DEFAULT_INNER_DEADZONE2 5
-#endif
-
-#ifndef DEFAULT_ANTI_DEADZONE
-#define DEFAULT_ANTI_DEADZONE 0
-#endif
-
-#ifndef DEFAULT_ANTI_DEADZONE2
-#define DEFAULT_ANTI_DEADZONE2 0
-#endif
 
 // Analog Module Name
 #define AnalogName "Analog"
 
 #define ADC_COUNT 2
 
-// Curve point structure for response curve (avoid conflict with protobuf CurvePoint)
-typedef struct {
-    float x;
-    float y;
-    uint32_t buttonMask;  // Button mask to trigger when joystick reaches this control point
-} AnalogCurvePoint;
-
-typedef struct
-{
-    Pin_t x_pin;
-    Pin_t y_pin;
-    Pin_t x_pin_adc;
-    Pin_t y_pin_adc;
-    float x_value;
-    float y_value;
-    uint16_t x_center;
-    uint16_t y_center;
-    InvertMode analog_invert;
-    DpadMode analog_dpad;
-    float in_deadzone;
-    // out_deadzone and forced_circularity removed - replaced by range calibration
-    float anti_deadzone;
-    bool fixed_anti_deadzone;  // true = fixed anti-deadzone, false = linear anti-deadzone
-    uint32_t joystick_center_x;
-    uint32_t joystick_center_y;
-    // ADC quantize step (raw counts); 0 = full resolution (no quantize). Web maps bits b to step 2^(16-b).
-    uint32_t jitter_filter;
-    // Last quantized ADC (updated each sample)
-    uint16_t last_x_adc;
-    uint16_t last_y_adc;
-    float range_data[48];  // Circularity data for 48 angular positions
-    bool has_range_calibration;  // Flag to indicate if range calibration data exists
-    // Finetune shape adjustment settings (independent from calibration data)
-    bool finetune_shape_force_circular;
-    float finetune_shape_amplify;
-    // Preprocessed curve points array: start (0,0) + sorted control points + end (1,1)
-    // Note: Frontend saves control points sorted by x coordinate
-    struct {
-        float x;
-        float y;
-        uint32_t buttonMask;  // Button mask to trigger when joystick reaches this control point
-    } curve_points_sorted[5];  // max 5 points: (0,0) + 3 control + (1,1)
-    uint8_t curve_points_sorted_count;  // Total number of points in sorted array (0-5, 0 means no curve)
-    // Precomputed curve segment parameters for fast lookup: slope and intercept for each segment
-    // For segment [p1x, p2x]: curvedMagnitude = intercept + magnitude * slope
-    struct {
-        float slope;      // Slope of the segment: (p2y - p1y) / (p2x - p1x)
-        float intercept;  // Intercept: p1y - p1x * slope
-        float x_start;    // Start x of segment (p1x)
-        float x_end;      // End x of segment (p2x)
-    } curve_segments[4];  // max 4 segments: (0,0)->p1, p1->p2, p2->p3, p3->(1,1)
-    uint8_t curve_segments_count;  // Number of segments (0-4, 0 means no curve)
-    float curve_extrapolate_slope;  // Slope for extrapolation when magnitude > 1.0
-    // Track which control points are currently active (for button triggering)
-    // Bitmask: bit 0 = control point 0, bit 1 = control point 1, bit 2 = control point 2
-    uint8_t active_control_points_mask;  // 0 = no active points, bits set indicate active points
-} adc_instance;
-
 class AnalogInput : public GPAddon {
 public:
     virtual bool available();
     virtual void setup();       // Analog Setup
-    virtual void process();     // Analog Process
-    virtual void preprocess() {}
+    virtual void process();     // No-op: processing moved to unified addon
+    virtual void preprocess();
     virtual void postprocess(bool sent) {}
     virtual void reinit();
     virtual std::string name() { return AnalogName; }
+
+    static bool getRawStickForProcessor(
+        uint8_t stickNum,
+        uint16_t& x,
+        uint16_t& y,
+        uint16_t& xCenter,
+        uint16_t& yCenter,
+        bool& xValid,
+        bool& yValid
+    );
+
 private:
-    // Track current curve profile in use for both sticks (0 = custom, 1-4 = preset 1-4)
-    uint32_t usage_curve_profile_1;
-    uint32_t usage_curve_profile_2;
-    // Temporary storage for original curve data when activation button is pressed
-    struct {
-        bool is_saved;  // Flag to indicate if original curve data is saved
-        AnalogCurvePoint saved_points[3];  // Saved control points
-        uint8_t saved_points_count;  // Number of saved control points
-    } temp_curve_storage[ADC_COUNT];
-    // Track which activation button is currently pressed (0 = none, 1-4 = preset index)
-    uint8_t active_activation_preset[ADC_COUNT];  // 0 = no activation button pressed
-    float readPin(int stick_num, Pin_t pin, uint16_t center, bool isXAxis);
-    float getInterpolatedScale(int stick_num, float angle);
-    void applyFinetuneShapeAdjustments(int stick_num);
-    void initializeCurveSegments(int stick_num, const AnalogCurvePoint* control_points, int control_points_count);
-    void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stick_num, Gamepad* gamepad);
-    void forceReleaseActiveControlPoints(int stick_num, Gamepad* gamepad);
-    void saveCurrentCurveData(int stick_num);  // Save current curve data to temp storage
-    void restoreCurveData(int stick_num);  // Restore curve data from temp storage
-    void applyPresetCurve(int stick_num, int preset_index);  // Apply preset curve to stick
-    adc_instance adc_pairs[ADC_COUNT];
+    struct SamplerStick {
+        Pin_t x_pin;
+        Pin_t y_pin;
+        Pin_t x_pin_adc;
+        Pin_t y_pin_adc;
+        uint16_t x_center;
+        uint16_t y_center;
+        uint32_t joystick_center_x;
+        uint32_t joystick_center_y;
+        uint32_t jitter_filter;
+        uint16_t last_x_adc;
+        uint16_t last_y_adc;
+        uint16_t raw_x;
+        uint16_t raw_y;
+        bool has_x;
+        bool has_y;
+    } sticks_[ADC_COUNT];
+
+    static AnalogInput* s_instance_;
+
+    void refreshConfigFromStorage();
+    uint16_t readPinQuantized(int stickNum, Pin_t pinAdc, bool isXAxis);
 };
 
 #endif  // _Analog_H_
