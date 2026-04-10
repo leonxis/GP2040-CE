@@ -486,7 +486,7 @@ void GP2040::run() {
 		addons.ProcessAddons();
 
 		// Perform bidirectional swap for analog modes (after addons process)
-		// This ensures we use the physical joystick values updated by AnalogInput::process()
+		// This ensures we use physical joystick values updated by the unified analog processor.
 		// Left/Right Analog modes now support bidirectional swap:
 		// - Dpad input → Joystick output (already done in gamepad->process())
 		// - Joystick input → Dpad output (done here)
