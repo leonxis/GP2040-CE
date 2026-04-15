@@ -998,15 +998,6 @@ bool ConfigUtils::fromLegacyStorage(Config& config)
         SET_PROPERTY(extraButtonOptions, pin, bytePinToIntPin(legacyAddonOptions.extraButtonPin));
         SET_PROPERTY(extraButtonOptions, buttonMap, legacyAddonOptions.extraButtonMap);
 
-        AnalogADS1219Options& analogADS1219Options = config.addonOptions.analogADS1219Options;
-        config.addonOptions.has_analogADS1219Options = true;
-        SET_PROPERTY(analogADS1219Options, enabled, legacyAddonOptions.I2CAnalog1219InputEnabled);
-        SET_PROPERTY(analogADS1219Options, deprecatedI2cBlock, legacyAddonOptions.i2cAnalog1219Block);
-        SET_PROPERTY(analogADS1219Options, deprecatedI2cSDAPin, bytePinToIntPin(legacyAddonOptions.i2cAnalog1219SDAPin));
-        SET_PROPERTY(analogADS1219Options, deprecatedI2cSCLPin, bytePinToIntPin(legacyAddonOptions.i2cAnalog1219SCLPin));
-        SET_PROPERTY(analogADS1219Options, deprecatedI2cAddress, legacyAddonOptions.i2cAnalog1219Address);
-        SET_PROPERTY(analogADS1219Options, deprecatedI2cSpeed, legacyAddonOptions.i2cAnalog1219Speed);
-
         ReverseOptions& reverseOptions = config.addonOptions.reverseOptions;
         config.addonOptions.has_reverseOptions = true;
         SET_PROPERTY(reverseOptions, enabled, legacyAddonOptions.ReverseInputEnabled);

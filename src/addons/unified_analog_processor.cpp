@@ -1,6 +1,8 @@
 #include "addons/unified_analog_processor.h"
 
 #include "addons/analog.h"
+#include "addons/mcp3208_adc.h"
+#include "addons/ads8332_adc.h"
 #include "config.pb.h"
 #include "drivermanager.h"
 #include "gamepad.h"
@@ -24,21 +26,42 @@ static void convertCurvePoints(const CurvePoint* protobuf_points, int count, Uni
     for (int i = 0; i < count && i < 3; i++) {
         output[i].x = protobuf_points[i].x;
         output[i].y = protobuf_points[i].y;
-        output[i].buttonMask = protobuf_points[i].buttonMask;
     }
 }
 } // namespace
 
 bool UnifiedAnalogProcessorAddon::available() {
-    return Storage::getInstance().getAddonOptions().analogOptions.enabled;
+    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    return addonOptions.analogOptions.enabled ||
+        addonOptions.mcp3208Options.enabled ||
+        addonOptions.ads8332Options.enabled;
 }
 
 void UnifiedAnalogProcessorAddon::setup() {
+    resolveSource();
     initializeFromOptions();
 }
 
 void UnifiedAnalogProcessorAddon::reinit() {
+    resolveSource();
     initializeFromOptions();
+}
+
+void UnifiedAnalogProcessorAddon::resolveSource() {
+    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    if (addonOptions.ads8332Options.enabled) {
+        source_ = StickSource::ADS8332;
+        return;
+    }
+    if (addonOptions.mcp3208Options.enabled) {
+        source_ = StickSource::MCP3208;
+        return;
+    }
+    if (addonOptions.analogOptions.enabled) {
+        source_ = StickSource::OnboardADC;
+        return;
+    }
+    source_ = StickSource::None;
 }
 
 void UnifiedAnalogProcessorAddon::initializeFromOptions() {
@@ -73,6 +96,7 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.in_deadzone = (isFirst ? options.inner_deadzone : options.inner_deadzone2) / 100.0f;
     stick.anti_deadzone = std::clamp((isFirst ? options.anti_deadzone : options.anti_deadzone2) / 100.0f, 0.0f, 1.0f);
     stick.fixed_anti_deadzone = isFirst ? options.fixed_anti_deadzone : options.fixed_anti_deadzone2;
+    stick.jitter_filter = isFirst ? options.joystick_jitter_filter_1 : options.joystick_jitter_filter_2;
     stick.x_center = static_cast<uint16_t>((isFirst ? options.joystick_center_x : options.joystick_center_x2) > 0
         ? (isFirst ? options.joystick_center_x : options.joystick_center_x2)
         : static_cast<uint32_t>(ADC_MAX_HALF));
@@ -82,9 +106,10 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.has_range_calibration = isFirst ? (options.joystick_range_data_1_count > 0) : (options.joystick_range_data_2_count > 0);
     stick.finetune_shape_force_circular = isFirst ? options.joystick_finetune_shape_force_circular_1 : options.joystick_finetune_shape_force_circular_2;
     stick.finetune_shape_amplify = isFirst ? options.joystick_finetune_shape_amplify_1 : options.joystick_finetune_shape_amplify_2;
+    stick.last_x_adc = stick.x_center;
+    stick.last_y_adc = stick.y_center;
     stick.curve_points_sorted_count = 0;
     stick.curve_segments_count = 0;
-    stick.active_control_points_mask = 0;
 
     for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
         const bool hasPoint = isFirst ? (i < options.joystick_range_data_1_count) : (i < options.joystick_range_data_2_count);
@@ -106,9 +131,30 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     }
 }
 
+uint16_t UnifiedAnalogProcessorAddon::quantizeRaw(int stickNum, uint16_t value, bool isXAxis, uint16_t adcMax) {
+    uint32_t step = sticks_[stickNum].jitter_filter;
+    uint16_t* last = isXAxis ? &sticks_[stickNum].last_x_adc : &sticks_[stickNum].last_y_adc;
+    if (step > 0) {
+        const uint32_t maxStep = static_cast<uint32_t>(adcMax) + 1u;
+        if (step > maxStep) {
+            step = maxStep;
+        }
+        const uint32_t half = step / 2u;
+        const uint32_t rounded = (static_cast<uint32_t>(value) + half) / step;
+        uint32_t quantized = rounded * step;
+        if (quantized > adcMax) {
+            quantized = adcMax;
+        }
+        value = static_cast<uint16_t>(quantized);
+    }
+    *last = value;
+    return value;
+}
+
 void UnifiedAnalogProcessorAddon::process() {
-    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-    if (!analogOptions.enabled) {
+    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    const AnalogOptions& analogOptions = addonOptions.analogOptions;
+    if (!available()) {
         return;
     }
 
@@ -178,24 +224,39 @@ void UnifiedAnalogProcessorAddon::process() {
         uint16_t rawY = 0;
         uint16_t xCenter = static_cast<uint16_t>(ADC_MAX_HALF);
         uint16_t yCenter = static_cast<uint16_t>(ADC_MAX_HALF);
+        uint16_t adcMax = ADC_MAX;
         bool xValid = false;
         bool yValid = false;
-        if (!AnalogInput::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid)) {
+
+        bool hasSource = false;
+        if (source_ == StickSource::ADS8332) {
+            hasSource = ADS8332ADCAddon::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
+        } else if (source_ == StickSource::MCP3208) {
+            hasSource = MCP3208ADCAddon::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
+        } else if (source_ == StickSource::OnboardADC) {
+            hasSource = AnalogInput::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid);
+            adcMax = ADC_MAX;
+        }
+        if (!hasSource) {
             continue;
         }
 
-        sticks_[i].x_center = xCenter;
-        sticks_[i].y_center = yCenter;
+        rawX = quantizeRaw(i, rawX, true, adcMax);
+        rawY = quantizeRaw(i, rawY, false, adcMax);
+        // Center calibration remains owned by unified analog options.
+        const uint16_t calibratedXCenter = sticks_[i].x_center;
+        const uint16_t calibratedYCenter = sticks_[i].y_center;
+        const float adcHalf = static_cast<float>(adcMax) * 0.5f;
 
-        float cx = xValid ? static_cast<float>(rawX) - static_cast<float>(xCenter) : 0.0f;
-        float cy = yValid ? static_cast<float>(rawY) - static_cast<float>(yCenter) : 0.0f;
+        float cx = xValid ? static_cast<float>(rawX) - static_cast<float>(calibratedXCenter) : 0.0f;
+        float cy = yValid ? static_cast<float>(rawY) - static_cast<float>(calibratedYCenter) : 0.0f;
 
         float scale = getInterpolatedScale(i, std::atan2(cy, cx));
         float sx = cx / scale;
         float sy = cy / scale;
 
-        float nx = sx / ADC_MAX_HALF;
-        float ny = sy / ADC_MAX_HALF;
+        float nx = sx / adcHalf;
+        float ny = sy / adcHalf;
 
         if (sticks_[i].analog_invert == InvertMode::INVERT_X || sticks_[i].analog_invert == InvertMode::INVERT_XY) nx = -nx;
         if (sticks_[i].analog_invert == InvertMode::INVERT_Y || sticks_[i].analog_invert == InvertMode::INVERT_XY) ny = -ny;
@@ -226,7 +287,7 @@ void UnifiedAnalogProcessorAddon::process() {
         ny = std::clamp(ny, -1.0f, 1.0f);
 
         if (sticks_[i].curve_points_sorted_count > 0 || active_activation_preset_[i] != 0) {
-            applyResponseCurveToCoordinates(nx, ny, i, gamepad);
+            applyResponseCurveToCoordinates(nx, ny, i);
         }
 
         float xValue = nx * 0.5f + ANALOG_CENTER;
@@ -299,16 +360,14 @@ void UnifiedAnalogProcessorAddon::initializeCurveSegments(int stickNum, const Un
     sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {
         sticks_[stickNum].in_deadzone,
         sticks_[stickNum].anti_deadzone,
-        0
     };
     for (int i = 0; i < controlPointsCount; i++) {
         sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {
             controlPoints[i].x,
             controlPoints[i].y,
-            controlPoints[i].buttonMask
         };
     }
-    sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {1.0f, 1.0f, 0};
+    sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {1.0f, 1.0f};
 
     sticks_[stickNum].curve_segments_count = 0;
     for (int i = 0; i < sticks_[stickNum].curve_points_sorted_count - 1; i++) {
@@ -331,11 +390,8 @@ void UnifiedAnalogProcessorAddon::initializeCurveSegments(int stickNum, const Un
     }
 }
 
-void UnifiedAnalogProcessorAddon::applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stickNum, Gamepad* gamepad) {
+void UnifiedAnalogProcessorAddon::applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stickNum) {
     if (normalizedX == 0.0f && normalizedY == 0.0f) {
-        if (active_activation_preset_[stickNum] == 0) {
-            forceReleaseActiveControlPoints(stickNum, gamepad);
-        }
         return;
     }
 
@@ -356,49 +412,6 @@ void UnifiedAnalogProcessorAddon::applyResponseCurveToCoordinates(float& normali
         if (segmentIdx == -1) segmentIdx = sticks_[stickNum].curve_segments_count - 1;
     }
 
-    if (gamepad != nullptr && active_activation_preset_[stickNum] == 0) {
-        uint8_t oldMask = sticks_[stickNum].active_control_points_mask;
-        uint8_t newMask = 0;
-        uint32_t buttonsNow = 0;
-        uint32_t buttonsPrev = 0;
-
-        for (int j = 1; j < sticks_[stickNum].curve_points_sorted_count - 1; j++) {
-            uint32_t btn = sticks_[stickNum].curve_points_sorted[j].buttonMask;
-            uint8_t pointBit = static_cast<uint8_t>(1U << (j - 1));
-            bool activeNow = (segmentIdx >= j);
-            bool activePrev = ((oldMask & pointBit) != 0);
-
-            if (activeNow) {
-                newMask |= pointBit;
-                if (btn != 0) buttonsNow |= btn;
-            }
-            if (activePrev && btn != 0) {
-                buttonsPrev |= btn;
-            }
-        }
-
-        uint32_t dpadNow = buttonsNow & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
-        uint32_t dpadPrev = buttonsPrev & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
-        uint32_t regularNow = buttonsNow & ~(GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
-        uint32_t regularPrev = buttonsPrev & ~(GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
-
-        if (dpadNow & GAMEPAD_MASK_DU) gamepad->state.dpad |= GAMEPAD_MASK_UP;
-        if (dpadNow & GAMEPAD_MASK_DD) gamepad->state.dpad |= GAMEPAD_MASK_DOWN;
-        if (dpadNow & GAMEPAD_MASK_DL) gamepad->state.dpad |= GAMEPAD_MASK_LEFT;
-        if (dpadNow & GAMEPAD_MASK_DR) gamepad->state.dpad |= GAMEPAD_MASK_RIGHT;
-
-        uint32_t dpadToRelease = dpadPrev & ~dpadNow;
-        if (dpadToRelease & GAMEPAD_MASK_DU) gamepad->state.dpad &= ~GAMEPAD_MASK_UP;
-        if (dpadToRelease & GAMEPAD_MASK_DD) gamepad->state.dpad &= ~GAMEPAD_MASK_DOWN;
-        if (dpadToRelease & GAMEPAD_MASK_DL) gamepad->state.dpad &= ~GAMEPAD_MASK_LEFT;
-        if (dpadToRelease & GAMEPAD_MASK_DR) gamepad->state.dpad &= ~GAMEPAD_MASK_RIGHT;
-
-        gamepad->state.buttons |= regularNow;
-        gamepad->state.buttons &= ~(regularPrev & ~regularNow);
-
-        sticks_[stickNum].active_control_points_mask = newMask;
-    }
-
     if (clampdist > 1.0f) {
         return;
     }
@@ -417,34 +430,6 @@ void UnifiedAnalogProcessorAddon::applyResponseCurveToCoordinates(float& normali
     normalizedY *= scale;
 }
 
-void UnifiedAnalogProcessorAddon::forceReleaseActiveControlPoints(int stickNum, Gamepad* gamepad) {
-    if (gamepad == nullptr || sticks_[stickNum].active_control_points_mask == 0) {
-        sticks_[stickNum].active_control_points_mask = 0;
-        return;
-    }
-
-    uint32_t totalToRelease = 0;
-    for (int j = 1; j < sticks_[stickNum].curve_points_sorted_count - 1; j++) {
-        uint8_t pointBit = static_cast<uint8_t>(1U << (j - 1));
-        if ((sticks_[stickNum].active_control_points_mask & pointBit) != 0) {
-            totalToRelease |= sticks_[stickNum].curve_points_sorted[j].buttonMask;
-        }
-    }
-
-    uint32_t dpadMask = totalToRelease & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
-    if (dpadMask & GAMEPAD_MASK_DU) gamepad->state.dpad &= ~GAMEPAD_MASK_UP;
-    if (dpadMask & GAMEPAD_MASK_DD) gamepad->state.dpad &= ~GAMEPAD_MASK_DOWN;
-    if (dpadMask & GAMEPAD_MASK_DL) gamepad->state.dpad &= ~GAMEPAD_MASK_LEFT;
-    if (dpadMask & GAMEPAD_MASK_DR) gamepad->state.dpad &= ~GAMEPAD_MASK_RIGHT;
-
-    uint32_t regularMask = totalToRelease & ~(GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
-    if (regularMask != 0) {
-        gamepad->state.buttons &= ~regularMask;
-    }
-
-    sticks_[stickNum].active_control_points_mask = 0;
-}
-
 void UnifiedAnalogProcessorAddon::saveCurrentCurveData(int stickNum) {
     if (stickNum < 0 || stickNum >= STICK_COUNT) return;
 
@@ -455,7 +440,6 @@ void UnifiedAnalogProcessorAddon::saveCurrentCurveData(int stickNum) {
                 temp_curve_storage_[stickNum].saved_points[temp_curve_storage_[stickNum].saved_points_count] = {
                     sticks_[stickNum].curve_points_sorted[i].x,
                     sticks_[stickNum].curve_points_sorted[i].y,
-                    sticks_[stickNum].curve_points_sorted[i].buttonMask
                 };
                 temp_curve_storage_[stickNum].saved_points_count++;
             }
@@ -467,15 +451,11 @@ void UnifiedAnalogProcessorAddon::saveCurrentCurveData(int stickNum) {
 void UnifiedAnalogProcessorAddon::restoreCurveData(int stickNum) {
     if (stickNum < 0 || stickNum >= STICK_COUNT || !temp_curve_storage_[stickNum].is_saved) return;
 
-    Gamepad* gamepad = Storage::getInstance().GetGamepad();
-    forceReleaseActiveControlPoints(stickNum, gamepad);
-
     if (temp_curve_storage_[stickNum].saved_points_count > 0) {
         initializeCurveSegments(stickNum, temp_curve_storage_[stickNum].saved_points, temp_curve_storage_[stickNum].saved_points_count);
     } else {
         sticks_[stickNum].curve_points_sorted_count = 0;
         sticks_[stickNum].curve_segments_count = 0;
-        sticks_[stickNum].active_control_points_mask = 0;
     }
 
     temp_curve_storage_[stickNum].is_saved = false;
@@ -492,14 +472,11 @@ void UnifiedAnalogProcessorAddon::applyPresetCurve(int stickNum, int presetIndex
     }
 
     const CurvePreset& preset = analogOptions.joystick_curve_presets[presetIndex];
-    Gamepad* gamepad = Storage::getInstance().GetGamepad();
-    forceReleaseActiveControlPoints(stickNum, gamepad);
 
     UnifiedAnalogCurvePoint converted[3];
     for (int i = 0; i < preset.points_count && i < 3; i++) {
         converted[i].x = preset.points[i].x;
         converted[i].y = preset.points[i].y;
-        converted[i].buttonMask = 0;
     }
     initializeCurveSegments(stickNum, converted, preset.points_count);
 }

@@ -47,7 +47,7 @@ const StickCalibrationModal = ({
 		setButtonText(t('AddonsConfig:joystick-calibration-modal-sampling'));
 		
 		try {
-			const apiEndpoint = stickNumber === 1 ? '/api/getJoystickCenter' : '/api/getJoystickCenter2';
+			const apiEndpoint = stickNumber === 1 ? '/api/getJoystickRaw' : '/api/getJoystickRaw2';
 			const SAMPLE_COUNT = 10; // Number of samples to take for averaging
 			const SAMPLE_INTERVAL = 50; // Milliseconds between samples
 			

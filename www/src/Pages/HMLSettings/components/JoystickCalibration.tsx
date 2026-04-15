@@ -748,7 +748,7 @@ const JoystickCalibration = ({
 		const fetchJoystickData = async () => {
 			try {
 				// Fetch left stick (stick 1) from unified API.
-				const res1 = await fetch('/api/getJoystickCenter');
+				const res1 = await fetch('/api/getJoystickRaw');
 				if (res1.ok) {
 					const data1 = await res1.json();
 					if (data1.success) {
@@ -894,7 +894,7 @@ const JoystickCalibration = ({
 				}
 
 				// Fetch right stick (stick 2) from unified API.
-				const res2 = await fetch('/api/getJoystickCenter2');
+				const res2 = await fetch('/api/getJoystickRaw2');
 				if (res2.ok) {
 					const data2 = await res2.json();
 					if (data2.success) {

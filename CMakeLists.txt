@@ -274,6 +274,7 @@ src/config_utils.cpp
 src/webconfig.cpp
 src/addons/analog.cpp
 src/addons/unified_analog_processor.cpp
+src/addons/unified_voltage_switch.cpp
 src/addons/analog_utils.cpp
 src/addons/board_led.cpp
 src/addons/bootsel_button.cpp
@@ -290,7 +291,6 @@ src/addons/buzzerspeaker.cpp
 src/addons/dualdirectional.cpp
 src/addons/keyboard_host.cpp
 src/addons/keyboard_host_listener.cpp
-src/addons/i2canalog1219.cpp
 src/addons/i2c_gpio_pcf8575.cpp
 src/addons/display.cpp
 src/addons/neopicoleds.cpp
@@ -305,7 +305,6 @@ src/addons/wiiext.cpp
 src/addons/input_macro.cpp
 src/addons/snes_input.cpp
 src/addons/tilt.cpp
-src/addons/spi_analog_ads1256.cpp
 src/addons/gamepad_usb_host.cpp
 src/addons/gamepad_usb_host_listener.cpp
 src/addons/tg16_input.cpp
@@ -333,8 +332,6 @@ tinyusb_host
 tinyusb_pico_pio_usb
 CRC32
 FlashPROM
-ADS1219
-ADS1256
 NeoPico
 OneBitDisplay
 ArduinoJson
@@ -357,7 +354,6 @@ headers/drivers/shared
 headers/events
 headers/interfaces
 headers/interfaces/i2c
-headers/interfaces/i2c/ads1219
 headers/interfaces/i2c/pcf8575
 headers/interfaces/i2c/ssd1306
 headers/interfaces/i2c/wiiextension

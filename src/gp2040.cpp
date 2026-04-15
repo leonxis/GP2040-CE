@@ -15,6 +15,7 @@
 // Inputs for Core0
 #include "addons/analog.h"
 #include "addons/unified_analog_processor.h"
+#include "addons/unified_voltage_switch.h"
 #include "addons/mcp3208_adc.h"
 #include "addons/ads8332_adc.h"
 #include "addons/lsm6dsr_imu.h"
@@ -23,11 +24,9 @@
 #include "addons/dualdirectional.h"
 #include "addons/tilt.h"
 #include "addons/keyboard_host.h"
-#include "addons/i2canalog1219.h"
 #include "addons/reverse.h"
 #include "addons/turbo.h"
 #include "addons/slider_socd.h"
-#include "addons/spi_analog_ads1256.h"
 #include "addons/wiiext.h"
 #include "addons/input_macro.h"
 #include "addons/snes_input.h"
@@ -182,9 +181,10 @@ void GP2040::setup() {
 	addons.LoadUSBAddon(new KeyboardHostAddon());
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
 	addons.LoadAddon(new AnalogInput());
-	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
 	addons.LoadAddon(new MCP3208ADCAddon());
 	addons.LoadAddon(new ADS8332ADCAddon());
+	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
+	addons.LoadAddon(new UnifiedVoltageSwitchAddon());
 	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new LinearTriggerAddon());
@@ -194,8 +194,6 @@ void GP2040::setup() {
 	addons.LoadAddon(new BootselButtonAddon());
 	addons.LoadAddon(new DualDirectionalInput());
 	addons.LoadAddon(new FocusModeAddon());
-	addons.LoadAddon(new I2CAnalog1219Input());
-	addons.LoadAddon(new SPIAnalog1256Input());
 	addons.LoadAddon(new WiiExtensionInput());
 	addons.LoadAddon(new SNESpadInput());
 	addons.LoadAddon(new SliderSOCDInput());

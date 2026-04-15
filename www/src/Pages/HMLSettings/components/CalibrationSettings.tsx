@@ -12,10 +12,6 @@ import WebApi from '../../../Services/WebApi';
 import JoystickCalibration from './JoystickCalibration';
 import JoystickCurveSettings from './JoystickCurveSettings';
 import { analogScheme, analogState } from '../../../Addons/Analog';
-import {
-	analog1256Scheme,
-	analog1256State,
-} from '../../../Addons/Analog1256';
 import { mcp3208Scheme, mcp3208State } from '../../../Addons/MCP3208';
 import { lsm6dsrScheme, lsm6dsrState } from '../../../Addons/LSM6DSR';
 import { bootselScheme, bootselState } from '../../../Addons/Bootsel';
@@ -24,10 +20,6 @@ import {
 	dualDirectionScheme,
 	dualDirectionState,
 } from '../../../Addons/DualDirection';
-import {
-	i2cAnalogScheme,
-	i2cAnalogState,
-} from '../../../Addons/I2CAnalog1219';
 import {
 	onBoardLedScheme,
 	onBoardLedState,
@@ -78,14 +70,12 @@ export type AddonPropTypes = {
 
 export const schema = yup.object().shape({
 	...analogScheme,
-	...analog1256Scheme,
 	...mcp3208Scheme,
 	...lsm6dsrScheme,
 	...bootselScheme,
 	...onBoardLedScheme,
 	...turboScheme,
 	...reverseScheme,
-	...i2cAnalogScheme,
 	...dualDirectionScheme,
 	...tiltScheme,
 	...buzzerScheme,
@@ -104,14 +94,12 @@ export const schema = yup.object().shape({
 
 export const DEFAULT_VALUES = {
 	...analogState,
-	...analog1256State,
 	...mcp3208State,
 	...lsm6dsrState,
 	...bootselState,
 	...onBoardLedState,
 	...turboState,
 	...reverseState,
-	...i2cAnalogState,
 	...dualDirectionState,
 	...tiltState,
 	...buzzerState,

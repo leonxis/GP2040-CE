@@ -60,7 +60,7 @@ const RangeCalibrationModal = ({
 
 	const checkDataProgress = async () => {
 		try {
-			const apiEndpoint = stickNumber === 1 ? '/api/getJoystickCenter' : '/api/getJoystickCenter2';
+			const apiEndpoint = stickNumber === 1 ? '/api/getJoystickRaw' : '/api/getJoystickRaw2';
 			const res = await fetch(apiEndpoint);
 			
 			if (!res.ok) {

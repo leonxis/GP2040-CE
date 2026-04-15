@@ -40,13 +40,6 @@ private:
         Pin_t y_pin;
         Pin_t x_pin_adc;
         Pin_t y_pin_adc;
-        uint16_t x_center;
-        uint16_t y_center;
-        uint32_t joystick_center_x;
-        uint32_t joystick_center_y;
-        uint32_t jitter_filter;
-        uint16_t last_x_adc;
-        uint16_t last_y_adc;
         uint16_t raw_x;
         uint16_t raw_y;
         bool has_x;
@@ -56,7 +49,7 @@ private:
     static AnalogInput* s_instance_;
 
     void refreshConfigFromStorage();
-    uint16_t readPinQuantized(int stickNum, Pin_t pinAdc, bool isXAxis);
+    uint16_t readPinRaw(Pin_t pinAdc);
 };
 
 #endif  // _Analog_H_

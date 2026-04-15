@@ -2124,11 +2124,6 @@ std::string setAddonOptions()
                 if (point.containsKey("x") && point.containsKey("y")) {
                     analogOptions.joystick_curve_points_1[i].x = point["x"].as<float>();
                     analogOptions.joystick_curve_points_1[i].y = point["y"].as<float>();
-                    // buttonMask always has a default value (0) if not provided
-                    analogOptions.joystick_curve_points_1[i].buttonMask = point.containsKey("buttonMask") && point["buttonMask"].is<uint32_t>() 
-                        ? point["buttonMask"].as<uint32_t>() 
-                        : 0;
-                    analogOptions.joystick_curve_points_1[i].has_buttonMask = true;
                     analogOptions.joystick_curve_points_1_count++;
                 }
             }
@@ -2143,11 +2138,6 @@ std::string setAddonOptions()
                 if (point.containsKey("x") && point.containsKey("y")) {
                     analogOptions.joystick_curve_points_2[i].x = point["x"].as<float>();
                     analogOptions.joystick_curve_points_2[i].y = point["y"].as<float>();
-                    // buttonMask always has a default value (0) if not provided
-                    analogOptions.joystick_curve_points_2[i].buttonMask = point.containsKey("buttonMask") && point["buttonMask"].is<uint32_t>() 
-                        ? point["buttonMask"].as<uint32_t>() 
-                        : 0;
-                    analogOptions.joystick_curve_points_2[i].has_buttonMask = true;
                     analogOptions.joystick_curve_points_2_count++;
                 }
             }
@@ -2184,11 +2174,6 @@ std::string setAddonOptions()
                             if (point.containsKey("x") && point.containsKey("y")) {
                                 curvePreset.points[j].x = point["x"].as<float>();
                                 curvePreset.points[j].y = point["y"].as<float>();
-                                // buttonMask always has a default value (0) if not provided
-                                curvePreset.points[j].buttonMask = point.containsKey("buttonMask") && point["buttonMask"].is<uint32_t>() 
-                                    ? point["buttonMask"].as<uint32_t>() 
-                                    : 0;
-                                curvePreset.points[j].has_buttonMask = true;
                                 curvePreset.points[j].has_x = true;
                                 curvePreset.points[j].has_y = true;
                                 curvePreset.points_count++;
@@ -2249,9 +2234,6 @@ std::string setAddonOptions()
     docToValue(focusModeOptions.buttonLockEnabled, doc, "focusModeButtonLockEnabled");
     docToValue(focusModeOptions.macroLockEnabled, doc, "focusModeMacroLockEnabled");
     docToValue(focusModeOptions.enabled, doc, "FocusModeAddonEnabled");
-
-    AnalogADS1219Options& analogADS1219Options = Storage::getInstance().getAddonOptions().analogADS1219Options;
-    docToValue(analogADS1219Options.enabled, doc, "I2CAnalog1219InputEnabled");
 
     ReverseOptions& reverseOptions = Storage::getInstance().getAddonOptions().reverseOptions;
     docToValue(reverseOptions.enabled, doc, "ReverseInputEnabled");
@@ -2331,14 +2313,6 @@ std::string setAddonOptions()
 
     GamepadUSBHostOptions& gamepadUSBHostOptions = Storage::getInstance().getAddonOptions().gamepadUSBHostOptions;
     docToValue(gamepadUSBHostOptions.enabled, doc, "GamepadUSBHostAddonEnabled");
-
-    AnalogADS1256Options& ads1256Options = Storage::getInstance().getAddonOptions().analogADS1256Options;
-    docToValue(ads1256Options.enabled, doc, "Analog1256Enabled");
-    docToValue(ads1256Options.spiBlock, doc, "analog1256Block");
-    docToValue(ads1256Options.csPin, doc, "analog1256CsPin");
-    docToValue(ads1256Options.drdyPin, doc, "analog1256DrdyPin");
-    docToValue(ads1256Options.avdd, doc, "analog1256AnalogMax");
-    docToValue(ads1256Options.enableTriggers, doc, "analog1256EnableTriggers");
 
     MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
     docToValue(mcp3208Options.enabled, doc, "MCP3208AddonEnabled");
@@ -2827,14 +2801,12 @@ std::string getAddonOptions()
         JsonObject point = curvePoints1.createNestedObject();
         point["x"] = analogOptions.joystick_curve_points_1[i].x;
         point["y"] = analogOptions.joystick_curve_points_1[i].y;
-        point["buttonMask"] = analogOptions.joystick_curve_points_1[i].buttonMask;
     }
     JsonArray curvePoints2 = doc.createNestedArray("joystickCurvePoints2");
     for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_2_count && i < 3; i++) {
         JsonObject point = curvePoints2.createNestedObject();
         point["x"] = analogOptions.joystick_curve_points_2[i].x;
         point["y"] = analogOptions.joystick_curve_points_2[i].y;
-        point["buttonMask"] = analogOptions.joystick_curve_points_2[i].buttonMask;
     }
     writeDoc(doc, "joystickCurveEnabled", analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : false);
     // Write preset schemes (stored in protobuf, max 4 presets)
@@ -2856,7 +2828,6 @@ std::string getAddonOptions()
             JsonObject point = points.createNestedObject();
             point["x"] = curvePreset.points[j].x;
             point["y"] = curvePreset.points[j].y;
-            point["buttonMask"] = curvePreset.points[j].buttonMask;
         }
         
         // Write activation button mask (default 0 = NONE, disabled)
@@ -2934,9 +2905,6 @@ std::string getAddonOptions()
     writeDoc(doc, "factorTilt2RightY", tiltOptions.factorTilt2RightY);
     writeDoc(doc, "tiltSOCDMode", tiltOptions.tiltSOCDMode);
     writeDoc(doc, "TiltInputEnabled", tiltOptions.enabled);
-
-    const AnalogADS1219Options& analogADS1219Options = Storage::getInstance().getAddonOptions().analogADS1219Options;
-    writeDoc(doc, "I2CAnalog1219InputEnabled", analogADS1219Options.enabled);
 
     const ReverseOptions& reverseOptions = Storage::getInstance().getAddonOptions().reverseOptions;
     writeDoc(doc, "reversePinLED", cleanPin(reverseOptions.ledPin));
@@ -3016,14 +2984,6 @@ std::string getAddonOptions()
 
     const GamepadUSBHostOptions& gamepadUSBHostOptions = Storage::getInstance().getAddonOptions().gamepadUSBHostOptions;
     writeDoc(doc, "GamepadUSBHostAddonEnabled", gamepadUSBHostOptions.enabled);
-
-    AnalogADS1256Options& ads1256Options = Storage::getInstance().getAddonOptions().analogADS1256Options;
-    writeDoc(doc, "Analog1256Enabled", ads1256Options.enabled);
-    writeDoc(doc, "analog1256Block", ads1256Options.spiBlock);
-    writeDoc(doc, "analog1256CsPin", ads1256Options.csPin);
-    writeDoc(doc, "analog1256DrdyPin", ads1256Options.drdyPin);
-    writeDoc(doc, "analog1256AnalogMax", ads1256Options.avdd);
-    writeDoc(doc, "analog1256EnableTriggers", ads1256Options.enableTriggers);
 
     const FocusModeOptions& focusModeOptions = Storage::getInstance().getAddonOptions().focusModeOptions;
     writeDoc(doc, "focusModeButtonLockMask", focusModeOptions.buttonLockMask);
@@ -3364,7 +3324,7 @@ std::string reboot() {
 }
 
 // NEW API: return current raw ADC reading for the configured analog pins
-std:: string getJoystickCenter() {
+std:: string getJoystickRaw() {
     const size_t capacity = JSON_OBJECT_SIZE(12);
     DynamicJsonDocument doc(capacity);
     
@@ -3385,7 +3345,7 @@ std:: string getJoystickCenter() {
 }
 
 // NEW API: return current raw ADC reading for stick 2
-std:: string getJoystickCenter2() {
+std:: string getJoystickRaw2() {
     const size_t capacity = JSON_OBJECT_SIZE(12);
     DynamicJsonDocument doc(capacity);
     
@@ -3472,8 +3432,8 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/abortGetHeldPins", abortGetHeldPins },
     { "/api/getUsedPins", getUsedPins },
     { "/api/getConfig", getConfig },
-    { "/api/getJoystickCenter", getJoystickCenter },
-    { "/api/getJoystickCenter2", getJoystickCenter2 },
+    { "/api/getJoystickRaw", getJoystickRaw },
+    { "/api/getJoystickRaw2", getJoystickRaw2 },
 #if !defined(NDEBUG)
     { "/api/echo", echo },
 #endif

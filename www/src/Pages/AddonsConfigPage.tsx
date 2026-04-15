@@ -13,10 +13,6 @@ import { hexToInt } from '../Services/Utilities';
 
 import WebApi from '../Services/WebApi';
 import Analog, { analogScheme, analogState } from '../Addons/Analog';
-import Analog1256, {
-	analog1256Scheme,
-	analog1256State,
-} from '../Addons/Analog1256';
 import MCP3208, { mcp3208Scheme, mcp3208State } from '../Addons/MCP3208';
 import ADS8332, { ads8332Scheme, ads8332State } from '../Addons/ADS8332';
 import LSM6DSR, { lsm6dsrScheme, lsm6dsrState } from '../Addons/LSM6DSR';
@@ -26,10 +22,6 @@ import DualDirection, {
 	dualDirectionScheme,
 	dualDirectionState,
 } from '../Addons/DualDirection';
-import I2CAnalog1219, {
-	i2cAnalogScheme,
-	i2cAnalogState,
-} from '../Addons/I2CAnalog1219';
 import OnBoardLed, {
 	onBoardLedScheme,
 	onBoardLedState,
@@ -75,7 +67,6 @@ export type AddonPropTypes = {
 
 const schema = yup.object().shape({
 	...analogScheme,
-	...analog1256Scheme,
 	...mcp3208Scheme,
 	...ads8332Scheme,
 	...lsm6dsrScheme,
@@ -83,7 +74,6 @@ const schema = yup.object().shape({
 	...onBoardLedScheme,
 	...turboScheme,
 	...reverseScheme,
-	...i2cAnalogScheme,
 	...dualDirectionScheme,
 	...tiltScheme,
 	...buzzerScheme,
@@ -101,7 +91,6 @@ const schema = yup.object().shape({
 
 export const DEFAULT_VALUES = {
 	...analogState,
-	...analog1256State,
 	...mcp3208State,
 	...ads8332State,
 	...lsm6dsrState,
@@ -109,7 +98,6 @@ export const DEFAULT_VALUES = {
 	...onBoardLedState,
 	...turboState,
 	...reverseState,
-	...i2cAnalogState,
 	...dualDirectionState,
 	...tiltState,
 	...buzzerState,
@@ -133,8 +121,6 @@ const ADDONS = [
 	Analog,
 	Turbo,
 	Reverse,
-	I2CAnalog1219,
-	Analog1256,
 	MCP3208,
 	ADS8332,
 	LSM6DSR,

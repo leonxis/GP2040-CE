@@ -10,10 +10,7 @@
 typedef struct {
     float x;
     float y;
-    uint32_t buttonMask;
 } UnifiedAnalogCurvePoint;
-
-class Gamepad;
 
 class UnifiedAnalogProcessorAddon : public GPAddon {
 public:
@@ -27,6 +24,12 @@ public:
 
 private:
     static constexpr int STICK_COUNT = 2;
+    enum class StickSource : uint8_t {
+        None = 0,
+        ADS8332,
+        MCP3208,
+        OnboardADC,
+    };
 
     struct StickState {
         float x_value;
@@ -38,6 +41,9 @@ private:
         float in_deadzone;
         float anti_deadzone;
         bool fixed_anti_deadzone;
+        uint32_t jitter_filter;
+        uint16_t last_x_adc;
+        uint16_t last_y_adc;
         float range_data[48];
         bool has_range_calibration;
         bool finetune_shape_force_circular;
@@ -45,7 +51,6 @@ private:
         struct {
             float x;
             float y;
-            uint32_t buttonMask;
         } curve_points_sorted[5];
         uint8_t curve_points_sorted_count;
         struct {
@@ -55,7 +60,6 @@ private:
             float x_end;
         } curve_segments[4];
         uint8_t curve_segments_count;
-        uint8_t active_control_points_mask;
     };
 
     struct TempCurveStorage {
@@ -66,17 +70,19 @@ private:
 
     uint32_t usage_curve_profile_1_ = 0;
     uint32_t usage_curve_profile_2_ = 0;
+    StickSource source_ = StickSource::None;
     TempCurveStorage temp_curve_storage_[STICK_COUNT];
     uint8_t active_activation_preset_[STICK_COUNT] = {0, 0};
     StickState sticks_[STICK_COUNT];
 
     void initializeFromOptions();
+    void resolveSource();
     void initializeStickFromOptions(int stickNum, const AnalogOptions& options, bool curveEnabled);
+    uint16_t quantizeRaw(int stickNum, uint16_t value, bool isXAxis, uint16_t adcMax);
     float getInterpolatedScale(int stickNum, float angle) const;
     void applyFinetuneShapeAdjustments(int stickNum);
     void initializeCurveSegments(int stickNum, const UnifiedAnalogCurvePoint* controlPoints, int controlPointsCount);
-    void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stickNum, Gamepad* gamepad);
-    void forceReleaseActiveControlPoints(int stickNum, Gamepad* gamepad);
+    void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stickNum);
     void saveCurrentCurveData(int stickNum);
     void restoreCurveData(int stickNum);
     void applyPresetCurve(int stickNum, int presetIndex);

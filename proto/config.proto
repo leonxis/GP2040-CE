@@ -399,7 +399,7 @@ message CurvePoint
 {
     optional float x = 1;
     optional float y = 2;
-    optional uint32 buttonMask = 3;
+    reserved 3;
 }
 
 message CurvePreset
@@ -535,28 +535,6 @@ message ReverseOptions
     optional uint32 actionDown = 5;
     optional uint32 actionLeft = 6;
     optional uint32 actionRight = 7;
-}
-
-message AnalogADS1219Options
-{
-    optional bool enabled = 1;
-
-    optional int32 deprecatedI2cBlock = 2 [deprecated = true];
-    optional int32 deprecatedI2cSDAPin = 3 [deprecated = true];
-    optional int32 deprecatedI2cSCLPin = 4 [deprecated = true];
-    optional int32 deprecatedI2cAddress = 5 [deprecated = true];
-    optional int32 deprecatedI2cSpeed = 6 [deprecated = true];
-}
-
-message AnalogADS1256Options
-{
-    optional bool enabled = 1;
-
-    optional int32 spiBlock = 2;
-    optional int32 csPin = 3;
-    optional int32 drdyPin = 4;
-    optional float avdd = 5;
-    optional bool enableTriggers = 6;
 }
 
 message DualDirectionalOptions
@@ -957,7 +935,7 @@ message AddonOptions
     optional TurboOptions turboOptions = 4;
     optional SliderOptions deprecatedSliderOptions = 5 [deprecated = true];
     optional ReverseOptions reverseOptions = 6;
-    optional AnalogADS1219Options analogADS1219Options = 7;
+    reserved 7;
     optional DualDirectionalOptions dualDirectionalOptions = 8;
     optional BuzzerOptions buzzerOptions = 9;
     optional ExtraButtonOptions deprecatedExtraButtonOptions = 10 [deprecated = true];
@@ -973,7 +951,7 @@ message AddonOptions
     optional MacroOptions macroOptions = 20;
     optional InputHistoryOptions inputHistoryOptions = 21  [deprecated = true];
     optional XBOnePassthroughOptions xbonePassthroughOptions = 22 [deprecated = true];
-    optional AnalogADS1256Options analogADS1256Options = 23;
+    reserved 23;
     optional RotaryOptions rotaryOptions = 24;
     optional PCF8575Options pcf8575Options = 25;
     optional DRV8833RumbleOptions drv8833RumbleOptions = 26;

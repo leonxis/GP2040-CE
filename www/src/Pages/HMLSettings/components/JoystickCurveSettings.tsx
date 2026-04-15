@@ -9,8 +9,8 @@ import { BUTTON_MASKS_OPTIONS, getButtonLabels } from '../../../Data/Buttons';
 import { AppContext } from '../../../Contexts/AppContext';
 
 // Type definitions
-type CurvePoint = { x: number; y: number; buttonMask?: number };
-type CurvePointInput = { x: string; y: string; buttonMask?: number };
+type CurvePoint = { x: number; y: number };
+type CurvePointInput = { x: string; y: string };
 
 const DEFAULT_ADC_MAX = 4095;
 const CIRCULARITY_DATA_SIZE = 48;
@@ -526,9 +526,7 @@ const validateAllPointsMonotonicity = (points: CurvePoint[]): CurvePoint[] => {
 			correctedX = Math.max(0, Math.min(1, correctedX));
 		}
 		
-		// Preserve buttonMask from original point
-		const buttonMask = point.buttonMask || 0;
-		validated.push({ x: correctedX, y: correctedY, buttonMask });
+		validated.push({ x: correctedX, y: correctedY });
 	}
 	
 	return validated;
@@ -599,7 +597,6 @@ const JoystickCurveSettings = ({
 			return (saved as CurvePoint[]).map(p => ({ 
 				x: parseFloat(p.x.toFixed(4)).toString(), 
 				y: parseFloat(p.y.toFixed(4)).toString(),
-				buttonMask: p.buttonMask || 0
 			}));
 		}
 		return [];
@@ -621,7 +618,6 @@ const JoystickCurveSettings = ({
 			return (saved as CurvePoint[]).map(p => ({ 
 				x: parseFloat(p.x.toFixed(4)).toString(), 
 				y: parseFloat(p.y.toFixed(4)).toString(),
-				buttonMask: p.buttonMask || 0
 			}));
 		}
 		return [];
@@ -640,7 +636,6 @@ const JoystickCurveSettings = ({
 			setLeftCurveInputValues((saved as CurvePoint[]).map(p => ({ 
 				x: parseFloat(p.x.toFixed(4)).toString(), 
 				y: parseFloat(p.y.toFixed(4)).toString(),
-				buttonMask: p.buttonMask || 0
 			})));
 		} else {
 			setLeftCurvePoints([]);
@@ -655,7 +650,6 @@ const JoystickCurveSettings = ({
 			setRightCurveInputValues((saved as CurvePoint[]).map(p => ({ 
 				x: parseFloat(p.x.toFixed(4)).toString(), 
 				y: parseFloat(p.y.toFixed(4)).toString(),
-				buttonMask: p.buttonMask || 0
 			})));
 		} else {
 			setRightCurvePoints([]);
@@ -670,7 +664,7 @@ const JoystickCurveSettings = ({
 		const fetchJoystickData = async () => {
 			// Fetch left stick from unified joystick API.
 			try {
-				const res = await fetch('/api/getJoystickCenter');
+				const res = await fetch('/api/getJoystickRaw');
 				if (res.ok) {
 					const data = await res.json();
 					if (data.success) {
@@ -752,7 +746,7 @@ const JoystickCurveSettings = ({
 			
 			// Fetch right stick from unified joystick API.
 			try {
-				const res = await fetch('/api/getJoystickCenter2');
+				const res = await fetch('/api/getJoystickRaw2');
 				if (res.ok) {
 					const data = await res.json();
 					if (data.success) {
@@ -931,14 +925,12 @@ const JoystickCurveSettings = ({
 				setLeftCurveInputValues(leftCurvePoints.map((p, i) => ({ 
 					x: parseFloat(p.x.toFixed(4)).toString(), 
 					y: parseFloat(p.y.toFixed(4)).toString(),
-					buttonMask: leftCurveInputValues[i]?.buttonMask || p.buttonMask || 0
 				})));
 			}
 		} else {
 			setLeftCurveInputValues(leftCurvePoints.map((p) => ({ 
 				x: parseFloat(p.x.toFixed(4)).toString(), 
 				y: parseFloat(p.y.toFixed(4)).toString(),
-				buttonMask: p.buttonMask || 0
 			})));
 		}
 	}, [leftCurvePoints]);
@@ -953,14 +945,12 @@ const JoystickCurveSettings = ({
 				setRightCurveInputValues(rightCurvePoints.map((p, i) => ({ 
 					x: parseFloat(p.x.toFixed(4)).toString(), 
 					y: parseFloat(p.y.toFixed(4)).toString(),
-					buttonMask: rightCurveInputValues[i]?.buttonMask || p.buttonMask || 0
 				})));
 			}
 		} else {
 			setRightCurveInputValues(rightCurvePoints.map((p) => ({ 
 				x: parseFloat(p.x.toFixed(4)).toString(), 
 				y: parseFloat(p.y.toFixed(4)).toString(),
-				buttonMask: p.buttonMask || 0
 			})));
 		}
 	}, [rightCurvePoints]);
@@ -1141,16 +1131,12 @@ const JoystickCurveSettings = ({
 		const updatedPoints = [...leftCurvePoints];
 		updatedPoints[index] = validatedPoint;
 		const validatedAll = validateAllPointsMonotonicity(updatedPoints);
-		// Preserve buttonMask when updating points
-		const buttonMask = leftCurveInputValues[index]?.buttonMask || 0;
-		validatedAll[index] = { ...validatedAll[index], buttonMask };
 		setLeftCurvePoints(validatedAll);
 		// Update input values with formatted display (4 decimal places)
 		const updatedInputValues = [...leftCurveInputValues];
 		updatedInputValues[index] = { 
 			x: parseFloat(validatedAll[index].x.toFixed(4)).toString(), 
 			y: parseFloat(validatedAll[index].y.toFixed(4)).toString(),
-			buttonMask: validatedAll[index].buttonMask || 0
 		};
 		setLeftCurveInputValues(updatedInputValues);
 	};
@@ -1178,16 +1164,12 @@ const JoystickCurveSettings = ({
 		const updatedPoints = [...rightCurvePoints];
 		updatedPoints[index] = validatedPoint;
 		const validatedAll = validateAllPointsMonotonicity(updatedPoints);
-		// Preserve buttonMask when updating points
-		const buttonMask = rightCurveInputValues[index]?.buttonMask || 0;
-		validatedAll[index] = { ...validatedAll[index], buttonMask };
 		setRightCurvePoints(validatedAll);
 		// Update input values with formatted display (4 decimal places)
 		const updatedInputValues = [...rightCurveInputValues];
 		updatedInputValues[index] = { 
 			x: parseFloat(validatedAll[index].x.toFixed(4)).toString(), 
 			y: parseFloat(validatedAll[index].y.toFixed(4)).toString(),
-			buttonMask: validatedAll[index].buttonMask || 0
 		};
 		setRightCurveInputValues(updatedInputValues);
 	};
@@ -1199,7 +1181,6 @@ const JoystickCurveSettings = ({
 		setLeftCurveInputValues(updated.map(p => ({ 
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),
-			buttonMask: p.buttonMask || 0
 		})));
 	};
 	
@@ -1210,7 +1191,6 @@ const JoystickCurveSettings = ({
 		setRightCurveInputValues(updated.map(p => ({ 
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),
-			buttonMask: p.buttonMask || 0
 		})));
 	};
 	
@@ -1228,15 +1208,12 @@ const JoystickCurveSettings = ({
 	
 	// Handle confirm for left stick
 	const handleLeftConfirm = () => {
-		// Create pairs of points and their input values, then sort together
-		// This ensures buttonMask stays with the correct point even after sorting
 		const pointsWithInputs = leftCurvePoints.map((point, index) => ({
-			point: { ...point }, // Create a copy to avoid mutation
+			point: { ...point },
 			inputValue: leftCurveInputValues[index],
 			originalIndex: index
 		}));
 		
-		// Sort the same way as validateAllPointsMonotonicity does
 		pointsWithInputs.sort((a, b) => {
 			if (a.point.x === b.point.x) {
 				return a.point.y - b.point.y;
@@ -1244,42 +1221,20 @@ const JoystickCurveSettings = ({
 			return a.point.x - b.point.x;
 		});
 		
-		// Extract sorted points and buttonMask values
-		// IMPORTANT: Always prefer inputValue.buttonMask as it's the source of truth from user selection
-		const sortedPoints = pointsWithInputs.map(item => ({
-			...item.point,
-			buttonMask: item.inputValue?.buttonMask ?? item.point.buttonMask ?? 0
-		}));
-		const buttonMaskArray = pointsWithInputs.map(item => 
-			item.inputValue?.buttonMask ?? item.point.buttonMask ?? 0
-		);
-		
-		// Validate the sorted points (validation may adjust coordinates but keeps order)
+		const sortedPoints = pointsWithInputs.map(item => ({ ...item.point }));
 		const validated = validateAllPointsMonotonicity(sortedPoints);
-		
-		// Merge buttonMask from array using index (validated points should be in same order)
-		// Use buttonMaskArray as the source of truth, not validated points' buttonMask
-		const merged = validated.map((p, index) => {
-			const buttonMask = buttonMaskArray[index] ?? 0;
-			return { ...p, buttonMask };
-		});
-		
-		// Final sort by x coordinate (should already be sorted, but ensure consistency)
-		const sorted = merged.sort((a, b) => a.x - b.x);
+		const sorted = validated.sort((a, b) => a.x - b.x);
 		setFieldValue('joystickCurvePoints1', sorted);
 	};
 	
 	// Handle confirm for right stick
 	const handleRightConfirm = () => {
-		// Create pairs of points and their input values, then sort together
-		// This ensures buttonMask stays with the correct point even after sorting
 		const pointsWithInputs = rightCurvePoints.map((point, index) => ({
-			point: { ...point }, // Create a copy to avoid mutation
+			point: { ...point },
 			inputValue: rightCurveInputValues[index],
 			originalIndex: index
 		}));
 		
-		// Sort the same way as validateAllPointsMonotonicity does
 		pointsWithInputs.sort((a, b) => {
 			if (a.point.x === b.point.x) {
 				return a.point.y - b.point.y;
@@ -1287,43 +1242,24 @@ const JoystickCurveSettings = ({
 			return a.point.x - b.point.x;
 		});
 		
-		// Extract sorted points and buttonMask values
-		// IMPORTANT: Always prefer inputValue.buttonMask as it's the source of truth from user selection
-		const sortedPoints = pointsWithInputs.map(item => ({
-			...item.point,
-			buttonMask: item.inputValue?.buttonMask ?? item.point.buttonMask ?? 0
-		}));
-		const buttonMaskArray = pointsWithInputs.map(item => 
-			item.inputValue?.buttonMask ?? item.point.buttonMask ?? 0
-		);
-		
-		// Validate the sorted points (validation may adjust coordinates but keeps order)
+		const sortedPoints = pointsWithInputs.map(item => ({ ...item.point }));
 		const validated = validateAllPointsMonotonicity(sortedPoints);
-		
-		// Merge buttonMask from array using index (validated points should be in same order)
-		// Use buttonMaskArray as the source of truth, not validated points' buttonMask
-		const merged = validated.map((p, index) => {
-			const buttonMask = buttonMaskArray[index] ?? 0;
-			return { ...p, buttonMask };
-		});
-		
-		// Final sort by x coordinate (should already be sorted, but ensure consistency)
-		const sorted = merged.sort((a, b) => a.x - b.x);
+		const sorted = validated.sort((a, b) => a.x - b.x);
 		setFieldValue('joystickCurvePoints2', sorted);
 	};
 	
 	// Preset state management
 	type PresetInput = {
 		name: string;
-		points: Array<{ x: string; y: string; buttonMask?: number }>;
+		points: Array<{ x: string; y: string }>;
 		activationButtonMask?: number;
 	};
 	
 	const [presetInputs, setPresetInputs] = useState<PresetInput[]>([
-		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 },
-		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 },
-		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 },
-		{ name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 },
+		{ name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 },
+		{ name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 },
+		{ name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 },
+		{ name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 },
 	]);
 	
 	// Load presets from values on mount and when values change
@@ -1342,10 +1278,10 @@ const JoystickCurveSettings = ({
 				const points = preset.points || [];
 				const activationButtonMask = preset.activationButtonMask ?? 0;
 				
-				const presetPoints: Array<{ x: string; y: string; buttonMask: number }> = [
-					{ x: '0', y: '0', buttonMask: 0 },
-					{ x: '0', y: '0', buttonMask: 0 },
-					{ x: '0', y: '0', buttonMask: 0 },
+				const presetPoints: Array<{ x: string; y: string }> = [
+					{ x: '0', y: '0' },
+					{ x: '0', y: '0' },
+					{ x: '0', y: '0' },
 				];
 				
 				// Fill in existing points, pad with zeros if less than 3
@@ -1354,7 +1290,6 @@ const JoystickCurveSettings = ({
 						presetPoints[i] = {
 							x: parseFloat(points[i].x.toFixed(4)).toString(),
 							y: parseFloat(points[i].y.toFixed(4)).toString(),
-							buttonMask: points[i].buttonMask || 0,
 						};
 					}
 				}
@@ -1363,7 +1298,7 @@ const JoystickCurveSettings = ({
 			}
 			
 			// Default empty preset
-			return { name: '', points: [{ x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }, { x: '0', y: '0', buttonMask: 0 }], activationButtonMask: 0 };
+			return { name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 };
 		};
 		
 		setPresetInputs([
@@ -1396,7 +1331,6 @@ const JoystickCurveSettings = ({
 					currentPoints.push({ 
 						x: Math.max(0, Math.min(1, x)), 
 						y: Math.max(0, Math.min(1, y)),
-						buttonMask: currentPreset.points[j].buttonMask || 0
 					});
 				}
 			}
@@ -1415,13 +1349,9 @@ const JoystickCurveSettings = ({
 	};
 	
 	// Handle preset point change
-	const handlePresetPointChange = (presetIndex: number, pointIndex: number, field: 'x' | 'y' | 'buttonMask', value: string | number) => {
+	const handlePresetPointChange = (presetIndex: number, pointIndex: number, field: 'x' | 'y', value: string) => {
 		const newPresets = [...presetInputs];
-		if (field === 'buttonMask') {
-			newPresets[presetIndex].points[pointIndex].buttonMask = typeof value === 'number' ? value : parseInt(String(value)) || 0;
-		} else {
-			newPresets[presetIndex].points[pointIndex][field] = String(value);
-		}
+		newPresets[presetIndex].points[pointIndex][field] = value;
 		setPresetInputs(newPresets);
 	};
 	
@@ -1506,45 +1436,6 @@ const JoystickCurveSettings = ({
 		return false;
 	};
 	
-	// Helper function to check if activation button mask conflicts with curve control point button masks
-	const isActivationButtonMaskConflictingWithCurvePoints = (presetIndex: number, buttonMask: number, presetInputsToCheck: PresetInput[]): boolean => {
-		// Allow 0 (NONE) to be used
-		if (buttonMask === 0) {
-			return false;
-		}
-		
-		// Check current preset's control points
-		const currentPreset = presetInputsToCheck[presetIndex];
-		if (currentPreset && currentPreset.points) {
-			for (let i = 0; i < currentPreset.points.length; i++) {
-				const pointButtonMask = currentPreset.points[i].buttonMask ?? 0;
-				if (pointButtonMask !== 0 && pointButtonMask === buttonMask) {
-					return true;
-				}
-			}
-		}
-		
-		// Check left stick curve control points
-		const leftCurvePoints = values?.joystickCurvePoints1 as CurvePoint[] || [];
-		for (let i = 0; i < leftCurvePoints.length; i++) {
-			const pointButtonMask = leftCurvePoints[i].buttonMask ?? 0;
-			if (pointButtonMask !== 0 && pointButtonMask === buttonMask) {
-				return true;
-			}
-		}
-		
-		// Check right stick curve control points
-		const rightCurvePoints = values?.joystickCurvePoints2 as CurvePoint[] || [];
-		for (let i = 0; i < rightCurvePoints.length; i++) {
-			const pointButtonMask = rightCurvePoints[i].buttonMask ?? 0;
-			if (pointButtonMask !== 0 && pointButtonMask === buttonMask) {
-				return true;
-			}
-		}
-		
-		return false;
-	};
-	
 	// Helper function to save preset to formik
 	const savePresetToFormik = (presetIndex: number, presetInputsToSave: PresetInput[]) => {
 		// Build presets array from all presetInputs, only include presets with name or points
@@ -1561,7 +1452,6 @@ const JoystickCurveSettings = ({
 					currentPoints.push({ 
 						x: Math.max(0, Math.min(1, x)), 
 						y: Math.max(0, Math.min(1, y)),
-						buttonMask: currentPreset.points[j].buttonMask || 0
 					});
 				}
 			}
@@ -1591,7 +1481,6 @@ const JoystickCurveSettings = ({
 				points.push({ 
 					x: Math.max(0, Math.min(1, x)), 
 					y: Math.max(0, Math.min(1, y)),
-					buttonMask: preset.points[i].buttonMask || 0
 				});
 			}
 		}
@@ -1603,7 +1492,6 @@ const JoystickCurveSettings = ({
 		setLeftCurveInputValues(validated.map(p => ({ 
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),
-			buttonMask: p.buttonMask || 0
 		})));
 	};
 	
@@ -1619,7 +1507,6 @@ const JoystickCurveSettings = ({
 				points.push({ 
 					x: Math.max(0, Math.min(1, x)), 
 					y: Math.max(0, Math.min(1, y)),
-					buttonMask: preset.points[i].buttonMask || 0
 				});
 			}
 		}
@@ -1631,7 +1518,6 @@ const JoystickCurveSettings = ({
 		setRightCurveInputValues(validated.map(p => ({ 
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),
-			buttonMask: p.buttonMask || 0
 		})));
 	};
 	
@@ -1669,7 +1555,7 @@ const JoystickCurveSettings = ({
 								{leftCurvePoints.map((point, originalIndex) => ({ point, originalIndex }))
 									.sort((a, b) => a.point.x - b.point.x)
 									.map(({ point, originalIndex }) => {
-										const inputValue = leftCurveInputValues[originalIndex] || { x: point.x.toString(), y: point.y.toString(), buttonMask: point.buttonMask || 0 };
+										const inputValue = leftCurveInputValues[originalIndex] || { x: point.x.toString(), y: point.y.toString() };
 										return (
 											<div key={originalIndex} style={{ marginBottom: '8px' }}>
 												<div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
@@ -1705,29 +1591,6 @@ const JoystickCurveSettings = ({
 												>
 													{t('CalibrationSettings:hml-delete')}
 												</Button>
-												</div>
-												<div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-													<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
-													<Form.Select
-														size="sm"
-														value={inputValue.buttonMask || 0}
-														onChange={(e) => {
-															const updated = [...leftCurveInputValues];
-															updated[originalIndex] = { ...updated[originalIndex], buttonMask: parseInt(e.target.value) || 0 };
-															setLeftCurveInputValues(updated);
-															// Update curve point immediately
-															const updatedPoints = [...leftCurvePoints];
-															updatedPoints[originalIndex] = { ...updatedPoints[originalIndex], buttonMask: parseInt(e.target.value) || 0 };
-															setLeftCurvePoints(updatedPoints);
-														}}
-														style={{ width: '154px', fontSize: '0.8rem', padding: '2px 6px' }}
-													>
-														{BUTTON_MASKS_OPTIONS.map((o) => (
-															<option key={o.value} value={o.value}>
-																{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-															</option>
-														))}
-													</Form.Select>
 												</div>
 											</div>
 										);
@@ -1765,7 +1628,7 @@ const JoystickCurveSettings = ({
 								{rightCurvePoints.map((point, originalIndex) => ({ point, originalIndex }))
 									.sort((a, b) => a.point.x - b.point.x)
 									.map(({ point, originalIndex }) => {
-										const inputValue = rightCurveInputValues[originalIndex] || { x: parseFloat(point.x.toFixed(4)).toString(), y: parseFloat(point.y.toFixed(4)).toString(), buttonMask: point.buttonMask || 0 };
+										const inputValue = rightCurveInputValues[originalIndex] || { x: parseFloat(point.x.toFixed(4)).toString(), y: parseFloat(point.y.toFixed(4)).toString() };
 										return (
 											<div key={originalIndex} style={{ marginBottom: '8px' }}>
 												<div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
@@ -1801,29 +1664,6 @@ const JoystickCurveSettings = ({
 												>
 													{t('CalibrationSettings:hml-delete')}
 												</Button>
-												</div>
-												<div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-													<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
-													<Form.Select
-														size="sm"
-														value={inputValue.buttonMask || 0}
-														onChange={(e) => {
-															const updated = [...rightCurveInputValues];
-															updated[originalIndex] = { ...updated[originalIndex], buttonMask: parseInt(e.target.value) || 0 };
-															setRightCurveInputValues(updated);
-															// Update curve point immediately
-															const updatedPoints = [...rightCurvePoints];
-															updatedPoints[originalIndex] = { ...updatedPoints[originalIndex], buttonMask: parseInt(e.target.value) || 0 };
-															setRightCurvePoints(updatedPoints);
-														}}
-														style={{ width: '154px', fontSize: '0.8rem', padding: '2px 6px' }}
-													>
-														{BUTTON_MASKS_OPTIONS.map((o) => (
-															<option key={o.value} value={o.value}>
-																{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-															</option>
-														))}
-													</Form.Select>
 												</div>
 											</div>
 										);
@@ -2028,13 +1868,6 @@ const JoystickCurveSettings = ({
 									return;
 								}
 								
-								// Check if activation button conflicts with curve control point button masks
-								if (isActivationButtonMaskConflictingWithCurvePoints(0, finalButtonMask, tempPresets)) {
-									// Button mask conflicts with curve control points, keep current value
-									alert(t('CalibrationSettings:hml-alert-preset-key-conflict-curve'));
-									return;
-								}
-								
 								newPresets[0].activationButtonMask = finalButtonMask;
 								setPresetInputs(newPresets);
 								savePresetToFormik(0, newPresets);
@@ -2078,26 +1911,6 @@ const JoystickCurveSettings = ({
 									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
 							/>
 						</div>
-							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem' }}>
-								<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
-								<Form.Select
-									size="sm"
-									value={presetInputs[0].points[idx].buttonMask || 0}
-									onChange={(e) => {
-										const newPresets = [...presetInputs];
-										newPresets[0].points[idx].buttonMask = parseInt(e.target.value) || 0;
-										setPresetInputs(newPresets);
-										savePresetToFormik(0, newPresets);
-									}}
-									style={{ width: '164px', fontSize: '0.8rem', padding: '2px 6px' }}
-								>
-									{BUTTON_MASKS_OPTIONS.map((o) => (
-										<option key={o.value} value={o.value}>
-											{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-										</option>
-									))}
-								</Form.Select>
-							</div>
 						</div>
 					))}
 				</div>
@@ -2153,13 +1966,6 @@ const JoystickCurveSettings = ({
 									return;
 								}
 								
-								// Check if activation button conflicts with curve control point button masks
-								if (isActivationButtonMaskConflictingWithCurvePoints(1, finalButtonMask, tempPresets)) {
-									// Button mask conflicts with curve control points, keep current value
-									alert(t('CalibrationSettings:hml-alert-preset-key-conflict-curve'));
-									return;
-								}
-								
 								newPresets[1].activationButtonMask = finalButtonMask;
 								setPresetInputs(newPresets);
 								savePresetToFormik(1, newPresets);
@@ -2202,26 +2008,6 @@ const JoystickCurveSettings = ({
 									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
 							/>
 						</div>
-							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem' }}>
-								<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
-								<Form.Select
-									size="sm"
-									value={presetInputs[1].points[idx].buttonMask || 0}
-									onChange={(e) => {
-										const newPresets = [...presetInputs];
-										newPresets[1].points[idx].buttonMask = parseInt(e.target.value) || 0;
-										setPresetInputs(newPresets);
-										savePresetToFormik(1, newPresets);
-									}}
-									style={{ width: '164px', fontSize: '0.8rem', padding: '2px 6px' }}
-								>
-									{BUTTON_MASKS_OPTIONS.map((o) => (
-										<option key={o.value} value={o.value}>
-											{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-										</option>
-									))}
-								</Form.Select>
-							</div>
 						</div>
 					))}
 				</div>
@@ -2277,13 +2063,6 @@ const JoystickCurveSettings = ({
 									return;
 								}
 								
-								// Check if activation button conflicts with curve control point button masks
-								if (isActivationButtonMaskConflictingWithCurvePoints(2, finalButtonMask, tempPresets)) {
-									// Button mask conflicts with curve control points, keep current value
-									alert(t('CalibrationSettings:hml-alert-preset-key-conflict-curve'));
-									return;
-								}
-								
 								newPresets[2].activationButtonMask = finalButtonMask;
 								setPresetInputs(newPresets);
 								savePresetToFormik(2, newPresets);
@@ -2326,26 +2105,6 @@ const JoystickCurveSettings = ({
 									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
 							/>
 						</div>
-							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem' }}>
-								<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
-								<Form.Select
-									size="sm"
-									value={presetInputs[2].points[idx].buttonMask || 0}
-									onChange={(e) => {
-										const newPresets = [...presetInputs];
-										newPresets[2].points[idx].buttonMask = parseInt(e.target.value) || 0;
-										setPresetInputs(newPresets);
-										savePresetToFormik(2, newPresets);
-									}}
-									style={{ width: '164px', fontSize: '0.8rem', padding: '2px 6px' }}
-								>
-									{BUTTON_MASKS_OPTIONS.map((o) => (
-										<option key={o.value} value={o.value}>
-											{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-										</option>
-									))}
-								</Form.Select>
-							</div>
 						</div>
 					))}
 				</div>
@@ -2401,13 +2160,6 @@ const JoystickCurveSettings = ({
 									return;
 								}
 								
-								// Check if activation button conflicts with curve control point button masks
-								if (isActivationButtonMaskConflictingWithCurvePoints(3, finalButtonMask, tempPresets)) {
-									// Button mask conflicts with curve control points, keep current value
-									alert(t('CalibrationSettings:hml-alert-preset-key-conflict-curve'));
-									return;
-								}
-								
 								newPresets[3].activationButtonMask = finalButtonMask;
 								setPresetInputs(newPresets);
 								savePresetToFormik(3, newPresets);
@@ -2450,26 +2202,6 @@ const JoystickCurveSettings = ({
 									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
 							/>
 						</div>
-							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem' }}>
-								<span style={{ width: '40px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-key-label')}</span>
-								<Form.Select
-									size="sm"
-									value={presetInputs[3].points[idx].buttonMask || 0}
-									onChange={(e) => {
-										const newPresets = [...presetInputs];
-										newPresets[3].points[idx].buttonMask = parseInt(e.target.value) || 0;
-										setPresetInputs(newPresets);
-										savePresetToFormik(3, newPresets);
-									}}
-									style={{ width: '164px', fontSize: '0.8rem', padding: '2px 6px' }}
-								>
-									{BUTTON_MASKS_OPTIONS.map((o) => (
-										<option key={o.value} value={o.value}>
-											{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-										</option>
-									))}
-								</Form.Select>
-							</div>
 						</div>
 					))}
 				</div>

@@ -2,8 +2,6 @@
 #include "addons/analog.h"  // For ADC_PIN_OFFSET definition
 #include "addons/mcp3208_adc.h"
 #include "addons/ads8332_adc.h"
-#include "addons/i2canalog1219.h"
-#include "addons/spi_analog_ads1256.h"
 #include "storagemanager.h"
 #include "eventmanager.h"
 #include "hardware/adc.h"
@@ -22,13 +20,7 @@ bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMa
     adcMax = 0;
 
     // Match Core0 addon write priority for stick fields:
-    // SPI ADS1256 -> I2C ADS1219 -> ADS8332 -> MCP3208 -> Onboard ADC
-    if (SPIAnalog1256Input::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
-        return true;
-    }
-    if (I2CAnalog1219Input::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
-        return true;
-    }
+    // ADS8332 -> MCP3208 -> Onboard ADC
     if (ADS8332ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
         return true;
     }

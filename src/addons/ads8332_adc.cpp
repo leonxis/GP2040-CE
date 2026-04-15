@@ -1,15 +1,12 @@
 #include "addons/ads8332_adc.h"
 
 #include "storagemanager.h"
-#include "drivermanager.h"
 
 #include "hardware/gpio.h"
 
-// ADS8332: lightweight bring-up path.
-// For now we only provide basic joystick output and keep advanced features
-// (calibration/curves/voltage-stage key mapping) for a later iteration.
 namespace {
 static constexpr uint16_t ADS8332_RAW_MAX = 65535u;
+static constexpr uint16_t ADS8332_RAW_HALF = ADS8332_RAW_MAX / 2u;
 
 // CMR command format (manual channel select).
 // This is intentionally minimal for initial bring-up.
@@ -35,8 +32,12 @@ void ADS8332ADCAddon::setup() {
     spi_ = nullptr;
     csPin_ = -1;
     convstPin_ = -1;
-    cached_joystick_max_ = 65535u;
-
+    stick_channels_[0] = {0, 1}; // left
+    stick_channels_[1] = {7, 6}; // right
+    divider_channels_ = {2, 5};
+    for (int i = 0; i < 8; i++) {
+        adcValues_[i] = ADS8332_RAW_HALF;
+    }
     const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     uint8_t block = opts.has_spiBlock ? static_cast<uint8_t>(opts.spiBlock) : 0;
 
@@ -53,8 +54,8 @@ void ADS8332ADCAddon::setup() {
     }
 
     spi_ = spi;
-    // TI forum examples commonly use MODE2 for ADS8332.
-    spi_->beginTransaction(ADS8332_SPI_HZ, SPI_MSB_FIRST, SPI_MODE2);
+    // Align SPI mode with LSM6DSR addon configuration.
+    spi_->beginTransaction(ADS8332_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
     spi_->setBaudrate(ADS8332_SPI_HZ);
 
     if (convstPin_ >= 0) {
@@ -63,24 +64,36 @@ void ADS8332ADCAddon::setup() {
         gpio_put(static_cast<uint>(convstPin_), 1);
     }
 
-    GPDriver* driver = DriverManager::getInstance().getDriver();
-    if (driver != nullptr) {
-        cached_joystick_max_ = static_cast<uint32_t>(driver->GetJoystickMidValue()) * 2u;
-    }
-
     spiOk_ = true;
+    const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
+    readSelectedChannels(dividerChannels, 2);
 }
 
 void ADS8332ADCAddon::reinit() {
-    GPDriver* driver = DriverManager::getInstance().getDriver();
-    cached_joystick_max_ = 65535u;
-    if (driver != nullptr) {
-        cached_joystick_max_ = static_cast<uint32_t>(driver->GetJoystickMidValue()) * 2u;
+    if (!spiOk_) {
+        return;
     }
+    const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
+    readSelectedChannels(dividerChannels, 2);
+}
+
+void ADS8332ADCAddon::preprocess() {
+    if (!spiOk_) {
+        return;
+    }
+    const uint8_t channels[6] = {
+        stick_channels_[0].x_channel,
+        stick_channels_[0].y_channel,
+        stick_channels_[1].x_channel,
+        stick_channels_[1].y_channel,
+        divider_channels_.left_channel,
+        divider_channels_.right_channel
+    };
+    readSelectedChannels(channels, 6);
 }
 
 uint16_t ADS8332ADCAddon::readChannelRaw(uint8_t channel) {
-    if (!spi_ || !spiOk_) {
+    if (!spi_ || !spiOk_ || channel >= 8) {
         return ADS8332_RAW_MAX / 2u;
     }
 
@@ -99,29 +112,20 @@ uint16_t ADS8332ADCAddon::readChannelRaw(uint8_t channel) {
     return value;
 }
 
-uint16_t ADS8332ADCAddon::normalizeToJoystick(uint16_t raw) const {
-    const uint32_t maxOut = cached_joystick_max_ ? cached_joystick_max_ : 65535u;
-    const uint32_t scaled = (static_cast<uint32_t>(raw) * maxOut) / ADS8332_RAW_MAX;
-    return static_cast<uint16_t>(scaled > 0xFFFFu ? 0xFFFFu : scaled);
+void ADS8332ADCAddon::readSelectedChannels(const uint8_t* channels, uint8_t count) {
+    bool sampled[8] = {};
+    for (uint8_t i = 0; i < count; i++) {
+        const uint8_t channel = channels[i];
+        if (channel >= 8 || sampled[channel]) {
+            continue;
+        }
+        adcValues_[channel] = readChannelRaw(channel);
+        sampled[channel] = true;
+    }
 }
 
 void ADS8332ADCAddon::process() {
-    if (!spiOk_) {
-        return;
-    }
-
-    // Minimal mapping:
-    // CH0 -> LX, CH1 -> LY, CH6 -> RY, CH7 -> RX
-    const uint16_t ch0 = readChannelRaw(0);
-    const uint16_t ch1 = readChannelRaw(1);
-    const uint16_t ch6 = readChannelRaw(6);
-    const uint16_t ch7 = readChannelRaw(7);
-
-    Gamepad* gamepad = Storage::getInstance().GetGamepad();
-    gamepad->state.lx = normalizeToJoystick(ch0);
-    gamepad->state.ly = normalizeToJoystick(ch1);
-    gamepad->state.ry = normalizeToJoystick(ch6);
-    gamepad->state.rx = normalizeToJoystick(ch7);
+    // Sample provider only. Unified addons consume cached raw values.
 }
 
 bool ADS8332ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {
@@ -130,12 +134,51 @@ bool ADS8332ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uin
     }
 
     adcMax = ADS8332_RAW_MAX;
-    if (stickNum == 0) {
-        x = s_instance_->readChannelRaw(0);
-        y = s_instance_->readChannelRaw(1);
-    } else {
-        x = s_instance_->readChannelRaw(7);
-        y = s_instance_->readChannelRaw(6);
+    s_instance_->preprocess();
+    const SamplerStickChannelConfig& channels = s_instance_->stick_channels_[stickNum];
+    x = s_instance_->adcValues_[channels.x_channel];
+    y = s_instance_->adcValues_[channels.y_channel];
+    return true;
+}
+
+bool ADS8332ADCAddon::getRawStickForProcessor(
+    uint8_t stickNum,
+    uint16_t& x,
+    uint16_t& y,
+    uint16_t& xCenter,
+    uint16_t& yCenter,
+    bool& xValid,
+    bool& yValid,
+    uint16_t& adcMax
+) {
+    if (s_instance_ == nullptr || !s_instance_->spiOk_ || stickNum > 1) {
+        return false;
     }
+    const SamplerStickChannelConfig& channels = s_instance_->stick_channels_[stickNum];
+    x = s_instance_->adcValues_[channels.x_channel];
+    y = s_instance_->adcValues_[channels.y_channel];
+    xCenter = ADS8332_RAW_HALF;
+    yCenter = ADS8332_RAW_HALF;
+    xValid = true;
+    yValid = true;
+    adcMax = ADS8332_RAW_MAX;
+    return true;
+}
+
+bool ADS8332ADCAddon::getRawDividerForProcessor(
+    uint16_t& leftValue,
+    uint16_t& rightValue,
+    uint16_t& adcMax,
+    bool& leftValid,
+    bool& rightValid
+) {
+    if (s_instance_ == nullptr || !s_instance_->spiOk_) {
+        return false;
+    }
+    leftValue = s_instance_->adcValues_[s_instance_->divider_channels_.left_channel];
+    rightValue = s_instance_->adcValues_[s_instance_->divider_channels_.right_channel];
+    adcMax = ADS8332_RAW_MAX;
+    leftValid = true;
+    rightValid = true;
     return true;
 }
