@@ -234,8 +234,7 @@ void UnifiedAnalogProcessorAddon::process() {
         } else if (source_ == StickSource::MCP3208) {
             hasSource = MCP3208ADCAddon::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
         } else if (source_ == StickSource::OnboardADC) {
-            hasSource = AnalogInput::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid);
-            adcMax = ADC_MAX;
+            hasSource = AnalogInput::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
         }
         if (!hasSource) {
             continue;

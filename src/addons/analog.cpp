@@ -77,7 +77,8 @@ bool AnalogInput::getRawStickForProcessor(
     uint16_t& xCenter,
     uint16_t& yCenter,
     bool& xValid,
-    bool& yValid
+    bool& yValid,
+    uint16_t& adcMax
 ) {
     if (s_instance_ == nullptr || stickNum >= ADC_COUNT) {
         return false;
@@ -90,5 +91,6 @@ bool AnalogInput::getRawStickForProcessor(
     yCenter = static_cast<uint16_t>(ADC_MAX_HALF);
     xValid = stick.has_x;
     yValid = stick.has_y;
+    adcMax = ADC_MAX;
     return true;
 }

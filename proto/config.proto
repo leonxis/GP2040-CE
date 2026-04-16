@@ -470,6 +470,15 @@ message AnalogOptions
     // Used to detect hotkey preset switching for efficient reinitialization
     optional uint32 curve_profile_1 = 66 [default = 0];  // Left stick (stick 1)
     optional uint32 curve_profile_2 = 67 [default = 0];  // Right stick (stick 2)
+    // Joystick travel-triggered key mapping
+    optional GpioAction joystick_travel_button_action = 68 [default = NONE];
+    optional uint32 joystick_travel_button_custom_dpad_mask = 69 [default = 0];
+    optional uint32 joystick_travel_button_custom_button_mask = 70 [default = 0];
+    optional uint32 joystick_travel_button_threshold = 71 [default = 0];
+    optional GpioAction joystick_travel_button_action2 = 72 [default = NONE];
+    optional uint32 joystick_travel_button_custom_dpad_mask2 = 73 [default = 0];
+    optional uint32 joystick_travel_button_custom_button_mask2 = 74 [default = 0];
+    optional uint32 joystick_travel_button_threshold2 = 75 [default = 0];
 }
 
 message TurboOptions

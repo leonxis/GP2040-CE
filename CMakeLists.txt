@@ -275,6 +275,7 @@ src/webconfig.cpp
 src/addons/analog.cpp
 src/addons/unified_analog_processor.cpp
 src/addons/unified_voltage_switch.cpp
+src/addons/unified_joystick_travel_key.cpp
 src/addons/analog_utils.cpp
 src/addons/board_led.cpp
 src/addons/bootsel_button.cpp

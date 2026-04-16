@@ -6,6 +6,7 @@ import * as yup from 'yup';
 import Section from '../Components/Section';
 import FormSelect from '../Components/FormSelect';
 import { ANALOG_PINS } from '../Data/Buttons';
+import { BUTTON_ACTIONS } from '../Data/Pins';
 import AnalogPinOptions from '../Components/AnalogPinOptions';
 import { AppContext } from '../Contexts/AppContext';
 import FormControl from '../Components/FormControl';
@@ -154,6 +155,20 @@ export const analogScheme = {
 		}))
 		.max(4)
 		.label('Joystick Curve Presets'),
+	joystickTravelButtonAction: yup.number().label('Joystick Travel Button Action'),
+	joystickTravelButtonCustomDpadMask: yup.number().min(0).label('Joystick Travel Button Custom Dpad Mask'),
+	joystickTravelButtonCustomButtonMask: yup.number().min(0).label('Joystick Travel Button Custom Button Mask'),
+	joystickTravelButtonThreshold: yup
+		.number()
+		.label('Joystick Travel Button Threshold (%)')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 99),
+	joystickTravelButtonAction2: yup.number().label('Joystick Travel Button Action 2'),
+	joystickTravelButtonCustomDpadMask2: yup.number().min(0).label('Joystick Travel Button Custom Dpad Mask 2'),
+	joystickTravelButtonCustomButtonMask2: yup.number().min(0).label('Joystick Travel Button Custom Button Mask 2'),
+	joystickTravelButtonThreshold2: yup
+		.number()
+		.label('Joystick Travel Button Threshold 2 (%)')
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 99),
 	joystickJitterFilter1: yup
 		.number()
 		.min(0)
@@ -209,6 +224,14 @@ export const analogState = {
 	joystickCurveEnabled: false,
 	// Curve point presets (default: empty array)
 	joystickCurvePresets: [],
+	joystickTravelButtonAction: BUTTON_ACTIONS.NONE,
+	joystickTravelButtonCustomDpadMask: 0,
+	joystickTravelButtonCustomButtonMask: 0,
+	joystickTravelButtonThreshold: 0,
+	joystickTravelButtonAction2: BUTTON_ACTIONS.NONE,
+	joystickTravelButtonCustomDpadMask2: 0,
+	joystickTravelButtonCustomButtonMask2: 0,
+	joystickTravelButtonThreshold2: 0,
 	joystickJitterFilter1: 0,
 	joystickJitterFilter2: 0,
 };

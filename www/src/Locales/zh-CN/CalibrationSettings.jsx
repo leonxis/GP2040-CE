@@ -99,6 +99,8 @@ export default {
 	'hml-out-distance-right': '当前摇杆输出距离：{{pct}}%',
 	'hml-inner-deadzone-right': '内部死区: {{pct}}%',
 	'hml-anti-deadzone-right': '反死区: {{pct}}%',
+	'hml-joystick-travel-button-threshold': '摇杆行程按键阈值：{{pct}}%',
+	'hml-joystick-travel-mapping-key': '映射按键：',
 	'hml-modal-outer-ring-left-title': '左摇杆外圈校准数据',
 	'hml-modal-outer-ring-right-title': '右摇杆外圈校准数据',
 	'hml-stick-center-data': '摇杆中心数据:',

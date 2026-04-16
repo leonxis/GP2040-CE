@@ -31,7 +31,8 @@ public:
         uint16_t& xCenter,
         uint16_t& yCenter,
         bool& xValid,
-        bool& yValid
+        bool& yValid,
+        uint16_t& adcMax
     );
 
 private:

@@ -2,18 +2,231 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Form } from 'react-bootstrap';
 import { useFormikContext } from 'formik';
+import { MultiValue, SingleValue } from 'react-select';
 
 import Section from '../../../Components/Section';
+import CustomSelect from '../../../Components/CustomSelect';
 import type { AddonPropTypes } from './CalibrationSettings';
-import { BUTTON_MASKS_OPTIONS, getButtonLabels } from '../../../Data/Buttons';
+import { BUTTON_MASKS_OPTIONS, BUTTON_MASKS, DPAD_MASKS, getButtonLabels } from '../../../Data/Buttons';
+import { BUTTON_ACTIONS, PinActionValues } from '../../../Data/Pins';
 import { AppContext } from '../../../Contexts/AppContext';
 
 // Type definitions
 type CurvePoint = { x: number; y: number };
 type CurvePointInput = { x: string; y: string };
+type OptionType = {
+	label: string;
+	value: PinActionValues;
+	type: string;
+	customButtonMask: number;
+	customDpadMask: number;
+};
 
 const DEFAULT_ADC_MAX = 4095;
 const CIRCULARITY_DATA_SIZE = 48;
+
+const disabledOptions = [
+	BUTTON_ACTIONS.RESERVED,
+	BUTTON_ACTIONS.ASSIGNED_TO_ADDON,
+] as PinActionValues[];
+
+const isNonSelectable = (action: PinActionValues) =>
+	[
+		BUTTON_ACTIONS.NONE,
+		BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO,
+		...disabledOptions,
+	].includes(action);
+
+const isDisabled = (action: PinActionValues) =>
+	disabledOptions.includes(action);
+
+const isKeyboardKey = (action: PinActionValues) => {
+	return (
+		action >= BUTTON_ACTIONS.KEYBOARD_KEY_A &&
+		action <= BUTTON_ACTIONS.KEYBOARD_KEY_9
+	);
+};
+
+const getMask = (maskArr: { label: string; value: number }[], key: string) =>
+	maskArr.find(
+		({ label }) => label?.toUpperCase() === key.split('BUTTON_PRESS_')?.pop(),
+	);
+
+const mappingOptions: OptionType[] = Object.entries(BUTTON_ACTIONS)
+	.filter(([, value]) => !isNonSelectable(value) && !isKeyboardKey(value))
+	.map(([key, value]) => {
+		const buttonMask = getMask(BUTTON_MASKS, key);
+		const dpadMask = getMask(DPAD_MASKS, key);
+
+		return {
+			label: key,
+			value,
+			type: buttonMask
+				? 'customButtonMask'
+				: dpadMask
+				? 'customDpadMask'
+				: 'action',
+			customButtonMask: buttonMask?.value || 0,
+			customDpadMask: dpadMask?.value || 0,
+		};
+	});
+
+const keyboardKeyOptions: OptionType[] = [
+	{ label: 'KEYBOARD_KEY_A', value: BUTTON_ACTIONS.KEYBOARD_KEY_A, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_B', value: BUTTON_ACTIONS.KEYBOARD_KEY_B, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_C', value: BUTTON_ACTIONS.KEYBOARD_KEY_C, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_D', value: BUTTON_ACTIONS.KEYBOARD_KEY_D, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_E', value: BUTTON_ACTIONS.KEYBOARD_KEY_E, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_F', value: BUTTON_ACTIONS.KEYBOARD_KEY_F, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_G', value: BUTTON_ACTIONS.KEYBOARD_KEY_G, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_H', value: BUTTON_ACTIONS.KEYBOARD_KEY_H, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_I', value: BUTTON_ACTIONS.KEYBOARD_KEY_I, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_J', value: BUTTON_ACTIONS.KEYBOARD_KEY_J, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_K', value: BUTTON_ACTIONS.KEYBOARD_KEY_K, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_L', value: BUTTON_ACTIONS.KEYBOARD_KEY_L, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_M', value: BUTTON_ACTIONS.KEYBOARD_KEY_M, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_N', value: BUTTON_ACTIONS.KEYBOARD_KEY_N, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_O', value: BUTTON_ACTIONS.KEYBOARD_KEY_O, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_P', value: BUTTON_ACTIONS.KEYBOARD_KEY_P, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_Q', value: BUTTON_ACTIONS.KEYBOARD_KEY_Q, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_R', value: BUTTON_ACTIONS.KEYBOARD_KEY_R, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_S', value: BUTTON_ACTIONS.KEYBOARD_KEY_S, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_T', value: BUTTON_ACTIONS.KEYBOARD_KEY_T, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_U', value: BUTTON_ACTIONS.KEYBOARD_KEY_U, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_V', value: BUTTON_ACTIONS.KEYBOARD_KEY_V, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_W', value: BUTTON_ACTIONS.KEYBOARD_KEY_W, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_X', value: BUTTON_ACTIONS.KEYBOARD_KEY_X, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_Y', value: BUTTON_ACTIONS.KEYBOARD_KEY_Y, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_Z', value: BUTTON_ACTIONS.KEYBOARD_KEY_Z, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_CTRL', value: BUTTON_ACTIONS.KEYBOARD_KEY_CTRL, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_SHIFT', value: BUTTON_ACTIONS.KEYBOARD_KEY_SHIFT, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_ALT_F4', value: BUTTON_ACTIONS.KEYBOARD_KEY_ALT_F4, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_0', value: BUTTON_ACTIONS.KEYBOARD_KEY_0, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_1', value: BUTTON_ACTIONS.KEYBOARD_KEY_1, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_2', value: BUTTON_ACTIONS.KEYBOARD_KEY_2, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_3', value: BUTTON_ACTIONS.KEYBOARD_KEY_3, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_4', value: BUTTON_ACTIONS.KEYBOARD_KEY_4, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_5', value: BUTTON_ACTIONS.KEYBOARD_KEY_5, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_6', value: BUTTON_ACTIONS.KEYBOARD_KEY_6, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_7', value: BUTTON_ACTIONS.KEYBOARD_KEY_7, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_8', value: BUTTON_ACTIONS.KEYBOARD_KEY_8, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'KEYBOARD_KEY_9', value: BUTTON_ACTIONS.KEYBOARD_KEY_9, type: 'keyboard', customButtonMask: 0, customDpadMask: 0 },
+];
+
+const mouseButtonValues = BUTTON_ACTIONS as Record<string, number>;
+const mouseKeyOptions: OptionType[] = [
+	{ label: 'MOUSE_LEFT_BUTTON', value: (mouseButtonValues.MOUSE_LEFT_BUTTON ?? 170) as PinActionValues, type: 'mouse', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'MOUSE_RIGHT_BUTTON', value: (mouseButtonValues.MOUSE_RIGHT_BUTTON ?? 171) as PinActionValues, type: 'mouse', customButtonMask: 0, customDpadMask: 0 },
+	{ label: 'MOUSE_MIDDLE_BUTTON', value: (mouseButtonValues.MOUSE_MIDDLE_BUTTON ?? 172) as PinActionValues, type: 'mouse', customButtonMask: 0, customDpadMask: 0 },
+];
+
+const BACK_KEY_ALLOWED_ACTIONS = new Set([
+	'BUTTON_PRESS_FN',
+	'BUTTON_PRESS_TURBO',
+	'BUTTON_PRESS_MACRO_1',
+	'BUTTON_PRESS_MACRO_2',
+	'BUTTON_PRESS_MACRO_3',
+	'BUTTON_PRESS_MACRO_4',
+	'BUTTON_PRESS_MACRO_5',
+	'BUTTON_PRESS_MACRO_6',
+	'MENU_NAVIGATION_BACK',
+]);
+
+const joystickTravelGroupedOptions = [
+	{
+		label: 'Buttons',
+		options: mappingOptions.filter(({ type }) => type !== 'action'),
+	},
+	{
+		label: 'Actions',
+		options: mappingOptions.filter((opt) => opt.type === 'action' && BACK_KEY_ALLOWED_ACTIONS.has(opt.label)),
+	},
+	{
+		label: 'Keyboard Keys',
+		options: keyboardKeyOptions,
+	},
+	{
+		label: 'Mouse',
+		options: mouseKeyOptions,
+	},
+];
+
+const getPayloadFromSelected = (
+	selected: MultiValue<OptionType> | SingleValue<OptionType>,
+) => {
+	if (!selected || (Array.isArray(selected) && !selected.length)) {
+		return { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 };
+	}
+	if (Array.isArray(selected) && selected.length > 1) {
+		const hasKeyboard = selected.some((opt) => opt.type === 'keyboard');
+		const hasAction = selected.some((opt) => opt.type === 'action');
+		if (hasKeyboard || hasAction) {
+			const last = selected[selected.length - 1];
+			return { action: last.value, customButtonMask: 0, customDpadMask: 0 };
+		}
+		return selected.reduce(
+			(acc, option) => ({
+				...acc,
+				customButtonMask:
+					option.type === 'customButtonMask'
+						? acc.customButtonMask ^ option.customButtonMask
+						: acc.customButtonMask,
+				customDpadMask:
+					option.type === 'customDpadMask'
+						? acc.customDpadMask ^ option.customDpadMask
+						: acc.customDpadMask,
+			}),
+			{ action: BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO, customButtonMask: 0, customDpadMask: 0 },
+		);
+	}
+	const single = Array.isArray(selected) ? selected[0] : selected;
+	return { action: single.value, customButtonMask: 0, customDpadMask: 0 };
+};
+
+const getMultiValue = (mappingData: { action: PinActionValues; customButtonMask: number; customDpadMask: number }) => {
+	if (mappingData.action === BUTTON_ACTIONS.NONE) return;
+	if (isDisabled(mappingData.action)) {
+		const actionKey = Object.entries(BUTTON_ACTIONS).find(([, value]) => value === mappingData.action)?.[0] || 'NONE';
+		return [
+			{
+				label: actionKey,
+				value: mappingData.action,
+				type: 'action',
+				customButtonMask: mappingData.customButtonMask,
+				customDpadMask: mappingData.customDpadMask,
+			},
+		];
+	}
+
+	const keyboardOption = keyboardKeyOptions.find((opt) => opt.value === mappingData.action);
+	if (keyboardOption) {
+		return [keyboardOption];
+	}
+	const mouseOption = mouseKeyOptions.find((opt) => opt.value === mappingData.action);
+	if (mouseOption) {
+		return [mouseOption];
+	}
+
+	return mappingData.action === BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO
+		? mappingOptions.filter(
+			({ type, customButtonMask, customDpadMask }) =>
+				(mappingData.customButtonMask & customButtonMask &&
+					type === 'customButtonMask') ||
+				(mappingData.customDpadMask & customDpadMask &&
+					type === 'customDpadMask'),
+		)
+		: mappingOptions.filter((option) => option.value === mappingData.action);
+};
+
+const areCurvePointsEqual = (a: CurvePoint[], b: CurvePoint[]) => {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) {
+		if (Math.abs(a[i].x - b[i].x) > 0.0001 || Math.abs(a[i].y - b[i].y) > 0.0001) {
+			return false;
+		}
+	}
+	return true;
+};
 
 /**
  * Get interpolated scale for a given angle using range calibration data
@@ -575,6 +788,50 @@ const JoystickCurveSettings = ({
 	const buttonLabelType = appContext?.buttonLabels?.buttonLabelType || 'ps4';
 	const swapTpShareLabels = appContext?.buttonLabels?.swapTpShareLabels || false;
 	const currentButtonLabels = getButtonLabels(buttonLabelType, swapTpShareLabels);
+	const joystickTravelButtonMappingLeft = {
+		action: (values?.joystickTravelButtonAction ?? BUTTON_ACTIONS.NONE) as PinActionValues,
+		customButtonMask: values?.joystickTravelButtonCustomButtonMask ?? 0,
+		customDpadMask: values?.joystickTravelButtonCustomDpadMask ?? 0,
+	};
+	const joystickTravelButtonMappingRight = {
+		action: (values?.joystickTravelButtonAction2 ?? BUTTON_ACTIONS.NONE) as PinActionValues,
+		customButtonMask: values?.joystickTravelButtonCustomButtonMask2 ?? 0,
+		customDpadMask: values?.joystickTravelButtonCustomDpadMask2 ?? 0,
+	};
+	const joystickTravelButtonThresholdLeft = Math.max(0, Math.min(99, values?.joystickTravelButtonThreshold ?? 0));
+	const joystickTravelButtonThresholdRight = Math.max(0, Math.min(99, values?.joystickTravelButtonThreshold2 ?? 0));
+	const getOptionLabel = (option: OptionType) => {
+		if (option.type === 'keyboard') {
+			const keyName = option.label?.replace('KEYBOARD_KEY_', '');
+			if (keyName === 'ALT_F4') {
+				return 'KB: Alt+F4';
+			}
+			return `KB: ${keyName || option.label}`;
+		}
+		if (option.type === 'mouse') {
+			return t(`Proto:GpioAction.${option.label}`);
+		}
+		const labelKey = option.label?.split('BUTTON_PRESS_')?.pop();
+		return (
+			(labelKey && currentButtonLabels[labelKey]) ||
+			t(`Proto:GpioAction.${option.label}`)
+		);
+	};
+	const handleJoystickTravelMappingChange = (
+		selected: MultiValue<OptionType> | SingleValue<OptionType>,
+		stick: 'left' | 'right',
+	) => {
+		const payload = getPayloadFromSelected(selected);
+		if (stick === 'left') {
+			setFieldValue('joystickTravelButtonAction', payload.action);
+			setFieldValue('joystickTravelButtonCustomButtonMask', payload.customButtonMask);
+			setFieldValue('joystickTravelButtonCustomDpadMask', payload.customDpadMask);
+			return;
+		}
+		setFieldValue('joystickTravelButtonAction2', payload.action);
+		setFieldValue('joystickTravelButtonCustomButtonMask2', payload.customButtonMask);
+		setFieldValue('joystickTravelButtonCustomDpadMask2', payload.customDpadMask);
+	};
 	
 	const [isExpanded, setIsExpanded] = useState(() => {
 		// Default to disabled (collapsed) if not set
@@ -656,6 +913,25 @@ const JoystickCurveSettings = ({
 			setRightCurveInputValues([]);
 		}
 	}, [values?.joystickCurvePoints2]);
+
+	// Keep Formik values in sync with current editor points.
+	useEffect(() => {
+		const formikPoints = Array.isArray(values?.joystickCurvePoints1)
+			? (values.joystickCurvePoints1 as CurvePoint[])
+			: [];
+		if (!areCurvePointsEqual(leftCurvePoints, formikPoints)) {
+			setFieldValue('joystickCurvePoints1', leftCurvePoints);
+		}
+	}, [leftCurvePoints, setFieldValue, values?.joystickCurvePoints1]);
+
+	useEffect(() => {
+		const formikPoints = Array.isArray(values?.joystickCurvePoints2)
+			? (values.joystickCurvePoints2 as CurvePoint[])
+			: [];
+		if (!areCurvePointsEqual(rightCurvePoints, formikPoints)) {
+			setFieldValue('joystickCurvePoints2', rightCurvePoints);
+		}
+	}, [rightCurvePoints, setFieldValue, values?.joystickCurvePoints2]);
 	
 	// Fetch joystick data to get progress ratio for highlight line
 	useEffect(() => {
@@ -922,7 +1198,7 @@ const JoystickCurveSettings = ({
 				return !inputVal || Math.abs(parseFloat(inputVal.x || '0') - p.x) > 0.0001 || Math.abs(parseFloat(inputVal.y || '0') - p.y) > 0.0001;
 			});
 			if (needsUpdate) {
-				setLeftCurveInputValues(leftCurvePoints.map((p, i) => ({ 
+				setLeftCurveInputValues(leftCurvePoints.map((p) => ({ 
 					x: parseFloat(p.x.toFixed(4)).toString(), 
 					y: parseFloat(p.y.toFixed(4)).toString(),
 				})));
@@ -942,7 +1218,7 @@ const JoystickCurveSettings = ({
 				return !inputVal || Math.abs(parseFloat(inputVal.x || '0') - p.x) > 0.0001 || Math.abs(parseFloat(inputVal.y || '0') - p.y) > 0.0001;
 			});
 			if (needsUpdate) {
-				setRightCurveInputValues(rightCurvePoints.map((p, i) => ({ 
+				setRightCurveInputValues(rightCurvePoints.map((p) => ({ 
 					x: parseFloat(p.x.toFixed(4)).toString(), 
 					y: parseFloat(p.y.toFixed(4)).toString(),
 				})));
@@ -1192,60 +1468,6 @@ const JoystickCurveSettings = ({
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),
 		})));
-	};
-	
-	// Handle reset for left stick
-	const handleLeftReset = () => {
-		setLeftCurvePoints([]);
-		setLeftCurveInputValues([]);
-	};
-	
-	// Handle reset for right stick
-	const handleRightReset = () => {
-		setRightCurvePoints([]);
-		setRightCurveInputValues([]);
-	};
-	
-	// Handle confirm for left stick
-	const handleLeftConfirm = () => {
-		const pointsWithInputs = leftCurvePoints.map((point, index) => ({
-			point: { ...point },
-			inputValue: leftCurveInputValues[index],
-			originalIndex: index
-		}));
-		
-		pointsWithInputs.sort((a, b) => {
-			if (a.point.x === b.point.x) {
-				return a.point.y - b.point.y;
-			}
-			return a.point.x - b.point.x;
-		});
-		
-		const sortedPoints = pointsWithInputs.map(item => ({ ...item.point }));
-		const validated = validateAllPointsMonotonicity(sortedPoints);
-		const sorted = validated.sort((a, b) => a.x - b.x);
-		setFieldValue('joystickCurvePoints1', sorted);
-	};
-	
-	// Handle confirm for right stick
-	const handleRightConfirm = () => {
-		const pointsWithInputs = rightCurvePoints.map((point, index) => ({
-			point: { ...point },
-			inputValue: rightCurveInputValues[index],
-			originalIndex: index
-		}));
-		
-		pointsWithInputs.sort((a, b) => {
-			if (a.point.x === b.point.x) {
-				return a.point.y - b.point.y;
-			}
-			return a.point.x - b.point.x;
-		});
-		
-		const sortedPoints = pointsWithInputs.map(item => ({ ...item.point }));
-		const validated = validateAllPointsMonotonicity(sortedPoints);
-		const sorted = validated.sort((a, b) => a.x - b.x);
-		setFieldValue('joystickCurvePoints2', sorted);
 	};
 	
 	// Preset state management
@@ -1599,22 +1821,32 @@ const JoystickCurveSettings = ({
 						) : (
 							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>{t('CalibrationSettings:hml-no-control-points')}</div>
 						)}
-						{/* Reset and confirm buttons */}
-						<div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px', gap: '8px' }}>
-							<Button
-								variant="secondary"
-								size="sm"
-								onClick={handleLeftReset}
-							>
-								{t('CalibrationSettings:hml-reset')}
-							</Button>
-							<Button
-								variant="primary"
-								size="sm"
-								onClick={handleLeftConfirm}
-							>
-								{t('CalibrationSettings:hml-button-ok')}
-							</Button>
+						<div style={{ marginTop: '12px' }}>
+							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
+								{t('CalibrationSettings:hml-joystick-travel-button-threshold', { pct: joystickTravelButtonThresholdLeft })}
+							</Form.Label>
+							<Form.Range
+								min={0}
+								max={99}
+								step={1}
+								value={joystickTravelButtonThresholdLeft}
+								onChange={(e) => setFieldValue('joystickTravelButtonThreshold', parseInt(e.target.value, 10))}
+							/>
+							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginTop: '8px', marginBottom: '4px' }}>
+								{t('CalibrationSettings:hml-joystick-travel-mapping-key')}
+							</Form.Label>
+							<CustomSelect
+								isClearable
+								isMulti={!isDisabled(joystickTravelButtonMappingLeft.action) &&
+									!keyboardKeyOptions.some((opt) => opt.value === joystickTravelButtonMappingLeft.action) &&
+									!mouseKeyOptions.some((opt) => opt.value === joystickTravelButtonMappingLeft.action) &&
+									!mappingOptions.some((opt) => opt.value === joystickTravelButtonMappingLeft.action && opt.type === 'action')}
+								options={joystickTravelGroupedOptions}
+								isDisabled={isDisabled(joystickTravelButtonMappingLeft.action)}
+								getOptionLabel={getOptionLabel}
+								onChange={(selected: MultiValue<OptionType> | SingleValue<OptionType>) => handleJoystickTravelMappingChange(selected, 'left')}
+								value={getMultiValue(joystickTravelButtonMappingLeft)}
+							/>
 						</div>
 					</div>
 				</div>
@@ -1672,22 +1904,32 @@ const JoystickCurveSettings = ({
 						) : (
 							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>{t('CalibrationSettings:hml-no-control-points')}</div>
 						)}
-						{/* Reset and confirm buttons */}
-						<div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px', gap: '8px' }}>
-							<Button
-								variant="secondary"
-								size="sm"
-								onClick={handleRightReset}
-							>
-								{t('CalibrationSettings:hml-reset')}
-							</Button>
-							<Button
-								variant="primary"
-								size="sm"
-								onClick={handleRightConfirm}
-							>
-								{t('CalibrationSettings:hml-button-ok')}
-							</Button>
+						<div style={{ marginTop: '12px' }}>
+							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
+								{t('CalibrationSettings:hml-joystick-travel-button-threshold', { pct: joystickTravelButtonThresholdRight })}
+							</Form.Label>
+							<Form.Range
+								min={0}
+								max={99}
+								step={1}
+								value={joystickTravelButtonThresholdRight}
+								onChange={(e) => setFieldValue('joystickTravelButtonThreshold2', parseInt(e.target.value, 10))}
+							/>
+							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginTop: '8px', marginBottom: '4px' }}>
+								{t('CalibrationSettings:hml-joystick-travel-mapping-key')}
+							</Form.Label>
+							<CustomSelect
+								isClearable
+								isMulti={!isDisabled(joystickTravelButtonMappingRight.action) &&
+									!keyboardKeyOptions.some((opt) => opt.value === joystickTravelButtonMappingRight.action) &&
+									!mouseKeyOptions.some((opt) => opt.value === joystickTravelButtonMappingRight.action) &&
+									!mappingOptions.some((opt) => opt.value === joystickTravelButtonMappingRight.action && opt.type === 'action')}
+								options={joystickTravelGroupedOptions}
+								isDisabled={isDisabled(joystickTravelButtonMappingRight.action)}
+								getOptionLabel={getOptionLabel}
+								onChange={(selected: MultiValue<OptionType> | SingleValue<OptionType>) => handleJoystickTravelMappingChange(selected, 'right')}
+								value={getMultiValue(joystickTravelButtonMappingRight)}
+							/>
 						</div>
 					</div>
 				</div>

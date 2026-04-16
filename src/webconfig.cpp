@@ -2081,6 +2081,14 @@ std::string setAddonOptions()
     docToValue(analogOptions.anti_deadzone2, doc, "anti_deadzone2");
     docToValue(analogOptions.fixed_anti_deadzone, doc, "fixed_anti_deadzone");
     docToValue(analogOptions.fixed_anti_deadzone2, doc, "fixed_anti_deadzone2");
+    docToValue(analogOptions.joystick_travel_button_action, doc, "joystickTravelButtonAction");
+    docToValue(analogOptions.joystick_travel_button_custom_dpad_mask, doc, "joystickTravelButtonCustomDpadMask");
+    docToValue(analogOptions.joystick_travel_button_custom_button_mask, doc, "joystickTravelButtonCustomButtonMask");
+    docToValue(analogOptions.joystick_travel_button_threshold, doc, "joystickTravelButtonThreshold");
+    docToValue(analogOptions.joystick_travel_button_action2, doc, "joystickTravelButtonAction2");
+    docToValue(analogOptions.joystick_travel_button_custom_dpad_mask2, doc, "joystickTravelButtonCustomDpadMask2");
+    docToValue(analogOptions.joystick_travel_button_custom_button_mask2, doc, "joystickTravelButtonCustomButtonMask2");
+    docToValue(analogOptions.joystick_travel_button_threshold2, doc, "joystickTravelButtonThreshold2");
     // Auto calibration removed - deprecated fields ignored
     docToValue(analogOptions.joystick_center_x, doc, "joystickCenterX");
     docToValue(analogOptions.joystick_center_y, doc, "joystickCenterY");
@@ -2774,6 +2782,14 @@ std::string getAddonOptions()
     writeDoc(doc, "anti_deadzone2", analogOptions.anti_deadzone2);
     writeDoc(doc, "fixed_anti_deadzone", analogOptions.fixed_anti_deadzone);
     writeDoc(doc, "fixed_anti_deadzone2", analogOptions.fixed_anti_deadzone2);
+    writeDoc(doc, "joystickTravelButtonAction", analogOptions.joystick_travel_button_action);
+    writeDoc(doc, "joystickTravelButtonCustomDpadMask", analogOptions.joystick_travel_button_custom_dpad_mask);
+    writeDoc(doc, "joystickTravelButtonCustomButtonMask", analogOptions.joystick_travel_button_custom_button_mask);
+    writeDoc(doc, "joystickTravelButtonThreshold", analogOptions.joystick_travel_button_threshold);
+    writeDoc(doc, "joystickTravelButtonAction2", analogOptions.joystick_travel_button_action2);
+    writeDoc(doc, "joystickTravelButtonCustomDpadMask2", analogOptions.joystick_travel_button_custom_dpad_mask2);
+    writeDoc(doc, "joystickTravelButtonCustomButtonMask2", analogOptions.joystick_travel_button_custom_button_mask2);
+    writeDoc(doc, "joystickTravelButtonThreshold2", analogOptions.joystick_travel_button_threshold2);
     // Auto calibration removed - deprecated fields not written
     writeDoc(doc, "joystickCenterX", analogOptions.joystick_center_x);
     writeDoc(doc, "joystickCenterY", analogOptions.joystick_center_y);

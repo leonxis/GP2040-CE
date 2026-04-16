@@ -101,6 +101,8 @@ export default {
 	'hml-out-distance-right': 'Current output distance: {{pct}}%',
 	'hml-inner-deadzone-right': 'Inner deadzone: {{pct}}%',
 	'hml-anti-deadzone-right': 'Anti-deadzone: {{pct}}%',
+	'hml-joystick-travel-button-threshold': 'Joystick travel key threshold: {{pct}}%',
+	'hml-joystick-travel-mapping-key': 'Mapped key:',
 	'hml-modal-outer-ring-left-title': 'Left stick outer ring calibration data',
 	'hml-modal-outer-ring-right-title': 'Right stick outer ring calibration data',
 	'hml-stick-center-data': 'Stick center:',

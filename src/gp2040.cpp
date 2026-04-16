@@ -16,6 +16,7 @@
 #include "addons/analog.h"
 #include "addons/unified_analog_processor.h"
 #include "addons/unified_voltage_switch.h"
+#include "addons/unified_joystick_travel_key.h"
 #include "addons/mcp3208_adc.h"
 #include "addons/ads8332_adc.h"
 #include "addons/lsm6dsr_imu.h"
@@ -185,6 +186,7 @@ void GP2040::setup() {
 	addons.LoadAddon(new ADS8332ADCAddon());
 	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
 	addons.LoadAddon(new UnifiedVoltageSwitchAddon());
+	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon());
 	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new LinearTriggerAddon());

@@ -660,6 +660,14 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     // outer_deadzone2 removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone2, DEFAULT_ANTI_DEADZONE2);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, fixed_anti_deadzone2, false);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_action, GpioAction::NONE);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_custom_dpad_mask, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_custom_button_mask, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_threshold, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_action2, GpioAction::NONE);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_custom_dpad_mask2, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_custom_button_mask2, 0);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_threshold2, 0);
     // Auto calibration removed - deprecated field ignored
     // forced_circularity2 removed - replaced by range calibration
 
