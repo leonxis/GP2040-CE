@@ -175,3 +175,16 @@ void PeripheralSPI::setBaudrate(uint32_t hz) {
     }
     restore_interrupts(flags);
 }
+
+void PeripheralSPI::setMode(SPIMode spiMode) {
+    if (_SpiMode == spiMode && _BitOrder == SPI_MSB_FIRST) {
+        return;
+    }
+    uint32_t flags = save_and_disable_interrupts();
+    _SpiMode = spiMode;
+    _BitOrder = SPI_MSB_FIRST;
+    _Cpol = get_cpol(spiMode);
+    _Cpha = get_cpha(spiMode);
+    spi_set_format(_SPI, 8, _Cpol, _Cpha, _BitOrder);
+    restore_interrupts(flags);
+}

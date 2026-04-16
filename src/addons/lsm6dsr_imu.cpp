@@ -85,6 +85,7 @@ static inline float lsm6dsr_compute_dt_s(uint64_t nowUs, uint64_t& lastUs) {
 
 static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
 	if (len == 0) return;
+	spi->setMode(SPI_MODE3);
 	LSM6DSR_CS_SELECT(csPin);
 	(void)spi->transfer(reg | LSM6DSR_SPI_READ);
 	for (size_t i = 0; i < len; i++)
@@ -93,6 +94,7 @@ static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* 
 }
 
 static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t val) {
+	spi->setMode(SPI_MODE3);
 	LSM6DSR_CS_SELECT(csPin);
 	spi->transfer(reg);
 	spi->transfer(val);
@@ -157,8 +159,9 @@ void LSM6DSRIMUAddon::setup() {
 	gpio_set_dir((uint)csPin, GPIO_OUT);
 	gpio_put((uint)csPin, true);
 
-	// 本插件 SPI 格式与速率：MSB_FIRST + MODE0 + LSM6DSR_SPI_HZ，在 setup 中设一次即可
-	spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
+	// LSM6DSR requires MODE3 on shared SPI.
+	spi->setBaudrate(LSM6DSR_SPI_HZ);
+	spi->setMode(SPI_MODE3);
 
 	// Disable FIFO (避免延迟), I3C, High Performance, ODR 1666 Hz, 4g acc, 500 dps gyro, BDU+IF_INC
 	// CTRL2_G: 0x84 = ODR 1.66kHz (0b10) + FS 500 dps (0b01) → 17.5 mdps/LSB

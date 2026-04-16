@@ -9,8 +9,8 @@
 #define LSM6DSR_IMU_ADDON_NAME "LSM6DSR IMU"
 
 // SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」与插件配置（spiBlock、csPin）获取
-// 与 MCP3208 等共用 SPI 时若速率相同，setup 阶段初始化一次即可；若速率不同需在访问前切换波特率
-#define LSM6DSR_SPI_HZ      1500000u
+// 与 ADS8332 共线时，LSM6DSR 使用 MODE3，访问前会切换 SPI 格式。
+#define LSM6DSR_SPI_HZ      10000000u
 
 // 供 webconfig 按需读取 6 轴 RAW（已应用校准偏移；网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]);

@@ -66,10 +66,10 @@ void UnifiedVoltageSwitchAddon::gpioMappingToMasks(const GpioMappingInfo& mappin
     if (mapping.action == GpioAction::NONE) return;
     if (mapping.action == GpioAction::CUSTOM_BUTTON_COMBO) {
         *outButtons = mapping.customButtonMask;
-        if (mapping.customDpadMask & GAMEPAD_MASK_DU) *outDpad |= GAMEPAD_MASK_UP;
-        if (mapping.customDpadMask & GAMEPAD_MASK_DD) *outDpad |= GAMEPAD_MASK_DOWN;
-        if (mapping.customDpadMask & GAMEPAD_MASK_DL) *outDpad |= GAMEPAD_MASK_LEFT;
-        if (mapping.customDpadMask & GAMEPAD_MASK_DR) *outDpad |= GAMEPAD_MASK_RIGHT;
+        if (mapping.customDpadMask & GAMEPAD_MASK_UP) *outDpad |= GAMEPAD_MASK_UP;
+        if (mapping.customDpadMask & GAMEPAD_MASK_DOWN) *outDpad |= GAMEPAD_MASK_DOWN;
+        if (mapping.customDpadMask & GAMEPAD_MASK_LEFT) *outDpad |= GAMEPAD_MASK_LEFT;
+        if (mapping.customDpadMask & GAMEPAD_MASK_RIGHT) *outDpad |= GAMEPAD_MASK_RIGHT;
         return;
     }
     switch (mapping.action) {
@@ -193,6 +193,7 @@ void UnifiedVoltageSwitchAddon::process() {
     uint16_t left = 0, right = 0, adcMax = 0;
     bool leftValid = false, rightValid = false;
     bool hasSource = false;
+    // Divider semantics are source-agnostic: left/right are provided by sampler contract.
     if (source_ == DividerSource::ADS8332) {
         hasSource = ADS8332ADCAddon::getRawDividerForProcessor(left, right, adcMax, leftValid, rightValid);
     } else if (source_ == DividerSource::MCP3208) {

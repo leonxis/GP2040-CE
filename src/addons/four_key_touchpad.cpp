@@ -33,10 +33,10 @@ static void parseMapping(const GpioMappingInfo& src, FastMapping& dst) {
 
     if (src.action == GpioAction::CUSTOM_BUTTON_COMBO) {
         dst.buttonMask = src.customButtonMask;
-        if (src.customDpadMask & GAMEPAD_MASK_DU) dst.dpadMask |= GAMEPAD_MASK_UP;
-        if (src.customDpadMask & GAMEPAD_MASK_DD) dst.dpadMask |= GAMEPAD_MASK_DOWN;
-        if (src.customDpadMask & GAMEPAD_MASK_DL) dst.dpadMask |= GAMEPAD_MASK_LEFT;
-        if (src.customDpadMask & GAMEPAD_MASK_DR) dst.dpadMask |= GAMEPAD_MASK_RIGHT;
+        if (src.customDpadMask & GAMEPAD_MASK_UP) dst.dpadMask |= GAMEPAD_MASK_UP;
+        if (src.customDpadMask & GAMEPAD_MASK_DOWN) dst.dpadMask |= GAMEPAD_MASK_DOWN;
+        if (src.customDpadMask & GAMEPAD_MASK_LEFT) dst.dpadMask |= GAMEPAD_MASK_LEFT;
+        if (src.customDpadMask & GAMEPAD_MASK_RIGHT) dst.dpadMask |= GAMEPAD_MASK_RIGHT;
         return;
     }
 

@@ -78,10 +78,10 @@ void UnifiedJoystickTravelKeyAddon::buildEntryFromMapping(TravelMappingEntry& en
 
     if (action == GpioAction::CUSTOM_BUTTON_COMBO) {
         entry.buttonMask = customButtonMask;
-        if (customDpadMask & GAMEPAD_MASK_DU) entry.dpadMask |= GAMEPAD_MASK_UP;
-        if (customDpadMask & GAMEPAD_MASK_DD) entry.dpadMask |= GAMEPAD_MASK_DOWN;
-        if (customDpadMask & GAMEPAD_MASK_DL) entry.dpadMask |= GAMEPAD_MASK_LEFT;
-        if (customDpadMask & GAMEPAD_MASK_DR) entry.dpadMask |= GAMEPAD_MASK_RIGHT;
+        if (customDpadMask & GAMEPAD_MASK_UP) entry.dpadMask |= GAMEPAD_MASK_UP;
+        if (customDpadMask & GAMEPAD_MASK_DOWN) entry.dpadMask |= GAMEPAD_MASK_DOWN;
+        if (customDpadMask & GAMEPAD_MASK_LEFT) entry.dpadMask |= GAMEPAD_MASK_LEFT;
+        if (customDpadMask & GAMEPAD_MASK_RIGHT) entry.dpadMask |= GAMEPAD_MASK_RIGHT;
         entry.enabled = (entry.buttonMask != 0u) || (entry.dpadMask != 0u);
         return;
     }
@@ -188,6 +188,8 @@ bool UnifiedJoystickTravelKeyAddon::readRawStick(uint8_t stickNum, uint16_t& raw
     bool xValid = false;
     bool yValid = false;
 
+    // Unified sampler contract:
+    // stick0 => ANALOG_ADC_1_VRX/VRY, stick1 => ANALOG_ADC_2_VRX/VRY.
     switch (source_) {
         case StickSource::ADS8332:
             return ADS8332ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, centerX, centerY, xValid, yValid, adcMax) && xValid && yValid;

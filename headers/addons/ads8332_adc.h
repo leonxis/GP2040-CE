@@ -5,7 +5,7 @@
 #include "peripheralmanager.h"
 
 #define ADS8332_ADC_ADDON_NAME "ADS8332 ADC"
-#define ADS8332_SPI_HZ 1500000u
+#define ADS8332_SPI_HZ 10000000u
 
 class ADS8332ADCAddon : public GPAddon {
 public:
@@ -36,6 +36,8 @@ public:
     );
 
 private:
+    static constexpr uint8_t ADS8332_CHANNEL_COUNT = 8;
+
     struct SamplerStickChannelConfig {
         uint8_t x_channel;
         uint8_t y_channel;
@@ -46,14 +48,17 @@ private:
         uint8_t right_channel;
     };
 
-    uint16_t readChannelRaw(uint8_t channel);
-    void readSelectedChannels(const uint8_t* channels, uint8_t count);
+    void readAllChannelsOptimized(const uint8_t* channels, uint8_t count);
+    void readAllChannelsOptimizedUnique(const uint8_t* channels, uint8_t count);
+    void configureADS8332CFR();
 
     PeripheralSPI* spi_ = nullptr;
     int8_t csPin_ = -1;
     int8_t convstPin_ = -1;
     bool spiOk_ = false;
     uint16_t adcValues_[8] = {0};
+    uint8_t preprocess_channels_[6] = {0};
+    uint8_t preprocess_channel_count_ = 0;
     SamplerStickChannelConfig stick_channels_[2];
     SamplerDividerChannelConfig divider_channels_;
     static ADS8332ADCAddon* s_instance_;

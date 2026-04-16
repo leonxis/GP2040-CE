@@ -49,6 +49,8 @@ void UnifiedAnalogProcessorAddon::reinit() {
 
 void UnifiedAnalogProcessorAddon::resolveSource() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    // Source priority only selects provider; coordinate semantics are unified:
+    // stick0 => ANALOG_ADC_1_VRX/VRY, stick1 => ANALOG_ADC_2_VRX/VRY.
     if (addonOptions.ads8332Options.enabled) {
         source_ = StickSource::ADS8332;
         return;
@@ -229,6 +231,7 @@ void UnifiedAnalogProcessorAddon::process() {
         bool yValid = false;
 
         bool hasSource = false;
+        // The sampler contract guarantees unified stick semantics across sources.
         if (source_ == StickSource::ADS8332) {
             hasSource = ADS8332ADCAddon::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
         } else if (source_ == StickSource::MCP3208) {

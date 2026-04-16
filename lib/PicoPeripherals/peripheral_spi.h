@@ -106,6 +106,10 @@ public:
     // to minimize CPU blocking; uses spi_set_baudrate when already initialized.
     void setBaudrate(uint32_t hz);
 
+    // Fast format switch for shared buses when only SPI mode changes.
+    // Avoids beginTransaction() speed/format checks in hot paths.
+    void setMode(SPIMode spiMode);
+
 private:
     const uint32_t SPI_DEFAULT_SPEED = 1000000; // 1Mhz
 

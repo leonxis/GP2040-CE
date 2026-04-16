@@ -89,9 +89,11 @@ void MCP3208ADCAddon::setup() {
     for (int i = 0; i < 8; i++) adcValues_[i] = 0;
     adcValues_[0] = adcValues_[1] = adcValues_[6] = adcValues_[7] = center;
     ch25_sample_counter_ = 0;
-    stick_channels_[0] = {0, 1}; // left: CH0/CH1
-    stick_channels_[1] = {7, 6}; // right: CH7/CH6
-    divider_channels_ = {2, 5};  // CH2/CH5
+    // Semantic mapping aligned with AnalogInput contract:
+    // stick0 -> ANALOG_ADC_1_VRX/VRY, stick1 -> ANALOG_ADC_2_VRX/VRY.
+    stick_channels_[0] = {0, 1}; // stick0: CH0/CH1 (VRX/VRY)
+    stick_channels_[1] = {7, 6}; // stick1: CH7/CH6 (VRX/VRY)
+    divider_channels_ = {2, 5};  // divider left/right: CH2/CH5
 
     const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
     uint8_t block = opts.has_spiBlock ? (uint8_t)opts.spiBlock : 0;

@@ -3,15 +3,26 @@
 #include "storagemanager.h"
 
 #include "hardware/gpio.h"
+#include "pico/time.h"
 
 namespace {
 static constexpr uint16_t ADS8332_RAW_MAX = 65535u;
 static constexpr uint16_t ADS8332_RAW_HALF = ADS8332_RAW_MAX / 2u;
+static constexpr uint8_t ADS8332_CHANNEL_MAX = 7u;
+static constexpr uint16_t ADS8332_CMD_READ_DATA = 0xD000u; // Table 4: Dh
+static constexpr uint16_t ADS8332_CMD_WRITE_CFR = 0xE000u; // Table 4: Eh
+static constexpr uint16_t ADS8332_CFR_VALUE = 0x06FDu;
+static constexpr uint32_t ADS8332_SETTLE_DELAY_US = 2u;
+static constexpr uint32_t ADS8332_CONVERSION_DELAY_US = 2u;
 
 // CMR command format (manual channel select).
 // This is intentionally minimal for initial bring-up.
 static inline uint16_t ads8332ChannelCommand(uint8_t channel) {
-    return static_cast<uint16_t>(0x8000u | ((channel & 0x07u) << 8));
+    return static_cast<uint16_t>((channel & ADS8332_CHANNEL_MAX) << 12);
+}
+
+static inline uint16_t ads8332WriteCfrCommand(uint16_t cfrValue) {
+    return static_cast<uint16_t>(ADS8332_CMD_WRITE_CFR | (cfrValue & 0x0FFFu));
 }
 } // namespace
 
@@ -32,10 +43,21 @@ void ADS8332ADCAddon::setup() {
     spi_ = nullptr;
     csPin_ = -1;
     convstPin_ = -1;
-    stick_channels_[0] = {0, 1}; // left
-    stick_channels_[1] = {7, 6}; // right
-    divider_channels_ = {2, 5};
-    for (int i = 0; i < 8; i++) {
+    // Semantic mapping aligned with AnalogInput:
+    // stick0 -> ANALOG_ADC_1_VRX/VRY, stick1 -> ANALOG_ADC_2_VRX/VRY.
+    // User-confirmed ADS8332 channel numbering is internal 0-based:
+    // IN1->1, IN2->2, IN5->5, IN6->6, IN3->3, IN4->4.
+    stick_channels_[0] = {1, 2}; // stick0: VRX/VRY
+    stick_channels_[1] = {5, 6}; // stick1: VRX/VRY
+    divider_channels_ = {3, 4};  // left/right divider keys
+    preprocess_channels_[0] = stick_channels_[0].x_channel;
+    preprocess_channels_[1] = stick_channels_[0].y_channel;
+    preprocess_channels_[2] = stick_channels_[1].x_channel;
+    preprocess_channels_[3] = stick_channels_[1].y_channel;
+    preprocess_channels_[4] = divider_channels_.left_channel;
+    preprocess_channels_[5] = divider_channels_.right_channel;
+    preprocess_channel_count_ = 6;
+    for (int i = 0; i < ADS8332ADCAddon::ADS8332_CHANNEL_COUNT; i++) {
         adcValues_[i] = ADS8332_RAW_HALF;
     }
     const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
@@ -54,9 +76,8 @@ void ADS8332ADCAddon::setup() {
     }
 
     spi_ = spi;
-    // Align SPI mode with LSM6DSR addon configuration.
-    spi_->beginTransaction(ADS8332_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
     spi_->setBaudrate(ADS8332_SPI_HZ);
+    spi_->setMode(SPI_MODE2);
 
     if (convstPin_ >= 0) {
         gpio_init(static_cast<uint>(convstPin_));
@@ -64,9 +85,11 @@ void ADS8332ADCAddon::setup() {
         gpio_put(static_cast<uint>(convstPin_), 1);
     }
 
+    configureADS8332CFR();
+
     spiOk_ = true;
     const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
-    readSelectedChannels(dividerChannels, 2);
+    readAllChannelsOptimized(dividerChannels, 2);
 }
 
 void ADS8332ADCAddon::reinit() {
@@ -74,54 +97,100 @@ void ADS8332ADCAddon::reinit() {
         return;
     }
     const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
-    readSelectedChannels(dividerChannels, 2);
+    readAllChannelsOptimized(dividerChannels, 2);
 }
 
 void ADS8332ADCAddon::preprocess() {
     if (!spiOk_) {
         return;
     }
-    const uint8_t channels[6] = {
-        stick_channels_[0].x_channel,
-        stick_channels_[0].y_channel,
-        stick_channels_[1].x_channel,
-        stick_channels_[1].y_channel,
-        divider_channels_.left_channel,
-        divider_channels_.right_channel
-    };
-    readSelectedChannels(channels, 6);
+    // Keep SPI mode/baud changes at the top level once per cycle.
+    spi_->setMode(SPI_MODE2);
+    readAllChannelsOptimizedUnique(preprocess_channels_, preprocess_channel_count_);
 }
 
-uint16_t ADS8332ADCAddon::readChannelRaw(uint8_t channel) {
-    if (!spi_ || !spiOk_ || channel >= 8) {
-        return ADS8332_RAW_MAX / 2u;
+void ADS8332ADCAddon::readAllChannelsOptimized(const uint8_t* channels, uint8_t count) {
+    if (!spi_ || !spiOk_ || channels == nullptr || count == 0) {
+        return;
     }
 
-    // Global CONVST pulse (if configured).
-    if (convstPin_ >= 0) {
-        gpio_put(static_cast<uint>(convstPin_), 0);
-        gpio_put(static_cast<uint>(convstPin_), 1);
-    }
-
-    // First transfer writes channel command, second transfer fetches conversion data.
-    spi_->select(csPin_);
-    (void)spi_->transfer16(ads8332ChannelCommand(channel));
-    uint16_t value = spi_->transfer16(0x0000u);
-    spi_->deselect();
-
-    return value;
-}
-
-void ADS8332ADCAddon::readSelectedChannels(const uint8_t* channels, uint8_t count) {
-    bool sampled[8] = {};
+    // Dedupe requested channels so each conversion slot is used once.
+    uint8_t uniqueChannels[ADS8332_CHANNEL_COUNT] = {};
+    uint8_t uniqueCount = 0;
+    bool sampled[ADS8332_CHANNEL_COUNT] = {};
     for (uint8_t i = 0; i < count; i++) {
         const uint8_t channel = channels[i];
-        if (channel >= 8 || sampled[channel]) {
+        if (channel >= ADS8332_CHANNEL_COUNT || sampled[channel]) {
             continue;
         }
-        adcValues_[channel] = readChannelRaw(channel);
         sampled[channel] = true;
+        uniqueChannels[uniqueCount++] = channel;
     }
+    if (uniqueCount == 0) {
+        return;
+    }
+
+    readAllChannelsOptimizedUnique(uniqueChannels, uniqueCount);
+}
+
+void ADS8332ADCAddon::readAllChannelsOptimizedUnique(const uint8_t* channels, uint8_t count) {
+    if (!spi_ || !spiOk_ || channels == nullptr || count == 0) {
+        return;
+    }
+
+    // Warm-up: select first channel once before per-channel double conversions.
+    spi_->select(csPin_);
+    (void)spi_->transfer16(ads8332ChannelCommand(channels[0]));
+    spi_->deselect();
+    sleep_us(ADS8332_SETTLE_DELAY_US);
+
+    for (uint8_t i = 0; i < count; i++) {
+        // Each channel performs two back-to-back conversions:
+        // conv1 is discarded (flush channel-switch residue), conv2 is kept.
+        // Only conv2 read preselects next channel to preserve current-channel conv2 integrity.
+        const uint8_t channel = channels[i];
+        const uint8_t nextIdx = i + 1;
+        const bool hasNext = nextIdx < count;
+        const uint16_t nextCmd = hasNext
+            ? ads8332ChannelCommand(channels[nextIdx])
+            : ADS8332_CMD_READ_DATA;
+
+        // conv1(discard)
+        if (convstPin_ >= 0) {
+            gpio_put(static_cast<uint>(convstPin_), 0);
+            gpio_put(static_cast<uint>(convstPin_), 1);
+        }
+        sleep_us(ADS8332_CONVERSION_DELAY_US);
+        spi_->select(csPin_);
+        (void)spi_->transfer16(ADS8332_CMD_READ_DATA);
+        spi_->deselect();
+
+        // conv2(keep): read current value and optionally preselect next channel.
+        if (convstPin_ >= 0) {
+            gpio_put(static_cast<uint>(convstPin_), 0);
+            gpio_put(static_cast<uint>(convstPin_), 1);
+        }
+        sleep_us(ADS8332_CONVERSION_DELAY_US);
+        spi_->select(csPin_);
+        const uint16_t rawValue = spi_->transfer16(nextCmd);
+        spi_->deselect();
+        adcValues_[channel] = rawValue;
+
+        if (hasNext) {
+            sleep_us(ADS8332_SETTLE_DELAY_US);
+        }
+    }
+}
+
+void ADS8332ADCAddon::configureADS8332CFR() {
+    if (!spi_) {
+        return;
+    }
+    spi_->setMode(SPI_MODE2);
+    spi_->select(csPin_);
+    (void)spi_->transfer16(ads8332WriteCfrCommand(ADS8332_CFR_VALUE));
+    spi_->deselect();
+    sleep_ms(10);
 }
 
 void ADS8332ADCAddon::process() {
