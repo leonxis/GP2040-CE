@@ -116,6 +116,8 @@ export const DEFAULT_VALUES = {
 	...gamepadUSBHostState,
 	...HETriggerState,
 	...triggerCalibrationState,
+	ads8332IirFilterEnabled: 0,
+	ads8332IirStrength: 0.5,
 } as const;
 
 export const FormContext = ({ setStoredData }) => {
@@ -144,6 +146,7 @@ export const FormContext = ({ setStoredData }) => {
 const FLOAT_KEYS = [
 	'joystickFinetuneShapeAmplify1',
 	'joystickFinetuneShapeAmplify2',
+	'ads8332IirStrength',
 	'lsm6dsrGyroMouseSensLR',
 	'lsm6dsrGyroMouseSensUD',
 ];

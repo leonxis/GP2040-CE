@@ -34,6 +34,8 @@ public:
         bool& leftValid,
         bool& rightValid
     );
+    // Webconfig: sample all 8 ADS8332 channels once (for diagnostics).
+    static bool getAllChannelsRawForWeb(uint16_t values[8], uint32_t& adcMax);
 
 private:
     static constexpr uint8_t ADS8332_CHANNEL_COUNT = 8;
@@ -50,7 +52,10 @@ private:
 
     void readAllChannelsOptimized(const uint8_t* channels, uint8_t count);
     void readAllChannelsOptimizedUnique(const uint8_t* channels, uint8_t count);
-    void configureADS8332CFR();
+    bool configureADS8332CFR();
+    void refreshIIRConfig();
+    void resetIIRState();
+    uint16_t applyStickIIR(uint8_t channel, uint16_t rawValue);
 
     PeripheralSPI* spi_ = nullptr;
     int8_t csPin_ = -1;
@@ -61,6 +66,10 @@ private:
     uint8_t preprocess_channel_count_ = 0;
     SamplerStickChannelConfig stick_channels_[2];
     SamplerDividerChannelConfig divider_channels_;
+    bool iirEnabled_ = false;
+    uint8_t iirShift_ = 1; // alpha = 1 / (2^iirShift_), default 1/2
+    bool iirStateInitialized_[4] = {false, false, false, false};
+    int32_t iirState_[4] = {0, 0, 0, 0};
     static ADS8332ADCAddon* s_instance_;
 };
 

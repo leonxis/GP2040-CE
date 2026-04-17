@@ -11,9 +11,13 @@ static constexpr uint16_t ADS8332_RAW_HALF = ADS8332_RAW_MAX / 2u;
 static constexpr uint8_t ADS8332_CHANNEL_MAX = 7u;
 static constexpr uint16_t ADS8332_CMD_READ_DATA = 0xD000u; // Table 4: Dh
 static constexpr uint16_t ADS8332_CMD_WRITE_CFR = 0xE000u; // Table 4: Eh
+static constexpr uint16_t ADS8332_CMD_READ_CFR = 0xF000u; // Table 4: Fh
 static constexpr uint16_t ADS8332_CFR_VALUE = 0x06FDu;
-static constexpr uint32_t ADS8332_SETTLE_DELAY_US = 2u;
-static constexpr uint32_t ADS8332_CONVERSION_DELAY_US = 2u;
+static constexpr float ADS8332_IIR_STRENGTH_MIN = 0.1f;
+static constexpr float ADS8332_IIR_STRENGTH_MAX = 1.0f;
+
+static constexpr float ADS8332_IIR_LEVELS[] = {0.125f, 0.25f, 0.5f, 1.0f};
+static constexpr uint8_t ADS8332_IIR_SHIFTS[] = {3, 2, 1, 0};
 
 // CMR command format (manual channel select).
 // This is intentionally minimal for initial bring-up.
@@ -23,6 +27,50 @@ static inline uint16_t ads8332ChannelCommand(uint8_t channel) {
 
 static inline uint16_t ads8332WriteCfrCommand(uint16_t cfrValue) {
     return static_cast<uint16_t>(ADS8332_CMD_WRITE_CFR | (cfrValue & 0x0FFFu));
+}
+
+// ADS8332 uses 16-bit SPI words (MSB first). PeripheralSPI stays in 8-bit mode, so each word is two bytes.
+static inline void ads8332SpiSendWord(PeripheralSPI* spi, uint16_t cmd) {
+    const uint8_t tx[2] = {
+        static_cast<uint8_t>(cmd >> 8),
+        static_cast<uint8_t>(cmd & 0xFFu),
+    };
+    spi->transfer(tx, nullptr, 2);
+}
+
+static inline uint16_t ads8332SpiXferWord(PeripheralSPI* spi, uint16_t cmd) {
+    const uint8_t tx[2] = {
+        static_cast<uint8_t>(cmd >> 8),
+        static_cast<uint8_t>(cmd & 0xFFu),
+    };
+    uint8_t rx[2] = {0, 0};
+    spi->transfer(tx, rx, 2);
+    return static_cast<uint16_t>((static_cast<uint16_t>(rx[0]) << 8) | rx[1]);
+}
+
+static inline void ads8332KickConversion(int8_t convstPin) {
+    if (convstPin < 0) {
+        return;
+    }
+    gpio_put(static_cast<uint>(convstPin), 0);
+    sleep_us(1);
+    gpio_put(static_cast<uint>(convstPin), 1);
+    // Allow minimum conversion/acquisition time before the next SPI read clocks result.
+    sleep_us(2);
+}
+
+static inline void ads8332ArmChannelAndKick(PeripheralSPI* spi, int8_t csPin, int8_t convstPin, uint8_t channel) {
+    spi->select(csPin);
+    ads8332SpiSendWord(spi, ads8332ChannelCommand(channel));
+    spi->deselect();
+    ads8332KickConversion(convstPin);
+}
+
+static inline uint16_t ads8332ReadDataWord(PeripheralSPI* spi, int8_t csPin) {
+    spi->select(csPin);
+    const uint16_t rawValue = ads8332SpiXferWord(spi, ADS8332_CMD_READ_DATA);
+    spi->deselect();
+    return rawValue;
 }
 } // namespace
 
@@ -47,8 +95,8 @@ void ADS8332ADCAddon::setup() {
     // stick0 -> ANALOG_ADC_1_VRX/VRY, stick1 -> ANALOG_ADC_2_VRX/VRY.
     // User-confirmed ADS8332 channel numbering is internal 0-based:
     // IN1->1, IN2->2, IN5->5, IN6->6, IN3->3, IN4->4.
-    stick_channels_[0] = {1, 2}; // stick0: VRX/VRY
-    stick_channels_[1] = {5, 6}; // stick1: VRX/VRY
+    stick_channels_[0] = {2, 1}; // stick0: VRX/VRY (swapped)
+    stick_channels_[1] = {6, 5}; // stick1: VRX/VRY (swapped)
     divider_channels_ = {3, 4};  // left/right divider keys
     preprocess_channels_[0] = stick_channels_[0].x_channel;
     preprocess_channels_[1] = stick_channels_[0].y_channel;
@@ -78,6 +126,8 @@ void ADS8332ADCAddon::setup() {
     spi_ = spi;
     spi_->setBaudrate(ADS8332_SPI_HZ);
     spi_->setMode(SPI_MODE2);
+    refreshIIRConfig();
+    resetIIRState();
 
     if (convstPin_ >= 0) {
         gpio_init(static_cast<uint>(convstPin_));
@@ -85,7 +135,9 @@ void ADS8332ADCAddon::setup() {
         gpio_put(static_cast<uint>(convstPin_), 1);
     }
 
-    configureADS8332CFR();
+    if (!configureADS8332CFR()) {
+        return;
+    }
 
     spiOk_ = true;
     const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
@@ -96,6 +148,7 @@ void ADS8332ADCAddon::reinit() {
     if (!spiOk_) {
         return;
     }
+    resetIIRState();
     const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
     readAllChannelsOptimized(dividerChannels, 2);
 }
@@ -137,64 +190,133 @@ void ADS8332ADCAddon::readAllChannelsOptimizedUnique(const uint8_t* channels, ui
     if (!spi_ || !spiOk_ || channels == nullptr || count == 0) {
         return;
     }
-
-    // Warm-up: select first channel once before per-channel double conversions.
-    spi_->select(csPin_);
-    (void)spi_->transfer16(ads8332ChannelCommand(channels[0]));
-    spi_->deselect();
-    sleep_us(ADS8332_SETTLE_DELAY_US);
-
-    for (uint8_t i = 0; i < count; i++) {
-        // Each channel performs two back-to-back conversions:
-        // conv1 is discarded (flush channel-switch residue), conv2 is kept.
-        // Only conv2 read preselects next channel to preserve current-channel conv2 integrity.
-        const uint8_t channel = channels[i];
-        const uint8_t nextIdx = i + 1;
-        const bool hasNext = nextIdx < count;
-        const uint16_t nextCmd = hasNext
-            ? ads8332ChannelCommand(channels[nextIdx])
-            : ADS8332_CMD_READ_DATA;
-
-        // conv1(discard)
-        if (convstPin_ >= 0) {
-            gpio_put(static_cast<uint>(convstPin_), 0);
-            gpio_put(static_cast<uint>(convstPin_), 1);
-        }
-        sleep_us(ADS8332_CONVERSION_DELAY_US);
-        spi_->select(csPin_);
-        (void)spi_->transfer16(ADS8332_CMD_READ_DATA);
-        spi_->deselect();
-
-        // conv2(keep): read current value and optionally preselect next channel.
-        if (convstPin_ >= 0) {
-            gpio_put(static_cast<uint>(convstPin_), 0);
-            gpio_put(static_cast<uint>(convstPin_), 1);
-        }
-        sleep_us(ADS8332_CONVERSION_DELAY_US);
-        spi_->select(csPin_);
-        const uint16_t rawValue = spi_->transfer16(nextCmd);
-        spi_->deselect();
-        adcValues_[channel] = rawValue;
-
-        if (hasNext) {
-            sleep_us(ADS8332_SETTLE_DELAY_US);
+    // Fixed sequence per channel: discard first conversion, keep second (ADC settling).
+    // READ DATA does not alter MUX; a CMR write is only required when channel changes.
+    // Prime first channel so the first loop body read clocks out its discard sample.
+    ads8332ArmChannelAndKick(spi_, csPin_, convstPin_, channels[0]);
+    for (uint8_t i = 0; i < count; ++i) {
+        const uint8_t ch = channels[i];
+        (void)ads8332ReadDataWord(spi_, csPin_);
+        ads8332KickConversion(convstPin_);
+        const uint16_t rawValue = ads8332ReadDataWord(spi_, csPin_);
+        adcValues_[ch] = applyStickIIR(ch, rawValue);
+        if (i + 1 < count) {
+            ads8332ArmChannelAndKick(spi_, csPin_, convstPin_, channels[i + 1]);
         }
     }
 }
 
-void ADS8332ADCAddon::configureADS8332CFR() {
+bool ADS8332ADCAddon::configureADS8332CFR() {
     if (!spi_) {
-        return;
+        return false;
     }
     spi_->setMode(SPI_MODE2);
     spi_->select(csPin_);
-    (void)spi_->transfer16(ads8332WriteCfrCommand(ADS8332_CFR_VALUE));
+    ads8332SpiSendWord(spi_, ads8332WriteCfrCommand(ADS8332_CFR_VALUE));
     spi_->deselect();
-    sleep_ms(10);
+    sleep_ms(1);
+
+    spi_->select(csPin_);
+    const uint16_t readback = ads8332SpiXferWord(spi_, ADS8332_CMD_READ_CFR);
+    spi_->deselect();
+
+    return (readback & 0x0FFFu) == (ADS8332_CFR_VALUE & 0x0FFFu);
+}
+
+void ADS8332ADCAddon::refreshIIRConfig() {
+    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
+    iirEnabled_ = opts.iirFilterEnabled;
+    float clamped = opts.iirStrength;
+    if (!opts.has_iirStrength) {
+        clamped = 0.5f;
+    }
+    if (clamped < ADS8332_IIR_STRENGTH_MIN) {
+        clamped = ADS8332_IIR_STRENGTH_MIN;
+    } else if (clamped > ADS8332_IIR_STRENGTH_MAX) {
+        clamped = ADS8332_IIR_STRENGTH_MAX;
+    }
+    uint8_t best = 0;
+    float bestDiff = (clamped > ADS8332_IIR_LEVELS[0]) ? (clamped - ADS8332_IIR_LEVELS[0]) : (ADS8332_IIR_LEVELS[0] - clamped);
+    for (uint8_t i = 1; i < 4; i++) {
+        const float level = ADS8332_IIR_LEVELS[i];
+        const float diff = (clamped > level) ? (clamped - level) : (level - clamped);
+        if (diff < bestDiff) {
+            best = i;
+            bestDiff = diff;
+        }
+    }
+    iirShift_ = ADS8332_IIR_SHIFTS[best];
+}
+
+void ADS8332ADCAddon::resetIIRState() {
+    for (uint8_t i = 0; i < 4; i++) {
+        iirStateInitialized_[i] = false;
+        iirState_[i] = 0;
+    }
+}
+
+uint16_t ADS8332ADCAddon::applyStickIIR(uint8_t channel, uint16_t rawValue) {
+    if (!iirEnabled_) {
+        return rawValue;
+    }
+
+    int8_t axis = -1;
+    if (channel == stick_channels_[0].x_channel) {
+        axis = 0;
+    } else if (channel == stick_channels_[0].y_channel) {
+        axis = 1;
+    } else if (channel == stick_channels_[1].x_channel) {
+        axis = 2;
+    } else if (channel == stick_channels_[1].y_channel) {
+        axis = 3;
+    }
+    if (axis < 0) {
+        return rawValue;
+    }
+
+    const int32_t input = static_cast<int32_t>(rawValue);
+    if (!iirStateInitialized_[axis]) {
+        iirStateInitialized_[axis] = true;
+        iirState_[axis] = input;
+        return rawValue;
+    }
+
+    const int32_t delta = input - iirState_[axis];
+    // Arithmetic right shift (GCC/ARM for int32_t); iirShift_==0 yields delta unchanged.
+    int32_t step = delta >> iirShift_;
+    if (step == 0 && delta != 0) {
+        step = (delta > 0) ? 1 : -1;
+    }
+    iirState_[axis] += step;
+    if (iirState_[axis] < 0) {
+        iirState_[axis] = 0;
+    } else if (iirState_[axis] > static_cast<int32_t>(ADS8332_RAW_MAX)) {
+        iirState_[axis] = ADS8332_RAW_MAX;
+    }
+    return static_cast<uint16_t>(iirState_[axis]);
 }
 
 void ADS8332ADCAddon::process() {
     // Sample provider only. Unified addons consume cached raw values.
+}
+
+bool ADS8332ADCAddon::getAllChannelsRawForWeb(uint16_t values[8], uint32_t& adcMax) {
+    adcMax = 0;
+    if (s_instance_ == nullptr || !s_instance_->spiOk_) {
+        return false;
+    }
+    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
+    if (!opts.enabled) {
+        return false;
+    }
+    static const uint8_t ALL_CHANNELS[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    s_instance_->spi_->setMode(SPI_MODE2);
+    s_instance_->readAllChannelsOptimized(ALL_CHANNELS, 8);
+    for (int i = 0; i < 8; i++) {
+        values[i] = s_instance_->adcValues_[i];
+    }
+    adcMax = ADS8332_RAW_MAX;
+    return true;
 }
 
 bool ADS8332ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {

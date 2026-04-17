@@ -18,6 +18,7 @@ type CurvePoint = { x: number; y: number };
 const CIRCULARITY_DATA_SIZE = 48; // Number of angular positions to sample
 const DEFAULT_ADC_MAX = 4095;
 const DEFAULT_ADC_CENTER = DEFAULT_ADC_MAX / 2.0;
+const ADS8332_IIR_STRENGTH_OPTIONS = [0.125, 0.25, 0.5, 1.0];
 
 // Layout constants
 const COLUMN_WIDTH = '260px';
@@ -659,6 +660,10 @@ const JoystickCalibration = ({
 	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
 	const [showLeftRangeDataModal, setShowLeftRangeDataModal] = useState(false);
 	const [showRightRangeDataModal, setShowRightRangeDataModal] = useState(false);
+	const [showAds8332RawModal, setShowAds8332RawModal] = useState(false);
+	const [ads8332RawChannels, setAds8332RawChannels] = useState<number[] | null>(null);
+	const [ads8332RawAdcMax, setAds8332RawAdcMax] = useState<number | null>(null);
+	const [ads8332RawError, setAds8332RawError] = useState<string | null>(null);
 	const [leftRangeDataSnapshot, setLeftRangeDataSnapshot] = useState<number[]>([]);
 	const [rightRangeDataSnapshot, setRightRangeDataSnapshot] = useState<number[]>([]);
 	const [leftAngleIndexSnapshot, setLeftAngleIndexSnapshot] = useState(0);
@@ -718,6 +723,38 @@ const JoystickCalibration = ({
 			setRightJitterFilterOriginal(savedBits);
 		}
 	}, [showRightJitterDataModal, values?.joystickJitterFilter2]);
+
+	useEffect(() => {
+		if (!showAds8332RawModal) {
+			return undefined;
+		}
+		let cancelled = false;
+		const tick = async () => {
+			try {
+				const res = await fetch('/api/getADS8332RawChannels');
+				const data = await res.json();
+				if (cancelled) return;
+				if (data.success && Array.isArray(data.channels)) {
+					setAds8332RawChannels(data.channels.map((n: unknown) => Number(n)));
+					setAds8332RawAdcMax(typeof data.adcMax === 'number' ? data.adcMax : null);
+					setAds8332RawError(null);
+				} else {
+					setAds8332RawError(typeof data.error === 'string' ? data.error : 'Failed');
+					setAds8332RawChannels(null);
+				}
+			} catch (e) {
+				if (!cancelled) {
+					setAds8332RawError(e instanceof Error ? e.message : String(e));
+				}
+			}
+		};
+		tick();
+		const id = setInterval(tick, 200);
+		return () => {
+			cancelled = true;
+			clearInterval(id);
+		};
+	}, [showAds8332RawModal]);
 	
 	// Circularity data for main canvas (used when finetune shape is active)
 	const [leftFinetuneShapeCircularityData, setLeftFinetuneShapeCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
@@ -1304,6 +1341,15 @@ const JoystickCalibration = ({
 							circularityDataSize={CIRCULARITY_DATA_SIZE}
 							onClearCircularityData={() => setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0))}
 						/>
+						<div className="d-flex justify-content-center mt-2">
+							<Button
+								variant="secondary"
+								size="sm"
+								onClick={() => setShowAds8332RawModal(true)}
+							>
+								{t('CalibrationSettings:hml-ads8332-debug-button')}
+							</Button>
+						</div>
 					</div>
 
 
@@ -1426,6 +1472,61 @@ const JoystickCalibration = ({
 					</Button>
 				</Modal.Footer>
 			</Modal>
+
+			<Modal
+				show={showAds8332RawModal}
+				onHide={() => {
+					setShowAds8332RawModal(false);
+					setAds8332RawChannels(null);
+					setAds8332RawAdcMax(null);
+					setAds8332RawError(null);
+				}}
+				size="lg"
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>{t('CalibrationSettings:hml-ads8332-debug-title')}</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p className="small text-muted mb-3">{t('CalibrationSettings:hml-ads8332-debug-hint')}</p>
+					{ads8332RawError && <div className="text-danger mb-2">{ads8332RawError}</div>}
+					{ads8332RawChannels && ads8332RawChannels.length === 8 && (
+						<Table striped bordered hover size="sm" className="mb-0">
+							<thead>
+								<tr>
+									<th>{t('CalibrationSettings:hml-ads8332-debug-col-ch')}</th>
+									<th>{t('CalibrationSettings:hml-ads8332-debug-col-raw')}</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ads8332RawChannels.map((raw, ch) => (
+									<tr key={ch}>
+										<td>{ch}</td>
+										<td>{raw}</td>
+									</tr>
+								))}
+							</tbody>
+						</Table>
+					)}
+					{ads8332RawAdcMax != null && (
+						<div className="mt-2 small text-muted">
+							{t('CalibrationSettings:hml-ads8332-debug-adcmax', { max: ads8332RawAdcMax })}
+						</div>
+					)}
+				</Modal.Body>
+				<Modal.Footer>
+					<Button
+						variant="secondary"
+						onClick={() => {
+							setShowAds8332RawModal(false);
+							setAds8332RawChannels(null);
+							setAds8332RawAdcMax(null);
+							setAds8332RawError(null);
+						}}
+					>
+						{t('CalibrationSettings:hml-button-close')}
+					</Button>
+				</Modal.Footer>
+			</Modal>
 			
 			<Modal show={showRightRangeDataModal} onHide={() => setShowRightRangeDataModal(false)} size="lg">
 				<Modal.Header closeButton>
@@ -1501,6 +1602,35 @@ const JoystickCalibration = ({
 							{t('CalibrationSettings:hml-stick-step-help')}
 						</div>
 					</div>
+					<div className="mb-4">
+						<Form.Check
+							type="switch"
+							id="ads8332IirFilterEnabled-left"
+							label={t('CalibrationSettings:hml-ads8332-iir-enable')}
+							checked={Boolean(values?.ads8332IirFilterEnabled)}
+							onChange={(e) => setFieldValue('ads8332IirFilterEnabled', e.target.checked ? 1 : 0)}
+						/>
+						<Form.Label className="mt-3">
+							{t('CalibrationSettings:hml-ads8332-iir-strength', {
+								value: Number(values?.ads8332IirStrength ?? 0.5).toFixed(3),
+							})}
+						</Form.Label>
+						<Form.Select
+							size="sm"
+							value={String(values?.ads8332IirStrength ?? 0.5)}
+							onChange={(e) => setFieldValue('ads8332IirStrength', parseFloat(e.target.value))}
+							disabled={!Boolean(values?.ads8332IirFilterEnabled)}
+						>
+							{ADS8332_IIR_STRENGTH_OPTIONS.map((v) => (
+								<option key={`ads8332-iir-left-${v}`} value={v}>
+									{v}
+								</option>
+							))}
+						</Form.Select>
+						<div className="mt-2 small text-muted">
+							{t('CalibrationSettings:hml-ads8332-iir-hint')}
+						</div>
+					</div>
 				</Modal.Body>
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => {
@@ -1555,6 +1685,35 @@ const JoystickCalibration = ({
 						/>
 						<div className="mt-3 small text-muted">
 							{t('CalibrationSettings:hml-stick-step-help')}
+						</div>
+					</div>
+					<div className="mb-4">
+						<Form.Check
+							type="switch"
+							id="ads8332IirFilterEnabled-right"
+							label={t('CalibrationSettings:hml-ads8332-iir-enable')}
+							checked={Boolean(values?.ads8332IirFilterEnabled)}
+							onChange={(e) => setFieldValue('ads8332IirFilterEnabled', e.target.checked ? 1 : 0)}
+						/>
+						<Form.Label className="mt-3">
+							{t('CalibrationSettings:hml-ads8332-iir-strength', {
+								value: Number(values?.ads8332IirStrength ?? 0.5).toFixed(3),
+							})}
+						</Form.Label>
+						<Form.Select
+							size="sm"
+							value={String(values?.ads8332IirStrength ?? 0.5)}
+							onChange={(e) => setFieldValue('ads8332IirStrength', parseFloat(e.target.value))}
+							disabled={!Boolean(values?.ads8332IirFilterEnabled)}
+						>
+							{ADS8332_IIR_STRENGTH_OPTIONS.map((v) => (
+								<option key={`ads8332-iir-right-${v}`} value={v}>
+									{v}
+								</option>
+							))}
+						</Form.Select>
+						<div className="mt-2 small text-muted">
+							{t('CalibrationSettings:hml-ads8332-iir-hint')}
 						</div>
 					</div>
 				</Modal.Body>

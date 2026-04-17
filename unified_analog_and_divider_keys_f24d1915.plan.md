@@ -4,25 +4,25 @@ overview: 在保持摇杆统一处理于 `UnifiedAnalogProcessorAddon` 的前提
 todos:
   - id: unified-stick-multibit
     content: "Extend UnifiedAnalogProcessor: per-source adc_max + jitter-step quantization, priority ADS8332 > MCP3208 > AnalogInput; no CH2/CH5"
-    status: in_progress
+    status: completed
   - id: sampler-refactor
     content: MCP3208/ADS8332 sampler-only + raw APIs (sticks + CH2/CH5), with analog-like unified channel definition layer for both stick axes and divider channels, unify source-ready semantics
-    status: pending
+    status: completed
   - id: axis-mode-compat
     content: Unify axis routing across all sources via analogAdc1Mode/analogAdc2Mode semantics; remove source-specific fixed routing
-    status: pending
+    status: completed
   - id: unified-divider-addon
     content: "New UnifiedVoltageSwitch/DividerKey addon: handle CH2/CH5 for MCP3208 and ADS8332, with shared maps+debounce"
-    status: pending
+    status: completed
   - id: gp2040-order-cmake
     content: Reorder LoadAddon + add new .cpp/.h to CMakeLists
-    status: pending
+    status: completed
   - id: remove-1219-1256
     content: Remove ADS1219/ADS1256 proto, firmware, web, config_utils/legacy, lib link
-    status: pending
+    status: completed
   - id: analog-utils-webconfig
     content: Update readJoystickADC chain and CalibrationSettings form schemas
-    status: pending
+    status: completed
 isProject: false
 ---
 

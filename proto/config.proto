@@ -999,6 +999,8 @@ message ADS8332Options
     optional int32 spiBlock = 2;
     optional int32 csPin = 3;
     optional int32 convstPin = 4;
+    optional bool iirFilterEnabled = 5 [default = false];
+    optional float iirStrength = 6 [default = 0.5];
 }
 
 // LSM6DSR 陀螺仪：SPI 与 CS 引脚仅从插件配置（与外设映射）获取

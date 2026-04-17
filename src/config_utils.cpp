@@ -1070,18 +1070,53 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 #else
     INIT_UNSET_PROPERTY(config.addonOptions.fourKeyTouchpadOptions, enabled, 0);
 #endif
+ #if defined(MCP3208_DEFAULT_ENABLED)
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, MCP3208_DEFAULT_ENABLED);
+ #else
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, 1);
+ #endif
+ #if defined(MCP3208_DEFAULT_SPI_BLOCK)
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, spiBlock, MCP3208_DEFAULT_SPI_BLOCK);
+ #else
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, spiBlock, 0);
+ #endif
+ #if defined(MCP3208_DEFAULT_CS_PIN)
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, csPin, MCP3208_DEFAULT_CS_PIN);
+ #else
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, csPin, 1);
+ #endif
 #if defined(MCP3208_DEFAULT_CONVST_PIN)
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, convstPin, MCP3208_DEFAULT_CONVST_PIN);
 #else
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, convstPin, -1);
 #endif
+ #if defined(ADS8332_DEFAULT_ENABLED)
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, ADS8332_DEFAULT_ENABLED);
+ #else
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, 0);
+ #endif
+ #if defined(ADS8332_DEFAULT_SPI_BLOCK)
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, spiBlock, ADS8332_DEFAULT_SPI_BLOCK);
+ #else
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, spiBlock, 0);
+ #endif
+ #if defined(ADS8332_DEFAULT_CS_PIN)
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, csPin, ADS8332_DEFAULT_CS_PIN);
+ #else
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, csPin, -1);
+ #endif
+ #if defined(ADS8332_DEFAULT_CONVST_PIN)
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, convstPin, ADS8332_DEFAULT_CONVST_PIN);
+ #else
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, convstPin, -1);
+ #endif
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, iirFilterEnabled, false);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, iirStrength, 0.5f);
+    if (config.addonOptions.ads8332Options.iirStrength < 0.1f) {
+        config.addonOptions.ads8332Options.iirStrength = 0.1f;
+    } else if (config.addonOptions.ads8332Options.iirStrength > 1.0f) {
+        config.addonOptions.ads8332Options.iirStrength = 1.0f;
+    }
 #if defined(LSM6DSR_DEFAULT_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);
 #else

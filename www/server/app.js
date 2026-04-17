@@ -540,6 +540,8 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		ads8332Block: 0,
 		ads8332CsPin: -1,
 		ads8332ConvstPin: -1,
+		ads8332IirFilterEnabled: 0,
+		ads8332IirStrength: 0.5,
 		LSM6DSRAddonEnabled: 0,
 		lsm6dsrBlock: 0,
 		lsm6dsrCsPin: -1,

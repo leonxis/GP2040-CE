@@ -16,6 +16,7 @@
 #include "enums.pb.h"
 
 #include <cstring>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <memory>
@@ -39,6 +40,7 @@
 #include "addons/analog_utils.h"
 #include "addons/linear_trigger.h"
 #include "addons/lsm6dsr_imu.h"
+#include "addons/ads8332_adc.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
 
@@ -674,13 +676,15 @@ std::string setMCP3208Options() {
 }
 
 std::string getADS8332Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(8);
+    const size_t capacity = JSON_OBJECT_SIZE(10);
     DynamicJsonDocument doc(capacity);
     const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
     writeDoc(doc, "ads8332Block", opts.spiBlock);
     writeDoc(doc, "ads8332CsPin", opts.csPin);
     writeDoc(doc, "ads8332ConvstPin", opts.convstPin);
+    writeDoc(doc, "ads8332IirFilterEnabled", opts.iirFilterEnabled ? 1 : 0);
+    writeDoc(doc, "ads8332IirStrength", opts.iirStrength);
     return serialize_json(doc);
 }
 
@@ -699,6 +703,30 @@ std::string setADS8332Options() {
     Pin_t convstPinRef = opts.convstPin;
     cleanAddonGpioMappings(convstPinRef, oldConvstPin);
     opts.convstPin = (int8_t)convstPinRef;
+    if (doc.containsKey("ads8332IirFilterEnabled")) {
+        opts.iirFilterEnabled = doc["ads8332IirFilterEnabled"].as<int>() != 0;
+    }
+    if (doc.containsKey("ads8332IirStrength")) {
+        opts.iirStrength = doc["ads8332IirStrength"].as<float>();
+    }
+    const float adsIirLevels[4] = {0.125f, 0.25f, 0.5f, 1.0f};
+    if (opts.iirStrength < 0.1f) {
+        opts.iirStrength = 0.1f;
+    } else if (opts.iirStrength > 1.0f) {
+        opts.iirStrength = 1.0f;
+    }
+    {
+        uint8_t best = 0;
+        float bestDiff = fabsf(opts.iirStrength - adsIirLevels[0]);
+        for (uint8_t i = 1; i < 4; i++) {
+            float diff = fabsf(opts.iirStrength - adsIirLevels[i]);
+            if (diff < bestDiff) {
+                best = i;
+                bestDiff = diff;
+            }
+        }
+        opts.iirStrength = adsIirLevels[best];
+    }
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -2348,6 +2376,30 @@ std::string setAddonOptions()
         docToPin(convstPin, doc, "ads8332ConvstPin");
         ads8332Options.convstPin = (int8_t)convstPin;
     }
+    if (doc.containsKey("ads8332IirFilterEnabled")) {
+        ads8332Options.iirFilterEnabled = doc["ads8332IirFilterEnabled"].as<int>() != 0;
+    }
+    if (doc.containsKey("ads8332IirStrength")) {
+        ads8332Options.iirStrength = doc["ads8332IirStrength"].as<float>();
+    }
+    {
+        const float adsIirLevels[4] = {0.125f, 0.25f, 0.5f, 1.0f};
+        if (ads8332Options.iirStrength < 0.1f) {
+            ads8332Options.iirStrength = 0.1f;
+        } else if (ads8332Options.iirStrength > 1.0f) {
+            ads8332Options.iirStrength = 1.0f;
+        }
+        uint8_t best = 0;
+        float bestDiff = fabsf(ads8332Options.iirStrength - adsIirLevels[0]);
+        for (uint8_t i = 1; i < 4; i++) {
+            float diff = fabsf(ads8332Options.iirStrength - adsIirLevels[i]);
+            if (diff < bestDiff) {
+                best = i;
+                bestDiff = diff;
+            }
+        }
+        ads8332Options.iirStrength = adsIirLevels[best];
+    }
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
@@ -2865,6 +2917,8 @@ std::string getAddonOptions()
     writeDoc(doc, "ads8332Block", ads8332Options.spiBlock);
     writeDoc(doc, "ads8332CsPin", ads8332Options.csPin);
     writeDoc(doc, "ads8332ConvstPin", ads8332Options.convstPin);
+    writeDoc(doc, "ads8332IirFilterEnabled", ads8332Options.iirFilterEnabled ? 1 : 0);
+    writeDoc(doc, "ads8332IirStrength", ads8332Options.iirStrength);
     const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrBlock", lsm6dsrOptions.spiBlock);
@@ -3381,6 +3435,26 @@ std:: string getJoystickRaw2() {
     return serialize_json(doc);
 }
 
+std::string getADS8332RawChannels() {
+    const size_t capacity = JSON_OBJECT_SIZE(8) + JSON_ARRAY_SIZE(8);
+    DynamicJsonDocument doc(capacity);
+    uint16_t values[8] = {};
+    uint32_t adcMax = 0;
+    const bool success = ADS8332ADCAddon::getAllChannelsRawForWeb(values, adcMax);
+    JsonObject o = doc.to<JsonObject>();
+    o["success"] = success;
+    if (!success) {
+        o["error"] = "ADS8332 not available or not enabled";
+    } else {
+        o["adcMax"] = adcMax;
+        JsonArray ch = o.createNestedArray("channels");
+        for (int i = 0; i < 8; i++) {
+            ch.add(values[i]);
+        }
+    }
+    return serialize_json(doc);
+}
+
 typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
@@ -3450,6 +3524,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getConfig", getConfig },
     { "/api/getJoystickRaw", getJoystickRaw },
     { "/api/getJoystickRaw2", getJoystickRaw2 },
+    { "/api/getADS8332RawChannels", getADS8332RawChannels },
 #if !defined(NDEBUG)
     { "/api/echo", echo },
 #endif
