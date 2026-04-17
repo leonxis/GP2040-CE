@@ -49,12 +49,6 @@ export default {
 	'hml-button-cancel': 'キャンセル',
 	'hml-error-rate-label': '誤差率',
 	'hml-view-calibration-data-button': 'キャリブレーションデータを表示',
-	'hml-ads8332-debug-button': 'ADS8332 チャンネルデバッグ',
-	'hml-ads8332-debug-title': 'ADS8332 全チャンネル生値',
-	'hml-ads8332-debug-hint': '200ms ごとにデバイスから取得（ADS8332 有効・サンプル準備済みが必要）。',
-	'hml-ads8332-debug-col-ch': 'CH',
-	'hml-ads8332-debug-col-raw': '生値',
-	'hml-ads8332-debug-adcmax': 'adcMax: {{max}}',
 	'hml-ads8332-iir-enable': 'IIRフィルター',
 	'hml-ads8332-iir-strength': '強度: {{value}}',
 	'hml-ads8332-iir-hint':

@@ -40,7 +40,6 @@
 #include "addons/analog_utils.h"
 #include "addons/linear_trigger.h"
 #include "addons/lsm6dsr_imu.h"
-#include "addons/ads8332_adc.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
 
@@ -3435,26 +3434,6 @@ std:: string getJoystickRaw2() {
     return serialize_json(doc);
 }
 
-std::string getADS8332RawChannels() {
-    const size_t capacity = JSON_OBJECT_SIZE(8) + JSON_ARRAY_SIZE(8);
-    DynamicJsonDocument doc(capacity);
-    uint16_t values[8] = {};
-    uint32_t adcMax = 0;
-    const bool success = ADS8332ADCAddon::getAllChannelsRawForWeb(values, adcMax);
-    JsonObject o = doc.to<JsonObject>();
-    o["success"] = success;
-    if (!success) {
-        o["error"] = "ADS8332 not available or not enabled";
-    } else {
-        o["adcMax"] = adcMax;
-        JsonArray ch = o.createNestedArray("channels");
-        for (int i = 0; i < 8; i++) {
-            ch.add(values[i]);
-        }
-    }
-    return serialize_json(doc);
-}
-
 typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
@@ -3524,7 +3503,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getConfig", getConfig },
     { "/api/getJoystickRaw", getJoystickRaw },
     { "/api/getJoystickRaw2", getJoystickRaw2 },
-    { "/api/getADS8332RawChannels", getADS8332RawChannels },
 #if !defined(NDEBUG)
     { "/api/echo", echo },
 #endif

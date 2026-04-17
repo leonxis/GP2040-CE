@@ -34,9 +34,6 @@ public:
         bool& leftValid,
         bool& rightValid
     );
-    // Webconfig: sample all 8 ADS8332 channels once (for diagnostics).
-    static bool getAllChannelsRawForWeb(uint16_t values[8], uint32_t& adcMax);
-
 private:
     static constexpr uint8_t ADS8332_CHANNEL_COUNT = 8;
 

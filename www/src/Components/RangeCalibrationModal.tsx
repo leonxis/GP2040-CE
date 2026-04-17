@@ -16,6 +16,7 @@ const CIRCULARITY_DATA_SIZE = 48;
 const REQUIRED_FULL_CYCLES = 4; // Number of full rotations required
 const JOYSTICK_EXTREME_THRESHOLD = 0.50; // Minimum scale to count as valid data (must be pushed to extreme)
 const CIRCLE_FILL_THRESHOLD = 0.95; // Percentage of angles that must have data to complete a cycle
+const DEFAULT_ADC_MAX = 4095;
 
 const RangeCalibrationModal = ({
 	show,
@@ -35,7 +36,7 @@ const RangeCalibrationModal = ({
 	const cycleDataRef = useRef<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0)); // Current cycle data
 	const nonZeroCountRef = useRef(0);
 	const fullCyclesRef = useRef(0);
-	const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+	const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	// Reset state when modal opens/closes
 	useEffect(() => {
@@ -73,31 +74,32 @@ const RangeCalibrationModal = ({
 				return;
 			}
 
-			// Get center values from props or use default
-			const ADC_MAX = 4095;
-			const ADC_CENTER = ADC_MAX / 2;  // 2047.5
-			const centerXValue = centerX !== undefined ? centerX : ADC_CENTER;
-			const centerYValue = centerY !== undefined ? centerY : ADC_CENTER;
+			// Use runtime adcMax from backend (12-bit/16-bit compatible),
+			// fallback to 12-bit for legacy/missing responses.
+			const adcMaxValue = Number(data?.adcMax) > 0 ? Number(data.adcMax) : DEFAULT_ADC_MAX;
+			const adcCenterValue = adcMaxValue / 2.0;
+			const centerXValue = (centerX !== undefined && centerX > 0) ? centerX : adcCenterValue;
+			const centerYValue = (centerY !== undefined && centerY > 0) ? centerY : adcCenterValue;
 			
 			// Step 2: Coordinate translation (offset transformation)
 			// Calculate center offset values
-			const dX_value = centerXValue - ADC_CENTER;
-			const dY_value = centerYValue - ADC_CENTER;
+			const dX_value = centerXValue - adcCenterValue;
+			const dY_value = centerYValue - adcCenterValue;
 			
 			// Apply offset transformation
 			const offset_x = data.x - dX_value;  // adc_offset coordinate system
 			const offset_y = data.y - dY_value;  // adc_offset coordinate system
 			
 			// Step 3: Move to adc_offset_center coordinate system
-			const offset_center_x = offset_x - ADC_CENTER;
-			const offset_center_y = offset_y - ADC_CENTER;
+			const offset_center_x = offset_x - adcCenterValue;
+			const offset_center_y = offset_y - adcCenterValue;
 			
 			// Calculate distance and angle in adc_offset_center coordinate system
 			const distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
 			const angle = Math.atan2(offset_center_y, offset_center_x);
 			
-			// Calculate scale: distance / standard_outer_radius (ADC_CENTER = 2047.5)
-			const scale = distance / ADC_CENTER;
+			// Calculate scale: distance / standard outer radius (adc center for current source)
+			const scale = distance / adcCenterValue;
 			
 			// Only collect data if stick is pushed to extreme (near maximum range)
 			// Check if scale is above threshold (scale = distance / ADC_CENTER)

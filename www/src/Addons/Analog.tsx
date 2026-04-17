@@ -90,19 +90,19 @@ export const analogScheme = {
 	joystickCenterX: yup
 		.number()
 		.label('Joystick Center X')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 65535),
 	joystickCenterY: yup
 		.number()
 		.label('Joystick Center Y')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 65535),
 	joystickCenterX2: yup
 		.number()
 		.label('Joystick Center X2')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 65535),
 	joystickCenterY2: yup
 		.number()
 		.label('Joystick Center Y2')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 4095),
+		.validateRangeWhenValue('AnalogInputEnabled', 0, 65535),
 	joystickRangeData1: yup
 		.array()
 		.of(yup.number())

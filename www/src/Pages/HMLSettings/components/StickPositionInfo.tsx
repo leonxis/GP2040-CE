@@ -15,7 +15,7 @@ interface StickPositionInfoProps {
 	centerY: number;
 	onCenterXChange: (value: number) => void;
 	onCenterYChange: (value: number) => void;
-	convertToDS4Normalized: (value: number) => string;
+	convertToXInputNormalized: (value: number) => string;
 }
 
 const StickPositionInfo: React.FC<StickPositionInfoProps> = ({
@@ -25,7 +25,7 @@ const StickPositionInfo: React.FC<StickPositionInfoProps> = ({
 	centerY,
 	onCenterXChange,
 	onCenterYChange,
-	convertToDS4Normalized,
+	convertToXInputNormalized,
 }) => {
 	const { t } = useTranslation();
 
@@ -57,7 +57,7 @@ const StickPositionInfo: React.FC<StickPositionInfoProps> = ({
 					</Button>
 				)}
 				<span style={positionNormalizedStyle}>
-					({convertToDS4Normalized(stickData.x)})
+					({convertToXInputNormalized(stickData.x)})
 				</span>
 			</div>
 			<div style={positionInfoRowStyle}>
@@ -86,7 +86,7 @@ const StickPositionInfo: React.FC<StickPositionInfoProps> = ({
 					</Button>
 				)}
 				<span style={positionNormalizedStyle}>
-					({convertToDS4Normalized(stickData.y)})
+					({convertToXInputNormalized(stickData.y)})
 				</span>
 			</div>
 		</div>

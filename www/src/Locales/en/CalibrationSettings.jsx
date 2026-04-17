@@ -49,12 +49,6 @@ export default {
 	'hml-button-cancel': 'Cancel',
 	'hml-error-rate-label': 'Error rate',
 	'hml-view-calibration-data-button': 'View calibration data',
-	'hml-ads8332-debug-button': 'ADS8332 channel debug',
-	'hml-ads8332-debug-title': 'ADS8332 raw values (all channels)',
-	'hml-ads8332-debug-hint': 'Refreshes every 200 ms from the device (requires ADS8332 enabled and sampling ready).',
-	'hml-ads8332-debug-col-ch': 'CH',
-	'hml-ads8332-debug-col-raw': 'Raw',
-	'hml-ads8332-debug-adcmax': 'adcMax: {{max}}',
 	'hml-ads8332-iir-enable': 'IIR filter',
 	'hml-ads8332-iir-strength': 'Strength: {{value}}',
 	'hml-ads8332-iir-hint':

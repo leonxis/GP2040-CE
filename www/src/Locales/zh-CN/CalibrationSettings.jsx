@@ -48,12 +48,6 @@ export default {
 	'hml-button-cancel': '取消',
 	'hml-error-rate-label': '误差率',
 	'hml-view-calibration-data-button': '查看校准数据',
-	'hml-ads8332-debug-button': 'ADS8332 通道调试',
-	'hml-ads8332-debug-title': 'ADS8332 各通道原始值',
-	'hml-ads8332-debug-hint': '每 200ms 从设备读取一次（需启用 ADS8332 插件且采样就绪）。',
-	'hml-ads8332-debug-col-ch': '通道',
-	'hml-ads8332-debug-col-raw': '原始值',
-	'hml-ads8332-debug-adcmax': 'adcMax：{{max}}',
 	'hml-ads8332-iir-enable': 'IIR滤波',
 	'hml-ads8332-iir-strength': '强度：{{value}}',
 	'hml-ads8332-iir-hint':

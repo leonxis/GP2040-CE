@@ -300,25 +300,6 @@ void ADS8332ADCAddon::process() {
     // Sample provider only. Unified addons consume cached raw values.
 }
 
-bool ADS8332ADCAddon::getAllChannelsRawForWeb(uint16_t values[8], uint32_t& adcMax) {
-    adcMax = 0;
-    if (s_instance_ == nullptr || !s_instance_->spiOk_) {
-        return false;
-    }
-    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
-    if (!opts.enabled) {
-        return false;
-    }
-    static const uint8_t ALL_CHANNELS[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-    s_instance_->spi_->setMode(SPI_MODE2);
-    s_instance_->readAllChannelsOptimized(ALL_CHANNELS, 8);
-    for (int i = 0; i < 8; i++) {
-        values[i] = s_instance_->adcValues_[i];
-    }
-    adcMax = ADS8332_RAW_MAX;
-    return true;
-}
-
 bool ADS8332ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {
     if (s_instance_ == nullptr || !s_instance_->spiOk_ || stickNum > 1) {
         return false;

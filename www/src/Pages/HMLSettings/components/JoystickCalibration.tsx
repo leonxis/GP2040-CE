@@ -120,18 +120,19 @@ const calculateCircularityError = (data: number[]): number => {
 };
 
 /**
- * Converts stick value (-1 to 1) to DS4 normalized value with 255-level quantization
+ * Converts stick value (-1 to 1) to XINPUT-quantized normalized value.
  * @param stickValue - Stick value in range -1 to 1
- * @returns DS4 normalized value in range -1 to 1 with 255-level resolution
+ * @returns XINPUT-quantized normalized value in range -1 to 1
  */
-const convertToDS4Normalized = (stickValue: number): string => {
-	// Convert from -1 to 1 range to 0 to 1 range
-	const normalized = (stickValue + 1) / 2;
-	// Quantize to DS4 255 levels (1-255)
-	const ds4Value = Math.max(1, Math.min(255, Math.round(normalized * 254) + 1));
-	// Convert back to -1 to 1 range with DS4 resolution (center at 0)
-	const ds4Normalized = (ds4Value / 255) * 2 - 1;
-	return ds4Normalized.toFixed(5);
+const convertToXInputNormalized = (stickValue: number): string => {
+	const clamped = Math.max(-1, Math.min(1, stickValue));
+	const xinputRaw = clamped >= 0
+		? Math.round(clamped * 32767)
+		: Math.round(clamped * 32768);
+	const normalized = xinputRaw >= 0
+		? xinputRaw / 32767
+		: xinputRaw / 32768;
+	return normalized.toFixed(5);
 };
 
 /**
@@ -660,10 +661,6 @@ const JoystickCalibration = ({
 	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
 	const [showLeftRangeDataModal, setShowLeftRangeDataModal] = useState(false);
 	const [showRightRangeDataModal, setShowRightRangeDataModal] = useState(false);
-	const [showAds8332RawModal, setShowAds8332RawModal] = useState(false);
-	const [ads8332RawChannels, setAds8332RawChannels] = useState<number[] | null>(null);
-	const [ads8332RawAdcMax, setAds8332RawAdcMax] = useState<number | null>(null);
-	const [ads8332RawError, setAds8332RawError] = useState<string | null>(null);
 	const [leftRangeDataSnapshot, setLeftRangeDataSnapshot] = useState<number[]>([]);
 	const [rightRangeDataSnapshot, setRightRangeDataSnapshot] = useState<number[]>([]);
 	const [leftAngleIndexSnapshot, setLeftAngleIndexSnapshot] = useState(0);
@@ -724,38 +721,6 @@ const JoystickCalibration = ({
 		}
 	}, [showRightJitterDataModal, values?.joystickJitterFilter2]);
 
-	useEffect(() => {
-		if (!showAds8332RawModal) {
-			return undefined;
-		}
-		let cancelled = false;
-		const tick = async () => {
-			try {
-				const res = await fetch('/api/getADS8332RawChannels');
-				const data = await res.json();
-				if (cancelled) return;
-				if (data.success && Array.isArray(data.channels)) {
-					setAds8332RawChannels(data.channels.map((n: unknown) => Number(n)));
-					setAds8332RawAdcMax(typeof data.adcMax === 'number' ? data.adcMax : null);
-					setAds8332RawError(null);
-				} else {
-					setAds8332RawError(typeof data.error === 'string' ? data.error : 'Failed');
-					setAds8332RawChannels(null);
-				}
-			} catch (e) {
-				if (!cancelled) {
-					setAds8332RawError(e instanceof Error ? e.message : String(e));
-				}
-			}
-		};
-		tick();
-		const id = setInterval(tick, 200);
-		return () => {
-			cancelled = true;
-			clearInterval(id);
-		};
-	}, [showAds8332RawModal]);
-	
 	// Circularity data for main canvas (used when finetune shape is active)
 	const [leftFinetuneShapeCircularityData, setLeftFinetuneShapeCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [rightFinetuneShapeCircularityData, setRightFinetuneShapeCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
@@ -1298,7 +1263,7 @@ const JoystickCalibration = ({
 							centerY={values?.joystickCenterY || DEFAULT_ADC_CENTER}
 							onCenterXChange={(value) => setFieldValue('joystickCenterX', value)}
 							onCenterYChange={(value) => setFieldValue('joystickCenterY', value)}
-							convertToDS4Normalized={convertToDS4Normalized}
+							convertToXInputNormalized={convertToXInputNormalized}
 						/>
 					</div>
 
@@ -1312,7 +1277,7 @@ const JoystickCalibration = ({
 							centerY={values?.joystickCenterY2 || DEFAULT_ADC_CENTER}
 							onCenterXChange={(value) => setFieldValue('joystickCenterX2', value)}
 							onCenterYChange={(value) => setFieldValue('joystickCenterY2', value)}
-							convertToDS4Normalized={convertToDS4Normalized}
+							convertToXInputNormalized={convertToXInputNormalized}
 						/>
 					</div>
 
@@ -1341,15 +1306,6 @@ const JoystickCalibration = ({
 							circularityDataSize={CIRCULARITY_DATA_SIZE}
 							onClearCircularityData={() => setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0))}
 						/>
-						<div className="d-flex justify-content-center mt-2">
-							<Button
-								variant="secondary"
-								size="sm"
-								onClick={() => setShowAds8332RawModal(true)}
-							>
-								{t('CalibrationSettings:hml-ads8332-debug-button')}
-							</Button>
-						</div>
 					</div>
 
 
@@ -1473,61 +1429,6 @@ const JoystickCalibration = ({
 				</Modal.Footer>
 			</Modal>
 
-			<Modal
-				show={showAds8332RawModal}
-				onHide={() => {
-					setShowAds8332RawModal(false);
-					setAds8332RawChannels(null);
-					setAds8332RawAdcMax(null);
-					setAds8332RawError(null);
-				}}
-				size="lg"
-			>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('CalibrationSettings:hml-ads8332-debug-title')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<p className="small text-muted mb-3">{t('CalibrationSettings:hml-ads8332-debug-hint')}</p>
-					{ads8332RawError && <div className="text-danger mb-2">{ads8332RawError}</div>}
-					{ads8332RawChannels && ads8332RawChannels.length === 8 && (
-						<Table striped bordered hover size="sm" className="mb-0">
-							<thead>
-								<tr>
-									<th>{t('CalibrationSettings:hml-ads8332-debug-col-ch')}</th>
-									<th>{t('CalibrationSettings:hml-ads8332-debug-col-raw')}</th>
-								</tr>
-							</thead>
-							<tbody>
-								{ads8332RawChannels.map((raw, ch) => (
-									<tr key={ch}>
-										<td>{ch}</td>
-										<td>{raw}</td>
-									</tr>
-								))}
-							</tbody>
-						</Table>
-					)}
-					{ads8332RawAdcMax != null && (
-						<div className="mt-2 small text-muted">
-							{t('CalibrationSettings:hml-ads8332-debug-adcmax', { max: ads8332RawAdcMax })}
-						</div>
-					)}
-				</Modal.Body>
-				<Modal.Footer>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							setShowAds8332RawModal(false);
-							setAds8332RawChannels(null);
-							setAds8332RawAdcMax(null);
-							setAds8332RawError(null);
-						}}
-					>
-						{t('CalibrationSettings:hml-button-close')}
-					</Button>
-				</Modal.Footer>
-			</Modal>
-			
 			<Modal show={showRightRangeDataModal} onHide={() => setShowRightRangeDataModal(false)} size="lg">
 				<Modal.Header closeButton>
 					<Modal.Title>{t('CalibrationSettings:hml-modal-outer-ring-right-title')}</Modal.Title>

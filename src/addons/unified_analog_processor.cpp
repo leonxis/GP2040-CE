@@ -101,10 +101,10 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.jitter_filter = isFirst ? options.joystick_jitter_filter_1 : options.joystick_jitter_filter_2;
     stick.x_center = static_cast<uint16_t>((isFirst ? options.joystick_center_x : options.joystick_center_x2) > 0
         ? (isFirst ? options.joystick_center_x : options.joystick_center_x2)
-        : static_cast<uint32_t>(ADC_MAX_HALF));
+        : 0u);
     stick.y_center = static_cast<uint16_t>((isFirst ? options.joystick_center_y : options.joystick_center_y2) > 0
         ? (isFirst ? options.joystick_center_y : options.joystick_center_y2)
-        : static_cast<uint32_t>(ADC_MAX_HALF));
+        : 0u);
     stick.has_range_calibration = isFirst ? (options.joystick_range_data_1_count > 0) : (options.joystick_range_data_2_count > 0);
     stick.finetune_shape_force_circular = isFirst ? options.joystick_finetune_shape_force_circular_1 : options.joystick_finetune_shape_force_circular_2;
     stick.finetune_shape_amplify = isFirst ? options.joystick_finetune_shape_amplify_1 : options.joystick_finetune_shape_amplify_2;
@@ -245,9 +245,9 @@ void UnifiedAnalogProcessorAddon::process() {
 
         rawX = quantizeRaw(i, rawX, true, adcMax);
         rawY = quantizeRaw(i, rawY, false, adcMax);
-        // Center calibration remains owned by unified analog options.
-        const uint16_t calibratedXCenter = sticks_[i].x_center;
-        const uint16_t calibratedYCenter = sticks_[i].y_center;
+        // If center is uncalibrated (0), use source-native center (12-bit/16-bit aware).
+        const uint16_t calibratedXCenter = (sticks_[i].x_center > 0u) ? sticks_[i].x_center : xCenter;
+        const uint16_t calibratedYCenter = (sticks_[i].y_center > 0u) ? sticks_[i].y_center : yCenter;
         const float adcHalf = static_cast<float>(adcMax) * 0.5f;
 
         float cx = xValid ? static_cast<float>(rawX) - static_cast<float>(calibratedXCenter) : 0.0f;
