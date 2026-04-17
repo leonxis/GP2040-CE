@@ -81,10 +81,9 @@ extern void processCompositeHID(Gamepad *gamepad);
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const InputMode inputMode = DriverManager::getInstance().getInputMode();
-	const bool gyroEnabled = addonOptions.lsm6dsrOptions.enabled;
 	const bool supportedMode =
 		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B || inputMode == INPUT_MODE_SWITCH_PRO);
-	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && gyroEnabled && supportedMode;
+	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
 }
 
 const static uint32_t rebootDelayMs = 500;

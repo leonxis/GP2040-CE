@@ -67,6 +67,8 @@ private:
     uint8_t iirShift_ = 1; // alpha = 1 / (2^iirShift_), default 1/2
     bool iirStateInitialized_[4] = {false, false, false, false};
     int32_t iirState_[4] = {0, 0, 0, 0};
+    // Cached in setup(): LSM6DSR plugin enabled flag; preprocess restores SPI MODE2 when set (LSM6 uses MODE3 after ADS8332 each frame).
+    bool lsm6dsrActiveCached_ = false;
     static ADS8332ADCAddon* s_instance_;
 };
 

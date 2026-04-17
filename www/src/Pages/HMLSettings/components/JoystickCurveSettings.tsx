@@ -935,6 +935,9 @@ const JoystickCurveSettings = ({
 
 	// Keep Formik values in sync with current editor points.
 	useEffect(() => {
+		if (!leftCurveDirtyRef.current) {
+			return;
+		}
 		const formikPoints = Array.isArray(values?.joystickCurvePoints1)
 			? (values.joystickCurvePoints1 as CurvePoint[])
 			: [];
@@ -946,6 +949,9 @@ const JoystickCurveSettings = ({
 	}, [leftCurvePoints, setFieldValue, values?.joystickCurvePoints1]);
 
 	useEffect(() => {
+		if (!rightCurveDirtyRef.current) {
+			return;
+		}
 		const formikPoints = Array.isArray(values?.joystickCurvePoints2)
 			? (values.joystickCurvePoints2 as CurvePoint[])
 			: [];

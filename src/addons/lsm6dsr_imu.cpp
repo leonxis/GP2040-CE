@@ -102,6 +102,10 @@ static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t v
 }
 
 bool LSM6DSRIMUAddon::available() {
+	const InputMode inputMode = Storage::getInstance().getGamepadOptions().inputMode;
+	if (inputMode != INPUT_MODE_PS4 && inputMode != INPUT_MODE_PS4B && inputMode != INPUT_MODE_SWITCH_PRO) {
+		return false;
+	}
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
 	if (!opts.enabled || opts.csPin < 0) return false;
 	uint8_t block = (uint8_t)opts.spiBlock;

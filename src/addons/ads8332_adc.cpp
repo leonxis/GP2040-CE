@@ -89,6 +89,7 @@ void ADS8332ADCAddon::setup() {
     s_instance_ = this;
     spiOk_ = false;
     spi_ = nullptr;
+    lsm6dsrActiveCached_ = false;
     csPin_ = -1;
     convstPin_ = -1;
     // Semantic mapping aligned with AnalogInput:
@@ -124,6 +125,7 @@ void ADS8332ADCAddon::setup() {
     }
 
     spi_ = spi;
+    lsm6dsrActiveCached_ = Storage::getInstance().getAddonOptions().lsm6dsrOptions.enabled;
     spi_->setBaudrate(ADS8332_SPI_HZ);
     spi_->setMode(SPI_MODE2);
     refreshIIRConfig();
@@ -157,8 +159,9 @@ void ADS8332ADCAddon::preprocess() {
     if (!spiOk_) {
         return;
     }
-    // Keep SPI mode/baud changes at the top level once per cycle.
-    spi_->setMode(SPI_MODE2);
+    if (lsm6dsrActiveCached_) {
+        spi_->setMode(SPI_MODE2);
+    }
     readAllChannelsOptimizedUnique(preprocess_channels_, preprocess_channel_count_);
 }
 
@@ -210,7 +213,6 @@ bool ADS8332ADCAddon::configureADS8332CFR() {
     if (!spi_) {
         return false;
     }
-    spi_->setMode(SPI_MODE2);
     spi_->select(csPin_);
     ads8332SpiSendWord(spi_, ads8332WriteCfrCommand(ADS8332_CFR_VALUE));
     spi_->deselect();
