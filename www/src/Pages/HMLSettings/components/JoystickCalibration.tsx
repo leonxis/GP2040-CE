@@ -574,9 +574,10 @@ const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
 	}
 	
 	// Build full point list: start (0,0) + control points + end (1,1)
+	const sortedPoints = [...points].sort((a, b) => a.x - b.x);
 	const fullPoints: CurvePoint[] = [
 		{x: 0, y: 0},
-		...points.sort((a, b) => a.x - b.x), // Sort by x coordinate
+		...sortedPoints, // Sort by x coordinate without mutating original
 		{x: 1, y: 1}
 	];
 	

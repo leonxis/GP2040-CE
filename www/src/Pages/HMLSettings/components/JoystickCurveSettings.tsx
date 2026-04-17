@@ -298,9 +298,10 @@ const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
 		return value;
 	}
 	
+	const sortedPoints = [...points].sort((a, b) => a.x - b.x);
 	const fullPoints: CurvePoint[] = [
 		{x: 0, y: 0},
-		...points.sort((a, b) => a.x - b.x),
+		...sortedPoints,
 		{x: 1, y: 1}
 	];
 	
@@ -861,6 +862,7 @@ const JoystickCurveSettings = ({
 	const [leftDraggingPointIndex, setLeftDraggingPointIndex] = useState<number | null>(null);
 	const [leftDragOffset, setLeftDragOffset] = useState<{ x: number; y: number } | null>(null);
 	const leftCurveCanvasRef = useRef<HTMLCanvasElement>(null);
+	const leftCurveDirtyRef = useRef(false);
 	const [leftLightX, setLeftLightX] = useState<number | undefined>(undefined); // Physical distance (sqrt(dist_sq)) as percentage
 	const [leftLightY, setLeftLightY] = useState<number | undefined>(undefined); // Output distance (sqrt(stickX*stickX + stickY*stickY)) as percentage
 	
@@ -882,12 +884,26 @@ const JoystickCurveSettings = ({
 	const [rightDraggingPointIndex, setRightDraggingPointIndex] = useState<number | null>(null);
 	const [rightDragOffset, setRightDragOffset] = useState<{ x: number; y: number } | null>(null);
 	const rightCurveCanvasRef = useRef<HTMLCanvasElement>(null);
+	const rightCurveDirtyRef = useRef(false);
 	const [rightLightX, setRightLightX] = useState<number | undefined>(undefined); // Physical distance (sqrt(dist_sq)) as percentage
 	const [rightLightY, setRightLightY] = useState<number | undefined>(undefined); // Output distance (sqrt(stickX*stickX + stickY*stickY)) as percentage
+
+	const setLeftCurvePointsLocal = (nextPoints: CurvePoint[]) => {
+		leftCurveDirtyRef.current = true;
+		setLeftCurvePoints(nextPoints);
+	};
+
+	const setRightCurvePointsLocal = (nextPoints: CurvePoint[]) => {
+		rightCurveDirtyRef.current = true;
+		setRightCurvePoints(nextPoints);
+	};
 	
 	// Load curve points from values when they change
 	useEffect(() => {
 		const saved = values?.joystickCurvePoints1;
+		if (leftCurveDirtyRef.current) {
+			return;
+		}
 		if (Array.isArray(saved)) {
 			setLeftCurvePoints(saved as CurvePoint[]);
 			setLeftCurveInputValues((saved as CurvePoint[]).map(p => ({ 
@@ -902,6 +918,9 @@ const JoystickCurveSettings = ({
 	
 	useEffect(() => {
 		const saved = values?.joystickCurvePoints2;
+		if (rightCurveDirtyRef.current) {
+			return;
+		}
 		if (Array.isArray(saved)) {
 			setRightCurvePoints(saved as CurvePoint[]);
 			setRightCurveInputValues((saved as CurvePoint[]).map(p => ({ 
@@ -921,6 +940,8 @@ const JoystickCurveSettings = ({
 			: [];
 		if (!areCurvePointsEqual(leftCurvePoints, formikPoints)) {
 			setFieldValue('joystickCurvePoints1', leftCurvePoints);
+		} else {
+			leftCurveDirtyRef.current = false;
 		}
 	}, [leftCurvePoints, setFieldValue, values?.joystickCurvePoints1]);
 
@@ -930,6 +951,8 @@ const JoystickCurveSettings = ({
 			: [];
 		if (!areCurvePointsEqual(rightCurvePoints, formikPoints)) {
 			setFieldValue('joystickCurvePoints2', rightCurvePoints);
+		} else {
+			rightCurveDirtyRef.current = false;
 		}
 	}, [rightCurvePoints, setFieldValue, values?.joystickCurvePoints2]);
 	
@@ -1267,10 +1290,10 @@ const JoystickCurveSettings = ({
 			const validatedPoint = validatePointMonotonicity(clickedPoint, allReferencePoints);
 			const allPoints = [...leftCurvePoints, validatedPoint];
 			const validatedAll = validateAllPointsMonotonicity(allPoints);
-			setLeftCurvePoints(validatedAll);
-			// For new points, no offset needed (point is created at mouse position)
-			setLeftDragOffset({ x: 0, y: 0 });
-			setLeftDraggingPointIndex(validatedAll.length - 1);
+			setLeftCurvePointsLocal(validatedAll);
+			// Don't auto-enter drag mode after add; user can drag with next click.
+			setLeftDragOffset(null);
+			setLeftDraggingPointIndex(null);
 		}
 	};
 	
@@ -1296,7 +1319,7 @@ const JoystickCurveSettings = ({
 		const updatedPoints = [...leftCurvePoints];
 		updatedPoints[leftDraggingPointIndex] = validatedPoint;
 		// Don't call validateAllPointsMonotonicity during dragging to avoid pushing other points
-		setLeftCurvePoints(updatedPoints);
+		setLeftCurvePointsLocal(updatedPoints);
 	};
 	
 	const handleLeftMouseUp = () => {
@@ -1342,10 +1365,10 @@ const JoystickCurveSettings = ({
 			const validatedPoint = validatePointMonotonicity(clickedPoint, allReferencePoints);
 			const allPoints = [...rightCurvePoints, validatedPoint];
 			const validatedAll = validateAllPointsMonotonicity(allPoints);
-			setRightCurvePoints(validatedAll);
-			// For new points, no offset needed (point is created at mouse position)
-			setRightDragOffset({ x: 0, y: 0 });
-			setRightDraggingPointIndex(validatedAll.length - 1);
+			setRightCurvePointsLocal(validatedAll);
+			// Don't auto-enter drag mode after add; user can drag with next click.
+			setRightDragOffset(null);
+			setRightDraggingPointIndex(null);
 		}
 	};
 	
@@ -1371,7 +1394,7 @@ const JoystickCurveSettings = ({
 		const updatedPoints = [...rightCurvePoints];
 		updatedPoints[rightDraggingPointIndex] = validatedPoint;
 		// Don't call validateAllPointsMonotonicity during dragging to avoid pushing other points
-		setRightCurvePoints(updatedPoints);
+		setRightCurvePointsLocal(updatedPoints);
 	};
 	
 	const handleRightMouseUp = () => {
@@ -1407,7 +1430,7 @@ const JoystickCurveSettings = ({
 		const updatedPoints = [...leftCurvePoints];
 		updatedPoints[index] = validatedPoint;
 		const validatedAll = validateAllPointsMonotonicity(updatedPoints);
-		setLeftCurvePoints(validatedAll);
+		setLeftCurvePointsLocal(validatedAll);
 		// Update input values with formatted display (4 decimal places)
 		const updatedInputValues = [...leftCurveInputValues];
 		updatedInputValues[index] = { 
@@ -1440,7 +1463,7 @@ const JoystickCurveSettings = ({
 		const updatedPoints = [...rightCurvePoints];
 		updatedPoints[index] = validatedPoint;
 		const validatedAll = validateAllPointsMonotonicity(updatedPoints);
-		setRightCurvePoints(validatedAll);
+		setRightCurvePointsLocal(validatedAll);
 		// Update input values with formatted display (4 decimal places)
 		const updatedInputValues = [...rightCurveInputValues];
 		updatedInputValues[index] = { 
@@ -1453,7 +1476,7 @@ const JoystickCurveSettings = ({
 	// Handle delete for left stick
 	const handleLeftDelete = (index: number) => {
 		const updated = leftCurvePoints.filter((_, i) => i !== index);
-		setLeftCurvePoints(updated);
+		setLeftCurvePointsLocal(updated);
 		setLeftCurveInputValues(updated.map(p => ({ 
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),
@@ -1463,7 +1486,7 @@ const JoystickCurveSettings = ({
 	// Handle delete for right stick
 	const handleRightDelete = (index: number) => {
 		const updated = rightCurvePoints.filter((_, i) => i !== index);
-		setRightCurvePoints(updated);
+		setRightCurvePointsLocal(updated);
 		setRightCurveInputValues(updated.map(p => ({ 
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),
@@ -1710,7 +1733,7 @@ const JoystickCurveSettings = ({
 		// Sort by X value and validate
 		const sorted = [...points].sort((a, b) => a.x - b.x);
 		const validated = validateAllPointsMonotonicity(sorted);
-		setLeftCurvePoints(validated);
+		setLeftCurvePointsLocal(validated);
 		setLeftCurveInputValues(validated.map(p => ({ 
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),
@@ -1736,7 +1759,7 @@ const JoystickCurveSettings = ({
 		// Sort by X value and validate
 		const sorted = [...points].sort((a, b) => a.x - b.x);
 		const validated = validateAllPointsMonotonicity(sorted);
-		setRightCurvePoints(validated);
+		setRightCurvePointsLocal(validated);
 		setRightCurveInputValues(validated.map(p => ({ 
 			x: parseFloat(p.x.toFixed(4)).toString(), 
 			y: parseFloat(p.y.toFixed(4)).toString(),

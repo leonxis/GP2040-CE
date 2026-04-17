@@ -277,7 +277,10 @@ void UnifiedJoystickTravelKeyAddon::process() {
 
         const int32_t dx = static_cast<int32_t>(rawX) - static_cast<int32_t>(centerX);
         const int32_t dy = static_cast<int32_t>(rawY) - static_cast<int32_t>(centerY);
-        const uint64_t distSquared = static_cast<uint64_t>(dx * dx) + static_cast<uint64_t>(dy * dy);
+        const int64_t dx64 = static_cast<int64_t>(dx);
+        const int64_t dy64 = static_cast<int64_t>(dy);
+        const uint64_t distSquared =
+            static_cast<uint64_t>(dx64 * dx64) + static_cast<uint64_t>(dy64 * dy64);
         if (distSquared <= thresholdSquared_[stick]) {
             continue;
         }
