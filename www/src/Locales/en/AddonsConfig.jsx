@@ -243,7 +243,7 @@ export default {
 	'mcp3208-cs-pin': 'Chip Select (CS) GPIO Pin',
 	'mcp3208-convst-pin': 'Convert Start (CONVST) GPIO Pin',
 	'mcp3208-peripheral-note': 'RX, CS, SCK, and TX pins are configured in',
-	'ads8332-header-text': 'ADS8332 (SPI)',
+	'ads8332-header-text': '16bit摇杆',
 	'ads8332-block-label': 'SPI Block',
 	'ads8332-cs-pin': 'Chip Select (CS) GPIO Pin',
 	'ads8332-convst-pin': 'Convert Start (CONVST) GPIO Pin',

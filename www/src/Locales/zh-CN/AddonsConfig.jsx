@@ -231,7 +231,7 @@ export default {
 	'mcp3208-cs-pin': '片选 (CS) GPIO 引脚',
 	'mcp3208-convst-pin': '转换 (CONVST) GPIO 引脚',
 	'mcp3208-peripheral-note': 'RX、CS、SCK、TX 引脚请在',
-	'ads8332-header-text': 'ADS8332 (SPI)',
+	'ads8332-header-text': '16bit摇杆',
 	'ads8332-block-label': 'SPI 模块',
 	'ads8332-cs-pin': '片选 (CS) GPIO 引脚',
 	'ads8332-convst-pin': '转换 (CONVST) GPIO 引脚',
