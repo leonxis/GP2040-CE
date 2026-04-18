@@ -69,6 +69,7 @@ private:
     int32_t iirState_[4] = {0, 0, 0, 0};
     // Cached in setup(): LSM6DSR plugin enabled flag; preprocess restores SPI MODE2 when set (LSM6 uses MODE3 after ADS8332 each frame).
     bool lsm6dsrActiveCached_ = false;
+    uint8_t dividerSampleFrameCounter_ = 0;
     static ADS8332ADCAddon* s_instance_;
 };
 

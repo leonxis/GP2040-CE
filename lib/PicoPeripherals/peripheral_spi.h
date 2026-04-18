@@ -118,6 +118,7 @@ private:
     uint8_t _SCK;
     int _CS; // The HW CS pin
     int _CSActive; // The active CS pin, negative value indicates no selected pin
+    bool _csPinInitialized[NUM_BANK0_GPIOS] = {};
 
     spi_inst_t *_SPI; // The RP2040 SPI instance
     uint32_t _Speed;

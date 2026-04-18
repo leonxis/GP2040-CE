@@ -90,6 +90,7 @@ void ADS8332ADCAddon::setup() {
     spiOk_ = false;
     spi_ = nullptr;
     lsm6dsrActiveCached_ = false;
+    dividerSampleFrameCounter_ = 0;
     csPin_ = -1;
     convstPin_ = -1;
     // Semantic mapping aligned with AnalogInput:
@@ -150,6 +151,7 @@ void ADS8332ADCAddon::reinit() {
     if (!spiOk_) {
         return;
     }
+    dividerSampleFrameCounter_ = 0;
     resetIIRState();
     const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
     readAllChannelsOptimized(dividerChannels, 2);
@@ -162,7 +164,10 @@ void ADS8332ADCAddon::preprocess() {
     if (lsm6dsrActiveCached_) {
         spi_->setMode(SPI_MODE2);
     }
-    readAllChannelsOptimizedUnique(preprocess_channels_, preprocess_channel_count_);
+    // Sticks sample every frame; divider keys sample every 4th frame to reduce SPI/CPU load.
+    const bool sampleDividerThisFrame = ((dividerSampleFrameCounter_++ & 0x03u) == 0u);
+    const uint8_t countThisFrame = sampleDividerThisFrame ? preprocess_channel_count_ : 4u;
+    readAllChannelsOptimizedUnique(preprocess_channels_, countThisFrame);
 }
 
 void ADS8332ADCAddon::readAllChannelsOptimized(const uint8_t* channels, uint8_t count) {

@@ -5,13 +5,8 @@
 #include "peripheralmanager.h"
 #include "gamepad.h"
 #include "gamepad/GamepadState.h"
-#include "hardware/gpio.h"
 #include "pico/time.h"
 #include <cmath>
-
-// CS 片选：主动推挽驱动，避免 SPI select/deselect 的上拉/下拉驱动不足
-#define LSM6DSR_CS_SELECT(cs)   do { gpio_put((uint)(cs), 0); } while (0)
-#define LSM6DSR_CS_DESELECT(cs) do { gpio_put((uint)(cs), 1); } while (0)
 
 // Register map (ST LSM6DSR, same for I2C/SPI)
 #define LSM6DSR_CTRL1_XL      0x10U
@@ -86,19 +81,19 @@ static inline float lsm6dsr_compute_dt_s(uint64_t nowUs, uint64_t& lastUs) {
 static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
 	if (len == 0) return;
 	spi->setMode(SPI_MODE3);
-	LSM6DSR_CS_SELECT(csPin);
+	spi->select(csPin);
 	(void)spi->transfer(reg | LSM6DSR_SPI_READ);
 	for (size_t i = 0; i < len; i++)
 		buf[i] = spi->transfer(0);
-	LSM6DSR_CS_DESELECT(csPin);
+	spi->deselect();
 }
 
 static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t val) {
 	spi->setMode(SPI_MODE3);
-	LSM6DSR_CS_SELECT(csPin);
+	spi->select(csPin);
 	spi->transfer(reg);
 	spi->transfer(val);
-	LSM6DSR_CS_DESELECT(csPin);
+	spi->deselect();
 }
 
 bool LSM6DSRIMUAddon::available() {
@@ -112,10 +107,6 @@ bool LSM6DSRIMUAddon::available() {
 	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
 	if (!PeripheralManager::getInstance().isSPIEnabled(block) || !spi || !spi->configured)
 		return false;
-	int8_t csPin = (int8_t)opts.csPin;
-	gpio_init((uint)csPin);
-	gpio_set_dir((uint)csPin, GPIO_OUT);
-	gpio_put((uint)csPin, true);
 	return true;
 }
 
@@ -158,10 +149,6 @@ void LSM6DSRIMUAddon::setup() {
 	mouseSuppressUntilUs = 0;
 	mouseOutputCleared = false;
 	gyroOutputCleared = false;
-
-	gpio_init((uint)csPin);
-	gpio_set_dir((uint)csPin, GPIO_OUT);
-	gpio_put((uint)csPin, true);
 
 	// LSM6DSR requires MODE3 on shared SPI.
 	spi->setBaudrate(LSM6DSR_SPI_HZ);

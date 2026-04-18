@@ -118,12 +118,23 @@ uint16_t PeripheralSPI::transfer16(uint16_t tx) {
 
 void PeripheralSPI::select(int8_t cs) {
     _CSActive = cs > -1 ? cs : _CS;
-    gpio_pull_down(_CSActive);
+    if (_CSActive < 0 || _CSActive >= NUM_BANK0_GPIOS) {
+        _CSActive = -1;
+        return;
+    }
+    const uint pin = static_cast<uint>(_CSActive);
+    if (!_csPinInitialized[pin]) {
+        gpio_init(pin);
+        gpio_set_dir(pin, GPIO_OUT);
+        gpio_put(pin, 1);
+        _csPinInitialized[pin] = true;
+    }
+    gpio_put(pin, 0);
 }
 
 void PeripheralSPI::deselect() {
     if (_CSActive > -1) {
-        gpio_pull_up(_CSActive);
+        gpio_put(static_cast<uint>(_CSActive), 1);
         _CSActive = -1;
     }
 }
