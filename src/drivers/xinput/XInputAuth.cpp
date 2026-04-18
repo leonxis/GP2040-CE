@@ -23,8 +23,9 @@ void XInputAuth::initialize() {
 		pico_get_unique_board_id(&id);
         // pico_unique_board_id_t id.id is smaller than 12 bytes; wrap the source index.
         for (int i = 0; i < 0x0C; i++) {
-            serial[i] = 'A' + (id.id[i % (int)sizeof(id.id)] % 25); // some alphanumeric from 'A' to 'Z'
+            serial[i] = 'A' + (id.id[i % (int)sizeof(id.id)] % 26); // some alphanumeric from 'A' to 'Z'
         }
+        
         xsm3_set_vid_pid(serial, 0x045E, 0x028E);
         xsm3_initialise_state();
         xsm3_set_identification_data(xsm3_id_data_ms_controller);

@@ -62,9 +62,10 @@ void Storage::ResetSettings()
 
 bool Storage::setProfile(const uint32_t profileNum)
 {
+	uint32_t profileCeiling = config.profileOptions.gpioMappingsSets_count + 1;
+
 	// is this profile defined?
-	const uint32_t maxProfile = static_cast<uint32_t>(config.profileOptions.gpioMappingsSets_count) + 1;
-	if (profileNum >= 1 && profileNum <= maxProfile) {
+	if (profileNum >= 1 && profileNum <= profileCeiling) {
 		// is this profile enabled?
 		// profile 1 (core) is always enabled, others we must check
 		if (profileNum == 1 || config.profileOptions.gpioMappingsSets[profileNum-2].enabled) {
@@ -110,9 +111,10 @@ char* Storage::currentProfileLabel() {
 void Storage::setFunctionalPinMappings()
 {
 	GpioMappingInfo* alts = nullptr;
-	const uint32_t maxProfile = static_cast<uint32_t>(config.profileOptions.gpioMappingsSets_count) + 1;
+	uint32_t profileCeiling = config.profileOptions.gpioMappingsSets_count + 1;
+
 	if (config.gamepadOptions.profileNumber >= 2 &&
-			config.gamepadOptions.profileNumber <= maxProfile) {
+			config.gamepadOptions.profileNumber <= profileCeiling) {
 		if (config.profileOptions.gpioMappingsSets[config.gamepadOptions.profileNumber-2].enabled) {
 			alts = config.profileOptions.gpioMappingsSets[config.gamepadOptions.profileNumber-2].pins;
 		}
