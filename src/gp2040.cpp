@@ -63,7 +63,6 @@ static uint64_t main_loop_last_frame_run_us = 0;
 static uint32_t main_loop_interval_us = 1000u;
 static bool main_loop_gate_enabled = false;
 static bool composite_hid_enabled = false;
-static const uint32_t CPU_FREQ_USB_HOST_KHZ = 120000;
 static const uint32_t CPU_FREQ_ENHANCED_KHZ = 144000;
 static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
@@ -121,12 +120,8 @@ void GP2040::setup() {
 
 	// Reduce CPU if USB host is enabled
 	PeripheralManager::getInstance().initUSB();
-	const bool enhancedPerformance = Storage::getInstance().getAddonOptions().enhancedPerformance;
-	if (enhancedPerformance) {
-		set_sys_clock_khz(CPU_FREQ_ENHANCED_KHZ, true);
-	} else if (PeripheralManager::getInstance().isUSBEnabled(0)) {
-		set_sys_clock_khz(CPU_FREQ_USB_HOST_KHZ, true); // Set Clock to 120MHz to avoid potential USB timing issues
-	}
+	// HML performance mode is fixed on: always run at 144MHz.
+	set_sys_clock_khz(CPU_FREQ_ENHANCED_KHZ, true);
 
 	// I2C & SPI rely on the system clock
 	PeripheralManager::getInstance().initSPI();

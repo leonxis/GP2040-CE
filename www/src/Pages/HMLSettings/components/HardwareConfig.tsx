@@ -26,7 +26,6 @@ export default function HardwareConfig() {
 	const [fourKeyTouchpadOptions, setFourKeyTouchpadOptions] = useState({ enabled: 0 });
 	const [twoKeyTouchpadOptions, setTwoKeyTouchpadOptions] = useState({ enabled: 0 });
 	const [reportRate, setReportRate] = useState(1000);
-	const [enhancedPerformance, setEnhancedPerformance] = useState(false);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
 		brightnessMaximum: 255,
@@ -62,7 +61,6 @@ export default function HardwareConfig() {
 						? Number(addons.reportRate)
 						: 1000
 				);
-				setEnhancedPerformance(Boolean(addons?.enhancedPerformance));
 
 				// 同步显示屏和I2C1的启用状态
 				// 如果两者不一致，以显示屏的enabled为准
@@ -123,7 +121,7 @@ export default function HardwareConfig() {
 				WebApi.setDisplayOptions(displayOptions),
 				WebApi.setFourKeyTouchpadOptions(fourKeyTouchpadOptions),
 				WebApi.setTwoKeyTouchpadOptions(twoKeyTouchpadOptions),
-				WebApi.setAddonsOptions({ reportRate, enhancedPerformance }),
+				WebApi.setAddonsOptions({ reportRate }),
 			]);
 			setHostSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setHostSaveMessage(''), 5000);
@@ -292,20 +290,6 @@ export default function HardwareConfig() {
 						/>
 						<span className="text-muted">
 							{t('SettingsPage:hml-two-key-touchpad-hint')}
-						</span>
-					</div>
-
-					{/* 强化性能开关 */}
-					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-						<Form.Check
-							type="switch"
-							id="enhanced-performance-switch"
-							label={t('SettingsPage:hml-enhanced-performance-label')}
-							checked={enhancedPerformance}
-							onChange={(e) => setEnhancedPerformance(e.target.checked)}
-						/>
-						<span className="text-muted">
-							{t('SettingsPage:hml-enhanced-performance-hint')}
 						</span>
 					</div>
 

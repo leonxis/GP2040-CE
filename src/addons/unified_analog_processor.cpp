@@ -8,6 +8,7 @@
 #include "gamepad.h"
 #include "gamepad/GamepadState.h"
 #include "storagemanager.h"
+#include "pico/rand.h"
 
 #include <algorithm>
 #include <cmath>
@@ -27,6 +28,21 @@ static void convertCurvePoints(const CurvePoint* protobuf_points, int count, Uni
         output[i].x = protobuf_points[i].x;
         output[i].y = protobuf_points[i].y;
     }
+}
+
+static int32_t computeJitterBoostDelta(float amplitudePercent, uint32_t fullScale) {
+    if (amplitudePercent <= 0.0f || fullScale == 0) {
+        return 0;
+    }
+    const float randomValue = (static_cast<float>(get_rand_32()) / 4294967295.0f) * 2.0f - 1.0f; // [-1, 1]
+    const float absRandomValue = std::fabs(randomValue);
+    if (absRandomValue < 0.2f) {
+        return 0;
+    }
+    const float scale = (absRandomValue > 0.6f) ? 1.0f : 0.5f;
+    const float sign = (randomValue >= 0.0f) ? 1.0f : -1.0f;
+    const float magnitude = (amplitudePercent / 100.0f) * static_cast<float>(fullScale) * scale;
+    return static_cast<int32_t>(sign * magnitude);
 }
 } // namespace
 
@@ -301,6 +317,29 @@ void UnifiedAnalogProcessorAddon::process() {
         float clampedYf = std::clamp(yValue, 0.0f, 1.0f);
         uint16_t clampedX = static_cast<uint16_t>(std::min(static_cast<uint32_t>(joystickMax * clampedXf), static_cast<uint32_t>(0xFFFF)));
         uint16_t clampedY = static_cast<uint16_t>(std::min(static_cast<uint32_t>(joystickMax * clampedYf), static_cast<uint32_t>(0xFFFF)));
+        if (source_ == StickSource::ADS8332) {
+            bool boostEnabled = false;
+            float boostAmplitude = 0.0f;
+            if (i == 0) {
+                boostEnabled = addonOptions.ads8332Options.jitterBoostEnabled1;
+                boostAmplitude = addonOptions.ads8332Options.jitterBoostAmplitude1;
+            } else if (i == 1) {
+                boostEnabled = addonOptions.ads8332Options.jitterBoostEnabled2;
+                boostAmplitude = addonOptions.ads8332Options.jitterBoostAmplitude2;
+            }
+            if (boostEnabled && boostAmplitude > 0.0f) {
+                const float clampedAmplitude = std::clamp(boostAmplitude, 0.0f, 3.0f);
+                const int32_t delta = computeJitterBoostDelta(clampedAmplitude, joystickMax);
+                int32_t adjustedX = static_cast<int32_t>(clampedX) + delta;
+                const int32_t maxOut = static_cast<int32_t>(std::min<uint32_t>(joystickMax, 0xFFFFu));
+                if (adjustedX < 0) {
+                    adjustedX = 0;
+                } else if (adjustedX > maxOut) {
+                    adjustedX = maxOut;
+                }
+                clampedX = static_cast<uint16_t>(adjustedX);
+            }
+        }
 
         if (sticks_[i].analog_dpad == DpadMode::DPAD_MODE_LEFT_ANALOG) {
             gamepad->state.lx = clampedX;

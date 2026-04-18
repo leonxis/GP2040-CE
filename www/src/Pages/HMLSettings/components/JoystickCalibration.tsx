@@ -18,7 +18,6 @@ type CurvePoint = { x: number; y: number };
 const CIRCULARITY_DATA_SIZE = 48; // Number of angular positions to sample
 const DEFAULT_ADC_MAX = 4095;
 const DEFAULT_ADC_CENTER = DEFAULT_ADC_MAX / 2.0;
-const ADS8332_IIR_STRENGTH_OPTIONS = [0.125, 0.25, 0.5, 1.0];
 
 // Layout constants
 const COLUMN_WIDTH = '260px';
@@ -630,6 +629,9 @@ const quantizeAdcPair = (
 /** Firmware stores quantize step; 0 = off. UI uses bits b∈[4,16] with step = 2^(16-b). */
 const JITTER_BITS_MIN = 4;
 const JITTER_BITS_MAX = 16;
+const JITTER_BOOST_AMPLITUDE_MIN = 0.0;
+const JITTER_BOOST_AMPLITUDE_MAX = 3.0;
+const JITTER_BOOST_AMPLITUDE_STEP = 0.1;
 
 const bitsToStoredThreshold = (bits: number): number => {
 	const b = Math.round(bits);
@@ -1507,31 +1509,24 @@ const JoystickCalibration = ({
 					<div className="mb-4">
 						<Form.Check
 							type="switch"
-							id="ads8332IirFilterEnabled-left"
-							label={t('CalibrationSettings:hml-ads8332-iir-enable')}
-							checked={Boolean(values?.ads8332IirFilterEnabled)}
-							onChange={(e) => setFieldValue('ads8332IirFilterEnabled', e.target.checked ? 1 : 0)}
+							id="ads8332JitterBoostEnabled-left"
+							label={t('CalibrationSettings:hml-ads8332-jitter-boost-enable')}
+							checked={Boolean(values?.ads8332JitterBoostEnabled1)}
+							onChange={(e) => setFieldValue('ads8332JitterBoostEnabled1', e.target.checked ? 1 : 0)}
 						/>
 						<Form.Label className="mt-3">
-							{t('CalibrationSettings:hml-ads8332-iir-strength', {
-								value: Number(values?.ads8332IirStrength ?? 0.5).toFixed(3),
+							{t('CalibrationSettings:hml-ads8332-jitter-boost-amplitude', {
+								value: Number(values?.ads8332JitterBoostAmplitude1 ?? 0).toFixed(1),
 							})}
 						</Form.Label>
-						<Form.Select
-							size="sm"
-							value={String(values?.ads8332IirStrength ?? 0.5)}
-							onChange={(e) => setFieldValue('ads8332IirStrength', parseFloat(e.target.value))}
-							disabled={!Boolean(values?.ads8332IirFilterEnabled)}
-						>
-							{ADS8332_IIR_STRENGTH_OPTIONS.map((v) => (
-								<option key={`ads8332-iir-left-${v}`} value={v}>
-									{v}
-								</option>
-							))}
-						</Form.Select>
-						<div className="mt-2 small text-muted">
-							{t('CalibrationSettings:hml-ads8332-iir-hint')}
-						</div>
+						<Form.Range
+							min={JITTER_BOOST_AMPLITUDE_MIN}
+							max={JITTER_BOOST_AMPLITUDE_MAX}
+							step={JITTER_BOOST_AMPLITUDE_STEP}
+							value={Number(values?.ads8332JitterBoostAmplitude1 ?? 0)}
+							onChange={(e) => setFieldValue('ads8332JitterBoostAmplitude1', parseFloat(e.target.value))}
+							disabled={!Boolean(values?.ads8332JitterBoostEnabled1)}
+						/>
 					</div>
 				</Modal.Body>
 				<Modal.Footer>
@@ -1592,31 +1587,24 @@ const JoystickCalibration = ({
 					<div className="mb-4">
 						<Form.Check
 							type="switch"
-							id="ads8332IirFilterEnabled-right"
-							label={t('CalibrationSettings:hml-ads8332-iir-enable')}
-							checked={Boolean(values?.ads8332IirFilterEnabled)}
-							onChange={(e) => setFieldValue('ads8332IirFilterEnabled', e.target.checked ? 1 : 0)}
+							id="ads8332JitterBoostEnabled-right"
+							label={t('CalibrationSettings:hml-ads8332-jitter-boost-enable')}
+							checked={Boolean(values?.ads8332JitterBoostEnabled2)}
+							onChange={(e) => setFieldValue('ads8332JitterBoostEnabled2', e.target.checked ? 1 : 0)}
 						/>
 						<Form.Label className="mt-3">
-							{t('CalibrationSettings:hml-ads8332-iir-strength', {
-								value: Number(values?.ads8332IirStrength ?? 0.5).toFixed(3),
+							{t('CalibrationSettings:hml-ads8332-jitter-boost-amplitude', {
+								value: Number(values?.ads8332JitterBoostAmplitude2 ?? 0).toFixed(1),
 							})}
 						</Form.Label>
-						<Form.Select
-							size="sm"
-							value={String(values?.ads8332IirStrength ?? 0.5)}
-							onChange={(e) => setFieldValue('ads8332IirStrength', parseFloat(e.target.value))}
-							disabled={!Boolean(values?.ads8332IirFilterEnabled)}
-						>
-							{ADS8332_IIR_STRENGTH_OPTIONS.map((v) => (
-								<option key={`ads8332-iir-right-${v}`} value={v}>
-									{v}
-								</option>
-							))}
-						</Form.Select>
-						<div className="mt-2 small text-muted">
-							{t('CalibrationSettings:hml-ads8332-iir-hint')}
-						</div>
+						<Form.Range
+							min={JITTER_BOOST_AMPLITUDE_MIN}
+							max={JITTER_BOOST_AMPLITUDE_MAX}
+							step={JITTER_BOOST_AMPLITUDE_STEP}
+							value={Number(values?.ads8332JitterBoostAmplitude2 ?? 0)}
+							onChange={(e) => setFieldValue('ads8332JitterBoostAmplitude2', parseFloat(e.target.value))}
+							disabled={!Boolean(values?.ads8332JitterBoostEnabled2)}
+						/>
 					</div>
 				</Modal.Body>
 				<Modal.Footer>

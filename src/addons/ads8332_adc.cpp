@@ -13,11 +13,6 @@ static constexpr uint16_t ADS8332_CMD_READ_DATA = 0xD000u; // Table 4: Dh
 static constexpr uint16_t ADS8332_CMD_WRITE_CFR = 0xE000u; // Table 4: Eh
 static constexpr uint16_t ADS8332_CMD_READ_CFR = 0xC000u; // Table 4: Ch
 static constexpr uint16_t ADS8332_CFR_VALUE = 0x06FDu;
-static constexpr float ADS8332_IIR_STRENGTH_MIN = 0.1f;
-static constexpr float ADS8332_IIR_STRENGTH_MAX = 1.0f;
-
-static constexpr float ADS8332_IIR_LEVELS[] = {0.125f, 0.25f, 0.5f, 1.0f};
-static constexpr uint8_t ADS8332_IIR_SHIFTS[] = {3, 2, 1, 0};
 
 // CMR command format (manual channel select).
 // This is intentionally minimal for initial bring-up.
@@ -129,8 +124,6 @@ void ADS8332ADCAddon::setup() {
     lsm6dsrActiveCached_ = Storage::getInstance().getAddonOptions().lsm6dsrOptions.enabled;
     spi_->setBaudrate(ADS8332_SPI_HZ);
     spi_->setMode(SPI_MODE2);
-    refreshIIRConfig();
-    resetIIRState();
 
     if (convstPin_ >= 0) {
         gpio_init(static_cast<uint>(convstPin_));
@@ -152,7 +145,6 @@ void ADS8332ADCAddon::reinit() {
         return;
     }
     dividerSampleFrameCounter_ = 0;
-    resetIIRState();
     const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
     readAllChannelsOptimized(dividerChannels, 2);
 }
@@ -207,7 +199,7 @@ void ADS8332ADCAddon::readAllChannelsOptimizedUnique(const uint8_t* channels, ui
         (void)ads8332ReadDataWord(spi_, csPin_);
         ads8332KickConversion(convstPin_);
         const uint16_t rawValue = ads8332ReadDataWord(spi_, csPin_);
-        adcValues_[ch] = applyStickIIR(ch, rawValue);
+        adcValues_[ch] = rawValue;
         if (i + 1 < count) {
             ads8332ArmChannelAndKick(spi_, csPin_, convstPin_, channels[i + 1]);
         }
@@ -228,79 +220,6 @@ bool ADS8332ADCAddon::configureADS8332CFR() {
     spi_->deselect();
 
     return (readback & 0x0FFFu) == (ADS8332_CFR_VALUE & 0x0FFFu);
-}
-
-void ADS8332ADCAddon::refreshIIRConfig() {
-    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
-    iirEnabled_ = opts.iirFilterEnabled;
-    float clamped = opts.iirStrength;
-    if (!opts.has_iirStrength) {
-        clamped = 0.5f;
-    }
-    if (clamped < ADS8332_IIR_STRENGTH_MIN) {
-        clamped = ADS8332_IIR_STRENGTH_MIN;
-    } else if (clamped > ADS8332_IIR_STRENGTH_MAX) {
-        clamped = ADS8332_IIR_STRENGTH_MAX;
-    }
-    uint8_t best = 0;
-    float bestDiff = (clamped > ADS8332_IIR_LEVELS[0]) ? (clamped - ADS8332_IIR_LEVELS[0]) : (ADS8332_IIR_LEVELS[0] - clamped);
-    for (uint8_t i = 1; i < 4; i++) {
-        const float level = ADS8332_IIR_LEVELS[i];
-        const float diff = (clamped > level) ? (clamped - level) : (level - clamped);
-        if (diff < bestDiff) {
-            best = i;
-            bestDiff = diff;
-        }
-    }
-    iirShift_ = ADS8332_IIR_SHIFTS[best];
-}
-
-void ADS8332ADCAddon::resetIIRState() {
-    for (uint8_t i = 0; i < 4; i++) {
-        iirStateInitialized_[i] = false;
-        iirState_[i] = 0;
-    }
-}
-
-uint16_t ADS8332ADCAddon::applyStickIIR(uint8_t channel, uint16_t rawValue) {
-    if (!iirEnabled_) {
-        return rawValue;
-    }
-
-    int8_t axis = -1;
-    if (channel == stick_channels_[0].x_channel) {
-        axis = 0;
-    } else if (channel == stick_channels_[0].y_channel) {
-        axis = 1;
-    } else if (channel == stick_channels_[1].x_channel) {
-        axis = 2;
-    } else if (channel == stick_channels_[1].y_channel) {
-        axis = 3;
-    }
-    if (axis < 0) {
-        return rawValue;
-    }
-
-    const int32_t input = static_cast<int32_t>(rawValue);
-    if (!iirStateInitialized_[axis]) {
-        iirStateInitialized_[axis] = true;
-        iirState_[axis] = input;
-        return rawValue;
-    }
-
-    const int32_t delta = input - iirState_[axis];
-    // Arithmetic right shift (GCC/ARM for int32_t); iirShift_==0 yields delta unchanged.
-    int32_t step = delta >> iirShift_;
-    if (step == 0 && delta != 0) {
-        step = (delta > 0) ? 1 : -1;
-    }
-    iirState_[axis] += step;
-    if (iirState_[axis] < 0) {
-        iirState_[axis] = 0;
-    } else if (iirState_[axis] > static_cast<int32_t>(ADS8332_RAW_MAX)) {
-        iirState_[axis] = ADS8332_RAW_MAX;
-    }
-    return static_cast<uint16_t>(iirState_[axis]);
 }
 
 void ADS8332ADCAddon::process() {

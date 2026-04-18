@@ -204,9 +204,6 @@ export default {
 	'hml-four-key-touchpad-hint': 'タッチパッドボタンにはディスプレイをタッチパネルに置き換えてください。',
 	'hml-two-key-touchpad-label': '2キータッチパッド',
 	'hml-two-key-touchpad-hint': '4キーと同様で、ディスプレイを無効にします。',
-	'hml-enhanced-performance-label': '高パフォーマンス',
-	'hml-enhanced-performance-hint':
-		'コア性能を約25%向上（報告率は除く）。長期利用は安定性を確認のうえで。',
 	'hml-report-rate-label': '報告率',
 	'hml-report-rate-hint': 'ホスト接続の報告率。ジャイロ有効時は実効率が下がる可能性があります。',
 	'hml-screen-customization-button': '画面のカスタマイズ',

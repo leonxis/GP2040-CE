@@ -675,15 +675,17 @@ std::string setMCP3208Options() {
 }
 
 std::string getADS8332Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(10);
+    const size_t capacity = JSON_OBJECT_SIZE(8);
     DynamicJsonDocument doc(capacity);
     const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
     writeDoc(doc, "ads8332Block", opts.spiBlock);
     writeDoc(doc, "ads8332CsPin", opts.csPin);
     writeDoc(doc, "ads8332ConvstPin", opts.convstPin);
-    writeDoc(doc, "ads8332IirFilterEnabled", opts.iirFilterEnabled ? 1 : 0);
-    writeDoc(doc, "ads8332IirStrength", opts.iirStrength);
+    writeDoc(doc, "ads8332JitterBoostEnabled1", opts.jitterBoostEnabled1 ? 1 : 0);
+    writeDoc(doc, "ads8332JitterBoostAmplitude1", opts.jitterBoostAmplitude1);
+    writeDoc(doc, "ads8332JitterBoostEnabled2", opts.jitterBoostEnabled2 ? 1 : 0);
+    writeDoc(doc, "ads8332JitterBoostAmplitude2", opts.jitterBoostAmplitude2);
     return serialize_json(doc);
 }
 
@@ -702,29 +704,27 @@ std::string setADS8332Options() {
     Pin_t convstPinRef = opts.convstPin;
     cleanAddonGpioMappings(convstPinRef, oldConvstPin);
     opts.convstPin = (int8_t)convstPinRef;
-    if (doc.containsKey("ads8332IirFilterEnabled")) {
-        opts.iirFilterEnabled = doc["ads8332IirFilterEnabled"].as<int>() != 0;
+    if (doc.containsKey("ads8332JitterBoostEnabled1")) {
+        opts.jitterBoostEnabled1 = doc["ads8332JitterBoostEnabled1"].as<int>() != 0;
     }
-    if (doc.containsKey("ads8332IirStrength")) {
-        opts.iirStrength = doc["ads8332IirStrength"].as<float>();
+    if (doc.containsKey("ads8332JitterBoostAmplitude1")) {
+        opts.jitterBoostAmplitude1 = doc["ads8332JitterBoostAmplitude1"].as<float>();
     }
-    const float adsIirLevels[4] = {0.125f, 0.25f, 0.5f, 1.0f};
-    if (opts.iirStrength < 0.1f) {
-        opts.iirStrength = 0.1f;
-    } else if (opts.iirStrength > 1.0f) {
-        opts.iirStrength = 1.0f;
+    if (doc.containsKey("ads8332JitterBoostEnabled2")) {
+        opts.jitterBoostEnabled2 = doc["ads8332JitterBoostEnabled2"].as<int>() != 0;
     }
-    {
-        uint8_t best = 0;
-        float bestDiff = fabsf(opts.iirStrength - adsIirLevels[0]);
-        for (uint8_t i = 1; i < 4; i++) {
-            float diff = fabsf(opts.iirStrength - adsIirLevels[i]);
-            if (diff < bestDiff) {
-                best = i;
-                bestDiff = diff;
-            }
-        }
-        opts.iirStrength = adsIirLevels[best];
+    if (doc.containsKey("ads8332JitterBoostAmplitude2")) {
+        opts.jitterBoostAmplitude2 = doc["ads8332JitterBoostAmplitude2"].as<float>();
+    }
+    if (opts.jitterBoostAmplitude1 < 0.0f) {
+        opts.jitterBoostAmplitude1 = 0.0f;
+    } else if (opts.jitterBoostAmplitude1 > 3.0f) {
+        opts.jitterBoostAmplitude1 = 3.0f;
+    }
+    if (opts.jitterBoostAmplitude2 < 0.0f) {
+        opts.jitterBoostAmplitude2 = 0.0f;
+    } else if (opts.jitterBoostAmplitude2 > 3.0f) {
+        opts.jitterBoostAmplitude2 = 3.0f;
     }
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
@@ -2375,29 +2375,27 @@ std::string setAddonOptions()
         docToPin(convstPin, doc, "ads8332ConvstPin");
         ads8332Options.convstPin = (int8_t)convstPin;
     }
-    if (doc.containsKey("ads8332IirFilterEnabled")) {
-        ads8332Options.iirFilterEnabled = doc["ads8332IirFilterEnabled"].as<int>() != 0;
+    if (doc.containsKey("ads8332JitterBoostEnabled1")) {
+        ads8332Options.jitterBoostEnabled1 = doc["ads8332JitterBoostEnabled1"].as<int>() != 0;
     }
-    if (doc.containsKey("ads8332IirStrength")) {
-        ads8332Options.iirStrength = doc["ads8332IirStrength"].as<float>();
+    if (doc.containsKey("ads8332JitterBoostAmplitude1")) {
+        ads8332Options.jitterBoostAmplitude1 = doc["ads8332JitterBoostAmplitude1"].as<float>();
     }
-    {
-        const float adsIirLevels[4] = {0.125f, 0.25f, 0.5f, 1.0f};
-        if (ads8332Options.iirStrength < 0.1f) {
-            ads8332Options.iirStrength = 0.1f;
-        } else if (ads8332Options.iirStrength > 1.0f) {
-            ads8332Options.iirStrength = 1.0f;
-        }
-        uint8_t best = 0;
-        float bestDiff = fabsf(ads8332Options.iirStrength - adsIirLevels[0]);
-        for (uint8_t i = 1; i < 4; i++) {
-            float diff = fabsf(ads8332Options.iirStrength - adsIirLevels[i]);
-            if (diff < bestDiff) {
-                best = i;
-                bestDiff = diff;
-            }
-        }
-        ads8332Options.iirStrength = adsIirLevels[best];
+    if (doc.containsKey("ads8332JitterBoostEnabled2")) {
+        ads8332Options.jitterBoostEnabled2 = doc["ads8332JitterBoostEnabled2"].as<int>() != 0;
+    }
+    if (doc.containsKey("ads8332JitterBoostAmplitude2")) {
+        ads8332Options.jitterBoostAmplitude2 = doc["ads8332JitterBoostAmplitude2"].as<float>();
+    }
+    if (ads8332Options.jitterBoostAmplitude1 < 0.0f) {
+        ads8332Options.jitterBoostAmplitude1 = 0.0f;
+    } else if (ads8332Options.jitterBoostAmplitude1 > 3.0f) {
+        ads8332Options.jitterBoostAmplitude1 = 3.0f;
+    }
+    if (ads8332Options.jitterBoostAmplitude2 < 0.0f) {
+        ads8332Options.jitterBoostAmplitude2 = 0.0f;
+    } else if (ads8332Options.jitterBoostAmplitude2 > 3.0f) {
+        ads8332Options.jitterBoostAmplitude2 = 3.0f;
     }
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
@@ -2439,7 +2437,6 @@ std::string setAddonOptions()
     docToValue(lsm6dsrOptions.gyroMouseDeadzone, doc, "lsm6dsrGyroMouseDeadzone");
     if (doc.containsKey("lsm6dsrGyroMouseDeadzone")) lsm6dsrOptions.has_gyroMouseDeadzone = true;
     docToValue(Storage::getInstance().getAddonOptions().reportRate, doc, "reportRate");
-    docToValue(Storage::getInstance().getAddonOptions().enhancedPerformance, doc, "enhancedPerformance");
 
     RotaryOptions& rotaryOptions = Storage::getInstance().getAddonOptions().rotaryOptions;
     docToValue(rotaryOptions.enabled, doc, "RotaryAddonEnabled");
@@ -2916,8 +2913,10 @@ std::string getAddonOptions()
     writeDoc(doc, "ads8332Block", ads8332Options.spiBlock);
     writeDoc(doc, "ads8332CsPin", ads8332Options.csPin);
     writeDoc(doc, "ads8332ConvstPin", ads8332Options.convstPin);
-    writeDoc(doc, "ads8332IirFilterEnabled", ads8332Options.iirFilterEnabled ? 1 : 0);
-    writeDoc(doc, "ads8332IirStrength", ads8332Options.iirStrength);
+    writeDoc(doc, "ads8332JitterBoostEnabled1", ads8332Options.jitterBoostEnabled1 ? 1 : 0);
+    writeDoc(doc, "ads8332JitterBoostAmplitude1", ads8332Options.jitterBoostAmplitude1);
+    writeDoc(doc, "ads8332JitterBoostEnabled2", ads8332Options.jitterBoostEnabled2 ? 1 : 0);
+    writeDoc(doc, "ads8332JitterBoostAmplitude2", ads8332Options.jitterBoostAmplitude2);
     const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrBlock", lsm6dsrOptions.spiBlock);
@@ -2939,7 +2938,6 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrGyroMouseSensUD", lsm6dsrOptions.gyroMouseSensUD);
     writeDoc(doc, "lsm6dsrGyroMouseDeadzone", lsm6dsrOptions.gyroMouseDeadzone);
     writeDoc(doc, "reportRate", Storage::getInstance().getAddonOptions().reportRate);
-    writeDoc(doc, "enhancedPerformance", Storage::getInstance().getAddonOptions().enhancedPerformance ? 1 : 0);
     {
         JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
         for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count && i < 16; i++) {

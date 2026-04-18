@@ -1110,12 +1110,19 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
  #else
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, convstPin, -1);
  #endif
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, iirFilterEnabled, false);
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, iirStrength, 0.5f);
-    if (config.addonOptions.ads8332Options.iirStrength < 0.1f) {
-        config.addonOptions.ads8332Options.iirStrength = 0.1f;
-    } else if (config.addonOptions.ads8332Options.iirStrength > 1.0f) {
-        config.addonOptions.ads8332Options.iirStrength = 1.0f;
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostEnabled1, false);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostAmplitude1, 0.0f);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostEnabled2, false);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostAmplitude2, 0.0f);
+    if (config.addonOptions.ads8332Options.jitterBoostAmplitude1 < 0.0f) {
+        config.addonOptions.ads8332Options.jitterBoostAmplitude1 = 0.0f;
+    } else if (config.addonOptions.ads8332Options.jitterBoostAmplitude1 > 3.0f) {
+        config.addonOptions.ads8332Options.jitterBoostAmplitude1 = 3.0f;
+    }
+    if (config.addonOptions.ads8332Options.jitterBoostAmplitude2 < 0.0f) {
+        config.addonOptions.ads8332Options.jitterBoostAmplitude2 = 0.0f;
+    } else if (config.addonOptions.ads8332Options.jitterBoostAmplitude2 > 3.0f) {
+        config.addonOptions.ads8332Options.jitterBoostAmplitude2 = 3.0f;
     }
 #if defined(LSM6DSR_DEFAULT_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);
@@ -1143,7 +1150,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensUD, 1.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseDeadzone, 12);
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
-    INIT_UNSET_PROPERTY(config.addonOptions, enhancedPerformance, false);
 
 #if defined(HML_TOUCH_KEY1_ACTION)
     // 四键触摸板映射：依 boardconfig（左上=B1, 右上=B2, 左下=B3, 右下=B4），仅当未设置时写入

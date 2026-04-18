@@ -202,9 +202,6 @@ export default {
 	'hml-four-key-touchpad-hint': 'Replace the display with a touch panel to use touchpad buttons.',
 	'hml-two-key-touchpad-label': '2-key touchpad',
 	'hml-two-key-touchpad-hint': 'Same as 4-key touchpad; disables the display.',
-	'hml-enhanced-performance-label': 'Enhanced performance',
-	'hml-enhanced-performance-hint':
-		'Increases core controller performance by about 25% (not report rate). Enable long-term only if stable for you.',
 	'hml-report-rate-label': 'Report rate',
 	'hml-report-rate-hint': 'Host connection report rate. Enabling gyro may reduce the effective rate.',
 	'hml-screen-customization-button': 'Screen customization',

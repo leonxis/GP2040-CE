@@ -53,6 +53,8 @@ export default {
 	'hml-ads8332-iir-strength': 'Strength: {{value}}',
 	'hml-ads8332-iir-hint':
 		'Lower strength = stronger filtering and steadier stick; higher strength = lighter filtering and more responsive stick. Recommended default for normal feel: 0.5.',
+	'hml-ads8332-jitter-boost-enable': 'Jitter boost',
+	'hml-ads8332-jitter-boost-amplitude': 'Amplitude: {{value}}%',
 	'hml-stick-step-settings': 'Stick step settings',
 	'hml-force-circular-label': 'Force circular',
 	'hml-force-circular-hint-on': 'Forces outer ring motion to a strict circle.',

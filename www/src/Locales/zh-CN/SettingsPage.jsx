@@ -205,9 +205,6 @@ export default {
 	'hml-four-key-touchpad-hint': '需要使用触摸板按键请将显示屏替换为触摸板',
 	'hml-two-key-touchpad-label': '2键触摸板',
 	'hml-two-key-touchpad-hint': '同4键触摸板，将会禁用显示屏',
-	'hml-enhanced-performance-label': '强化性能',
-	'hml-enhanced-performance-hint':
-		'开启后提升25%手柄核心性能（不包括回报率），根据实际使用效果决定是否长期开启。',
 	'hml-report-rate-label': '回报率',
 	'hml-report-rate-hint': '调整主机连接回报率，若开启陀螺仪可能造成回报率降低。',
 	'hml-screen-customization-button': '屏幕个性化',

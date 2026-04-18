@@ -50,9 +50,6 @@ private:
     void readAllChannelsOptimized(const uint8_t* channels, uint8_t count);
     void readAllChannelsOptimizedUnique(const uint8_t* channels, uint8_t count);
     bool configureADS8332CFR();
-    void refreshIIRConfig();
-    void resetIIRState();
-    uint16_t applyStickIIR(uint8_t channel, uint16_t rawValue);
 
     PeripheralSPI* spi_ = nullptr;
     int8_t csPin_ = -1;
@@ -63,10 +60,6 @@ private:
     uint8_t preprocess_channel_count_ = 0;
     SamplerStickChannelConfig stick_channels_[2];
     SamplerDividerChannelConfig divider_channels_;
-    bool iirEnabled_ = false;
-    uint8_t iirShift_ = 1; // alpha = 1 / (2^iirShift_), default 1/2
-    bool iirStateInitialized_[4] = {false, false, false, false};
-    int32_t iirState_[4] = {0, 0, 0, 0};
     // Cached in setup(): LSM6DSR plugin enabled flag; preprocess restores SPI MODE2 when set (LSM6 uses MODE3 after ADS8332 each frame).
     bool lsm6dsrActiveCached_ = false;
     uint8_t dividerSampleFrameCounter_ = 0;
