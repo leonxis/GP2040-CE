@@ -7,6 +7,11 @@
 #define ADS8332_ADC_ADDON_NAME "ADS8332 ADC"
 #define ADS8332_SPI_HZ 10000000u
 
+// HML 固定接线：SPI0、CS=GPIO1、CONVST=GPIO4（不写入 ADS8332Options）。
+static constexpr uint8_t ADS8332_HW_SPI_BLOCK = 0;
+static constexpr int8_t ADS8332_HW_CS_PIN = 1;
+static constexpr int8_t ADS8332_HW_CONVST_PIN = 4;
+
 class ADS8332ADCAddon : public GPAddon {
 public:
     virtual bool available();

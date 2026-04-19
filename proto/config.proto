@@ -979,13 +979,10 @@ message AddonOptions
 }
 
 // ADS8332 ADC: 仅实现基础摇杆输出（CH0/CH1/CH6/CH7 -> LX/LY/RY/RX）
-// SPI 引脚由外设映射提供，插件仅读取 spiBlock/csPin/convstPin
+// SPI 块与 CS/CONVST GPIO 在固件 ads8332_adc 中硬编码，此处仅持久化开关与抖动增强参数。
 message ADS8332Options
 {
     optional bool enabled = 1 [default = false];
-    optional int32 spiBlock = 2;
-    optional int32 csPin = 3;
-    optional int32 convstPin = 4;
     optional bool jitterBoostEnabled1 = 5 [default = false];
     optional float jitterBoostAmplitude1 = 6 [default = 0.0];
     optional bool jitterBoostEnabled2 = 7 [default = false];

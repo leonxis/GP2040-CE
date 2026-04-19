@@ -1069,21 +1069,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
  #else
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, 0);
  #endif
- #if defined(ADS8332_DEFAULT_SPI_BLOCK)
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, spiBlock, ADS8332_DEFAULT_SPI_BLOCK);
- #else
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, spiBlock, 0);
- #endif
- #if defined(ADS8332_DEFAULT_CS_PIN)
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, csPin, ADS8332_DEFAULT_CS_PIN);
- #else
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, csPin, -1);
- #endif
- #if defined(ADS8332_DEFAULT_CONVST_PIN)
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, convstPin, ADS8332_DEFAULT_CONVST_PIN);
- #else
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, convstPin, -1);
- #endif
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostEnabled1, false);
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostAmplitude1, 0.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostEnabled2, false);
@@ -1748,8 +1733,10 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed(config.addonOptions.heTriggerOptions.selectPin3);
     }
 
-    markAddonPinIfUsed((Pin_t)config.addonOptions.ads8332Options.csPin);
-    markAddonPinIfUsed((Pin_t)config.addonOptions.ads8332Options.convstPin);
+    if (config.addonOptions.ads8332Options.enabled) {
+        markAddonPinIfUsed((Pin_t)ADS8332_HW_CS_PIN);
+        markAddonPinIfUsed((Pin_t)ADS8332_HW_CONVST_PIN);
+    }
     markAddonPinIfUsed((Pin_t)config.addonOptions.lsm6dsrOptions.csPin);
 
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {

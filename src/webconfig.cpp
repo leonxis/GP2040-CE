@@ -647,9 +647,6 @@ std::string getADS8332Options() {
     DynamicJsonDocument doc(capacity);
     const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    writeDoc(doc, "ads8332Block", opts.spiBlock);
-    writeDoc(doc, "ads8332CsPin", opts.csPin);
-    writeDoc(doc, "ads8332ConvstPin", opts.convstPin);
     writeDoc(doc, "ads8332JitterBoostEnabled1", opts.jitterBoostEnabled1 ? 1 : 0);
     writeDoc(doc, "ads8332JitterBoostAmplitude1", opts.jitterBoostAmplitude1);
     writeDoc(doc, "ads8332JitterBoostEnabled2", opts.jitterBoostEnabled2 ? 1 : 0);
@@ -661,17 +658,6 @@ std::string setADS8332Options() {
     DynamicJsonDocument doc = get_post_data();
     ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     docToValue(opts.enabled, doc, "enabled");
-    docToValue(opts.spiBlock, doc, "ads8332Block");
-    Pin_t oldCsPin = opts.csPin;
-    docToValue(opts.csPin, doc, "ads8332CsPin");
-    Pin_t csPinRef = opts.csPin;
-    cleanAddonGpioMappings(csPinRef, oldCsPin);
-    opts.csPin = (int8_t)csPinRef;
-    Pin_t oldConvstPin = opts.convstPin;
-    docToValue(opts.convstPin, doc, "ads8332ConvstPin");
-    Pin_t convstPinRef = opts.convstPin;
-    cleanAddonGpioMappings(convstPinRef, oldConvstPin);
-    opts.convstPin = (int8_t)convstPinRef;
     if (doc.containsKey("ads8332JitterBoostEnabled1")) {
         opts.jitterBoostEnabled1 = doc["ads8332JitterBoostEnabled1"].as<int>() != 0;
     }
@@ -2315,17 +2301,6 @@ std::string setAddonOptions()
 
     ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
     docToValue(ads8332Options.enabled, doc, "ADS8332AddonEnabled");
-    docToValue(ads8332Options.spiBlock, doc, "ads8332Block");
-    {
-        Pin_t csPin = (Pin_t)ads8332Options.csPin;
-        docToPin(csPin, doc, "ads8332CsPin");
-        ads8332Options.csPin = (int8_t)csPin;
-    }
-    {
-        Pin_t convstPin = (Pin_t)ads8332Options.convstPin;
-        docToPin(convstPin, doc, "ads8332ConvstPin");
-        ads8332Options.convstPin = (int8_t)convstPin;
-    }
     if (doc.containsKey("ads8332JitterBoostEnabled1")) {
         ads8332Options.jitterBoostEnabled1 = doc["ads8332JitterBoostEnabled1"].as<int>() != 0;
     }
@@ -2856,9 +2831,6 @@ std::string getAddonOptions()
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
     const ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "ADS8332AddonEnabled", ads8332Options.enabled ? 1 : 0);
-    writeDoc(doc, "ads8332Block", ads8332Options.spiBlock);
-    writeDoc(doc, "ads8332CsPin", ads8332Options.csPin);
-    writeDoc(doc, "ads8332ConvstPin", ads8332Options.convstPin);
     writeDoc(doc, "ads8332JitterBoostEnabled1", ads8332Options.jitterBoostEnabled1 ? 1 : 0);
     writeDoc(doc, "ads8332JitterBoostAmplitude1", ads8332Options.jitterBoostAmplitude1);
     writeDoc(doc, "ads8332JitterBoostEnabled2", ads8332Options.jitterBoostEnabled2 ? 1 : 0);

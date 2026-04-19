@@ -76,8 +76,7 @@ bool ADS8332ADCAddon::available() {
     if (!opts.enabled) {
         return false;
     }
-    uint8_t block = opts.has_spiBlock ? static_cast<uint8_t>(opts.spiBlock) : 0;
-    return PeripheralManager::getInstance().isSPIEnabled(block);
+    return PeripheralManager::getInstance().isSPIEnabled(ADS8332_HW_SPI_BLOCK);
 }
 
 void ADS8332ADCAddon::setup() {
@@ -105,17 +104,10 @@ void ADS8332ADCAddon::setup() {
     for (int i = 0; i < ADS8332ADCAddon::ADS8332_CHANNEL_COUNT; i++) {
         adcValues_[i] = ADS8332_RAW_HALF;
     }
-    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
-    uint8_t block = opts.has_spiBlock ? static_cast<uint8_t>(opts.spiBlock) : 0;
+    csPin_ = ADS8332_HW_CS_PIN;
+    convstPin_ = ADS8332_HW_CONVST_PIN;
 
-    if (opts.has_csPin) {
-        csPin_ = static_cast<int8_t>(opts.csPin);
-    }
-    if (opts.has_convstPin) {
-        convstPin_ = static_cast<int8_t>(opts.convstPin);
-    }
-
-    PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
+    PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(ADS8332_HW_SPI_BLOCK);
     if (!spi || !spi->configured || csPin_ < 0) {
         return;
     }
