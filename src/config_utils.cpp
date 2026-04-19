@@ -1088,12 +1088,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 #else
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, 0);
 #endif
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, spiBlock, 0);
-#if defined(LSM6DSR_DEFAULT_CS_PIN)
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, csPin, LSM6DSR_DEFAULT_CS_PIN);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, csPin, -1);
-#endif
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, outputMode, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroX, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroY, 0);
@@ -1737,7 +1731,9 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed((Pin_t)ADS8332_HW_CS_PIN);
         markAddonPinIfUsed((Pin_t)ADS8332_HW_CONVST_PIN);
     }
-    markAddonPinIfUsed((Pin_t)config.addonOptions.lsm6dsrOptions.csPin);
+    if (config.addonOptions.lsm6dsrOptions.enabled) {
+        markAddonPinIfUsed((Pin_t)LSM6DSR_HW_CS_PIN);
+    }
 
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
         config.gpioMappings.pins[pin].action = actions[pin];

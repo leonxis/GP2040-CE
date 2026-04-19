@@ -689,8 +689,6 @@ std::string getLSM6DSROptions() {
     DynamicJsonDocument doc(capacity);
     const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    writeDoc(doc, "lsm6dsrBlock", opts.spiBlock);
-    writeDoc(doc, "lsm6dsrCsPin", opts.csPin);
     writeDoc(doc, "lsm6dsrOutputMode", opts.outputMode);
     writeDoc(doc, "lsm6dsrOffsetGyroX", opts.offsetGyroX);
     writeDoc(doc, "lsm6dsrOffsetGyroY", opts.offsetGyroY);
@@ -782,12 +780,6 @@ std::string setLSM6DSROptions() {
     DynamicJsonDocument doc = get_post_data();
     LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(opts.enabled, doc, "enabled");
-    docToValue(opts.spiBlock, doc, "lsm6dsrBlock");
-    Pin_t oldCsPin = opts.csPin;
-    docToValue(opts.csPin, doc, "lsm6dsrCsPin");
-    Pin_t csPinRef = opts.csPin;
-    cleanAddonGpioMappings(csPinRef, oldCsPin);
-    opts.csPin = (int8_t)csPinRef;
     docToValue(opts.outputMode, doc, "lsm6dsrOutputMode");
     docToValue(opts.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
     docToValue(opts.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
@@ -2326,12 +2318,6 @@ std::string setAddonOptions()
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
-    docToValue(lsm6dsrOptions.spiBlock, doc, "lsm6dsrBlock");
-    {
-        Pin_t csPin = (Pin_t)lsm6dsrOptions.csPin;
-        docToPin(csPin, doc, "lsm6dsrCsPin");
-        lsm6dsrOptions.csPin = (int8_t)csPin;
-    }
     docToValue(lsm6dsrOptions.outputMode, doc, "lsm6dsrOutputMode");
     docToValue(lsm6dsrOptions.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
     docToValue(lsm6dsrOptions.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
@@ -2837,8 +2823,6 @@ std::string getAddonOptions()
     writeDoc(doc, "ads8332JitterBoostAmplitude2", ads8332Options.jitterBoostAmplitude2);
     const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
-    writeDoc(doc, "lsm6dsrBlock", lsm6dsrOptions.spiBlock);
-    writeDoc(doc, "lsm6dsrCsPin", lsm6dsrOptions.csPin);
     writeDoc(doc, "lsm6dsrOutputMode", lsm6dsrOptions.outputMode);
     writeDoc(doc, "lsm6dsrOffsetGyroX", lsm6dsrOptions.offsetGyroX);
     writeDoc(doc, "lsm6dsrOffsetGyroY", lsm6dsrOptions.offsetGyroY);

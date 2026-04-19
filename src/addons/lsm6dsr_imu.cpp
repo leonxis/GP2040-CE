@@ -102,10 +102,9 @@ bool LSM6DSRIMUAddon::available() {
 		return false;
 	}
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-	if (!opts.enabled || opts.csPin < 0) return false;
-	uint8_t block = (uint8_t)opts.spiBlock;
-	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(block);
-	if (!PeripheralManager::getInstance().isSPIEnabled(block) || !spi || !spi->configured)
+	if (!opts.enabled) return false;
+	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(LSM6DSR_HW_SPI_BLOCK);
+	if (!PeripheralManager::getInstance().isSPIEnabled(LSM6DSR_HW_SPI_BLOCK) || !spi || !spi->configured)
 		return false;
 	return true;
 }
@@ -115,9 +114,18 @@ void LSM6DSRIMUAddon::setup() {
 	s_csPin = -1;
 
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-	csPin = (int8_t)opts.csPin;
-	uint8_t block = (uint8_t)opts.spiBlock;
-	spi = PeripheralManager::getInstance().getSPI(block);
+	if (!opts.enabled) {
+		spi = nullptr;
+		csPin = -1;
+		return;
+	}
+	csPin = LSM6DSR_HW_CS_PIN;
+	spi = PeripheralManager::getInstance().getSPI(LSM6DSR_HW_SPI_BLOCK);
+	if (!spi || !spi->configured) {
+		spi = nullptr;
+		csPin = -1;
+		return;
+	}
 	offsetGyroX = opts.offsetGyroX;
 	offsetGyroY = opts.offsetGyroY;
 	offsetGyroZ = opts.offsetGyroZ;

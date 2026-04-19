@@ -91,9 +91,8 @@
 
 // ADS8332 插件默认：启用（SPI0/CS/CONVST 在 ads8332_adc 中硬编码）
 #define ADS8332_DEFAULT_ENABLED 1
-// LSM6 插件默认：开启，SPI 模块 spi0，片选 CS=5 (GPIO5)
+// LSM6 插件默认：关闭（SPI0/CS 在 lsm6dsr_imu 中硬编码）
 #define LSM6DSR_DEFAULT_ENABLED 0
-#define LSM6DSR_DEFAULT_CS_PIN 5
 
 // 2键触摸板开关：0=关闭
 #define HML_TWOKEY_TOUCHPAD_ENABLED 0

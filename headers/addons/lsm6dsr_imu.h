@@ -8,9 +8,12 @@
 
 #define LSM6DSR_IMU_ADDON_NAME "LSM6DSR IMU"
 
-// SPI 引脚（RX/SCK/TX/CS）仅从「外设映射」与插件配置（spiBlock、csPin）获取
+// HML 固定接线：与 ADS8332 共用 SPI0，LSM6 CS=GPIO4（CS-LSM6）；不写入 LSM6DSROptions。
 // 与 ADS8332 共线时，LSM6DSR 使用 MODE3，访问前会切换 SPI 格式。
 #define LSM6DSR_SPI_HZ      10000000u
+static constexpr uint8_t LSM6DSR_HW_SPI_BLOCK = 0;
+static constexpr int8_t LSM6DSR_HW_CS_PIN = 4;
+
 
 // 供 webconfig 按需读取 6 轴 RAW（已应用校准偏移；网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）
 bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]);

@@ -989,7 +989,7 @@ message ADS8332Options
     optional float jitterBoostAmplitude2 = 8 [default = 0.0];
 }
 
-// LSM6DSR 陀螺仪：SPI 与 CS 引脚仅从插件配置（与外设映射）获取
+// LSM6DSR 陀螺仪：SPI 块与 CS 在固件 lsm6dsr_imu 中硬编码；此处持久化开关与运行参数。
 // outputMode: 0=DS4 原生陀螺仪, 1=模拟右摇杆, 2=模拟鼠标（仅 0 已实现）
 // calibrateGyroRequested: 由 HML 校准页设置，addon 执行采样后清零并保存
 // engageMode: 0=一直生效, 1=按下按键生效, 2=按下按键暂停（仅持久化，功能未实现）
@@ -997,8 +997,6 @@ message ADS8332Options
 message LSM6DSROptions
 {
     optional bool enabled = 1 [default = false];
-    optional int32 spiBlock = 2 [default = 0];
-    optional int32 csPin = 3 [default = -1];  // -1 = not configured
     optional int32 outputMode = 4 [default = 0];  // 0=DS4, 3=鼠标（左/右摇杆已移除）
     optional int32 offsetGyroX = 5 [default = 0];
     optional int32 offsetGyroY = 6 [default = 0];

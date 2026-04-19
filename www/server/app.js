@@ -538,8 +538,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		ads8332JitterBoostEnabled2: 0,
 		ads8332JitterBoostAmplitude2: 0.0,
 		LSM6DSRAddonEnabled: 0,
-		lsm6dsrBlock: 0,
-		lsm6dsrCsPin: -1,
 		lsm6dsrOutputMode: 0,
 		lsm6dsrOffsetGyroX: 0,
 		lsm6dsrOffsetGyroY: 0,
