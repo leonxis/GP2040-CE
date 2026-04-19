@@ -14,7 +14,7 @@
 // Main pin mapping Configuration
 //                                                  // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
 #define GPIO_PIN_23 GpioAction::BUTTON_PRESS_UP     // UP     | UP     | UP      | UP       | UP     | UP     |
-#define GPIO_PIN_07 GpioAction::BUTTON_PRESS_DOWN   // DOWN   | DOWN   | DOWN    | DOWN     | DOWN   | DOWN   |
+#define GPIO_PIN_08 GpioAction::BUTTON_PRESS_DOWN   // DOWN   | DOWN   | DOWN    | DOWN     | DOWN   | DOWN   |
 #define GPIO_PIN_16 GpioAction::BUTTON_PRESS_LEFT   // LEFT   | LEFT   | LEFT    | LEFT     | LEFT   | LEFT   |
 #define GPIO_PIN_17 GpioAction::BUTTON_PRESS_RIGHT  // RIGHT  | RIGHT  | RIGHT   | RIGHT    | RIGHT  | RIGHT  |
 #define GPIO_PIN_15 GpioAction::BUTTON_PRESS_B1     // B1     | A      | B       | Cross    | 2      | K1     |
@@ -27,7 +27,6 @@
 #define GPIO_PIN_22 GpioAction::BUTTON_PRESS_L1     // L1     | LB     | L       | L1       | 5      | P4     |
 #define GPIO_PIN_18 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
 #define GPIO_PIN_19 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
-#define GPIO_PIN_08 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
 #define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
 #define GPIO_PIN_24 GpioAction::BUTTON_PRESS_B1     // bkey1
 #define GPIO_PIN_25 GpioAction::BUTTON_PRESS_B2     // bkey2
@@ -59,9 +58,10 @@
 #define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 CS
 #define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 SCK
 #define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 TX
-#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // 外设
+#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // CONVST
 #define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON // CS-LSM6（SPI0）
-#define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON //D-
+#define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON //D+
+#define GPIO_PIN_07 GpioAction::ASSIGNED_TO_ADDON //D-
 #define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON //SDA
 #define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON //SCL
 #define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON //LED
@@ -103,7 +103,7 @@
 #define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_L1
 #define HML_RIGHT_FN_ACTION GpioAction::BUTTON_PRESS_R1
 #define HML_LEFT_MT_ACTION  GpioAction::BUTTON_PRESS_FN
-#define HML_RIGHT_MT_ACTION GpioAction::MENU_NAVIGATION_TOGGLE
+#define HML_RIGHT_MT_ACTION GpioAction::BUTTON_PRESS_A1
 #define HML_EXT_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
 #define HML_EXT_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
