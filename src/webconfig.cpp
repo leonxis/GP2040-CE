@@ -537,30 +537,51 @@ static void readMapping(GpioMappingInfo& m, const DynamicJsonDocument& doc, cons
     docToValue(m.customDpadMask, doc, key, "customDpadMask");
 }
 
-std::string getFourKeyTouchpadOptions() {
-    // Root contains 5 keys: enabled + key1/key2/key3/key4 (each key is a nested mapping object).
-    const size_t capacity = JSON_OBJECT_SIZE(5) + 4 * (JSON_OBJECT_SIZE(3) + 10);
+// GPIO12 = 2键触摸板使能键；开启时主循环不映射该引脚，由插件输出 enableKey/leftKey/rightKey
+static constexpr Pin_t TWO_KEY_TOUCHPAD_ENABLE_GPIO = 12;
+
+std::string getTwoKeyTouchpadOptions() {
+    const size_t capacity = JSON_OBJECT_SIZE(4) + 3 * (JSON_OBJECT_SIZE(3) + 10);
     DynamicJsonDocument doc(capacity);
-    const FourKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().fourKeyTouchpadOptions;
+    const TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    writeMapping(doc, "key1", opts.key1Mapping);
-    writeMapping(doc, "key2", opts.key2Mapping);
-    writeMapping(doc, "key3", opts.key3Mapping);
-    writeMapping(doc, "key4", opts.key4Mapping);
+    writeMapping(doc, "leftKey", opts.leftKeyMapping);
+    writeMapping(doc, "rightKey", opts.rightKeyMapping);
+    writeMapping(doc, "enableKey", opts.enableKeyMapping);
     return serialize_json(doc);
 }
 
-// GPIO12 = 4键触摸板使能键；插件开启时主循环不映射该引脚，由插件按使能+触摸状态输出 A2
-static constexpr Pin_t FOUR_KEY_TOUCHPAD_ENABLE_GPIO = 12;
-
-std::string setFourKeyTouchpadOptions() {
+std::string setTwoKeyTouchpadOptions() {
     DynamicJsonDocument doc = get_post_data();
-    FourKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().fourKeyTouchpadOptions;
+    TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
+    bool oldEnabled = opts.enabled;
     docToValue(opts.enabled, doc, "enabled");
+    readMapping(opts.leftKeyMapping, doc, "leftKey");
+    readMapping(opts.rightKeyMapping, doc, "rightKey");
+    readMapping(opts.enableKeyMapping, doc, "enableKey");
+    opts.has_leftKeyMapping = opts.has_rightKeyMapping = opts.has_enableKeyMapping = true;
 
     GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;
     ProfileOptions& profiles = Storage::getInstance().getProfileOptions();
-    Pin_t pin12 = FOUR_KEY_TOUCHPAD_ENABLE_GPIO;
+    Pin_t pin12 = TWO_KEY_TOUCHPAD_ENABLE_GPIO;
+
+    if (opts.enabled && !oldEnabled) {
+        // 开启时：把当前有效 GPIO12 映射复制到使能键映射，再把 GPIO12 标记为 ASSIGNED_TO_ADDON
+        GpioMappingInfo captured = gpioMappings[pin12];
+        if (captured.action == GpioAction::ASSIGNED_TO_ADDON || captured.action == GpioAction::RESERVED) {
+            if (opts.enableKeyMapping.action != GpioAction::ASSIGNED_TO_ADDON &&
+                opts.enableKeyMapping.action != GpioAction::RESERVED) {
+                captured = opts.enableKeyMapping;
+            } else {
+                captured.action = GpioAction::BUTTON_PRESS_A2;
+                captured.customButtonMask = 0;
+                captured.customDpadMask = 0;
+            }
+        }
+        opts.enableKeyMapping = captured;
+        opts.has_enableKeyMapping = true;
+    }
+
     if (opts.enabled) {
         gpioMappings[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
         gpioMappings[pin12].customButtonMask = 0;
@@ -571,43 +592,20 @@ std::string setFourKeyTouchpadOptions() {
             profiles.gpioMappingsSets[i].pins[pin12].customDpadMask = 0;
         }
     } else {
-        gpioMappings[pin12].action = GpioAction::BUTTON_PRESS_A2;
-        gpioMappings[pin12].customButtonMask = 0;
-        gpioMappings[pin12].customDpadMask = 0;
+        // 关闭时：取消 GPIO12 的 addon 占用并恢复到保存的使能键映射
+        GpioMappingInfo restored = opts.enableKeyMapping;
+        if (restored.action == GpioAction::ASSIGNED_TO_ADDON || restored.action == GpioAction::RESERVED) {
+            restored.action = GpioAction::BUTTON_PRESS_A2;
+            restored.customButtonMask = 0;
+            restored.customDpadMask = 0;
+        }
+        gpioMappings[pin12] = restored;
         for (int i = 0; i < 3; i++) {
-            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::BUTTON_PRESS_A2;
-            profiles.gpioMappingsSets[i].pins[pin12].customButtonMask = 0;
-            profiles.gpioMappingsSets[i].pins[pin12].customDpadMask = 0;
+            profiles.gpioMappingsSets[i].pins[pin12] = restored;
         }
     }
+
     Storage::getInstance().setFunctionalPinMappings();
-
-    readMapping(opts.key1Mapping, doc, "key1");
-    readMapping(opts.key2Mapping, doc, "key2");
-    readMapping(opts.key3Mapping, doc, "key3");
-    readMapping(opts.key4Mapping, doc, "key4");
-    opts.has_key1Mapping = opts.has_key2Mapping = opts.has_key3Mapping = opts.has_key4Mapping = true;
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
-std::string getTwoKeyTouchpadOptions() {
-    const size_t capacity = JSON_OBJECT_SIZE(3) + 2 * (JSON_OBJECT_SIZE(3) + 10);
-    DynamicJsonDocument doc(capacity);
-    const TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
-    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    writeMapping(doc, "leftKey", opts.leftKeyMapping);
-    writeMapping(doc, "rightKey", opts.rightKeyMapping);
-    return serialize_json(doc);
-}
-
-std::string setTwoKeyTouchpadOptions() {
-    DynamicJsonDocument doc = get_post_data();
-    TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
-    docToValue(opts.enabled, doc, "enabled");
-    readMapping(opts.leftKeyMapping, doc, "leftKey");
-    readMapping(opts.rightKeyMapping, doc, "rightKey");
-    opts.has_leftKeyMapping = opts.has_rightKeyMapping = true;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -1174,10 +1172,6 @@ std::string getGamepadOptions()
             hasFnAction(addonOptions.backButtonAddonOptions.rightBack1Mapping) ||
             hasFnAction(addonOptions.backButtonAddonOptions.leftBack2Mapping) ||
             hasFnAction(addonOptions.backButtonAddonOptions.rightBack2Mapping) ||
-            hasFnAction(addonOptions.fourKeyTouchpadOptions.key1Mapping) ||
-            hasFnAction(addonOptions.fourKeyTouchpadOptions.key2Mapping) ||
-            hasFnAction(addonOptions.fourKeyTouchpadOptions.key3Mapping) ||
-            hasFnAction(addonOptions.fourKeyTouchpadOptions.key4Mapping) ||
             hasFnAction(addonOptions.twoKeyTouchpadOptions.leftKeyMapping) ||
             hasFnAction(addonOptions.twoKeyTouchpadOptions.rightKeyMapping) ||
             hasFnAction(addonOptions.fnKeyMappingOptions.leftFnMapping) ||
@@ -3436,7 +3430,6 @@ typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
     { "/api/setDisplayOptions", setDisplayOptions },
-    { "/api/setFourKeyTouchpadOptions", setFourKeyTouchpadOptions },
     { "/api/setTwoKeyTouchpadOptions", setTwoKeyTouchpadOptions },
     { "/api/setBackButtonAddonOptions", setBackButtonAddonOptions },
     { "/api/setMCP3208Options", setMCP3208Options },
@@ -3470,7 +3463,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setSplashImage", setSplashImage },
     { "/api/reboot", reboot },
     { "/api/getDisplayOptions", getDisplayOptions },
-    { "/api/getFourKeyTouchpadOptions", getFourKeyTouchpadOptions },
     { "/api/getTwoKeyTouchpadOptions", getTwoKeyTouchpadOptions },
     { "/api/getBackButtonAddonOptions", getBackButtonAddonOptions },
     { "/api/getMCP3208Options", getMCP3208Options },

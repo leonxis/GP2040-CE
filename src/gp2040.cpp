@@ -36,7 +36,6 @@
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
-#include "addons/four_key_touchpad.h"
 #include "addons/two_key_touchpad.h"
 #include "addons/back_button_divider.h"
 #include "addons/tg16_input.h"
@@ -186,7 +185,6 @@ void GP2040::setup() {
 	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new LinearTriggerAddon());
-	addons.LoadAddon(new FourKeyTouchpadAddon());
 	addons.LoadAddon(new TwoKeyTouchpadAddon());
 	addons.LoadAddon(new BackButtonDividerAddon());
 	addons.LoadAddon(new BootselButtonAddon());

@@ -27,7 +27,7 @@ static constexpr uint16_t THRESH_LOW  = static_cast<uint16_t>((V_LOW  / VREF) * 
 // 防抖帧数：候选档位连续 N 帧一致才更新稳定档位
 static constexpr uint8_t BACK_DIVIDER_DEBOUNCE_FRAMES = 3;
 
-// 复用 four_key_touchpad 中的思想：预解析映射，运行时只 OR mask；复杂映射再进 switch
+// 复用触摸映射优化思路：预解析映射，运行时只 OR mask；复杂映射再进 switch
 static constexpr uint32_t KEYBOARD_KEY_ACTION_BASE_BACK = 131;
 static constexpr uint8_t ADDON_MOUSE_LEFT_BIT = (1u << 0);
 static constexpr uint8_t ADDON_MOUSE_RIGHT_BIT = (1u << 1);

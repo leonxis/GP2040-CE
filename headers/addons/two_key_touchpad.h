@@ -38,8 +38,8 @@ private:
     int32_t pin_right = -1;   // I2C1 SCL → 右触摸键
     TwoKeyFastMapping leftMapping;
     TwoKeyFastMapping rightMapping;
-    TwoKeyFastMapping touchpadMapping;   // GPIO12 当前映射键
-    GpioMappingInfo   touchpadMappingInfo;  // 持有拷贝供指针引用
+    TwoKeyFastMapping enableKeyMapping;   // GPIO12 使能键映射（由配置记录，不直接读取 GPIO12 的 pinMapping）
+    GpioMappingInfo   enableKeyMappingInfo;  // 持有拷贝供指针引用
 
     // 触摸键防抖：连续若干帧稳定再更新状态（GPIO12 仍保持无防抖，避免引入新的延迟）
     bool leftStablePressed  = false;

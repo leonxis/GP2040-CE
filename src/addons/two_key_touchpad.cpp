@@ -26,7 +26,9 @@ static void parseMapping2Key(const GpioMappingInfo& src, TwoKeyFastMapping& dst)
     dst.isComplex  = false;
     dst.originalMapping = &src;
 
-    if (src.action == GpioAction::NONE) return;
+    if (src.action == GpioAction::NONE ||
+        src.action == GpioAction::RESERVED ||
+        src.action == GpioAction::ASSIGNED_TO_ADDON) return;
 
     if (src.action == GpioAction::CUSTOM_BUTTON_COMBO) {
         dst.buttonMask = src.customButtonMask;
@@ -158,12 +160,10 @@ void TwoKeyTouchpadAddon::buildMappings() {
     parseMapping2Key(opts.leftKeyMapping,  leftMapping);
     parseMapping2Key(opts.rightKeyMapping, rightMapping);
 
-    // 读取 GPIO12 在背键映射中配置的动作（触摸板映射键）
-    // 使用 functionalPinMappings（经 profile 合并后的有效映射）
-    const GpioMappingInfo* pins = Storage::getInstance().getProfilePinMappings();
-    touchpadMappingInfo = pins[TOUCHPAD_ENABLE_PIN_2KEY];
-    parseMapping2Key(touchpadMappingInfo, touchpadMapping);
-    touchpadMapping.originalMapping = &touchpadMappingInfo;
+    // 使能键映射由 TwoKeyTouchpadOptions.enableKeyMapping 保存（开启时由 GPIO12 当前映射复制）
+    enableKeyMappingInfo = opts.enableKeyMapping;
+    parseMapping2Key(enableKeyMappingInfo, enableKeyMapping);
+    enableKeyMapping.originalMapping = &enableKeyMappingInfo;
 }
 
 void TwoKeyTouchpadAddon::setup() {
@@ -264,17 +264,17 @@ void TwoKeyTouchpadAddon::preprocess() {
 
     if (leftPressed || rightPressed) {
         // 触摸键模式：抑制本帧 gamepad->read() 对 GPIO12 的映射，再输出左/右触摸映射
-        gamepad->state.buttons &= ~touchpadMapping.buttonMask;
-        gamepad->state.dpad    &= ~touchpadMapping.dpadMask;
-        gamepad->state.aux     &= ~touchpadMapping.auxMask;
-        if (touchpadMapping.isComplex)
-            clearComplexMapping2Key(gamepad, *touchpadMapping.originalMapping);
+        gamepad->state.buttons &= ~enableKeyMapping.buttonMask;
+        gamepad->state.dpad    &= ~enableKeyMapping.dpadMask;
+        gamepad->state.aux     &= ~enableKeyMapping.auxMask;
+        if (enableKeyMapping.isComplex)
+            clearComplexMapping2Key(gamepad, *enableKeyMapping.originalMapping);
 
         if (leftPressed)  applyMappingAndRecord(leftMapping);
         if (rightPressed) applyMappingAndRecord(rightMapping);
     } else {
-        // 无触摸：输出 GPIO12 在背键映射中配置的键（与 read() 一致，可再 OR 保证一致）
-        applyMappingAndRecord(touchpadMapping);
+        // 无触摸：输出使能键映射（开启插件时从 GPIO12 原映射复制）
+        applyMappingAndRecord(enableKeyMapping);
     }
 }
 

@@ -134,13 +134,6 @@ void Storage::setFunctionalPinMappings()
 			functionalPinMappings[pin] = this->config.gpioMappings.pins[pin];
 		}
 	}
-	// 4键触摸板开启时 GP12 标为已分配给插件，主循环不映射，由插件按使能+触摸状态输出 A2
-	if (this->config.addonOptions.fourKeyTouchpadOptions.enabled) {
-		const Pin_t FOUR_KEY_TOUCHPAD_ENABLE_GPIO = 12;
-		functionalPinMappings[FOUR_KEY_TOUCHPAD_ENABLE_GPIO].action = GpioAction::ASSIGNED_TO_ADDON;
-		functionalPinMappings[FOUR_KEY_TOUCHPAD_ENABLE_GPIO].customButtonMask = 0;
-		functionalPinMappings[FOUR_KEY_TOUCHPAD_ENABLE_GPIO].customDpadMask = 0;
-	}
 }
 
 void Storage::SetGamepad(Gamepad * newpad)

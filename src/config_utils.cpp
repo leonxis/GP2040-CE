@@ -1065,11 +1065,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerMaxRaw, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerMaxRaw, 0);
 #endif
-#if defined(HML_FOURKEY_TOUCHPAD_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.fourKeyTouchpadOptions, enabled, HML_FOURKEY_TOUCHPAD_ENABLED);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.fourKeyTouchpadOptions, enabled, 0);
-#endif
  #if defined(MCP3208_DEFAULT_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, MCP3208_DEFAULT_ENABLED);
  #else
@@ -1151,29 +1146,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseDeadzone, 12);
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
 
-#if defined(HML_TOUCH_KEY1_ACTION)
-    // 四键触摸板映射：依 boardconfig（左上=B1, 右上=B2, 左下=B3, 右下=B4），仅当未设置时写入
-    if (!config.addonOptions.fourKeyTouchpadOptions.has_key1Mapping) {
-        config.addonOptions.fourKeyTouchpadOptions.key1Mapping.action = HML_TOUCH_KEY1_ACTION;
-        config.addonOptions.fourKeyTouchpadOptions.key1Mapping.has_action = true;
-        config.addonOptions.fourKeyTouchpadOptions.has_key1Mapping = true;
-    }
-    if (!config.addonOptions.fourKeyTouchpadOptions.has_key2Mapping) {
-        config.addonOptions.fourKeyTouchpadOptions.key2Mapping.action = HML_TOUCH_KEY2_ACTION;
-        config.addonOptions.fourKeyTouchpadOptions.key2Mapping.has_action = true;
-        config.addonOptions.fourKeyTouchpadOptions.has_key2Mapping = true;
-    }
-    if (!config.addonOptions.fourKeyTouchpadOptions.has_key3Mapping) {
-        config.addonOptions.fourKeyTouchpadOptions.key3Mapping.action = HML_TOUCH_KEY3_ACTION;
-        config.addonOptions.fourKeyTouchpadOptions.key3Mapping.has_action = true;
-        config.addonOptions.fourKeyTouchpadOptions.has_key3Mapping = true;
-    }
-    if (!config.addonOptions.fourKeyTouchpadOptions.has_key4Mapping) {
-        config.addonOptions.fourKeyTouchpadOptions.key4Mapping.action = HML_TOUCH_KEY4_ACTION;
-        config.addonOptions.fourKeyTouchpadOptions.key4Mapping.has_action = true;
-        config.addonOptions.fourKeyTouchpadOptions.has_key4Mapping = true;
-    }
-#endif
 #if defined(HML_LEFT_FN_ACTION)
     // FN/MT 键映射：依 boardconfig（左FN=L1, 右FN=R1, 左MT=L2, 右MT=R2），仅当未设置时写入
     if (!config.addonOptions.fnKeyMappingOptions.has_leftFnMapping) {
@@ -1220,6 +1192,11 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 #else
     INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, 0);
 #endif
+    if (!config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping) {
+        // 首次迁移时记录 GPIO12 的当前映射作为 2 键触摸板使能键映射
+        config.addonOptions.twoKeyTouchpadOptions.enableKeyMapping = config.gpioMappings.pins[12];
+        config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping = true;
+    }
 #if defined(HML_TWOKEY_LEFT_ACTION)
     // 2键触摸板映射：左触摸键/右触摸键，由 boardconfig 配置，仅当未设置时写入
     if (!config.addonOptions.twoKeyTouchpadOptions.has_leftKeyMapping) {
@@ -1607,13 +1584,13 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed(LINEAR_L2_PIN);
     }
 
-    // 4-key touchpad (BS814A-2) uses I2C1 pins when I2C1 is off: SDA=SCK, SCL=DATA.
-    if (config.addonOptions.fourKeyTouchpadOptions.enabled) {
+    // 2-key touchpad uses I2C1 SDA/SCL as left/right inputs, and GPIO12 as dedicated enable key.
+    if (config.addonOptions.twoKeyTouchpadOptions.enabled) {
         if (isValidPin(peripheralOptions.blockI2C1.sda))
             markAddonPinIfUsed(peripheralOptions.blockI2C1.sda);
         if (isValidPin(peripheralOptions.blockI2C1.scl))
             markAddonPinIfUsed(peripheralOptions.blockI2C1.scl);
-        // GPIO12 仍执行其引脚映射；仅作为触摸板使能键参与逻辑，不占用
+        markAddonPinIfUsed(12);
     }
 
     // migrate I2C addons to use peripheral manager

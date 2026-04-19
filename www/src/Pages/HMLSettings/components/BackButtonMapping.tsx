@@ -235,17 +235,7 @@ export default function BackButtonMapping() {
 	const saveProfiles = useProfilesStore((state) => state.saveProfiles);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
-	// 触摸板映射（KEY1=左上, KEY4=右上, KEY2=左下, KEY3=右下）
-	const [touchpadOptions, setTouchpadOptions] = useState<Record<string, MaskPayload>>({
-		key1: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		key4: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		key2: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		key3: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-	});
-	const [touchpadSaveMsg, setTouchpadSaveMsg] = useState('');
-	const [touchpadSaving, setTouchpadSaving] = useState(false);
-	// 由硬件配置-4键触摸板/2键触摸板开关决定触摸板映射栏显示内容
-	const [fourKeyTouchpadEnabled, setFourKeyTouchpadEnabled] = useState(false);
+	// 由硬件配置-2键触摸板开关决定触摸板映射栏显示内容
 	const [twoKeyTouchpadEnabled, setTwoKeyTouchpadEnabled] = useState(false);
 	// 2键触摸板映射（默认 NONE，固件侧由 BoardConfig 的 HML_TWOKEY_LEFT_ACTION/HML_TWOKEY_RIGHT_ACTION 配置）
 	const [twoKeyOptions, setTwoKeyOptions] = useState<Record<string, MaskPayload>>({
@@ -312,9 +302,6 @@ export default function BackButtonMapping() {
 	);
 
 	// 触摸板映射 / FN 键映射 变更
-	const onTouchpadChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
-		setTouchpadOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
-	}, []);
 	const onTwoKeyChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
 		setTwoKeyOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
 	}, []);
@@ -350,21 +337,12 @@ export default function BackButtonMapping() {
 		[buttonNames, t],
 	);
 
-	// 进入背键映射时刷新：GPIO 映射 + 触摸板/FN 映射（与功能配置、4 键触摸板开关一致）
+	// 进入背键映射时刷新：GPIO 映射 + 2键触摸板/FN 映射
 	React.useEffect(() => {
 		useProfilesStore.getState().fetchProfiles();
 		const toPayload = (m: { action?: number; customButtonMask?: number; customDpadMask?: number } | undefined): MaskPayload =>
 			m ? { action: (m.action ?? BUTTON_ACTIONS.NONE) as PinActionValues, customButtonMask: m.customButtonMask ?? 0, customDpadMask: m.customDpadMask ?? 0 } : defaultPinData;
-		Promise.all([WebApi.getFourKeyTouchpadOptions(), WebApi.getTwoKeyTouchpadOptions(), WebApi.getFnKeyMappingOptions(), WebApi.getBackButtonAddonOptions()]).then(([touchpad, twoKey, fn, backAddon]) => {
-			if (touchpad) {
-				setFourKeyTouchpadEnabled(Boolean(touchpad.enabled));
-				setTouchpadOptions({
-					key1: toPayload(touchpad.key1),
-					key4: toPayload(touchpad.key4),
-					key2: toPayload(touchpad.key2),
-					key3: toPayload(touchpad.key3),
-				});
-			}
+		Promise.all([WebApi.getTwoKeyTouchpadOptions(), WebApi.getFnKeyMappingOptions(), WebApi.getBackButtonAddonOptions()]).then(([twoKey, fn, backAddon]) => {
 			if (twoKey) {
 				setTwoKeyTouchpadEnabled(Boolean(twoKey.enabled));
 				setTwoKeyOptions({
@@ -392,27 +370,6 @@ export default function BackButtonMapping() {
 			}
 		});
 	}, []);
-
-	const handleSaveTouchpad = useCallback(async () => {
-		setTouchpadSaveMsg('');
-		setTouchpadSaving(true);
-		try {
-			const payload = {
-				key1: touchpadOptions.key1,
-				key2: touchpadOptions.key2,
-				key3: touchpadOptions.key3,
-				key4: touchpadOptions.key4,
-			};
-			await WebApi.setFourKeyTouchpadOptions(payload);
-			setTouchpadSaveMsg(t('Common:saved-success-message'));
-			setTimeout(() => setTouchpadSaveMsg(''), 3000);
-		} catch (e) {
-			setTouchpadSaveMsg(t('Common:saved-error-message'));
-			setTimeout(() => setTouchpadSaveMsg(''), 3000);
-		} finally {
-			setTouchpadSaving(false);
-		}
-	}, [touchpadOptions, t]);
 
 	const handleSaveTwoKey = useCallback(async () => {
 		setTwoKeySaveMsg('');
@@ -676,57 +633,8 @@ export default function BackButtonMapping() {
 		<Card style={{ marginBottom: '1rem' }}>
 			<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
 			<Card.Body>
-				{/* 4键触摸板开启：显示左上/右上/左下/右下四键 */}
-				{fourKeyTouchpadEnabled && (
-					<>
-						<Row className="g-3">
-							{[
-								{ key: 'key4', labelKey: 'hml-touch-upper-left' },
-								{ key: 'key1', labelKey: 'hml-touch-upper-right' },
-								{ key: 'key3', labelKey: 'hml-touch-lower-left' },
-								{ key: 'key2', labelKey: 'hml-touch-lower-right' },
-							].map(({ key, labelKey }) => {
-								const mappingData = touchpadOptions[key] || defaultPinData;
-								return (
-									<Col sm={6} md={6} key={`touchpad-${key}`}>
-										<div className="d-flex align-items-center">
-											<div className="d-flex flex-shrink-0" style={{ width: '12rem' }}>
-												<label>{t(`CalibrationSettings:${labelKey}`)}</label>
-											</div>
-											<CustomSelect
-												isClearable
-												isMulti={!isDisabled(mappingData.action) &&
-													!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
-													!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
-													!options.some((opt) => opt.value === mappingData.action && opt.type === 'action')}
-												options={groupedOptions}
-												isDisabled={isDisabled(mappingData.action)}
-												getOptionLabel={getOptionLabel}
-												onChange={onTouchpadChange(key)}
-												value={getMultiValue(mappingData)}
-											/>
-										</div>
-									</Col>
-								);
-							})}
-						</Row>
-						<Row className="mt-3">
-							<Col sm={4}>
-								<Button variant="primary" onClick={handleSaveTouchpad} disabled={touchpadSaving}>
-									{t('Common:button-save-label')}
-								</Button>
-								{touchpadSaveMsg && (
-									<span className={`ms-3 ${touchpadSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
-										{touchpadSaveMsg}
-									</span>
-								)}
-							</Col>
-						</Row>
-					</>
-				)}
-
 				{/* 2键触摸板开启：显示左触摸键/右触摸键（默认L3/R3） */}
-				{!fourKeyTouchpadEnabled && twoKeyTouchpadEnabled && (
+				{twoKeyTouchpadEnabled && (
 					<>
 						<Row className="g-3">
 							{[
@@ -772,8 +680,8 @@ export default function BackButtonMapping() {
 					</>
 				)}
 
-				{/* 两个触摸板开关均关闭：显示禁用提示 */}
-				{!fourKeyTouchpadEnabled && !twoKeyTouchpadEnabled && (
+				{/* 2键触摸板开关关闭：显示禁用提示 */}
+				{!twoKeyTouchpadEnabled && (
 					<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
 				)}
 			</Card.Body>

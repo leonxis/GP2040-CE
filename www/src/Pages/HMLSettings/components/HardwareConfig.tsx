@@ -23,8 +23,10 @@ export default function HardwareConfig() {
 		},
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
-	const [fourKeyTouchpadOptions, setFourKeyTouchpadOptions] = useState({ enabled: 0 });
-	const [twoKeyTouchpadOptions, setTwoKeyTouchpadOptions] = useState({ enabled: 0 });
+	const [twoKeyTouchpadOptions, setTwoKeyTouchpadOptions] = useState({
+		enabled: 0,
+		enableKey: { action: -10, customButtonMask: 0, customDpadMask: 0 },
+	});
 	const [reportRate, setReportRate] = useState(1000);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
@@ -44,18 +46,21 @@ export default function HardwareConfig() {
 	useEffect(() => {
 		async function fetchData() {
 			try {
-				const [peripheral, display, fourKeyTouchpad, twoKeyTouchpad, led, addons] = await Promise.all([
+				const [peripheral, display, twoKeyTouchpad, led, addons] = await Promise.all([
 					WebApi.getPeripheralOptions(),
 					WebApi.getDisplayOptions(),
-					WebApi.getFourKeyTouchpadOptions(),
 					WebApi.getTwoKeyTouchpadOptions(),
 					WebApi.getLedOptions(),
 					WebApi.getAddonsOptions(),
 				]);
 				setPeripheralOptions(peripheral);
 				setDisplayOptions(display);
-				setFourKeyTouchpadOptions(fourKeyTouchpad || { enabled: 0 });
-				setTwoKeyTouchpadOptions(twoKeyTouchpad || { enabled: 0 });
+				setTwoKeyTouchpadOptions(
+					twoKeyTouchpad || {
+						enabled: 0,
+						enableKey: { action: -10, customButtonMask: 0, customDpadMask: 0 },
+					},
+				);
 				setReportRate(
 					[250, 500, 1000, 2000, 4000, 8000].includes(Number(addons?.reportRate))
 						? Number(addons.reportRate)
@@ -119,7 +124,6 @@ export default function HardwareConfig() {
 			await Promise.all([
 				WebApi.setPeripheralOptions(dataToSave),
 				WebApi.setDisplayOptions(displayOptions),
-				WebApi.setFourKeyTouchpadOptions(fourKeyTouchpadOptions),
 				WebApi.setTwoKeyTouchpadOptions(twoKeyTouchpadOptions),
 				WebApi.setAddonsOptions({ reportRate }),
 			]);
@@ -217,47 +221,14 @@ export default function HardwareConfig() {
 										},
 									},
 								}));
-								// 打开显示屏时自动关闭 4键触摸板 和 2键触摸板
+								// 打开显示屏时自动关闭 2键触摸板
 								if (isEnabled) {
-									setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
 									setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
 								}
 							}}
 						/>
 						<span className="text-muted">
 							{t('SettingsPage:hml-display-hint')}
-						</span>
-					</div>
-
-					{/* 4键触摸板开关 */}
-					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-						<Form.Check
-							type="switch"
-							id="four-key-touchpad-switch"
-							label={t('SettingsPage:hml-four-key-touchpad-label')}
-							checked={Boolean(fourKeyTouchpadOptions.enabled)}
-							onChange={(e) => {
-								const isEnabled = e.target.checked ? 1 : 0;
-								setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
-								// 打开 4 键触摸板时自动关闭显示屏、I2C1 和 2键触摸板
-								if (isEnabled) {
-									setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
-									setPeripheralOptions((prev) => ({
-										...prev,
-										peripheral: {
-											...prev.peripheral,
-											i2c1: {
-												...prev.peripheral?.i2c1,
-												enabled: 0,
-											},
-										},
-									}));
-									setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
-								}
-							}}
-						/>
-						<span className="text-muted">
-							{t('SettingsPage:hml-four-key-touchpad-hint')}
 						</span>
 					</div>
 
@@ -271,7 +242,7 @@ export default function HardwareConfig() {
 							onChange={(e) => {
 								const isEnabled = e.target.checked ? 1 : 0;
 								setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
-								// 打开 2 键触摸板时自动关闭显示屏、I2C1 和 4键触摸板
+								// 打开 2 键触摸板时自动关闭显示屏、I2C1
 								if (isEnabled) {
 									setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
 									setPeripheralOptions((prev) => ({
@@ -284,7 +255,6 @@ export default function HardwareConfig() {
 											},
 										},
 									}));
-									setFourKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
 								}
 							}}
 						/>

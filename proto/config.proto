@@ -969,7 +969,6 @@ message AddonOptions
     optional TG16Options tg16Options = 29;
     optional HETriggerOptions heTriggerOptions = 30;
     optional LinearTriggerOptions linearTriggerOptions = 31;
-    optional FourKeyTouchpadOptions fourKeyTouchpadOptions = 32;
     optional FnKeyMappingOptions fnKeyMappingOptions = 33;
     optional MCP3208Options mcp3208Options = 34;
     optional TwoKeyTouchpadOptions twoKeyTouchpadOptions = 37;
@@ -1034,16 +1033,6 @@ message LSM6DSROptions
     optional int32 gyroMouseDeadzone = 24 [default = 12]; // 鼠标死区（LSB，建议 0~80）
 }
 
-message FourKeyTouchpadOptions
-{
-    optional bool enabled = 1 [default = false];
-    // 触摸键映射：KEY1=左上, KEY4=右上, KEY2=左下, KEY3=右下
-    optional GpioMappingInfo key1Mapping = 2;
-    optional GpioMappingInfo key2Mapping = 3;
-    optional GpioMappingInfo key3Mapping = 4;
-    optional GpioMappingInfo key4Mapping = 5;
-}
-
 message FnKeyMappingOptions
 {
     // 左FN/右FN、左MT/右MT、Ext左/右扳机 均由 MCP3208 CH2/CH5 电压档位决定，无 GPIO 引脚
@@ -1061,6 +1050,8 @@ message TwoKeyTouchpadOptions
     // 左触摸键 / 右触摸键，默认由 BoardConfig 的 HML_TWOKEY_LEFT_ACTION / HML_TWOKEY_RIGHT_ACTION 设置
     optional GpioMappingInfo leftKeyMapping = 2;
     optional GpioMappingInfo rightKeyMapping = 3;
+    // 使能键映射：开启 2 键触摸板时从 GPIO12 当前映射复制，关闭时恢复到 GPIO12
+    optional GpioMappingInfo enableKeyMapping = 4;
 }
 
 // 背键设置插件使用的逻辑背键映射（与具体 GPIO 解耦，仅持久化映射值）

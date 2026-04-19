@@ -215,25 +215,6 @@ async function getDisplayOptions() {
 	}
 }
 
-async function getFourKeyTouchpadOptions() {
-	try {
-		const response = await Http.get(`${baseUrl}/api/getFourKeyTouchpadOptions`);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
-}
-
-async function setFourKeyTouchpadOptions(options) {
-	try {
-		await Http.post(`${baseUrl}/api/setFourKeyTouchpadOptions`, options);
-		return true;
-	} catch (error) {
-		console.error(error);
-		return false;
-	}
-}
-
 async function getTwoKeyTouchpadOptions() {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getTwoKeyTouchpadOptions`);
@@ -854,8 +835,6 @@ export default {
 	resetSettings,
 	getDisplayOptions,
 	setDisplayOptions,
-	getFourKeyTouchpadOptions,
-	setFourKeyTouchpadOptions,
 	getTwoKeyTouchpadOptions,
 	setTwoKeyTouchpadOptions,
 	getBackButtonAddonOptions,

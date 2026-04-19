@@ -200,8 +200,6 @@ export default {
 	'hml-display-label': 'ディスプレイ',
 	'hml-display-hint':
 		'ディスプレイと関連インターフェースをオフにします。PS5Gではディスプレイをオフにすると1000Hz報告率に近づけます。',
-	'hml-four-key-touchpad-label': '4キータッチパッド',
-	'hml-four-key-touchpad-hint': 'タッチパッドボタンにはディスプレイをタッチパネルに置き換えてください。',
 	'hml-two-key-touchpad-label': '2キータッチパッド',
 	'hml-two-key-touchpad-hint': '4キーと同様で、ディスプレイを無効にします。',
 	'hml-report-rate-label': '報告率',
