@@ -1,152 +1,19 @@
 #include "addons/two_key_touchpad.h"
+
 #include "storagemanager.h"
 #include "gamepad.h"
-#include "gamepad/GamepadState.h"
-#include "config.pb.h"
 #include "hardware/gpio.h"
 #include "helper.h"
-#include "pico/time.h"
-#include "eventmanager.h"
 
 #define TOUCHPAD_ENABLE_PIN_2KEY 12
-static constexpr uint32_t KEYBOARD_KEY_ACTION_BASE_2KEY = 131;
-static constexpr uint8_t ADDON_MOUSE_LEFT_BIT = (1u << 0);
-static constexpr uint8_t ADDON_MOUSE_RIGHT_BIT = (1u << 1);
-static constexpr uint8_t ADDON_MOUSE_MIDDLE_BIT = (1u << 2);
 // 连续多少帧一致才更新触摸键状态
 static constexpr uint8_t TWO_KEY_TOUCH_DEBOUNCE_FRAMES = 3;
 
-// ──────────────────────────────────────────────────────────────────────────────
-// 静态辅助：将 GpioMappingInfo 解析为 TwoKeyFastMapping
-// ──────────────────────────────────────────────────────────────────────────────
-static void parseMapping2Key(const GpioMappingInfo& src, TwoKeyFastMapping& dst) {
-    dst.buttonMask = 0;
-    dst.dpadMask   = 0;
-    dst.auxMask    = 0;
-    dst.isComplex  = false;
-    dst.originalMapping = &src;
-
-    if (src.action == GpioAction::NONE ||
-        src.action == GpioAction::RESERVED ||
-        src.action == GpioAction::ASSIGNED_TO_ADDON) return;
-
-    if (src.action == GpioAction::CUSTOM_BUTTON_COMBO) {
-        dst.buttonMask = src.customButtonMask;
-        if (src.customDpadMask & GAMEPAD_MASK_UP) dst.dpadMask |= GAMEPAD_MASK_UP;
-        if (src.customDpadMask & GAMEPAD_MASK_DOWN) dst.dpadMask |= GAMEPAD_MASK_DOWN;
-        if (src.customDpadMask & GAMEPAD_MASK_LEFT) dst.dpadMask |= GAMEPAD_MASK_LEFT;
-        if (src.customDpadMask & GAMEPAD_MASK_RIGHT) dst.dpadMask |= GAMEPAD_MASK_RIGHT;
-        return;
-    }
-
-    switch (src.action) {
-        case GpioAction::BUTTON_PRESS_UP:    dst.dpadMask   |= GAMEPAD_MASK_UP;    break;
-        case GpioAction::BUTTON_PRESS_DOWN:  dst.dpadMask   |= GAMEPAD_MASK_DOWN;  break;
-        case GpioAction::BUTTON_PRESS_LEFT:  dst.dpadMask   |= GAMEPAD_MASK_LEFT;  break;
-        case GpioAction::BUTTON_PRESS_RIGHT: dst.dpadMask   |= GAMEPAD_MASK_RIGHT; break;
-        case GpioAction::BUTTON_PRESS_B1:    dst.buttonMask |= GAMEPAD_MASK_B1;    break;
-        case GpioAction::BUTTON_PRESS_B2:    dst.buttonMask |= GAMEPAD_MASK_B2;    break;
-        case GpioAction::BUTTON_PRESS_B3:    dst.buttonMask |= GAMEPAD_MASK_B3;    break;
-        case GpioAction::BUTTON_PRESS_B4:    dst.buttonMask |= GAMEPAD_MASK_B4;    break;
-        case GpioAction::BUTTON_PRESS_L1:    dst.buttonMask |= GAMEPAD_MASK_L1;    break;
-        case GpioAction::BUTTON_PRESS_R1:    dst.buttonMask |= GAMEPAD_MASK_R1;    break;
-        case GpioAction::BUTTON_PRESS_L2:    dst.buttonMask |= GAMEPAD_MASK_L2;    break;
-        case GpioAction::BUTTON_PRESS_R2:    dst.buttonMask |= GAMEPAD_MASK_R2;    break;
-        case GpioAction::BUTTON_PRESS_S1:    dst.buttonMask |= GAMEPAD_MASK_S1;    break;
-        case GpioAction::BUTTON_PRESS_S2:    dst.buttonMask |= GAMEPAD_MASK_S2;    break;
-        case GpioAction::BUTTON_PRESS_L3:    dst.buttonMask |= GAMEPAD_MASK_L3;    break;
-        case GpioAction::BUTTON_PRESS_R3:    dst.buttonMask |= GAMEPAD_MASK_R3;    break;
-        case GpioAction::BUTTON_PRESS_A1:    dst.buttonMask |= GAMEPAD_MASK_A1;    break;
-        case GpioAction::BUTTON_PRESS_A2:    dst.buttonMask |= GAMEPAD_MASK_A2;    break;
-        case GpioAction::BUTTON_PRESS_A3:    dst.buttonMask |= GAMEPAD_MASK_A3;    break;
-        case GpioAction::BUTTON_PRESS_A4:    dst.buttonMask |= GAMEPAD_MASK_A4;    break;
-        case GpioAction::BUTTON_PRESS_E1:    dst.buttonMask |= GAMEPAD_MASK_E1;    break;
-        case GpioAction::BUTTON_PRESS_E2:    dst.buttonMask |= GAMEPAD_MASK_E2;    break;
-        case GpioAction::BUTTON_PRESS_E3:    dst.buttonMask |= GAMEPAD_MASK_E3;    break;
-        case GpioAction::BUTTON_PRESS_E4:    dst.buttonMask |= GAMEPAD_MASK_E4;    break;
-        case GpioAction::BUTTON_PRESS_E5:    dst.buttonMask |= GAMEPAD_MASK_E5;    break;
-        case GpioAction::BUTTON_PRESS_E6:    dst.buttonMask |= GAMEPAD_MASK_E6;    break;
-        case GpioAction::BUTTON_PRESS_E7:    dst.buttonMask |= GAMEPAD_MASK_E7;    break;
-        case GpioAction::BUTTON_PRESS_E8:    dst.buttonMask |= GAMEPAD_MASK_E8;    break;
-        case GpioAction::BUTTON_PRESS_E9:    dst.buttonMask |= GAMEPAD_MASK_E9;    break;
-        case GpioAction::BUTTON_PRESS_E10:   dst.buttonMask |= GAMEPAD_MASK_E10;   break;
-        case GpioAction::BUTTON_PRESS_E11:   dst.buttonMask |= GAMEPAD_MASK_E11;   break;
-        case GpioAction::BUTTON_PRESS_E12:   dst.buttonMask |= GAMEPAD_MASK_E12;   break;
-        case GpioAction::BUTTON_PRESS_FN:    dst.auxMask    |= AUX_MASK_FUNCTION;  break;
-        default:
-            dst.isComplex = true;
-            break;
-    }
-}
-
-static void applyComplexMapping2Key(Gamepad* gamepad, const GpioMappingInfo& m) {
-    switch (m.action) {
-        case GpioAction::ANALOG_DIRECTION_LS_X_NEG: gamepad->state.lx = GAMEPAD_JOYSTICK_MIN; break;
-        case GpioAction::ANALOG_DIRECTION_LS_X_POS: gamepad->state.lx = GAMEPAD_JOYSTICK_MAX; break;
-        case GpioAction::ANALOG_DIRECTION_LS_Y_NEG: gamepad->state.ly = GAMEPAD_JOYSTICK_MIN; break;
-        case GpioAction::ANALOG_DIRECTION_LS_Y_POS: gamepad->state.ly = GAMEPAD_JOYSTICK_MAX; break;
-        case GpioAction::ANALOG_DIRECTION_RS_X_NEG: gamepad->state.rx = GAMEPAD_JOYSTICK_MIN; break;
-        case GpioAction::ANALOG_DIRECTION_RS_X_POS: gamepad->state.rx = GAMEPAD_JOYSTICK_MAX; break;
-        case GpioAction::ANALOG_DIRECTION_RS_Y_NEG: gamepad->state.ry = GAMEPAD_JOYSTICK_MIN; break;
-        case GpioAction::ANALOG_DIRECTION_RS_Y_POS: gamepad->state.ry = GAMEPAD_JOYSTICK_MAX; break;
-        case GpioAction::MENU_NAVIGATION_UP:     EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_UP)); break;
-        case GpioAction::MENU_NAVIGATION_DOWN:   EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_DOWN)); break;
-        case GpioAction::MENU_NAVIGATION_LEFT:   EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_LEFT)); break;
-        case GpioAction::MENU_NAVIGATION_RIGHT:  EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_RIGHT)); break;
-        case GpioAction::MENU_NAVIGATION_SELECT: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_SELECT)); break;
-        case GpioAction::MENU_NAVIGATION_BACK:   EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_BACK)); break;
-        case GpioAction::MENU_NAVIGATION_TOGGLE: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_TOGGLE)); break;
-        default:
-            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9) {
-                gamepad->addonKeyboardKeyMask |= (1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE_2KEY));
-            } else if (m.action == GpioAction::MOUSE_LEFT_BUTTON) {
-                gamepad->addonMouseButtonMask |= ADDON_MOUSE_LEFT_BIT;
-            } else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON) {
-                gamepad->addonMouseButtonMask |= ADDON_MOUSE_RIGHT_BIT;
-            } else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON) {
-                gamepad->addonMouseButtonMask |= ADDON_MOUSE_MIDDLE_BIT;
-            }
-            break;
-    }
-}
-
-static void clearComplexMapping2Key(Gamepad* gamepad, const GpioMappingInfo& m) {
-    switch (m.action) {
-        case GpioAction::ANALOG_DIRECTION_LS_X_NEG:
-        case GpioAction::ANALOG_DIRECTION_LS_X_POS:
-            gamepad->state.lx = GAMEPAD_JOYSTICK_MID; break;
-        case GpioAction::ANALOG_DIRECTION_LS_Y_NEG:
-        case GpioAction::ANALOG_DIRECTION_LS_Y_POS:
-            gamepad->state.ly = GAMEPAD_JOYSTICK_MID; break;
-        case GpioAction::ANALOG_DIRECTION_RS_X_NEG:
-        case GpioAction::ANALOG_DIRECTION_RS_X_POS:
-            gamepad->state.rx = GAMEPAD_JOYSTICK_MID; break;
-        case GpioAction::ANALOG_DIRECTION_RS_Y_NEG:
-        case GpioAction::ANALOG_DIRECTION_RS_Y_POS:
-            gamepad->state.ry = GAMEPAD_JOYSTICK_MID; break;
-        case GpioAction::MENU_NAVIGATION_UP:
-        case GpioAction::MENU_NAVIGATION_DOWN:
-        case GpioAction::MENU_NAVIGATION_LEFT:
-        case GpioAction::MENU_NAVIGATION_RIGHT:
-        case GpioAction::MENU_NAVIGATION_SELECT:
-        case GpioAction::MENU_NAVIGATION_BACK:
-        case GpioAction::MENU_NAVIGATION_TOGGLE:
-            break;
-        default:
-            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9) {
-                gamepad->addonKeyboardKeyMask &= ~(1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE_2KEY));
-            } else if (m.action == GpioAction::MOUSE_LEFT_BUTTON) {
-                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_LEFT_BIT;
-            } else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON) {
-                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_RIGHT_BIT;
-            } else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON) {
-                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_MIDDLE_BIT;
-            }
-            break;
-    }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
+enum TwoKeyMapIndex : uint8_t {
+    LEFT_TOUCH = 0,
+    RIGHT_TOUCH = 1,
+    ENABLE_KEY = 2,
+};
 
 bool TwoKeyTouchpadAddon::available() {
     const TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
@@ -157,13 +24,16 @@ bool TwoKeyTouchpadAddon::available() {
 
 void TwoKeyTouchpadAddon::buildMappings() {
     const TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
-    parseMapping2Key(opts.leftKeyMapping,  leftMapping);
-    parseMapping2Key(opts.rightKeyMapping, rightMapping);
-
-    // 使能键映射由 TwoKeyTouchpadOptions.enableKeyMapping 保存（开启时由 GPIO12 当前映射复制）
-    enableKeyMappingInfo = opts.enableKeyMapping;
-    parseMapping2Key(enableKeyMappingInfo, enableKeyMapping);
-    enableKeyMapping.originalMapping = &enableKeyMappingInfo;
+    mapTable_.setCount(3);
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_TOUCH)) {
+        ActionMappingCommon::parseActionMapping(opts.leftKeyMapping, *entry);
+    }
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_TOUCH)) {
+        ActionMappingCommon::parseActionMapping(opts.rightKeyMapping, *entry);
+    }
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(ENABLE_KEY)) {
+        ActionMappingCommon::parseActionMapping(opts.enableKeyMapping, *entry);
+    }
 }
 
 void TwoKeyTouchpadAddon::setup() {
@@ -188,94 +58,69 @@ void TwoKeyTouchpadAddon::setup() {
     gpio_pull_up(TOUCHPAD_ENABLE_PIN_2KEY);
 
     buildMappings();
+    outputScope_.reset();
+    ActionMappingCommon::resetDebounceBool(leftDebounce_, false);
+    ActionMappingCommon::resetDebounceBool(rightDebounce_, false);
 }
 
 void TwoKeyTouchpadAddon::reinit() {
-    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
-    last_applied_complex_count_ = 0;
     buildMappings();
+    outputScope_.reset();
+    ActionMappingCommon::resetDebounceBool(leftDebounce_, false);
+    ActionMappingCommon::resetDebounceBool(rightDebounce_, false);
 }
 
 void TwoKeyTouchpadAddon::preprocess() {
     if (!isValidPin(pin_left) || !isValidPin(pin_right)) return;
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
-
-    // ① 只清除上一帧本插件实际写入的输出（与背键分压等电压映射插件思路一致）
-    gamepad->state.buttons &= ~last_out_buttons_;
-    gamepad->state.dpad    &= ~last_out_dpad_;
-    gamepad->state.aux     &= ~last_out_aux_;
-    for (uint8_t i = 0; i < last_applied_complex_count_; i++) {
-        const TwoKeyFastMapping* p = last_applied_complex_[i];
-        if (p && p->isComplex && p->originalMapping)
-            clearComplexMapping2Key(gamepad, *p->originalMapping);
+    if (gamepad == nullptr) {
+        return;
     }
-    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
-    last_applied_complex_count_ = 0;
 
-    auto recordApplied = [&](const TwoKeyFastMapping& m) {
-        last_out_buttons_ |= m.buttonMask;
-        last_out_dpad_    |= m.dpadMask;
-        last_out_aux_     |= m.auxMask;
-        if (m.isComplex && last_applied_complex_count_ < 2)
-            last_applied_complex_[last_applied_complex_count_++] = &m;
-    };
+    outputScope_.beginFrame(gamepad);
 
-    auto applyMappingAndRecord = [&](const TwoKeyFastMapping& m) {
-        gamepad->state.buttons |= m.buttonMask;
-        gamepad->state.dpad    |= m.dpadMask;
-        gamepad->state.aux     |= m.auxMask;
-        if (m.isComplex)
-            applyComplexMapping2Key(gamepad, *m.originalMapping);
-        recordApplied(m);
-    };
+    // ② 使能键（GPIO12）低有效，无防抖：未按下时本插件不输出触摸/直通逻辑。
+    // 正常配置下 GPIO12 已被标记为 ASSIGNED_TO_ADDON，不会由 gamepad->read() 直接产生命令。
+    const bool enablePressed = !gpio_get(TOUCHPAD_ENABLE_PIN_2KEY);
+    if (!enablePressed) {
+        outputScope_.endFrame();
+        return;
+    }
 
-    // ② 使能键（GPIO12）低有效，无防抖：未按下时不输出触摸/直通逻辑，GPIO12 由 gamepad->read() 决定
-    bool enablePressed = !gpio_get(TOUCHPAD_ENABLE_PIN_2KEY);
+    const bool leftRaw  = !gpio_get((uint)pin_left);
+    const bool rightRaw = !gpio_get((uint)pin_right);
+    ActionMappingCommon::updateDebounceBool(leftRaw, leftDebounce_, TWO_KEY_TOUCH_DEBOUNCE_FRAMES);
+    ActionMappingCommon::updateDebounceBool(rightRaw, rightDebounce_, TWO_KEY_TOUCH_DEBOUNCE_FRAMES);
 
-    // ③ 根据使能键状态决定输出
-    if (!enablePressed) return;  // GPIO12 未按下：本插件不叠加输出，结束
-
-    bool leftRaw  = !gpio_get((uint)pin_left);
-    bool rightRaw = !gpio_get((uint)pin_right);
-
-    auto updateDebounceBool = [](bool raw, bool& stable, bool& pending, uint8_t& count) {
-        if (raw == stable) {
-            count = 0;
-            return;
-        }
-        if (raw == pending) {
-            count++;
-            if (count >= TWO_KEY_TOUCH_DEBOUNCE_FRAMES) {
-                stable = pending;
-                count = 0;
-            }
-        } else {
-            pending = raw;
-            count = 1;
-        }
-    };
-
-    updateDebounceBool(leftRaw,  leftStablePressed,  leftPendingPressed,  leftDebounceCount);
-    updateDebounceBool(rightRaw, rightStablePressed, rightPendingPressed, rightDebounceCount);
-
-    bool leftPressed  = leftStablePressed;
-    bool rightPressed = rightStablePressed;
+    const bool leftPressed = leftDebounce_.stable;
+    const bool rightPressed = rightDebounce_.stable;
+    const ActionMappingCommon::ActionMappingEntry* enableEntry = mapTable_.at(ENABLE_KEY);
 
     if (leftPressed || rightPressed) {
-        // 触摸键模式：抑制本帧 gamepad->read() 对 GPIO12 的映射，再输出左/右触摸映射
-        gamepad->state.buttons &= ~enableKeyMapping.buttonMask;
-        gamepad->state.dpad    &= ~enableKeyMapping.dpadMask;
-        gamepad->state.aux     &= ~enableKeyMapping.auxMask;
-        if (enableKeyMapping.isComplex)
-            clearComplexMapping2Key(gamepad, *enableKeyMapping.originalMapping);
-
-        if (leftPressed)  applyMappingAndRecord(leftMapping);
-        if (rightPressed) applyMappingAndRecord(rightMapping);
-    } else {
+        // 触摸键模式：优先输出左/右触摸映射。
+        // 这里保留对 enableEntry 的清理作为兼容性兜底（异常配置/历史配置未标记 ASSIGNED_TO_ADDON 时避免残留）。
+        if (enableEntry != nullptr) {
+            ActionMappingCommon::clearActionMappingEntry(gamepad, *enableEntry);
+        }
+        if (leftPressed) {
+            const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_TOUCH);
+            if (entry != nullptr) {
+                outputScope_.apply(gamepad, *entry);
+            }
+        }
+        if (rightPressed) {
+            const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_TOUCH);
+            if (entry != nullptr) {
+                outputScope_.apply(gamepad, *entry);
+            }
+        }
+    } else if (enableEntry != nullptr) {
         // 无触摸：输出使能键映射（开启插件时从 GPIO12 原映射复制）
-        applyMappingAndRecord(enableKeyMapping);
+        outputScope_.apply(gamepad, *enableEntry);
     }
+
+    outputScope_.endFrame();
 }
 
 void TwoKeyTouchpadAddon::process() {

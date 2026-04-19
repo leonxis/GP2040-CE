@@ -1,11 +1,8 @@
 #include "addons/back_button_divider.h"
+
 #include "storagemanager.h"
 #include "gamepad.h"
-#include "gamepad/GamepadState.h"
-#include "config.pb.h"
 #include "hardware/adc.h"
-#include "pico/stdlib.h"
-#include "eventmanager.h"
 
 // RP2040: ADC0 = GPIO26, ADC1 = GPIO27
 static constexpr uint16_t ADC_MAX_12BIT = (1u << 12) - 1u; // 4095
@@ -27,136 +24,12 @@ static constexpr uint16_t THRESH_LOW  = static_cast<uint16_t>((V_LOW  / VREF) * 
 // 防抖帧数：候选档位连续 N 帧一致才更新稳定档位
 static constexpr uint8_t BACK_DIVIDER_DEBOUNCE_FRAMES = 3;
 
-// 复用触摸映射优化思路：预解析映射，运行时只 OR mask；复杂映射再进 switch
-static constexpr uint32_t KEYBOARD_KEY_ACTION_BASE_BACK = 131;
-static constexpr uint8_t ADDON_MOUSE_LEFT_BIT = (1u << 0);
-static constexpr uint8_t ADDON_MOUSE_RIGHT_BIT = (1u << 1);
-static constexpr uint8_t ADDON_MOUSE_MIDDLE_BIT = (1u << 2);
-
-static void parseBackMapping(const GpioMappingInfo& src, BackFastMapping& dst) {
-    dst.buttonMask = 0;
-    dst.dpadMask   = 0;
-    dst.auxMask    = 0;
-    dst.isComplex  = false;
-    dst.originalMapping = &src;
-
-    if (src.action == GpioAction::NONE) return;
-
-    if (src.action == GpioAction::CUSTOM_BUTTON_COMBO) {
-        dst.buttonMask = src.customButtonMask;
-        if (src.customDpadMask & GAMEPAD_MASK_UP) dst.dpadMask |= GAMEPAD_MASK_UP;
-        if (src.customDpadMask & GAMEPAD_MASK_DOWN) dst.dpadMask |= GAMEPAD_MASK_DOWN;
-        if (src.customDpadMask & GAMEPAD_MASK_LEFT) dst.dpadMask |= GAMEPAD_MASK_LEFT;
-        if (src.customDpadMask & GAMEPAD_MASK_RIGHT) dst.dpadMask |= GAMEPAD_MASK_RIGHT;
-        return;
-    }
-
-    switch (src.action) {
-        case GpioAction::BUTTON_PRESS_UP:    dst.dpadMask   |= GAMEPAD_MASK_UP;    break;
-        case GpioAction::BUTTON_PRESS_DOWN:  dst.dpadMask   |= GAMEPAD_MASK_DOWN;  break;
-        case GpioAction::BUTTON_PRESS_LEFT:  dst.dpadMask   |= GAMEPAD_MASK_LEFT;  break;
-        case GpioAction::BUTTON_PRESS_RIGHT: dst.dpadMask   |= GAMEPAD_MASK_RIGHT; break;
-        case GpioAction::BUTTON_PRESS_B1:    dst.buttonMask |= GAMEPAD_MASK_B1;    break;
-        case GpioAction::BUTTON_PRESS_B2:    dst.buttonMask |= GAMEPAD_MASK_B2;    break;
-        case GpioAction::BUTTON_PRESS_B3:    dst.buttonMask |= GAMEPAD_MASK_B3;    break;
-        case GpioAction::BUTTON_PRESS_B4:    dst.buttonMask |= GAMEPAD_MASK_B4;    break;
-        case GpioAction::BUTTON_PRESS_L1:    dst.buttonMask |= GAMEPAD_MASK_L1;    break;
-        case GpioAction::BUTTON_PRESS_R1:    dst.buttonMask |= GAMEPAD_MASK_R1;    break;
-        case GpioAction::BUTTON_PRESS_L2:    dst.buttonMask |= GAMEPAD_MASK_L2;    break;
-        case GpioAction::BUTTON_PRESS_R2:    dst.buttonMask |= GAMEPAD_MASK_R2;    break;
-        case GpioAction::BUTTON_PRESS_S1:    dst.buttonMask |= GAMEPAD_MASK_S1;    break;
-        case GpioAction::BUTTON_PRESS_S2:    dst.buttonMask |= GAMEPAD_MASK_S2;    break;
-        case GpioAction::BUTTON_PRESS_L3:    dst.buttonMask |= GAMEPAD_MASK_L3;    break;
-        case GpioAction::BUTTON_PRESS_R3:    dst.buttonMask |= GAMEPAD_MASK_R3;    break;
-        case GpioAction::BUTTON_PRESS_A1:    dst.buttonMask |= GAMEPAD_MASK_A1;    break;
-        case GpioAction::BUTTON_PRESS_A2:    dst.buttonMask |= GAMEPAD_MASK_A2;    break;
-        case GpioAction::BUTTON_PRESS_A3:    dst.buttonMask |= GAMEPAD_MASK_A3;    break;
-        case GpioAction::BUTTON_PRESS_A4:    dst.buttonMask |= GAMEPAD_MASK_A4;    break;
-        case GpioAction::BUTTON_PRESS_E1:    dst.buttonMask |= GAMEPAD_MASK_E1;    break;
-        case GpioAction::BUTTON_PRESS_E2:    dst.buttonMask |= GAMEPAD_MASK_E2;    break;
-        case GpioAction::BUTTON_PRESS_E3:    dst.buttonMask |= GAMEPAD_MASK_E3;    break;
-        case GpioAction::BUTTON_PRESS_E4:    dst.buttonMask |= GAMEPAD_MASK_E4;    break;
-        case GpioAction::BUTTON_PRESS_E5:    dst.buttonMask |= GAMEPAD_MASK_E5;    break;
-        case GpioAction::BUTTON_PRESS_E6:    dst.buttonMask |= GAMEPAD_MASK_E6;    break;
-        case GpioAction::BUTTON_PRESS_E7:    dst.buttonMask |= GAMEPAD_MASK_E7;    break;
-        case GpioAction::BUTTON_PRESS_E8:    dst.buttonMask |= GAMEPAD_MASK_E8;    break;
-        case GpioAction::BUTTON_PRESS_E9:    dst.buttonMask |= GAMEPAD_MASK_E9;    break;
-        case GpioAction::BUTTON_PRESS_E10:   dst.buttonMask |= GAMEPAD_MASK_E10;   break;
-        case GpioAction::BUTTON_PRESS_E11:   dst.buttonMask |= GAMEPAD_MASK_E11;   break;
-        case GpioAction::BUTTON_PRESS_E12:   dst.buttonMask |= GAMEPAD_MASK_E12;   break;
-        case GpioAction::BUTTON_PRESS_FN:    dst.auxMask    |= AUX_MASK_FUNCTION;  break;
-        default:
-            dst.isComplex = true;
-            break;
-    }
-}
-
-static void applyBackComplex(Gamepad* gamepad, const GpioMappingInfo& m) {
-    switch (m.action) {
-        case GpioAction::ANALOG_DIRECTION_LS_X_NEG: gamepad->state.lx = GAMEPAD_JOYSTICK_MIN; break;
-        case GpioAction::ANALOG_DIRECTION_LS_X_POS: gamepad->state.lx = GAMEPAD_JOYSTICK_MAX; break;
-        case GpioAction::ANALOG_DIRECTION_LS_Y_NEG: gamepad->state.ly = GAMEPAD_JOYSTICK_MIN; break;
-        case GpioAction::ANALOG_DIRECTION_LS_Y_POS: gamepad->state.ly = GAMEPAD_JOYSTICK_MAX; break;
-        case GpioAction::ANALOG_DIRECTION_RS_X_NEG: gamepad->state.rx = GAMEPAD_JOYSTICK_MIN; break;
-        case GpioAction::ANALOG_DIRECTION_RS_X_POS: gamepad->state.rx = GAMEPAD_JOYSTICK_MAX; break;
-        case GpioAction::ANALOG_DIRECTION_RS_Y_NEG: gamepad->state.ry = GAMEPAD_JOYSTICK_MIN; break;
-        case GpioAction::ANALOG_DIRECTION_RS_Y_POS: gamepad->state.ry = GAMEPAD_JOYSTICK_MAX; break;
-        case GpioAction::MENU_NAVIGATION_UP:    EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_UP)); break;
-        case GpioAction::MENU_NAVIGATION_DOWN:  EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_DOWN)); break;
-        case GpioAction::MENU_NAVIGATION_LEFT:  EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_LEFT)); break;
-        case GpioAction::MENU_NAVIGATION_RIGHT: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_RIGHT)); break;
-        case GpioAction::MENU_NAVIGATION_SELECT: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_SELECT)); break;
-        case GpioAction::MENU_NAVIGATION_BACK:   EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_BACK)); break;
-        case GpioAction::MENU_NAVIGATION_TOGGLE: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_TOGGLE)); break;
-        default:
-            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9) {
-                gamepad->addonKeyboardKeyMask |= (1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE_BACK));
-            } else if (m.action == GpioAction::MOUSE_LEFT_BUTTON) {
-                gamepad->addonMouseButtonMask |= ADDON_MOUSE_LEFT_BIT;
-            } else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON) {
-                gamepad->addonMouseButtonMask |= ADDON_MOUSE_RIGHT_BIT;
-            } else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON) {
-                gamepad->addonMouseButtonMask |= ADDON_MOUSE_MIDDLE_BIT;
-            }
-            break;
-    }
-}
-
-static void clearBackComplex(Gamepad* gamepad, const GpioMappingInfo& m) {
-    switch (m.action) {
-        case GpioAction::ANALOG_DIRECTION_LS_X_NEG:
-        case GpioAction::ANALOG_DIRECTION_LS_X_POS:
-            gamepad->state.lx = GAMEPAD_JOYSTICK_MID; break;
-        case GpioAction::ANALOG_DIRECTION_LS_Y_NEG:
-        case GpioAction::ANALOG_DIRECTION_LS_Y_POS:
-            gamepad->state.ly = GAMEPAD_JOYSTICK_MID; break;
-        case GpioAction::ANALOG_DIRECTION_RS_X_NEG:
-        case GpioAction::ANALOG_DIRECTION_RS_X_POS:
-            gamepad->state.rx = GAMEPAD_JOYSTICK_MID; break;
-        case GpioAction::ANALOG_DIRECTION_RS_Y_NEG:
-        case GpioAction::ANALOG_DIRECTION_RS_Y_POS:
-            gamepad->state.ry = GAMEPAD_JOYSTICK_MID; break;
-        case GpioAction::MENU_NAVIGATION_UP:
-        case GpioAction::MENU_NAVIGATION_DOWN:
-        case GpioAction::MENU_NAVIGATION_LEFT:
-        case GpioAction::MENU_NAVIGATION_RIGHT:
-        case GpioAction::MENU_NAVIGATION_SELECT:
-        case GpioAction::MENU_NAVIGATION_BACK:
-        case GpioAction::MENU_NAVIGATION_TOGGLE:
-            break;
-        default:
-            if (m.action >= GpioAction::KEYBOARD_KEY_A && m.action <= GpioAction::KEYBOARD_KEY_9) {
-                gamepad->addonKeyboardKeyMask &= ~(1ULL << (static_cast<uint32_t>(m.action) - KEYBOARD_KEY_ACTION_BASE_BACK));
-            } else if (m.action == GpioAction::MOUSE_LEFT_BUTTON) {
-                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_LEFT_BIT;
-            } else if (m.action == GpioAction::MOUSE_RIGHT_BUTTON) {
-                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_RIGHT_BIT;
-            } else if (m.action == GpioAction::MOUSE_MIDDLE_BUTTON) {
-                gamepad->addonMouseButtonMask &= ~ADDON_MOUSE_MIDDLE_BIT;
-            }
-            break;
-    }
-}
+enum BackMapIndex : uint8_t {
+    LEFT_BACK1 = 0,
+    LEFT_BACK2 = 1,
+    RIGHT_BACK1 = 2,
+    RIGHT_BACK2 = 3,
+};
 
 bool BackButtonDividerAddon::available() {
     // 始终可用：由是否设置了背键映射决定是否实际输出
@@ -165,10 +38,19 @@ bool BackButtonDividerAddon::available() {
 
 void BackButtonDividerAddon::buildMappings() {
     const BackButtonAddonOptions& opts = Storage::getInstance().getAddonOptions().backButtonAddonOptions;
-    parseBackMapping(opts.leftBack1Mapping,  leftBack1);
-    parseBackMapping(opts.leftBack2Mapping,  leftBack2);
-    parseBackMapping(opts.rightBack1Mapping, rightBack1);
-    parseBackMapping(opts.rightBack2Mapping, rightBack2);
+    mapTable_.setCount(4);
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_BACK1)) {
+        ActionMappingCommon::parseActionMapping(opts.leftBack1Mapping, *entry);
+    }
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_BACK2)) {
+        ActionMappingCommon::parseActionMapping(opts.leftBack2Mapping, *entry);
+    }
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_BACK1)) {
+        ActionMappingCommon::parseActionMapping(opts.rightBack1Mapping, *entry);
+    }
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_BACK2)) {
+        ActionMappingCommon::parseActionMapping(opts.rightBack2Mapping, *entry);
+    }
 }
 
 void BackButtonDividerAddon::setup() {
@@ -180,54 +62,29 @@ void BackButtonDividerAddon::setup() {
         adcInitialized = true;
     }
     buildMappings();
+    outputScope_.reset();
+    ActionMappingCommon::resetDebounceLevel(leftDebounce_, -1);
+    ActionMappingCommon::resetDebounceLevel(rightDebounce_, -1);
 }
 
 void BackButtonDividerAddon::reinit() {
-    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
-    last_applied_count_ = 0;
     buildMappings();
-}
-
-void BackButtonDividerAddon::applyMapping(Gamepad* gamepad, const BackFastMapping& m) {
-    if (m.originalMapping == nullptr || m.originalMapping->action == GpioAction::NONE)
-        return;
-    gamepad->state.buttons |= m.buttonMask;
-    gamepad->state.dpad    |= m.dpadMask;
-    gamepad->state.aux     |= m.auxMask;
-    if (m.isComplex)
-        applyBackComplex(gamepad, *m.originalMapping);
+    outputScope_.reset();
+    ActionMappingCommon::resetDebounceLevel(leftDebounce_, -1);
+    ActionMappingCommon::resetDebounceLevel(rightDebounce_, -1);
 }
 
 void BackButtonDividerAddon::preprocess() {
-    if (!adcInitialized)
+    if (!adcInitialized) {
         return;
+    }
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
-
-    // 只清除上一帧本插件实际写入的输出，避免与 GPIO 等同键位冲突时误清
-    gamepad->state.buttons &= ~last_out_buttons_;
-    gamepad->state.dpad    &= ~last_out_dpad_;
-    gamepad->state.aux     &= ~last_out_aux_;
-    for (uint8_t i = 0; i < last_applied_count_; i++) {
-        const BackFastMapping* p = last_applied_[i];
-        if (p && p->isComplex && p->originalMapping)
-            clearBackComplex(gamepad, *p->originalMapping);
+    if (gamepad == nullptr) {
+        return;
     }
-    last_out_buttons_ = last_out_dpad_ = last_out_aux_ = 0;
-    last_applied_count_ = 0;
 
-    auto recordApplied = [&](const BackFastMapping& m) {
-        last_out_buttons_ |= m.buttonMask;
-        last_out_dpad_    |= m.dpadMask;
-        last_out_aux_     |= m.auxMask;
-        if (m.isComplex && last_applied_count_ < 4)
-            last_applied_[last_applied_count_++] = &m;
-    };
-
-    auto applyAndRecord = [&](const BackFastMapping& m) {
-        applyMapping(gamepad, m);
-        recordApplied(m);
-    };
+    outputScope_.beginFrame(gamepad);
 
     // 读取左侧（ADC0, GPIO26）
     adc_select_input(0);
@@ -243,52 +100,44 @@ void BackButtonDividerAddon::preprocess() {
         return 2;                          // 背键1+2
     };
 
-    int8_t candLeft  = classifyLevel(rawLeft);
-    int8_t candRight = classifyLevel(rawRight);
+    const int8_t candLeft = classifyLevel(rawLeft);
+    const int8_t candRight = classifyLevel(rawRight);
+    ActionMappingCommon::updateDebounceLevel(candLeft, leftDebounce_, BACK_DIVIDER_DEBOUNCE_FRAMES, true);
+    ActionMappingCommon::updateDebounceLevel(candRight, rightDebounce_, BACK_DIVIDER_DEBOUNCE_FRAMES, true);
 
-    auto updateDebounce = [](int8_t candidate, int8_t& stable, int8_t& pending, uint8_t& count) {
-        if (candidate == stable) {
-            count = 0;
+    auto applyByStableLevel = [&](int8_t level, uint8_t idx1, uint8_t idx2) {
+        if (level < 0) {
             return;
         }
-        if (candidate == pending) {
-            if (candidate == -1) {
-                // 无输出档位：一帧即可生效，避免长时间残留
-                stable = -1;
-                count = 0;
-            } else {
-                count++;
-                if (count >= BACK_DIVIDER_DEBOUNCE_FRAMES) {
-                    stable = pending;
-                    count = 0;
-                }
-            }
-        } else {
-            pending = candidate;
-            count = 1;
-        }
-    };
-
-    updateDebounce(candLeft,  leftStableLevel,  leftPendingLevel,  leftDebounceCount);
-    updateDebounce(candRight, rightStableLevel, rightPendingLevel, rightDebounceCount);
-
-    auto applyByStableLevel = [&](int8_t level, BackFastMapping& m1, BackFastMapping& m2) {
-        if (level < 0) return;       // 无输出
         if (level == 0) {
-            applyAndRecord(m2);
-        } else if (level == 1) {
-            applyAndRecord(m1);
-        } else { // 2 以及其他值都视作 1+2
-            applyAndRecord(m1);
-            applyAndRecord(m2);
+            const auto* m2 = mapTable_.at(idx2);
+            if (m2 != nullptr) {
+                outputScope_.apply(gamepad, *m2);
+            }
+            return;
+        }
+        if (level == 1) {
+            const auto* m1 = mapTable_.at(idx1);
+            if (m1 != nullptr) {
+                outputScope_.apply(gamepad, *m1);
+            }
+            return;
+        }
+        const auto* m1 = mapTable_.at(idx1);
+        const auto* m2 = mapTable_.at(idx2);
+        if (m1 != nullptr) {
+            outputScope_.apply(gamepad, *m1);
+        }
+        if (m2 != nullptr) {
+            outputScope_.apply(gamepad, *m2);
         }
     };
 
-    applyByStableLevel(leftStableLevel,  leftBack1,  leftBack2);
-    applyByStableLevel(rightStableLevel, rightBack1, rightBack2);
+    applyByStableLevel(leftDebounce_.stable, LEFT_BACK1, LEFT_BACK2);
+    applyByStableLevel(rightDebounce_.stable, RIGHT_BACK1, RIGHT_BACK2);
+    outputScope_.endFrame();
 }
 
 void BackButtonDividerAddon::process() {
     // 所有逻辑在 preprocess 中完成
 }
-
