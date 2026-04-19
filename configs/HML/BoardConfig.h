@@ -59,8 +59,8 @@
 #define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 CS
 #define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 SCK
 #define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 TX
-#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // CS-LSM6
-#define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON //D+
+#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // 外设
+#define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON // CS-LSM6（SPI0）
 #define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON //D-
 #define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON //SDA
 #define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON //SCL
