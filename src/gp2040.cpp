@@ -62,6 +62,7 @@ static uint64_t main_loop_last_frame_run_us = 0;
 static uint32_t main_loop_interval_us = 1000u;
 static bool main_loop_gate_enabled = false;
 static bool composite_hid_enabled = false;
+static const uint32_t MAIN_LOOP_GATE_IN_EVENT_TOLERANCE_MAX_US = 100u;
 static const uint32_t CPU_FREQ_ENHANCED_KHZ = 144000;
 static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
@@ -81,6 +82,15 @@ static inline bool shouldUseMainLoopGate() {
 		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B || inputMode == INPUT_MODE_SWITCH_PRO ||
 		 inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
 	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
+}
+
+static inline uint32_t getInEventMinFrameGapUs() {
+	// Allow up to 10% slack for IN-driven gating to tolerate host/device clock skew.
+	uint32_t toleranceUs = main_loop_interval_us / 10u;
+	if (toleranceUs > MAIN_LOOP_GATE_IN_EVENT_TOLERANCE_MAX_US) {
+		toleranceUs = MAIN_LOOP_GATE_IN_EVENT_TOLERANCE_MAX_US;
+	}
+	return (main_loop_interval_us > toleranceUs) ? (main_loop_interval_us - toleranceUs) : 0u;
 }
 
 const static uint32_t rebootDelayMs = 500;
@@ -428,12 +438,15 @@ void GP2040::run() {
 					main_loop_sof_t0_us = now_us;
 				}
 			}
+			uint32_t minFrameGapUs = runByInEvent ? getInEventMinFrameGapUs() : main_loop_interval_us;
 			if (runFrame && main_loop_last_frame_run_us != 0 &&
-			    (now_us - main_loop_last_frame_run_us) < main_loop_interval_us) {
+			    (now_us - main_loop_last_frame_run_us) < minFrameGapUs) {
 				runFrame = false;
 			}
 
 			if (!runFrame) {
+				// Keep host side polling responsive even when main-loop gate skips this frame.
+				USBHostManager::getInstance().process();
 				tud_task();
 				sleep_us(0);
 				continue;
