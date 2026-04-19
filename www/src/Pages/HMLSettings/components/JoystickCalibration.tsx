@@ -601,7 +601,7 @@ const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
 
 
 /**
- * Quantize raw ADC to nearest multiple of step (matches analog.cpp / mcp3208 getStickRaw).
+ * Quantize raw ADC to nearest multiple of step (matches firmware readJoystickADC / stick quantization).
  * step 0 = full 12-bit; step = 2^(16-b) from config.
  */
 const quantizeAdc = (adc: number, step: number, adcMax: number): number => {

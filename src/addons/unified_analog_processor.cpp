@@ -1,7 +1,6 @@
 #include "addons/unified_analog_processor.h"
 
 #include "addons/analog.h"
-#include "addons/mcp3208_adc.h"
 #include "addons/ads8332_adc.h"
 #include "config.pb.h"
 #include "drivermanager.h"
@@ -49,7 +48,6 @@ static int32_t computeJitterBoostDelta(float amplitudePercent, uint32_t fullScal
 bool UnifiedAnalogProcessorAddon::available() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     return addonOptions.analogOptions.enabled ||
-        addonOptions.mcp3208Options.enabled ||
         addonOptions.ads8332Options.enabled;
 }
 
@@ -69,10 +67,6 @@ void UnifiedAnalogProcessorAddon::resolveSource() {
     // stick0 => ANALOG_ADC_1_VRX/VRY, stick1 => ANALOG_ADC_2_VRX/VRY.
     if (addonOptions.ads8332Options.enabled) {
         source_ = StickSource::ADS8332;
-        return;
-    }
-    if (addonOptions.mcp3208Options.enabled) {
-        source_ = StickSource::MCP3208;
         return;
     }
     if (addonOptions.analogOptions.enabled) {
@@ -250,8 +244,6 @@ void UnifiedAnalogProcessorAddon::process() {
         // The sampler contract guarantees unified stick semantics across sources.
         if (source_ == StickSource::ADS8332) {
             hasSource = ADS8332ADCAddon::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
-        } else if (source_ == StickSource::MCP3208) {
-            hasSource = MCP3208ADCAddon::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
         } else if (source_ == StickSource::OnboardADC) {
             hasSource = AnalogInput::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
         }

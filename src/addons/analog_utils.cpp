@@ -1,6 +1,5 @@
 #include "addons/analog_utils.h"
 #include "addons/analog.h"  // For ADC_PIN_OFFSET definition
-#include "addons/mcp3208_adc.h"
 #include "addons/ads8332_adc.h"
 #include "storagemanager.h"
 #include "eventmanager.h"
@@ -20,17 +19,8 @@ bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMa
     adcMax = 0;
 
     // Match Core0 addon write priority for stick fields:
-    // ADS8332 -> MCP3208 -> Onboard ADC
+    // ADS8332 -> Onboard ADC
     if (ADS8332ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
-        return true;
-    }
-
-    uint16_t x16 = 0;
-    uint16_t y16 = 0;
-    if (MCP3208ADCAddon::getRawStickForWebConfig(stickNum, x16, y16)) {
-        x = x16;
-        y = y16;
-        adcMax = 4095u;
         return true;
     }
 

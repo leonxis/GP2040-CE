@@ -970,22 +970,13 @@ message AddonOptions
     optional HETriggerOptions heTriggerOptions = 30;
     optional LinearTriggerOptions linearTriggerOptions = 31;
     optional FnKeyMappingOptions fnKeyMappingOptions = 33;
-    optional MCP3208Options mcp3208Options = 34;
+    reserved 34;
     optional TwoKeyTouchpadOptions twoKeyTouchpadOptions = 37;
     optional LSM6DSROptions lsm6dsrOptions = 35;
     optional BackButtonAddonOptions backButtonAddonOptions = 38;
     // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz
     optional uint32 reportRate = 36 [default = 1000];
     optional ADS8332Options ads8332Options = 39;
-}
-
-// MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
-message MCP3208Options
-{
-    optional bool enabled = 1 [default = false];
-    optional int32 spiBlock = 2;
-    optional int32 csPin = 3;
-    optional int32 convstPin = 4;
 }
 
 // ADS8332 ADC: 仅实现基础摇杆输出（CH0/CH1/CH6/CH7 -> LX/LY/RY/RX）
@@ -1035,7 +1026,7 @@ message LSM6DSROptions
 
 message FnKeyMappingOptions
 {
-    // 左FN/右FN、左MT/右MT、Ext左/右扳机 均由 MCP3208 CH2/CH5 电压档位决定，无 GPIO 引脚
+    // 左FN/右FN、左MT/右MT、Ext左/右扳机 由外部分压电压档位（如 ADS8332 经 UnifiedVoltageSwitch）决定，无独立 GPIO 引脚
     optional GpioMappingInfo leftFnMapping = 1;
     optional GpioMappingInfo rightFnMapping = 2;
     optional GpioMappingInfo leftMtMapping = 3;

@@ -1,7 +1,6 @@
 #include "addons/unified_voltage_switch.h"
 
 #include "addons/ads8332_adc.h"
-#include "addons/mcp3208_adc.h"
 #include "config.pb.h"
 #include "gamepad.h"
 #include "gamepad/GamepadState.h"
@@ -21,32 +20,17 @@ static constexpr uint8_t MOUSE_MIDDLE_BIT = (1u << 2);
 
 bool UnifiedVoltageSwitchAddon::available() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    return addonOptions.mcp3208Options.enabled || addonOptions.ads8332Options.enabled;
+    return addonOptions.ads8332Options.enabled;
 }
 
 void UnifiedVoltageSwitchAddon::setup() {
-    resolveSource();
     buildMaps();
 }
 
 void UnifiedVoltageSwitchAddon::reinit() {
-    resolveSource();
     buildMaps();
     left_stable_level_ = left_pending_level_ = right_stable_level_ = right_pending_level_ = -1;
     left_debounce_count_ = right_debounce_count_ = 0;
-}
-
-void UnifiedVoltageSwitchAddon::resolveSource() {
-    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    if (addonOptions.ads8332Options.enabled) {
-        source_ = DividerSource::ADS8332;
-        return;
-    }
-    if (addonOptions.mcp3208Options.enabled) {
-        source_ = DividerSource::MCP3208;
-        return;
-    }
-    source_ = DividerSource::None;
 }
 
 uint16_t UnifiedVoltageSwitchAddon::scaledThreshold(float ratio, uint16_t adcMax) {
@@ -192,13 +176,7 @@ void UnifiedVoltageSwitchAddon::process() {
 
     uint16_t left = 0, right = 0, adcMax = 0;
     bool leftValid = false, rightValid = false;
-    bool hasSource = false;
-    // Divider semantics are source-agnostic: left/right are provided by sampler contract.
-    if (source_ == DividerSource::ADS8332) {
-        hasSource = ADS8332ADCAddon::getRawDividerForProcessor(left, right, adcMax, leftValid, rightValid);
-    } else if (source_ == DividerSource::MCP3208) {
-        hasSource = MCP3208ADCAddon::getRawDividerForProcessor(left, right, adcMax, leftValid, rightValid);
-    }
+    const bool hasSource = ADS8332ADCAddon::getRawDividerForProcessor(left, right, adcMax, leftValid, rightValid);
     if (!hasSource || adcMax == 0) {
         // Source became unavailable; clear previously latched outputs.
         applyLevels(-1, -1, gamepad);

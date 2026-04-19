@@ -21,26 +21,16 @@ class StickCalibrationScreen : public GPScreen {
         virtual void drawScreen();
     private:
         enum CalibrationState {
-            STATE_STICK1_TOP_LEFT,
-            STATE_STICK1_TOP_RIGHT,
-            STATE_STICK1_BOTTOM_LEFT,
-            STATE_STICK1_BOTTOM_RIGHT,
-            STATE_STICK2_TOP_LEFT,
-            STATE_STICK2_TOP_RIGHT,
-            STATE_STICK2_BOTTOM_LEFT,
-            STATE_STICK2_BOTTOM_RIGHT,
-            STATE_COMPLETE
+            STATE_PROMPT,
+            STATE_SAMPLING,
         };
-        
+
         CalibrationState currentState;
-        uint16_t calibrationValues[8]; // x1_tl, y1_tl, x1_tr, y1_tr, x1_bl, y1_bl, x1_br, y1_br
-        uint16_t calibrationValues2[8]; // x2_tl, y2_tl, x2_tr, y2_tr, x2_bl, y2_bl, x2_br, y2_br
         uint16_t prevButtonState;
-        
-        void readJoystickCenter(uint8_t stickNum, uint16_t& x, uint16_t& y);
-        void saveCalibration();
-        void getStateInfo(const char*& stickLabel, const char*& direction);
+
+        /** Average `sampleCount` ADC reads for one stick (plan: 5). */
+        void readJoystickCenter(uint8_t stickNum, uint16_t& x, uint16_t& y, int sampleCount);
+        void performDualStickCalibrationAndExit();
 };
 
 #endif
-

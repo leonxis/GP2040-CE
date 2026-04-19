@@ -204,7 +204,7 @@ void BackButtonDividerAddon::preprocess() {
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
 
-    // 只清除上一帧本插件实际写入的输出（与 MCP3208 CH2/CH5 思路一致），避免与 GPIO 等同键位冲突时误清
+    // 只清除上一帧本插件实际写入的输出，避免与 GPIO 等同键位冲突时误清
     gamepad->state.buttons &= ~last_out_buttons_;
     gamepad->state.dpad    &= ~last_out_dpad_;
     gamepad->state.aux     &= ~last_out_aux_;

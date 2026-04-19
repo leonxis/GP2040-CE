@@ -61,7 +61,7 @@ GP2040-CE 的插件（addon）分为在 **Core0 主循环**加载的输入/逻�
   - **与 Host/启动相关**：BootselButton、KeyboardHost、GamepadUSBHost（及 GamepadUSBHostListener）。认证仍通过 USB Host + Auth listener 完成，但不保留「键盘 Host」「第三方手柄 Host」插件。
   - **约定不移植的 Core0 插件**：HETriggerAddon、FocusModeAddon、I2CAnalog1219Input、SPIAnalog1256Input、PCF8575Addon、DualDirectionalInput、RotaryEncoderInput。
 - **需移植或条件编译保留的插件（原 Core0 addon）**
-  - 输入与逻辑类（在 `GP2040::setup()` 中加载、主循环 Preprocess/Process/Postprocess 中执行）：AnalogInput、MCP3208ADCAddon、LSM6DSRIMUAddon、LinearTriggerAddon、TwoKeyTouchpadAddon、WiiExtensionInput、SNESpadInput、SliderSOCDInput、TiltInput、TG16padInput、ReverseInput、TurboInput、InputMacro。
+  - 输入与逻辑类（在 `GP2040::setup()` 中加载、主循环 Preprocess/Process/Postprocess 中执行）：AnalogInput、ADS8332ADCAddon、LSM6DSRIMUAddon、LinearTriggerAddon、TwoKeyTouchpadAddon、WiiExtensionInput、SNESpadInput、SliderSOCDInput、TiltInput、TG16padInput、ReverseInput、TurboInput、InputMacro。
   - 移植时：将其中对 `hardware/*`、`pico/*` 的引用改为平台层或 `#ifdef PLATFORM_STM32` 实现；若某插件依赖 Pico 专有外设（如 PIO）或不再需要，可改为条件编译不加载。
 - **通用要求**
   - 所有**保留的 addon** 与 driver 需将 `#include "hardware/..."` 等改为平台抽象层或条件编译，以便在 STM32 上编译通过。

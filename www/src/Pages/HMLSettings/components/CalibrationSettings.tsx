@@ -12,7 +12,6 @@ import WebApi from '../../../Services/WebApi';
 import JoystickCalibration from './JoystickCalibration';
 import JoystickCurveSettings from './JoystickCurveSettings';
 import { analogScheme, analogState } from '../../../Addons/Analog';
-import { mcp3208Scheme, mcp3208State } from '../../../Addons/MCP3208';
 import { lsm6dsrScheme, lsm6dsrState } from '../../../Addons/LSM6DSR';
 import { bootselScheme, bootselState } from '../../../Addons/Bootsel';
 import { buzzerScheme, buzzerState } from '../../../Addons/Buzzer';
@@ -70,7 +69,6 @@ export type AddonPropTypes = {
 
 export const schema = yup.object().shape({
 	...analogScheme,
-	...mcp3208Scheme,
 	...lsm6dsrScheme,
 	...bootselScheme,
 	...onBoardLedScheme,
@@ -94,7 +92,6 @@ export const schema = yup.object().shape({
 
 export const DEFAULT_VALUES = {
 	...analogState,
-	...mcp3208State,
 	...lsm6dsrState,
 	...bootselState,
 	...onBoardLedState,

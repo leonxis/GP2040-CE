@@ -17,7 +17,6 @@
 #include "addons/unified_analog_processor.h"
 #include "addons/unified_voltage_switch.h"
 #include "addons/unified_joystick_travel_key.h"
-#include "addons/mcp3208_adc.h"
 #include "addons/ads8332_adc.h"
 #include "addons/lsm6dsr_imu.h"
 #include "addons/bootsel_button.h"
@@ -177,7 +176,6 @@ void GP2040::setup() {
 	addons.LoadUSBAddon(new KeyboardHostAddon());
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
 	addons.LoadAddon(new AnalogInput());
-	addons.LoadAddon(new MCP3208ADCAddon());
 	addons.LoadAddon(new ADS8332ADCAddon());
 	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
 	addons.LoadAddon(new UnifiedVoltageSwitchAddon());

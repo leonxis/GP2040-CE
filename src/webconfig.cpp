@@ -642,36 +642,6 @@ std::string setBackButtonAddonOptions() {
     return serialize_json(doc);
 }
 
-std::string getMCP3208Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(8);
-    DynamicJsonDocument doc(capacity);
-    const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
-    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    writeDoc(doc, "mcp3208Block", opts.spiBlock);
-    writeDoc(doc, "mcp3208CsPin", opts.csPin);
-    writeDoc(doc, "mcp3208ConvstPin", opts.convstPin);
-    return serialize_json(doc);
-}
-
-std::string setMCP3208Options() {
-    DynamicJsonDocument doc = get_post_data();
-    MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
-    docToValue(opts.enabled, doc, "enabled");
-    docToValue(opts.spiBlock, doc, "mcp3208Block");
-    Pin_t oldCsPin = opts.csPin;
-    docToValue(opts.csPin, doc, "mcp3208CsPin");
-    Pin_t csPinRef = opts.csPin;
-    cleanAddonGpioMappings(csPinRef, oldCsPin);
-    opts.csPin = (int8_t)csPinRef;
-    Pin_t oldConvstPin = opts.convstPin;
-    docToValue(opts.convstPin, doc, "mcp3208ConvstPin");
-    Pin_t convstPinRef = opts.convstPin;
-    cleanAddonGpioMappings(convstPinRef, oldConvstPin);
-    opts.convstPin = (int8_t)convstPinRef;
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
 std::string getADS8332Options() {
     const size_t capacity = JSON_OBJECT_SIZE(8);
     DynamicJsonDocument doc(capacity);
@@ -2343,19 +2313,6 @@ std::string setAddonOptions()
     GamepadUSBHostOptions& gamepadUSBHostOptions = Storage::getInstance().getAddonOptions().gamepadUSBHostOptions;
     docToValue(gamepadUSBHostOptions.enabled, doc, "GamepadUSBHostAddonEnabled");
 
-    MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
-    docToValue(mcp3208Options.enabled, doc, "MCP3208AddonEnabled");
-    docToValue(mcp3208Options.spiBlock, doc, "mcp3208Block");
-    {
-        Pin_t csPin = (Pin_t)mcp3208Options.csPin;
-        docToPin(csPin, doc, "mcp3208CsPin");
-        mcp3208Options.csPin = (int8_t)csPin;
-    }
-    {
-        Pin_t convstPin = (Pin_t)mcp3208Options.convstPin;
-        docToPin(convstPin, doc, "mcp3208ConvstPin");
-        mcp3208Options.convstPin = (int8_t)convstPin;
-    }
     ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
     docToValue(ads8332Options.enabled, doc, "ADS8332AddonEnabled");
     docToValue(ads8332Options.spiBlock, doc, "ads8332Block");
@@ -2897,11 +2854,6 @@ std::string getAddonOptions()
     }
     // EMA smoothing removed - no longer used
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
-    const MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
-    writeDoc(doc, "MCP3208AddonEnabled", mcp3208Options.enabled ? 1 : 0);
-    writeDoc(doc, "mcp3208Block", mcp3208Options.spiBlock);
-    writeDoc(doc, "mcp3208CsPin", mcp3208Options.csPin);
-    writeDoc(doc, "mcp3208ConvstPin", mcp3208Options.convstPin);
     const ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "ADS8332AddonEnabled", ads8332Options.enabled ? 1 : 0);
     writeDoc(doc, "ads8332Block", ads8332Options.spiBlock);
@@ -3432,7 +3384,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setDisplayOptions", setDisplayOptions },
     { "/api/setTwoKeyTouchpadOptions", setTwoKeyTouchpadOptions },
     { "/api/setBackButtonAddonOptions", setBackButtonAddonOptions },
-    { "/api/setMCP3208Options", setMCP3208Options },
     { "/api/setADS8332Options", setADS8332Options },
     { "/api/setLSM6DSROptions", setLSM6DSROptions },
     { "/api/setFnKeyMappingOptions", setFnKeyMappingOptions },
@@ -3465,7 +3416,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getDisplayOptions", getDisplayOptions },
     { "/api/getTwoKeyTouchpadOptions", getTwoKeyTouchpadOptions },
     { "/api/getBackButtonAddonOptions", getBackButtonAddonOptions },
-    { "/api/getMCP3208Options", getMCP3208Options },
     { "/api/getADS8332Options", getADS8332Options },
     { "/api/getLSM6DSROptions", getLSM6DSROptions },
     { "/api/getLSM6DSRImuData", getLSM6DSRImuData },

@@ -34,7 +34,6 @@
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
-#include "addons/mcp3208_adc.h"
 #include "addons/ads8332_adc.h"
 #include "addons/lsm6dsr_imu.h"
 #include "addons/tg16_input.h"
@@ -1065,26 +1064,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerMaxRaw, 0);
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerMaxRaw, 0);
 #endif
- #if defined(MCP3208_DEFAULT_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, MCP3208_DEFAULT_ENABLED);
- #else
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, 1);
- #endif
- #if defined(MCP3208_DEFAULT_SPI_BLOCK)
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, spiBlock, MCP3208_DEFAULT_SPI_BLOCK);
- #else
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, spiBlock, 0);
- #endif
- #if defined(MCP3208_DEFAULT_CS_PIN)
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, csPin, MCP3208_DEFAULT_CS_PIN);
- #else
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, csPin, 1);
- #endif
-#if defined(MCP3208_DEFAULT_CONVST_PIN)
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, convstPin, MCP3208_DEFAULT_CONVST_PIN);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, convstPin, -1);
-#endif
  #if defined(ADS8332_DEFAULT_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, ADS8332_DEFAULT_ENABLED);
  #else
@@ -1769,8 +1748,6 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed(config.addonOptions.heTriggerOptions.selectPin3);
     }
 
-    markAddonPinIfUsed((Pin_t)config.addonOptions.mcp3208Options.csPin);
-    markAddonPinIfUsed((Pin_t)config.addonOptions.mcp3208Options.convstPin);
     markAddonPinIfUsed((Pin_t)config.addonOptions.ads8332Options.csPin);
     markAddonPinIfUsed((Pin_t)config.addonOptions.ads8332Options.convstPin);
     markAddonPinIfUsed((Pin_t)config.addonOptions.lsm6dsrOptions.csPin);

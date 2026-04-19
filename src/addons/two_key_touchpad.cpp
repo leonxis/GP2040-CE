@@ -201,7 +201,7 @@ void TwoKeyTouchpadAddon::preprocess() {
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
 
-    // ① 只清除上一帧本插件实际写入的输出（与背键分压/MCP3208 CH2/CH5 思路一致）
+    // ① 只清除上一帧本插件实际写入的输出（与背键分压等电压映射插件思路一致）
     gamepad->state.buttons &= ~last_out_buttons_;
     gamepad->state.dpad    &= ~last_out_dpad_;
     gamepad->state.aux     &= ~last_out_aux_;

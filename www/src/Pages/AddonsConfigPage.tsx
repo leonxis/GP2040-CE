@@ -13,7 +13,6 @@ import { hexToInt } from '../Services/Utilities';
 
 import WebApi from '../Services/WebApi';
 import Analog, { analogScheme, analogState } from '../Addons/Analog';
-import MCP3208, { mcp3208Scheme, mcp3208State } from '../Addons/MCP3208';
 import ADS8332, { ads8332Scheme, ads8332State } from '../Addons/ADS8332';
 import LSM6DSR, { lsm6dsrScheme, lsm6dsrState } from '../Addons/LSM6DSR';
 import Bootsel, { bootselScheme, bootselState } from '../Addons/Bootsel';
@@ -67,7 +66,6 @@ export type AddonPropTypes = {
 
 const schema = yup.object().shape({
 	...analogScheme,
-	...mcp3208Scheme,
 	...ads8332Scheme,
 	...lsm6dsrScheme,
 	...bootselScheme,
@@ -91,7 +89,6 @@ const schema = yup.object().shape({
 
 export const DEFAULT_VALUES = {
 	...analogState,
-	...mcp3208State,
 	...ads8332State,
 	...lsm6dsrState,
 	...bootselState,
@@ -121,7 +118,6 @@ const ADDONS = [
 	Analog,
 	Turbo,
 	Reverse,
-	MCP3208,
 	ADS8332,
 	LSM6DSR,
 	DualDirection,

@@ -25,14 +25,7 @@ public:
     virtual std::string name() { return UnifiedVoltageSwitchName; }
 
 private:
-    enum class DividerSource : uint8_t {
-        None = 0,
-        ADS8332,
-        MCP3208,
-    };
-
     void buildMaps();
-    void resolveSource();
     void applyLevels(int leftLevel, int rightLevel, class Gamepad* gamepad);
     static void gpioMappingToMasks(const GpioMappingInfo& mapping, uint32_t* outButtons, uint32_t* outDpad);
     static void fillEntryFromMapping(VoltageSwitchEntry& entry, const GpioMappingInfo& mapping, uint32_t buttonMask, uint32_t dpadMask);
@@ -55,7 +48,6 @@ private:
     uint32_t last_right_dpad_ = 0;
     uint64_t last_right_keyboard_ = 0;
     uint8_t last_right_mouse_ = 0;
-    DividerSource source_ = DividerSource::None;
 };
 
 #endif
