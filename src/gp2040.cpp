@@ -51,6 +51,7 @@
 
 // USB Input Class Drivers
 #include "drivermanager.h"
+#include "usbdriver.h"
 
 static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
@@ -71,15 +72,14 @@ static const uint8_t WEBCONFIG_RUNTIME_GPIO_A = 19;
 static const uint8_t WEBCONFIG_RUNTIME_GPIO_B = 13;
 static const uint8_t WEBCONFIG_RUNTIME_GPIO_C = 14;
 
-extern uint32_t get_usb_sof_count(void);
-extern uint32_t get_usb_hid_gamepad_in_complete_count(void);
 extern void processCompositeHID(Gamepad *gamepad);
 
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const InputMode inputMode = DriverManager::getInstance().getInputMode();
 	const bool supportedMode =
-		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B || inputMode == INPUT_MODE_SWITCH_PRO);
+		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B || inputMode == INPUT_MODE_SWITCH_PRO ||
+		 inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
 	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
 }
 
@@ -407,7 +407,7 @@ void GP2040::run() {
 			bool runFrame = false;
 			bool runByInEvent = false;
 			uint64_t now_us = time_us_64();
-			uint32_t inCount = get_usb_hid_gamepad_in_complete_count();
+			uint32_t inCount = get_usb_main_gamepad_in_complete_count();
 			if (inCount != main_loop_last_in_complete_count) {
 				runFrame = true;
 				runByInEvent = true;

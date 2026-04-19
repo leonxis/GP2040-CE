@@ -22,7 +22,8 @@
 static bool usb_mounted;
 static bool usb_suspended;
 static volatile uint32_t usb_sof_count = 0;
-static volatile uint32_t usb_hid_gamepad_in_complete_count = 0;
+// Main-loop gate: HID gamepad (non-XInput modes) + XInput vendor IN completions.
+static volatile uint32_t usb_main_gamepad_in_complete_count = 0;
 static uint8_t compositeHIDInstance = 0xFF;
 
 // Global variable to track current interface for get_report callback
@@ -165,8 +166,16 @@ uint32_t get_usb_sof_count(void) {
 	return usb_sof_count;
 }
 
+uint32_t get_usb_main_gamepad_in_complete_count(void) {
+	return usb_main_gamepad_in_complete_count;
+}
+
 uint32_t get_usb_hid_gamepad_in_complete_count(void) {
-	return usb_hid_gamepad_in_complete_count;
+	return get_usb_main_gamepad_in_complete_count();
+}
+
+void usb_notify_main_gamepad_in_xfer_complete_from_xinput(void) {
+	usb_main_gamepad_in_complete_count++;
 }
 
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *driver_count) {
@@ -196,12 +205,19 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 // Invoked when an IN report transfer is completed on HID endpoint.
 // Track only gamepad HID interface instance (0) to avoid keyboard/mouse events
 // perturbing main-loop cadence.
+// XINPUT / XINPUTB: main gamepad uses vendor IN, not HID; do not count any HID
+// completes (including composite keyboard/mouse) for the gate.
 void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len) {
 	(void)report;
 	(void)len;
-	if (instance == 0) {
-		usb_hid_gamepad_in_complete_count++;
+	if (instance != 0) {
+		return;
 	}
+	const InputMode mode = DriverManager::getInstance().getInputMode();
+	if (mode == INPUT_MODE_XINPUT || mode == INPUT_MODE_XINPUTB) {
+		return;
+	}
+	usb_main_gamepad_in_complete_count++;
 }
 
 // Invoked every USB SOF (1ms on full-speed) when enabled by tud_sof_cb_enable(true).

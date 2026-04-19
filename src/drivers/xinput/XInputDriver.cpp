@@ -6,6 +6,7 @@
 #include "drivers/xinput/XInputDriver.h"
 #include "drivers/shared/driverhelper.h"
 #include "storagemanager.h"
+#include "usbdriver.h"
 
 #define USB_SETUP_DEVICE_TO_HOST 0x80
 #define USB_SETUP_HOST_TO_DEVICE 0x00
@@ -114,8 +115,11 @@ static bool xinput_control_complete(uint8_t rhport, tusb_control_request_t const
 static bool xinput_xfer_callback(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
     (void)rhport;
-    (void)result;
     (void)xferred_bytes;
+
+    if (ep_addr == endpoint_in && endpoint_in != 0 && result == XFER_RESULT_SUCCESS) {
+        usb_notify_main_gamepad_in_xfer_complete_from_xinput();
+    }
 
     if (ep_addr == endpoint_out)
         usbd_edpt_xfer(0, endpoint_out, xinput_out_buffer, XINPUT_OUT_SIZE);
