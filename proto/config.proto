@@ -970,7 +970,6 @@ message AddonOptions
     optional HETriggerOptions heTriggerOptions = 30;
     optional LinearTriggerOptions linearTriggerOptions = 31;
     optional FnKeyMappingOptions fnKeyMappingOptions = 33;
-    reserved 34;
     optional TwoKeyTouchpadOptions twoKeyTouchpadOptions = 37;
     optional LSM6DSROptions lsm6dsrOptions = 35;
     optional BackButtonAddonOptions backButtonAddonOptions = 38;
