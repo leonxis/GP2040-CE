@@ -19,6 +19,7 @@
 #define FRAME_MAX 100
 #define CHASE_LIGHTS_TURN_ON 4
 const RGB AMBIENT_DEFAULT_COLOR = ColorOrange;
+constexpr float AMBIENT_GRADIENT_MIN_STEP = 0.5f;
 
 const std::string BUTTON_LABEL_UP = "Up";
 const std::string BUTTON_LABEL_DOWN = "Down";
@@ -312,8 +313,8 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 
 	// Start-up Animations in Haute were here
 	switch(options.ambientLightEffectsCountIndex) {
-		case AL_CUSTOM_EFFECT_GRADIENT: 
-			alFrameToRGB = 255 - alCurrentFrame; // From 0 -> 255 to 255 -> 0
+		case AL_CUSTOM_EFFECT_GRADIENT: {
+			alFrameToRGB = 255 - static_cast<int>(alCurrentFrame); // From 0 -> 255 to 255 -> 0
 			if(alFrameToRGB < 85) { // Less than 85, transitions from red to yellow. The red component starts at 255 and gradually decreases, the green component always reaches 0, and the blue component starts at 0 and increases gradually.
 				ambientLight.r = 255 - alFrameToRGB * 3;
 				ambientLight.g = 0;
@@ -330,16 +331,19 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 				ambientLight.b = 0;
 			}
 			// Reverse color cycle if we hit the end of our cycle change
+			const float gradientStep = (options.ambientLightGradientSpeed == 0)
+				? AMBIENT_GRADIENT_MIN_STEP
+				: static_cast<float>(options.ambientLightGradientSpeed) / 10.0f;
 			if (alReverse) {
-				alCurrentFrame -= options.ambientLightGradientSpeed;
+				alCurrentFrame -= gradientStep;
 				if(alCurrentFrame < 0) {
-					alCurrentFrame = 1;
+					alCurrentFrame = AMBIENT_GRADIENT_MIN_STEP;
 					alReverse = false;
 				}
 			} else {
-				alCurrentFrame += options.ambientLightGradientSpeed;
+				alCurrentFrame += gradientStep;
 				if(alCurrentFrame > 255) {
-					alCurrentFrame = 254;
+					alCurrentFrame = 255.0f - AMBIENT_GRADIENT_MIN_STEP;
 					alReverse = true;
 				}
 			}
@@ -348,6 +352,7 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 				frame[alStartIndex + i] = ambientLight.value(Animation::format, options.alGradientBrightnessCustomX);
 			}
 			break;
+		}
 		case AL_CUSTOM_EFFECT_CHASE: 
 			if(time_reached(nextRunTimeAmbientLight)){
 				alFrameToRGB = 255 - alCurrentFrame; // 从 0 -> 255 变为 255 -> 0
@@ -401,14 +406,15 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 			}
 			break;
 		case AL_CUSTOM_EFFECT_BREATH: {
+			const float breathStep = options.ambientLightBreathSpeed * 0.5f;
 			if(alReverse) {
-				alBrightnessBreathX += options.ambientLightBreathSpeed;
+				alBrightnessBreathX += breathStep;
 				if(alBrightnessBreathX > 1.00f){
 					alBrightnessBreathX = 1.00f;
 					alReverse = false;
 				}
 			} else {
-				alBrightnessBreathX -= options.ambientLightBreathSpeed;
+				alBrightnessBreathX -= breathStep;
 				if(alBrightnessBreathX < 0.00f){
 					alBrightnessBreathX = 0.00f;
 					alReverse = true;
