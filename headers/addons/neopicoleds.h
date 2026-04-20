@@ -257,7 +257,7 @@ private:
     // Ambient neopico leds
 	float alBrightnessBreathX;
 	bool alReverse;
-	int alCurrentFrame;
+	float alCurrentFrame;
 	int alFrameToRGB;
 	int alFrameSpeed;
     RGB ambientLight;

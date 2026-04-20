@@ -14,6 +14,11 @@ const AMBIENT_EFFECTS = {
 	STATIC_RGB: 4,
 };
 
+const GRADIENT_SPEED_UI_MIN = 0.1;
+const GRADIENT_SPEED_UI_MAX = 1;
+const BREATH_SPEED_UI_MIN = 0.1;
+const BREATH_SPEED_UI_MAX = 1;
+
 export default function HardwareConfig() {
 	const navigate = useNavigate();
 	const { t } = useTranslation();
@@ -36,7 +41,6 @@ export default function HardwareConfig() {
 	const [reportRate, setReportRate] = useState(1000);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
-		brightnessMaximum: 255,
 		ledFormat: 0,
 		ledLayout: 0,
 		ledsPerButton: 2,
@@ -45,11 +49,11 @@ export default function HardwareConfig() {
 		ambientLightEffectsCountIndex: AMBIENT_EFFECTS.STATIC_RGB,
 		ambientColor: '#ffa500',
 		alStaticBrightnessCustomThemeX: 1,
-		ambientLightGradientSpeed: 2,
+		ambientLightGradientSpeed: 0.2,
 		alGradientBrightnessCustomX: 1,
 		ambientLightChaseSpeed: 100,
 		alChaseBrightnessCustomX: 1,
-		ambientLightBreathSpeed: 0.01,
+		ambientLightBreathSpeed: 0.1,
 	});
 
 	const [hostSaveMessage, setHostSaveMessage] = useState('');
@@ -100,7 +104,6 @@ export default function HardwareConfig() {
 				
 				setLedOptions({
 					dataPin: led.dataPin !== undefined ? led.dataPin : -1,
-					brightnessMaximum: led.brightnessMaximum || 255,
 					ledFormat: led.ledFormat || 0,
 					ledLayout: led.ledLayout || 0,
 					ledsPerButton: led.ledsPerButton || 2,
@@ -112,12 +115,24 @@ export default function HardwareConfig() {
 					ambientColor: ambient?.ambientColor || '#ffa500',
 					alStaticBrightnessCustomThemeX:
 						ambient?.alStaticBrightnessCustomThemeX ?? 1,
-					ambientLightGradientSpeed: ambient?.ambientLightGradientSpeed ?? 2,
+					ambientLightGradientSpeed: Math.max(
+						GRADIENT_SPEED_UI_MIN,
+						Math.min(
+							GRADIENT_SPEED_UI_MAX,
+							Number(ambient?.ambientLightGradientSpeed || 2) / 10,
+						),
+					),
 					alGradientBrightnessCustomX:
 						ambient?.alGradientBrightnessCustomX ?? 1,
 					ambientLightChaseSpeed: ambient?.ambientLightChaseSpeed ?? 100,
 					alChaseBrightnessCustomX: ambient?.alChaseBrightnessCustomX ?? 1,
-					ambientLightBreathSpeed: ambient?.ambientLightBreathSpeed ?? 0.01,
+					ambientLightBreathSpeed: Math.max(
+						BREATH_SPEED_UI_MIN,
+						Math.min(
+							BREATH_SPEED_UI_MAX,
+							Number(ambient?.ambientLightBreathSpeed || 0.01) * 10,
+						),
+					),
 				});
 			} catch (error) {
 				console.error('Failed to fetch hardware config:', error);
@@ -173,7 +188,6 @@ export default function HardwareConfig() {
 			const dataToSave = {
 				...currentLedOptions,
 				dataPin: ledOptions.dataPin,
-				brightnessMaximum: ledOptions.brightnessMaximum,
 				ledFormat: ledOptions.ledFormat,
 				ledLayout: ledOptions.ledLayout,
 				ledsPerButton: ledOptions.ledsPerButton,
@@ -182,6 +196,11 @@ export default function HardwareConfig() {
 			const ambientToSave = {
 				...ambientOptions,
 				ambientColor: ambientOptions.ambientColor || '#ffa500',
+				ambientLightGradientSpeed: Math.round(
+					ambientOptions.ambientLightGradientSpeed * 10,
+				),
+				ambientLightBreathSpeed:
+					ambientOptions.ambientLightBreathSpeed / 10,
 			};
 
 			const ledSaved = await WebApi.setLedOptions(dataToSave);
@@ -362,7 +381,7 @@ export default function HardwareConfig() {
 								onChange={(e) => {
 									setLedOptions((prev) => ({
 										...prev,
-										dataPin: e.target.checked ? (prev.dataPin === -1 ? 16 : prev.dataPin) : -1,
+										dataPin: e.target.checked ? (prev.dataPin === -1 ? 20 : prev.dataPin) : -1,
 									}));
 								}}
 							/>
@@ -496,13 +515,14 @@ export default function HardwareConfig() {
 									</label>
 									<input
 										type="range"
-										min="1"
-										max="6"
+										min={GRADIENT_SPEED_UI_MIN}
+										max={GRADIENT_SPEED_UI_MAX}
+										step="0.1"
 										value={ambientOptions.ambientLightGradientSpeed}
 										onChange={(e) =>
 											setAmbientOptions((prev) => ({
 												...prev,
-												ambientLightGradientSpeed: Number(e.target.value),
+												ambientLightGradientSpeed: parseFloat(e.target.value),
 											}))
 										}
 										style={{ flex: 1 }}
@@ -539,11 +559,11 @@ export default function HardwareConfig() {
 										type="range"
 										min="0"
 										max="100"
-										value={ambientOptions.ambientLightChaseSpeed}
+										value={100 - ambientOptions.ambientLightChaseSpeed}
 										onChange={(e) =>
 											setAmbientOptions((prev) => ({
 												...prev,
-												ambientLightChaseSpeed: Number(e.target.value),
+												ambientLightChaseSpeed: 100 - Number(e.target.value),
 											}))
 										}
 										style={{ flex: 1 }}
@@ -559,39 +579,20 @@ export default function HardwareConfig() {
 								</label>
 								<input
 									type="range"
-									min="1"
-									max="5"
-									step="1"
-									value={Math.round((ambientOptions.ambientLightBreathSpeed || 0.01) * 100)}
+									min={BREATH_SPEED_UI_MIN}
+									max={BREATH_SPEED_UI_MAX}
+									step="0.1"
+									value={ambientOptions.ambientLightBreathSpeed}
 									onChange={(e) =>
 										setAmbientOptions((prev) => ({
 											...prev,
-											ambientLightBreathSpeed: Number(e.target.value) / 100,
+											ambientLightBreathSpeed: parseFloat(e.target.value),
 										}))
 									}
 									style={{ flex: 1 }}
 								/>
 							</div>
 						)}
-
-						{/* 亮度调节滑块 */}
-						<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
-							<label style={{ minWidth: '80px' }}>{t('SettingsPage:hml-brightness-label')}</label>
-							<input
-								type="range"
-								min="0"
-								max="255"
-								value={ledOptions.brightnessMaximum}
-								onChange={(e) => {
-									setLedOptions((prev) => ({
-										...prev,
-										brightnessMaximum: parseInt(e.target.value, 10),
-									}));
-								}}
-								style={{ flex: 1 }}
-							/>
-							<span style={{ minWidth: '50px', textAlign: 'right' }}>{ledOptions.brightnessMaximum}</span>
-						</div>
 
 						{/* 保存按键 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
