@@ -230,7 +230,34 @@ export default function GyroSettings({
 						<option value={LSM6DSR_OUTPUT_MOUSE}>{t('CalibrationSettings:gyro-mode-mouse')}</option>
 					</Form.Select>
 				</div>
-				{/* 1 行 2 列：生效方式 */}
+				{/* 1 行 2 列：校准陀螺仪、水平面校准、查看陀螺仪 */}
+				<div style={{ width: '100%' }}>
+					<Form.Label className="mb-0">&nbsp;</Form.Label>
+					<div className="mt-1" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+						<Button variant="primary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={handleCalibrate}>
+							{t('CalibrationSettings:gyro-calibrate-button')}
+						</Button>
+						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={handleCalibrateAccel}>
+							{t('CalibrationSettings:gyro-accel-calibrate-button')}
+						</Button>
+						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={() => setShowGyroModal(true)}>
+							{t('CalibrationSettings:gyro-view-gyro-button')}
+						</Button>
+					</div>
+				</div>
+				{/* 1 行 3 列：一欧元滤波开关 */}
+				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-one-euro-filter-label')}</Form.Label>
+					<Form.Check
+						type="switch"
+						id="lsm6dsrOneEuroFilterEnabled"
+						label=""
+						checked={oneEuroFilterEnabled}
+						onChange={() => setFieldValue('lsm6dsrOneEuroFilterEnabled', oneEuroFilterEnabled ? 0 : 1)}
+						className="mt-1"
+					/>
+				</div>
+				{/* 2 行 1 列：生效方式 */}
 				<div style={{ width: '100%' }}>
 					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-mode-label-short')}</Form.Label>
 					<Form.Select
@@ -245,7 +272,7 @@ export default function GyroSettings({
 						<option value={GYRO_ENGAGE_PAUSE_ON_KEY}>{t('CalibrationSettings:gyro-engage-pause-on-key')}</option>
 					</Form.Select>
 				</div>
-				{/* 2 行 1 列：生效按键 */}
+				{/* 2 行 2 列：生效按键 */}
 				<div style={{ width: '100%' }}>
 					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-engage-keys-label-short')}</Form.Label>
 					<div className="mt-1" style={{ width: '350px' }}>
@@ -260,48 +287,23 @@ export default function GyroSettings({
 						/>
 					</div>
 				</div>
-				{/* 2 行 2 列：校准陀螺仪、水平面校准、查看陀螺仪 */}
-				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
-					<Form.Label className="mb-0">&nbsp;</Form.Label>
-					<div className="mt-1" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-						<Button variant="primary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={handleCalibrate}>
-							{t('CalibrationSettings:gyro-calibrate-button')}
-						</Button>
-						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={handleCalibrateAccel}>
-							{t('CalibrationSettings:gyro-accel-calibrate-button')}
-						</Button>
-						<Button variant="outline-secondary" size="sm" style={{ width: GYRO_BUTTON_WIDTH }} onClick={() => setShowGyroModal(true)}>
-							{t('CalibrationSettings:gyro-view-gyro-button')}
-						</Button>
-					</div>
-					{calibrateMessage ? (
-						<span
-							className={
-								calibrateOk === false
-									? 'text-danger'
-									: calibrateOk === true
-										? 'text-success'
-										: 'text-muted'
-							}
-							style={{ fontSize: '0.875rem' }}
-						>
-							{calibrateMessage}
-						</span>
-					) : null}
-				</div>
-				{/* 2 行 3 列：一欧元滤波开关 */}
-				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-one-euro-filter-label')}</Form.Label>
-					<Form.Check
-						type="switch"
-						id="lsm6dsrOneEuroFilterEnabled"
-						label=""
-						checked={oneEuroFilterEnabled}
-						onChange={() => setFieldValue('lsm6dsrOneEuroFilterEnabled', oneEuroFilterEnabled ? 0 : 1)}
-						className="mt-1"
-					/>
-				</div>
 			</div>
+			{calibrateMessage ? (
+				<div style={{ marginTop: '-8px', marginBottom: '12px' }}>
+					<span
+						className={
+							calibrateOk === false
+								? 'text-danger'
+								: calibrateOk === true
+									? 'text-success'
+									: 'text-muted'
+						}
+						style={{ fontSize: '0.875rem' }}
+					>
+						{calibrateMessage}
+					</span>
+				</div>
+			) : null}
 
 					{/* 查看陀螺仪模态框：调试信息移入此处 */}
 					<Modal show={showGyroModal} onHide={() => setShowGyroModal(false)} size="lg" centered>
