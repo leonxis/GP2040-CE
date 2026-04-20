@@ -400,7 +400,7 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 				}
 			}
 			break;
-		case AL_CUSTOM_EFFECT_BREATH:
+		case AL_CUSTOM_EFFECT_BREATH: {
 			if(alReverse) {
 				alBrightnessBreathX += options.ambientLightBreathSpeed;
 				if(alBrightnessBreathX > 1.00f){
@@ -423,6 +423,7 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 				frame[alStartIndex + i] = ambientLight.value(Animation::format, alBrightnessBreathX);
 			}
 			break;
+		}
 		case AL_CUSTOM_EFFECT_STATIC_THEME: {
 			// Static ambient mode uses a configurable RGB color.
 			const uint32_t configuredColor = options.alCustomStaticColorIndex == 0
