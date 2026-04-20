@@ -37,7 +37,6 @@ export default {
 	'gyro-mouse-sens-ud-label': '上下灵敏度',
 	'gyro-enable-label': '启用陀螺仪',
 	'gyro-mouse-deadzone-label': '鼠标死区',
-	'gyro-spike-filter-label': '尖峰滤波',
 	'gyro-one-euro-filter-label': '一欧元滤波',
 	'gyro-accel-calibrate-button': '水平面校准',
 

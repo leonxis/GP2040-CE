@@ -37,7 +37,6 @@ export default {
 	'gyro-mouse-sens-ud-label': 'Up/down sensitivity',
 	'gyro-enable-label': 'Enable gyro',
 	'gyro-mouse-deadzone-label': 'Mouse deadzone',
-	'gyro-spike-filter-label': 'Spike filter',
 	'gyro-one-euro-filter-label': 'One Euro filter',
 	'gyro-accel-calibrate-button': 'Calibrate accelerometer (level)',
 

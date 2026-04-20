@@ -37,7 +37,6 @@ export default {
 	'gyro-mouse-sens-ud-label': '上下感度',
 	'gyro-enable-label': 'ジャイロを有効',
 	'gyro-mouse-deadzone-label': 'マウスデッドゾーン',
-	'gyro-spike-filter-label': 'スパイクフィルタ',
 	'gyro-one-euro-filter-label': 'One Euroフィルタ',
 	'gyro-accel-calibrate-button': '加速度（水平）をキャリブレーション',
 

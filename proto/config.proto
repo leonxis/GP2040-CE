@@ -1004,8 +1004,7 @@ message LSM6DSROptions
     optional bool calibrateGyroRequested = 8 [default = false];
     optional int32 engageMode = 9 [default = 0];   // 0=always, 1=on_key, 2=pause_on_key
     repeated int32 gyroEngageKeys = 10 [(nanopb).max_count = 16];
-    optional bool gyroSpikeFilterEnabled = 12 [default = false];  // 尖峰滤波：变化率限制，抑制微动开关震动引起的短时尖峰
-    optional bool gyroOneEuroFilterEnabled = 13 [default = true];  // 一欧元滤波：低通平滑，在尖峰滤波之后应用
+    optional bool gyroOneEuroFilterEnabled = 13 [default = true];  // 一欧元滤波：低通平滑
     // 加速度计零漂校准（水平面/重力方向，alpakka 方法）：三轴平均减零偏，Z 再减 1G
     optional int32 offsetAccelX = 17 [default = 0];
     optional int32 offsetAccelY = 18 [default = 0];

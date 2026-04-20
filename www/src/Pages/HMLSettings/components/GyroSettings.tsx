@@ -74,7 +74,6 @@ export default function GyroSettings({
 	const enabled = Boolean(values.LSM6DSRAddonEnabled);
 	const outputMode = Number(values.lsm6dsrOutputMode) ?? 0;
 	const engageMode = Number(values.lsm6dsrEngageMode) ?? 0;
-	const spikeFilterEnabled = Number(values.lsm6dsrSpikeFilterEnabled) !== 0;
 	const oneEuroFilterEnabled = Number(values.lsm6dsrOneEuroFilterEnabled) !== 0;
 	const engageKeys: number[] = Array.isArray(values.lsm6dsrEngageKeys)
 		? (values.lsm6dsrEngageKeys as number[]).filter((k) => typeof k === 'number')
@@ -245,18 +244,6 @@ export default function GyroSettings({
 						<option value={GYRO_ENGAGE_ON_KEY}>{t('CalibrationSettings:gyro-engage-on-key')}</option>
 						<option value={GYRO_ENGAGE_PAUSE_ON_KEY}>{t('CalibrationSettings:gyro-engage-pause-on-key')}</option>
 					</Form.Select>
-				</div>
-				{/* 1 行 3 列：尖峰滤波开关 */}
-				<div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-					<Form.Label className="mb-0">{t('CalibrationSettings:gyro-spike-filter-label')}</Form.Label>
-					<Form.Check
-						type="switch"
-						id="lsm6dsrSpikeFilterEnabled"
-						label=""
-						checked={spikeFilterEnabled}
-						onChange={() => setFieldValue('lsm6dsrSpikeFilterEnabled', spikeFilterEnabled ? 0 : 1)}
-						className="mt-1"
-					/>
 				</div>
 				{/* 2 行 1 列：生效按键 */}
 				<div style={{ width: '100%' }}>

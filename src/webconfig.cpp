@@ -695,7 +695,6 @@ std::string getLSM6DSROptions() {
     writeDoc(doc, "lsm6dsrOffsetGyroZ", opts.offsetGyroZ);
     writeDoc(doc, "lsm6dsrCalibrateGyroRequested", opts.calibrateGyroRequested ? 1 : 0);
     writeDoc(doc, "lsm6dsrEngageMode", opts.engageMode);
-    writeDoc(doc, "lsm6dsrSpikeFilterEnabled", opts.gyroSpikeFilterEnabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOneEuroFilterEnabled", opts.gyroOneEuroFilterEnabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOffsetAccelX", opts.offsetAccelX);
     writeDoc(doc, "lsm6dsrOffsetAccelY", opts.offsetAccelY);
@@ -788,9 +787,6 @@ std::string setLSM6DSROptions() {
         opts.calibrateGyroRequested = doc["lsm6dsrCalibrateGyroRequested"].as<bool>();
     }
     docToValue(opts.engageMode, doc, "lsm6dsrEngageMode");
-    if (doc.containsKey("lsm6dsrSpikeFilterEnabled")) {
-        opts.gyroSpikeFilterEnabled = doc["lsm6dsrSpikeFilterEnabled"].as<int>() != 0;
-    }
     if (doc.containsKey("lsm6dsrOneEuroFilterEnabled")) {
         opts.gyroOneEuroFilterEnabled = doc["lsm6dsrOneEuroFilterEnabled"].as<int>() != 0;
     }
@@ -2329,9 +2325,6 @@ std::string setAddonOptions()
         lsm6dsrOptions.calibrateGyroRequested = doc["lsm6dsrCalibrateGyroRequested"].as<bool>();
     }
     docToValue(lsm6dsrOptions.engageMode, doc, "lsm6dsrEngageMode");
-    if (doc.containsKey("lsm6dsrSpikeFilterEnabled")) {
-        lsm6dsrOptions.gyroSpikeFilterEnabled = doc["lsm6dsrSpikeFilterEnabled"].as<int>() != 0;
-    }
     if (doc.containsKey("lsm6dsrOneEuroFilterEnabled")) {
         lsm6dsrOptions.gyroOneEuroFilterEnabled = doc["lsm6dsrOneEuroFilterEnabled"].as<int>() != 0;
     }
@@ -2832,7 +2825,6 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrOffsetAccelZ", lsm6dsrOptions.offsetAccelZ);
     writeDoc(doc, "lsm6dsrCalibrateGyroRequested", lsm6dsrOptions.calibrateGyroRequested ? 1 : 0);
     writeDoc(doc, "lsm6dsrEngageMode", lsm6dsrOptions.engageMode);
-    writeDoc(doc, "lsm6dsrSpikeFilterEnabled", lsm6dsrOptions.gyroSpikeFilterEnabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOneEuroFilterEnabled", lsm6dsrOptions.gyroOneEuroFilterEnabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrGyroMouseMapMode", lsm6dsrOptions.gyroMouseMapMode);
     writeDoc(doc, "lsm6dsrGyroMouseInvert", lsm6dsrOptions.gyroMouseInvert);

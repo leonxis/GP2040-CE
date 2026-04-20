@@ -33,8 +33,7 @@ public:
 	virtual void reinit();
 private:
 	void buildEngageMasks();   // 根据 engageKeys 填充 engageButtonMask / engageDpadMask（仅支持上下左右、B1-B4、L1/L2/R1/R2、S1/S2）
-	void applyGyroSlewLimit(float teS); // 尖峰滤波：对 calG/filterG 做变化率限制（按 dt 缩放），抑制微动开关震动引起的短时尖峰
-	void applyOneEuroFilter(float teS); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)，在尖峰滤波之后应用
+	void applyOneEuroFilter(float teS); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)
 	void outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3], float dtS); // 陀螺仪→HID 鼠标（按 dt 缩放）
 	void clearMouseOutput(Gamepad* gamepad); // 仅在状态切换时清零鼠标输出
 	void clearGyroOutput(Gamepad* gamepad);  // 仅在状态切换时清零陀螺仪/加速度与Switch Pro IMU输出
@@ -48,8 +47,7 @@ private:
 	int32_t offsetAccelZ;
 	int outputMode;   // 陀螺仪模拟方式：0=DS4, 3=鼠标（1/2 左/右摇杆已移除，遇则按 DS4 处理）
 	int engageMode;   // 生效方式：0=一直生效, 1=按下按键生效, 2=按下按键暂停
-	bool spikeFilterEnabled;  // 尖峰滤波开关：true 时对陀螺仪做变化率限制
-	bool oneEuroFilterEnabled;  // 一欧元滤波开关：true 时在尖峰滤波后对陀螺仪做低通平滑
+	bool oneEuroFilterEnabled;  // 一欧元滤波开关：true 时对陀螺仪做低通平滑
 	int gyroMouseMapMode;   // 0=XY轴模拟, 1=XZ轴模拟
 	int gyroMouseInvert;    // 0=无, 1=反转左右, 2=反转上下, 3=全部反转
 	float gyroMouseSensLR;  // 左右灵敏度
@@ -68,8 +66,6 @@ private:
 	int16_t rawG[3];
 	int16_t rawA[3];
 	int16_t calG[3];
-	// 陀螺仪变化率限制（抑制微动开关震动引起的短时尖峰）：上一帧滤波后的角速度 LSB
-	int16_t filterG[3];
 	// 一欧元滤波内部状态（浮点，每轴一个）
 	float oneEuroState[3];
 	bool oneEuroInited;

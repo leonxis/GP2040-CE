@@ -13,7 +13,7 @@
 
 - **陀螺仪插件**：`LSM6DSRIMUAddon::preprocess()` 每帧被调用一次，内部会：
   1. 做**一次** SPI 读取（`spiReadRegs(..., LSM6DSR_OUTX_L_G, readBuf, 12)`），得到当前时刻的角速度 rawG、rawA；
-  2. 校准得到 calG，再经尖峰滤波（slew）、一欧元滤波（若开启）；
+  2. 校准得到 calG，再经一欧元滤波（若开启）；
   3. 若 `outputMode == LSM6DSR_OUTPUT_MOUSE`，调用 `outputGyroToMouse(gamepad, calG)`，根据 calG 计算本帧的 `mouse.x / mouse.y` 并写入 `gamepad->auxState.sensors.mouse`。
 
 - **USB 报告**：PS4B 等驱动在 `inputDriver->process(gamepad)` 里从 `gamepad->auxState.sensors.mouse` 取 `x/y`，填入 HID 鼠标 report 并通过 `tud_hid_n_report` 发送。主机按 bInterval（如 1ms）轮询；设备侧主循环已实现**与回报率对齐**（见下），每帧末尾 sleep 到下一槽位，使“主循环更新一次 report”的节奏与主机轮询一致。
@@ -26,7 +26,6 @@
 |------|-----|------|
 | 陀螺仪 ODR | 1666 Hz | LSM6DSR CTRL2_G 配置，传感器内部采样周期 ≈ 0.6 ms |
 | 一欧元滤波 Te | 1/1666 s | `LSM6DSR_ONE_EURO_TE_S = 1.0f/1666.0f`，按 1666 Hz 设计 |
-| 尖峰滤波 | 2000 LSB/帧 | `LSM6DSR_GYRO_SLEW_LSB`，每帧允许的最大变化 |
 | 鼠标换算 | 无 dt | `outputGyroToMouse` 中 `lr_float = lr_raw * GYRO_MOUSE_BASE_SENS * sensLR`，**未乘 delta time** |
 | USB 描述符 | bInterval=1 | 全速 1ms 帧 → 主机理论轮询 1000 Hz |
 | 主循环目标周期 | MAIN_LOOP_REPORT_INTERVAL_US=1000 | 每帧末尾 sleep 对齐到该周期，与回报率一致 |
@@ -41,7 +40,7 @@
   - 实际用于算鼠标的**陀螺仪采样率 = 主循环频率**（正常时 ≈ 1000 Hz），仍低于 1666 Hz；
   - 每帧只取一个“瞬时值”，对 1666 Hz ODR 仍为**欠采样**；若需更好利用 ODR，需在插件内做多采样或 FIFO（见第六节修复规划）。
 
-结论：**主循环与回报率已对齐**；**插件频率 = 主循环频率**，正常时与 1K 一致。**陀螺仪采样仍为每帧一次**，与 ODR 不一致；**一欧元 Te、尖峰滤波、鼠标公式是否乘 dt** 等仍按“每帧”设计，需与固定周期 1 ms 一致化（见第六节）。
+结论：**主循环与回报率已对齐**；**插件频率 = 主循环频率**，正常时与 1K 一致。**陀螺仪采样仍为每帧一次**，与 ODR 不一致；**一欧元 Te、鼠标公式是否乘 dt** 等仍按“每帧”设计，需与固定周期 1 ms 一致化（见第六节）。
 
 ---
 
@@ -62,11 +61,6 @@
 - 实际 preprocess 调用频率 = 主循环频率，**主循环对齐后**正常为 1000 Hz，真实采样间隔 = **1 ms**，即 **Te_actual = 1/1000 s，约为当前 Te 的 1.66 倍**。
 - 因此滤波器等效截止与平滑度仍与设计不符；**修复**：Te 应使用**实际采样间隔**（与主循环周期一致，如 `1e-3f` 或 `MAIN_LOOP_REPORT_INTERVAL_US * 1e-6f`），见第六节。
 
-### 3.3 尖峰滤波（slew）按“帧”不按“时间”（主循环对齐后可接受，可选统一）
-
-- `applyGyroSlewLimit()` 限制**每帧**角速度变化不超过 2000 LSB（`LSM6DSR_GYRO_SLEW_LSB`）。
-- **主循环对齐后**帧长固定为 1 ms 时，2000 LSB/帧 即 2000 LSB/ms，语义明确；超时帧略长时该帧等价于略“软”。若需与时间严格一致，可改为“每毫秒最大变化”再按帧长缩放（见第六节，可选）。
-
 ### 3.4 陀螺仪数据利用不足与混叠（可选改进）
 
 - 陀螺仪 ODR 1666 Hz，每帧只读一次，**有效角速度采样率 = 主循环频率**（主循环对齐后正常 ≈ 1000 Hz），仍低于 1666 Hz：
@@ -86,7 +80,6 @@
 | 主循环/回报率不一致 | **已解决**：主循环已按绝对时间对齐到 MAIN_LOOP_REPORT_INTERVAL_US | 正常时更新率=1K，与 bInterval 一致 |
 | 灵敏度与帧间隔 | **部分缓解**：固定 1 ms 下大致正确；超时帧仍按“1 单位”算，可选项显式 dt | 超时帧位移略偏小，可选修复 |
 | 一欧元滤波 Te | **待修复**：Te=1/1666，实际调用间隔=1 ms | 滤波特性与设计不符，需改为实际采样间隔 |
-| 尖峰 slew 按帧 | **可接受**：固定 1 ms 下 2000 LSB/帧=2000 LSB/ms | 可选改为“每 ms”再按 dt 缩放以统一语义 |
 | 陀螺仪欠采样 | **待改进（可选）**：每帧 1 次 SPI，有效 1K < ODR 1666 Hz | 可做每帧多采样或 FIFO 以更好利用 ODR |
 
 **后续修复规划**见**第六节**，仅在分析文档中做修改规划，实现时依该节在 `lsm6dsr_imu.cpp` 中修改。
@@ -153,11 +146,6 @@
 - **方案 B（更稳健）**：在 `outputGyroToMouse` 中引入**本帧有效 dt**：使用上一帧与本帧时间戳差（或默认 `MAIN_LOOP_REPORT_INTERVAL_US * 1e-6f`），计算 `mouse_delta ∝ gyro_raw * dt * base_sens * sens`。这样超时帧按真实时间积分，灵敏度与帧长解耦；需在 addon 内维护上一帧时间戳并在每帧更新。
 - **建议**：优先实现 **6.1** 与 **方案 A**（最小改动）；若需超时帧也一致，再实现方案 B。
 
-### 6.3 尖峰滤波（slew）语义（可选）
-
-- **现状**：每帧最大变化 2000 LSB；主循环固定 1 ms 后，即 2000 LSB/ms，语义已明确。
-- **可选**：若希望与“时间”严格一致（便于未来支持可变周期或 8K），可改为“每毫秒最大变化”常数（如 `LSM6DSR_GYRO_SLEW_LSB_PER_MS`），再在 `applyGyroSlewLimit` 中按本帧 dt 计算 `slew_per_frame = slew_per_ms * dt_ms`。当前固定 1 ms 下等价于现有行为。
-
 ### 6.4 每帧多采样（可选，参考 Alpakka burst）与 ODR 约束
 
 - **现状**：每帧 1 次 SPI 读，有效采样率 = 主循环 ≈ 1000 Hz。
@@ -168,7 +156,7 @@
 
 1. **必做**：6.1 一欧元 Te 改为实际采样间隔（1 ms 或与 MAIN_LOOP_REPORT_INTERVAL_US 一致）。
 2. **建议**：6.2 方案 A，明确 BASE_SENS 按 1 ms 标定，不改公式。
-3. **可选**：6.2 方案 B（显式 dt）、6.3 slew 按时间、6.4 每帧多采样，按需求与工时择一或分步实现。
+3. **可选**：6.2 方案 B（显式 dt）、6.4 每帧多采样，按需求与工时择一或分步实现。
 
 ### 6.6 已实现（按 Alpakka 方式）
 

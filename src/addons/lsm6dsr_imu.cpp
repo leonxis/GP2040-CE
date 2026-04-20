@@ -7,6 +7,7 @@
 #include "gamepad/GamepadState.h"
 #include "pico/time.h"
 #include <cmath>
+#include <cstring>
 
 // Register map (ST LSM6DSR, same for I2C/SPI)
 #define LSM6DSR_CTRL1_XL      0x10U
@@ -46,14 +47,13 @@
 #define LSM6DSR_ENGAGE_ON_KEY       1
 #define LSM6DSR_ENGAGE_PAUSE_ON_KEY  2
 
-// 陀螺仪变化率限制（slew limit）：基于 1ms 的每帧允许最大变化 LSB，运行时按 dt 比例缩放。
-#define LSM6DSR_GYRO_SLEW_LSB       2000
-
 // 一欧元滤波：低通 alpha = 1/(1+tau/Te)，tau=1/(2*pi*fc)。Te 使用运行时 dt（可变回报率）
 #define LSM6DSR_ONE_EURO_TE_FALLBACK_S  (1e-3f)
 #define LSM6DSR_ONE_EURO_TE_MIN_S       (2e-4f)
 #define LSM6DSR_ONE_EURO_TE_MAX_S       (2e-2f)
 #define LSM6DSR_ONE_EURO_FC_HZ      5.0f
+// tau = 1/(2*pi*fc)，与 fc 绑定；alpha 仍按运行时 Te 计算
+static constexpr float kOneEuroTau = 1.0f / (2.0f * 3.14159265f * LSM6DSR_ONE_EURO_FC_HZ);
 
 // 点击抖动抑制窗口：检测到按键按下沿后，短时间屏蔽陀螺鼠标输出，抑制按键带来的手柄下压位移。
 #define LSM6DSR_MOUSE_CLICK_SUPPRESS_US 15000u
@@ -79,12 +79,16 @@ static inline float lsm6dsr_compute_dt_s(uint64_t nowUs, uint64_t& lastUs) {
 }
 
 static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
-	if (len == 0) return;
+	// 与逐字节 transfer(0) 等价：首字节 RX 丢弃，后续 len 字节为寄存器数据（IF_INC）
+	if (len == 0 || len > 12) return;
 	spi->setMode(SPI_MODE3);
 	spi->select(csPin);
-	(void)spi->transfer(reg | LSM6DSR_SPI_READ);
-	for (size_t i = 0; i < len; i++)
-		buf[i] = spi->transfer(0);
+	uint8_t tx[13];
+	uint8_t rx[13];
+	tx[0] = (uint8_t)(reg | LSM6DSR_SPI_READ);
+	memset(tx + 1, 0, len);
+	spi->transfer(tx, rx, 1 + len);
+	memcpy(buf, rx + 1, len);
 	spi->deselect();
 }
 
@@ -134,7 +138,6 @@ void LSM6DSRIMUAddon::setup() {
 	offsetAccelZ = opts.offsetAccelZ;
 	outputMode = opts.outputMode;
 	engageMode = opts.engageMode;
-	spikeFilterEnabled = opts.gyroSpikeFilterEnabled;
 	oneEuroFilterEnabled = opts.gyroOneEuroFilterEnabled;
 	gyroMouseMapMode = opts.gyroMouseMapMode;
 	gyroMouseInvert = opts.gyroMouseInvert;
@@ -146,7 +149,6 @@ void LSM6DSRIMUAddon::setup() {
 		engageKeys[i] = opts.gyroEngageKeys[i];
 	buildEngageMasks();
 	for (int i = 0; i < 3; i++) {
-		filterG[i] = 0;
 		oneEuroState[i] = 0.0f;
 	}
 	oneEuroInited = false;
@@ -166,11 +168,11 @@ void LSM6DSRIMUAddon::setup() {
 	// CTRL2_G: 0x84 = ODR 1.66kHz (0b10) + FS 500 dps (0b01) → 17.5 mdps/LSB
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL9_XL, 0x02);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL4_C, 0x06);
-	spiWriteReg(spi, csPin, LSM6DSR_CTRL6_C, 0x02);
+	spiWriteReg(spi, csPin, LSM6DSR_CTRL6_C, 0x00);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL7_G, 0x00);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL8_XL, 0x00);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL3_C, 0x44);
-	spiWriteReg(spi, csPin, LSM6DSR_CTRL1_XL, 0xA8);
+	spiWriteReg(spi, csPin, LSM6DSR_CTRL1_XL, 0x88);
 	spiWriteReg(spi, csPin, LSM6DSR_CTRL2_G, 0x84);  // 500 dps
 
 	// 原生陀螺仪路由在 preprocess 中按 Gamepad::options.inputMode 每帧判定（支持热切换）
@@ -190,7 +192,6 @@ void LSM6DSRIMUAddon::reinit() {
 	offsetAccelZ = opts.offsetAccelZ;
 	outputMode = opts.outputMode;
 	engageMode = opts.engageMode;
-	spikeFilterEnabled = opts.gyroSpikeFilterEnabled;
 	oneEuroFilterEnabled = opts.gyroOneEuroFilterEnabled;
 	gyroMouseMapMode = opts.gyroMouseMapMode;
 	gyroMouseInvert = opts.gyroMouseInvert;
@@ -202,7 +203,6 @@ void LSM6DSRIMUAddon::reinit() {
 		engageKeys[i] = opts.gyroEngageKeys[i];
 	buildEngageMasks();
 	for (int i = 0; i < 3; i++) {
-		filterG[i] = 0;
 		oneEuroState[i] = 0.0f;
 	}
 	oneEuroInited = false;
@@ -216,8 +216,7 @@ void LSM6DSRIMUAddon::reinit() {
 }
 
 void LSM6DSRIMUAddon::applyOneEuroFilter(float teS) {
-	const float tau = 1.0f / (2.0f * 3.14159265f * LSM6DSR_ONE_EURO_FC_HZ);
-	const float alpha = 1.0f / (1.0f + tau / teS);
+	const float alpha = 1.0f / (1.0f + kOneEuroTau / teS);
 	for (int i = 0; i < 3; i++) {
 		float in = (float)calG[i];
 		if (!oneEuroInited) {
@@ -233,8 +232,7 @@ void LSM6DSRIMUAddon::applyOneEuroFilter(float teS) {
 	oneEuroInited = true;
 }
 
-// 供网页「查看陀螺仪」等使用：raw - offset 后，根据配置应用尖峰滤波与一欧元滤波再返回，与 preprocess 输出一致
-static int16_t s_apiPrevFilterG[3] = {0, 0, 0};
+// 供网页「查看陀螺仪」等使用：raw - offset 后，根据配置应用一欧元滤波再返回，与 preprocess 输出一致
 static float s_apiOneEuroState[3] = {0.0f, 0.0f, 0.0f};
 static bool s_apiOneEuroInited = false;
 static uint64_t s_apiLastSampleUs = 0;
@@ -262,26 +260,9 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	accel[2] = (int16_t)(read16LE(buf + 10) - offAZ);
 	const float teS = lsm6dsr_compute_dt_s(time_us_64(), s_apiLastSampleUs);
 
-	// 尖峰滤波（与 preprocess 中 applyGyroSlewLimit 一致）
-	if (opts.gyroSpikeFilterEnabled) {
-		int32_t slewLsb = (int32_t)((float)LSM6DSR_GYRO_SLEW_LSB * (teS / LSM6DSR_ONE_EURO_TE_FALLBACK_S) + 0.5f);
-		if (slewLsb < 1) slewLsb = 1;
-		for (int i = 0; i < 3; i++) {
-			int32_t delta = (int32_t)calG[i] - (int32_t)s_apiPrevFilterG[i];
-			if (delta > slewLsb) delta = slewLsb;
-			else if (delta < -slewLsb) delta = -slewLsb;
-			int32_t next = (int32_t)s_apiPrevFilterG[i] + delta;
-			s_apiPrevFilterG[i] = (int16_t)next;
-			calG[i] = (int16_t)next;
-		}
-	} else {
-		for (int i = 0; i < 3; i++) s_apiPrevFilterG[i] = calG[i];
-	}
-
 	// 一欧元滤波（与 preprocess 中 applyOneEuroFilter 一致）
 	if (opts.gyroOneEuroFilterEnabled) {
-		const float tau = 1.0f / (2.0f * 3.14159265f * LSM6DSR_ONE_EURO_FC_HZ);
-		const float alpha = 1.0f / (1.0f + tau / teS);
+		const float alpha = 1.0f / (1.0f + kOneEuroTau / teS);
 		for (int i = 0; i < 3; i++) {
 			float in = (float)calG[i];
 			if (!s_apiOneEuroInited) {
@@ -303,7 +284,7 @@ bool getLSM6DSRRawData(int16_t gyro[3], int16_t accel[3]) {
 	return true;
 }
 
-// 校准使用未经过尖峰滤波与一欧元滤波的原始 SPI 数据，仅对多帧 raw 取平均作为零偏
+// 校准使用未经过一欧元滤波的原始 SPI 数据，仅对多帧 raw 取平均作为零偏
 bool lsm6dsr_calibrate_gyro(int32_t* offsetX, int32_t* offsetY, int32_t* offsetZ) {
 	if (!s_spi || s_csPin < 0 || !offsetX || !offsetY || !offsetZ) return false;
 	int64_t sumX = 0, sumY = 0, sumZ = 0;
@@ -375,19 +356,6 @@ void LSM6DSRIMUAddon::buildEngageMasks() {
 	hasEngageKeys = hasEngageKeys && (engageButtonMaskAny != 0 || engageDpadMaskAny != 0);
 }
 
-void LSM6DSRIMUAddon::applyGyroSlewLimit(float teS) {
-	int32_t slewLsb = (int32_t)((float)LSM6DSR_GYRO_SLEW_LSB * (teS / LSM6DSR_ONE_EURO_TE_FALLBACK_S) + 0.5f);
-	if (slewLsb < 1) slewLsb = 1;
-	for (int i = 0; i < 3; i++) {
-		int32_t delta = (int32_t)calG[i] - (int32_t)filterG[i];
-		if (delta > slewLsb) delta = slewLsb;
-		else if (delta < -slewLsb) delta = -slewLsb;
-		int32_t next = (int32_t)filterG[i] + delta;
-		filterG[i] = (int16_t)next;
-		calG[i] = (int16_t)next;
-	}
-}
-
 // 将陀螺仪/加速度计写入 DS4 协议（原生陀螺仪）
 static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
 	// 换算到 DS4 协议单位：主机 deg/s = report * (61/1000)，LSM6DSR @500dps 为 0.0175 deg/s/LSB → report = calG * 175/610
@@ -436,15 +404,14 @@ static void outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const
 	int16_t ay = (int16_t)(-(int32_t)rawA[0] / 2);
 	int16_t az = (int16_t)((int32_t)rawA[1] / 2);
 	uint8_t* d = gamepad->auxState.sensors.switchProImuData;
-	for (int s = 0; s < 3; s++) {
-		uint8_t* p = d + s * 12;
-		writeLe16(p + 0, ax);
-		writeLe16(p + 2, ay);
-		writeLe16(p + 4, az);
-		writeLe16(p + 6, gx);
-		writeLe16(p + 8, gy);
-		writeLe16(p + 10, gz);
-	}
+	writeLe16(d + 0, ax);
+	writeLe16(d + 2, ay);
+	writeLe16(d + 4, az);
+	writeLe16(d + 6, gx);
+	writeLe16(d + 8, gy);
+	writeLe16(d + 10, gz);
+	memcpy(d + 12, d, 12);
+	memcpy(d + 24, d, 12);
 	gamepad->auxState.sensors.switchProImuDataActive = true;
 	gamepad->auxState.sensors.gyroscope.enabled = false;
 	gamepad->auxState.sensors.gyroscope.active = false;
@@ -583,6 +550,14 @@ void LSM6DSRIMUAddon::preprocess() {
 		return;
 	}
 
+	// 左/右摇杆输出模式已废弃：避免无意义的 SPI 与滤波
+	if (outputMode != LSM6DSR_OUTPUT_DS4 && outputMode != LSM6DSR_OUTPUT_MOUSE) {
+		clearGyroOutput(gamepad);
+		clearMouseOutput(gamepad);
+		prevButtons = gamepad->state.buttons;
+		return;
+	}
+
 	spiReadRegs(spi, csPin, LSM6DSR_OUTX_L_G, readBuf, 12);
 	// 角速度/加速度计都保持传感器原始轴；协议映射在输出函数中处理
 	rawG[0] = read16LE(readBuf + 0);
@@ -599,8 +574,6 @@ void LSM6DSRIMUAddon::preprocess() {
 	calG[1] = (int16_t)(rawG[1] - offsetGyroY);
 	calG[2] = (int16_t)(rawG[2] - offsetGyroZ);
 
-	if (spikeFilterEnabled)
-		applyGyroSlewLimit(teS);
 	if (oneEuroFilterEnabled)
 		applyOneEuroFilter(teS);
 	else
