@@ -53,6 +53,7 @@ export default {
 		'档位越低滤波越强，摇杆越稳定；档位越高滤波越低，摇杆越灵敏。推荐正常灵敏档位 0.5。',
 	'hml-ads8332-jitter-boost-enable': '增抖开关',
 	'hml-ads8332-jitter-boost-amplitude': '幅度：{{value}}%',
+	'hml-ads8332-jitter-boost-interval-ms': '间隔：{{value}}（毫秒）',
 	'hml-stick-step-settings': '摇杆步长设置',
 	'hml-force-circular-label': '强制圆形',
 	'hml-force-circular-hint-on': '强制圆形会将摇杆外圈移动半径严格归一到圆形。',

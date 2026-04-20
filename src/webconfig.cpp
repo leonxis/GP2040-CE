@@ -643,7 +643,7 @@ std::string setBackButtonAddonOptions() {
 }
 
 std::string getADS8332Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(8);
+    const size_t capacity = JSON_OBJECT_SIZE(10);
     DynamicJsonDocument doc(capacity);
     const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
@@ -651,6 +651,8 @@ std::string getADS8332Options() {
     writeDoc(doc, "ads8332JitterBoostAmplitude1", opts.jitterBoostAmplitude1);
     writeDoc(doc, "ads8332JitterBoostEnabled2", opts.jitterBoostEnabled2 ? 1 : 0);
     writeDoc(doc, "ads8332JitterBoostAmplitude2", opts.jitterBoostAmplitude2);
+    writeDoc(doc, "ads8332JitterBoostIntervalMs1", opts.jitterBoostIntervalMs1);
+    writeDoc(doc, "ads8332JitterBoostIntervalMs2", opts.jitterBoostIntervalMs2);
     return serialize_json(doc);
 }
 
@@ -670,6 +672,12 @@ std::string setADS8332Options() {
     if (doc.containsKey("ads8332JitterBoostAmplitude2")) {
         opts.jitterBoostAmplitude2 = doc["ads8332JitterBoostAmplitude2"].as<float>();
     }
+    if (doc.containsKey("ads8332JitterBoostIntervalMs1")) {
+        opts.jitterBoostIntervalMs1 = doc["ads8332JitterBoostIntervalMs1"].as<uint32_t>();
+    }
+    if (doc.containsKey("ads8332JitterBoostIntervalMs2")) {
+        opts.jitterBoostIntervalMs2 = doc["ads8332JitterBoostIntervalMs2"].as<uint32_t>();
+    }
     if (opts.jitterBoostAmplitude1 < 0.0f) {
         opts.jitterBoostAmplitude1 = 0.0f;
     } else if (opts.jitterBoostAmplitude1 > 3.0f) {
@@ -679,6 +687,12 @@ std::string setADS8332Options() {
         opts.jitterBoostAmplitude2 = 0.0f;
     } else if (opts.jitterBoostAmplitude2 > 3.0f) {
         opts.jitterBoostAmplitude2 = 3.0f;
+    }
+    if (opts.jitterBoostIntervalMs1 > 100u) {
+        opts.jitterBoostIntervalMs1 = 100u;
+    }
+    if (opts.jitterBoostIntervalMs2 > 100u) {
+        opts.jitterBoostIntervalMs2 = 100u;
     }
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
@@ -2350,6 +2364,12 @@ std::string setAddonOptions()
     if (doc.containsKey("ads8332JitterBoostAmplitude2")) {
         ads8332Options.jitterBoostAmplitude2 = doc["ads8332JitterBoostAmplitude2"].as<float>();
     }
+    if (doc.containsKey("ads8332JitterBoostIntervalMs1")) {
+        ads8332Options.jitterBoostIntervalMs1 = doc["ads8332JitterBoostIntervalMs1"].as<uint32_t>();
+    }
+    if (doc.containsKey("ads8332JitterBoostIntervalMs2")) {
+        ads8332Options.jitterBoostIntervalMs2 = doc["ads8332JitterBoostIntervalMs2"].as<uint32_t>();
+    }
     if (ads8332Options.jitterBoostAmplitude1 < 0.0f) {
         ads8332Options.jitterBoostAmplitude1 = 0.0f;
     } else if (ads8332Options.jitterBoostAmplitude1 > 3.0f) {
@@ -2359,6 +2379,12 @@ std::string setAddonOptions()
         ads8332Options.jitterBoostAmplitude2 = 0.0f;
     } else if (ads8332Options.jitterBoostAmplitude2 > 3.0f) {
         ads8332Options.jitterBoostAmplitude2 = 3.0f;
+    }
+    if (ads8332Options.jitterBoostIntervalMs1 > 100u) {
+        ads8332Options.jitterBoostIntervalMs1 = 100u;
+    }
+    if (ads8332Options.jitterBoostIntervalMs2 > 100u) {
+        ads8332Options.jitterBoostIntervalMs2 = 100u;
     }
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
@@ -2863,6 +2889,8 @@ std::string getAddonOptions()
     writeDoc(doc, "ads8332JitterBoostAmplitude1", ads8332Options.jitterBoostAmplitude1);
     writeDoc(doc, "ads8332JitterBoostEnabled2", ads8332Options.jitterBoostEnabled2 ? 1 : 0);
     writeDoc(doc, "ads8332JitterBoostAmplitude2", ads8332Options.jitterBoostAmplitude2);
+    writeDoc(doc, "ads8332JitterBoostIntervalMs1", ads8332Options.jitterBoostIntervalMs1);
+    writeDoc(doc, "ads8332JitterBoostIntervalMs2", ads8332Options.jitterBoostIntervalMs2);
     const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOutputMode", lsm6dsrOptions.outputMode);

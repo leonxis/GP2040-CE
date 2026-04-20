@@ -1073,6 +1073,8 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostAmplitude1, 0.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostEnabled2, false);
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostAmplitude2, 0.0f);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostIntervalMs1, 0u);
+    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostIntervalMs2, 0u);
     if (config.addonOptions.ads8332Options.jitterBoostAmplitude1 < 0.0f) {
         config.addonOptions.ads8332Options.jitterBoostAmplitude1 = 0.0f;
     } else if (config.addonOptions.ads8332Options.jitterBoostAmplitude1 > 3.0f) {
@@ -1082,6 +1084,12 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
         config.addonOptions.ads8332Options.jitterBoostAmplitude2 = 0.0f;
     } else if (config.addonOptions.ads8332Options.jitterBoostAmplitude2 > 3.0f) {
         config.addonOptions.ads8332Options.jitterBoostAmplitude2 = 3.0f;
+    }
+    if (config.addonOptions.ads8332Options.jitterBoostIntervalMs1 > 100u) {
+        config.addonOptions.ads8332Options.jitterBoostIntervalMs1 = 100u;
+    }
+    if (config.addonOptions.ads8332Options.jitterBoostIntervalMs2 > 100u) {
+        config.addonOptions.ads8332Options.jitterBoostIntervalMs2 = 100u;
     }
 #if defined(LSM6DSR_DEFAULT_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);

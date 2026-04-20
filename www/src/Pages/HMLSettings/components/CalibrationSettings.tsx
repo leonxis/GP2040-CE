@@ -115,8 +115,10 @@ export const DEFAULT_VALUES = {
 	...triggerCalibrationState,
 	ads8332JitterBoostEnabled1: 0,
 	ads8332JitterBoostAmplitude1: 0.0,
+	ads8332JitterBoostIntervalMs1: 0,
 	ads8332JitterBoostEnabled2: 0,
 	ads8332JitterBoostAmplitude2: 0.0,
+	ads8332JitterBoostIntervalMs2: 0,
 } as const;
 
 export const FormContext = ({ setStoredData }) => {

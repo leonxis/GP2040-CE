@@ -632,6 +632,9 @@ const JITTER_BITS_MAX = 16;
 const JITTER_BOOST_AMPLITUDE_MIN = 0.0;
 const JITTER_BOOST_AMPLITUDE_MAX = 3.0;
 const JITTER_BOOST_AMPLITUDE_STEP = 0.1;
+const JITTER_BOOST_INTERVAL_MS_MIN = 0;
+const JITTER_BOOST_INTERVAL_MS_MAX = 100;
+const JITTER_BOOST_INTERVAL_MS_STEP = 1;
 
 const bitsToStoredThreshold = (bits: number): number => {
 	const b = Math.round(bits);
@@ -1527,6 +1530,19 @@ const JoystickCalibration = ({
 							onChange={(e) => setFieldValue('ads8332JitterBoostAmplitude1', parseFloat(e.target.value))}
 							disabled={!Boolean(values?.ads8332JitterBoostEnabled1)}
 						/>
+						<Form.Label className="mt-3">
+							{t('CalibrationSettings:hml-ads8332-jitter-boost-interval-ms', {
+								value: Number(values?.ads8332JitterBoostIntervalMs1 ?? 0),
+							})}
+						</Form.Label>
+						<Form.Range
+							min={JITTER_BOOST_INTERVAL_MS_MIN}
+							max={JITTER_BOOST_INTERVAL_MS_MAX}
+							step={JITTER_BOOST_INTERVAL_MS_STEP}
+							value={Number(values?.ads8332JitterBoostIntervalMs1 ?? 0)}
+							onChange={(e) => setFieldValue('ads8332JitterBoostIntervalMs1', parseInt(e.target.value, 10))}
+							disabled={!Boolean(values?.ads8332JitterBoostEnabled1)}
+						/>
 					</div>
 				</Modal.Body>
 				<Modal.Footer>
@@ -1603,6 +1619,19 @@ const JoystickCalibration = ({
 							step={JITTER_BOOST_AMPLITUDE_STEP}
 							value={Number(values?.ads8332JitterBoostAmplitude2 ?? 0)}
 							onChange={(e) => setFieldValue('ads8332JitterBoostAmplitude2', parseFloat(e.target.value))}
+							disabled={!Boolean(values?.ads8332JitterBoostEnabled2)}
+						/>
+						<Form.Label className="mt-3">
+							{t('CalibrationSettings:hml-ads8332-jitter-boost-interval-ms', {
+								value: Number(values?.ads8332JitterBoostIntervalMs2 ?? 0),
+							})}
+						</Form.Label>
+						<Form.Range
+							min={JITTER_BOOST_INTERVAL_MS_MIN}
+							max={JITTER_BOOST_INTERVAL_MS_MAX}
+							step={JITTER_BOOST_INTERVAL_MS_STEP}
+							value={Number(values?.ads8332JitterBoostIntervalMs2 ?? 0)}
+							onChange={(e) => setFieldValue('ads8332JitterBoostIntervalMs2', parseInt(e.target.value, 10))}
 							disabled={!Boolean(values?.ads8332JitterBoostEnabled2)}
 						/>
 					</div>

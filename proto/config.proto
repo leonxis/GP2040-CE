@@ -987,6 +987,8 @@ message ADS8332Options
     optional float jitterBoostAmplitude1 = 6 [default = 0.0];
     optional bool jitterBoostEnabled2 = 7 [default = false];
     optional float jitterBoostAmplitude2 = 8 [default = 0.0];
+    optional uint32 jitterBoostIntervalMs1 = 9 [default = 0];
+    optional uint32 jitterBoostIntervalMs2 = 10 [default = 0];
 }
 
 // LSM6DSR 陀螺仪：SPI 块与 CS 在固件 lsm6dsr_imu 中硬编码；此处持久化开关与运行参数。

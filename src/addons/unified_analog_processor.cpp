@@ -38,10 +38,19 @@ static int32_t computeJitterBoostDelta(float amplitudePercent, uint32_t fullScal
     if (absRandomValue < 0.2f) {
         return 0;
     }
-    const float scale = (absRandomValue > 0.6f) ? 1.0f : 0.5f;
+    const float scale = (absRandomValue > 0.4f) ? 1.0f : 0.5f;
     const float sign = (randomValue >= 0.0f) ? 1.0f : -1.0f;
     const float magnitude = (amplitudePercent / 100.0f) * static_cast<float>(fullScale) * scale;
     return static_cast<int32_t>(sign * magnitude);
+}
+
+static uint16_t computeJitterBoostIntervalFrames(uint32_t intervalMs, uint32_t reportRateHz) {
+    if (intervalMs == 0u) {
+        return 0u;
+    }
+    const uint32_t safeReportRate = (reportRateHz == 0u) ? 1000u : reportRateHz;
+    const uint32_t rounded = (intervalMs * safeReportRate + 500u) / 1000u;
+    return static_cast<uint16_t>(std::max<uint32_t>(1u, rounded));
 }
 } // namespace
 
@@ -77,7 +86,9 @@ void UnifiedAnalogProcessorAddon::resolveSource() {
 }
 
 void UnifiedAnalogProcessorAddon::initializeFromOptions() {
-    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    const AnalogOptions& analogOptions = addonOptions.analogOptions;
+    const ADS8332Options& ads8332Options = addonOptions.ads8332Options;
     const bool curveEnabled = analogOptions.joystick_curve_enabled;
 
     usage_curve_profile_1_ = analogOptions.curve_profile_1;
@@ -92,6 +103,21 @@ void UnifiedAnalogProcessorAddon::initializeFromOptions() {
 
     initializeStickFromOptions(0, analogOptions, curveEnabled);
     initializeStickFromOptions(1, analogOptions, curveEnabled);
+
+    const uint32_t reportRateHz = addonOptions.reportRate;
+    sticks_[0].jitter_boost_enabled = ads8332Options.jitterBoostEnabled1;
+    sticks_[0].jitter_boost_amplitude = std::clamp(ads8332Options.jitterBoostAmplitude1, 0.0f, 3.0f);
+    sticks_[0].jitter_boost_interval_frames = computeJitterBoostIntervalFrames(
+        std::min<uint32_t>(ads8332Options.jitterBoostIntervalMs1, 100u),
+        reportRateHz
+    );
+
+    sticks_[1].jitter_boost_enabled = ads8332Options.jitterBoostEnabled2;
+    sticks_[1].jitter_boost_amplitude = std::clamp(ads8332Options.jitterBoostAmplitude2, 0.0f, 3.0f);
+    sticks_[1].jitter_boost_interval_frames = computeJitterBoostIntervalFrames(
+        std::min<uint32_t>(ads8332Options.jitterBoostIntervalMs2, 100u),
+        reportRateHz
+    );
 
     applyFinetuneShapeAdjustments(0);
     applyFinetuneShapeAdjustments(1);
@@ -109,6 +135,8 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.anti_deadzone = std::clamp((isFirst ? options.anti_deadzone : options.anti_deadzone2) / 100.0f, 0.0f, 1.0f);
     stick.fixed_anti_deadzone = isFirst ? options.fixed_anti_deadzone : options.fixed_anti_deadzone2;
     stick.jitter_filter = isFirst ? options.joystick_jitter_filter_1 : options.joystick_jitter_filter_2;
+    stick.jitter_boost_enabled = false;
+    stick.jitter_boost_amplitude = 0.0f;
     stick.x_center = static_cast<uint16_t>((isFirst ? options.joystick_center_x : options.joystick_center_x2) > 0
         ? (isFirst ? options.joystick_center_x : options.joystick_center_x2)
         : 0u);
@@ -118,6 +146,8 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.has_range_calibration = isFirst ? (options.joystick_range_data_1_count > 0) : (options.joystick_range_data_2_count > 0);
     stick.finetune_shape_force_circular = isFirst ? options.joystick_finetune_shape_force_circular_1 : options.joystick_finetune_shape_force_circular_2;
     stick.finetune_shape_amplify = isFirst ? options.joystick_finetune_shape_amplify_1 : options.joystick_finetune_shape_amplify_2;
+    stick.jitter_boost_interval_frames = 0u;
+    stick.jitter_boost_frame_counter = 0u;
     stick.last_x_adc = stick.x_center;
     stick.last_y_adc = stick.y_center;
     stick.curve_points_sorted_count = 0;
@@ -310,26 +340,29 @@ void UnifiedAnalogProcessorAddon::process() {
         uint16_t clampedX = static_cast<uint16_t>(std::min(static_cast<uint32_t>(joystickMax * clampedXf), static_cast<uint32_t>(0xFFFF)));
         uint16_t clampedY = static_cast<uint16_t>(std::min(static_cast<uint32_t>(joystickMax * clampedYf), static_cast<uint32_t>(0xFFFF)));
         if (source_ == StickSource::ADS8332) {
-            bool boostEnabled = false;
-            float boostAmplitude = 0.0f;
-            if (i == 0) {
-                boostEnabled = addonOptions.ads8332Options.jitterBoostEnabled1;
-                boostAmplitude = addonOptions.ads8332Options.jitterBoostAmplitude1;
-            } else if (i == 1) {
-                boostEnabled = addonOptions.ads8332Options.jitterBoostEnabled2;
-                boostAmplitude = addonOptions.ads8332Options.jitterBoostAmplitude2;
-            }
-            if (boostEnabled && boostAmplitude > 0.0f) {
-                const float clampedAmplitude = std::clamp(boostAmplitude, 0.0f, 3.0f);
-                const int32_t delta = computeJitterBoostDelta(clampedAmplitude, joystickMax);
-                int32_t adjustedX = static_cast<int32_t>(clampedX) + delta;
-                const int32_t maxOut = static_cast<int32_t>(std::min<uint32_t>(joystickMax, 0xFFFFu));
-                if (adjustedX < 0) {
-                    adjustedX = 0;
-                } else if (adjustedX > maxOut) {
-                    adjustedX = maxOut;
+            if (sticks_[i].jitter_boost_enabled && sticks_[i].jitter_boost_amplitude > 0.0f) {
+                bool shouldApplyThisFrame = false;
+                if (sticks_[i].jitter_boost_interval_frames == 0u) {
+                    shouldApplyThisFrame = true;
+                } else if (sticks_[i].jitter_boost_frame_counter == 0u) {
+                    shouldApplyThisFrame = true;
+                    sticks_[i].jitter_boost_frame_counter = static_cast<uint16_t>(sticks_[i].jitter_boost_interval_frames - 1u);
+                } else {
+                    sticks_[i].jitter_boost_frame_counter--;
                 }
-                clampedX = static_cast<uint16_t>(adjustedX);
+                if (shouldApplyThisFrame) {
+                    const int32_t delta = computeJitterBoostDelta(sticks_[i].jitter_boost_amplitude, joystickMax);
+                    int32_t adjustedX = static_cast<int32_t>(clampedX) + delta;
+                    const int32_t maxOut = static_cast<int32_t>(std::min<uint32_t>(joystickMax, 0xFFFFu));
+                    if (adjustedX < 0) {
+                        adjustedX = 0;
+                    } else if (adjustedX > maxOut) {
+                        adjustedX = maxOut;
+                    }
+                    clampedX = static_cast<uint16_t>(adjustedX);
+                }
+            } else {
+                sticks_[i].jitter_boost_frame_counter = 0u;
             }
         }
 
