@@ -1269,6 +1269,55 @@ std::string getLedOptions()
     return serialize_json(doc);
 }
 
+std::string setAmbientOptions()
+{
+    DynamicJsonDocument doc = get_post_data();
+    AnimationOptions& options = Storage::getInstance().getAnimationOptions();
+
+    docToValue(options.ambientLightEffectsCountIndex, doc, "ambientLightEffectsCountIndex");
+    docToValue(options.ambientLightGradientSpeed, doc, "ambientLightGradientSpeed");
+    docToValue(options.ambientLightChaseSpeed, doc, "ambientLightChaseSpeed");
+    docToValue(options.ambientLightBreathSpeed, doc, "ambientLightBreathSpeed");
+    docToValue(options.alGradientBrightnessCustomX, doc, "alGradientBrightnessCustomX");
+    docToValue(options.alChaseBrightnessCustomX, doc, "alChaseBrightnessCustomX");
+    docToValue(options.alStaticBrightnessCustomThemeX, doc, "alStaticBrightnessCustomThemeX");
+
+    if (doc["ambientColor"] != nullptr) {
+        readDoc(options.alCustomStaticColorIndex, doc, "ambientColor");
+    }
+
+    // Default to orange when no color has been configured.
+    if (options.alCustomStaticColorIndex == 0) {
+        options.alCustomStaticColorIndex = RGB(255, 165, 0).value(LED_FORMAT_RGB);
+    }
+
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+    return serialize_json(doc);
+}
+
+std::string getAmbientOptions()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(32);
+    DynamicJsonDocument doc(capacity);
+    const AnimationOptions& options = Storage::getInstance().getAnimationOptions();
+
+    uint32_t ambientColor = options.alCustomStaticColorIndex;
+    if (ambientColor == 0) {
+        ambientColor = RGB(255, 165, 0).value(LED_FORMAT_RGB);
+    }
+
+    writeDoc(doc, "ambientLightEffectsCountIndex", options.ambientLightEffectsCountIndex);
+    writeDoc(doc, "ambientLightGradientSpeed", options.ambientLightGradientSpeed);
+    writeDoc(doc, "ambientLightChaseSpeed", options.ambientLightChaseSpeed);
+    writeDoc(doc, "ambientLightBreathSpeed", options.ambientLightBreathSpeed);
+    writeDoc(doc, "alGradientBrightnessCustomX", options.alGradientBrightnessCustomX);
+    writeDoc(doc, "alChaseBrightnessCustomX", options.alChaseBrightnessCustomX);
+    writeDoc(doc, "alStaticBrightnessCustomThemeX", options.alStaticBrightnessCustomThemeX);
+    writeDoc(doc, "ambientColor", ((RGB)ambientColor).value(LED_FORMAT_RGB));
+
+    return serialize_json(doc);
+}
+
 std::string getButtonLayoutDefs()
 {
     const size_t capacity = JSON_OBJECT_SIZE(500);
@@ -3338,6 +3387,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setPreviewDisplayOptions", setPreviewDisplayOptions },
     { "/api/setGamepadOptions", setGamepadOptions },
     { "/api/setLedOptions", setLedOptions },
+    { "/api/setAmbientOptions", setAmbientOptions },
     { "/api/setCustomTheme", setCustomTheme },
     { "/api/getCustomTheme", getCustomTheme },
     { "/api/setPinMappings", setPinMappings },
@@ -3374,6 +3424,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },
     { "/api/getButtonLayouts", getButtonLayouts },
     { "/api/getLedOptions", getLedOptions },
+    { "/api/getAmbientOptions", getAmbientOptions },
     { "/api/getPinMappings", getPinMappings },
     { "/api/getProfileOptions", getProfileOptions },
     { "/api/getKeyMappings", getKeyMappings },

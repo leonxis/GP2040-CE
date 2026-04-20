@@ -169,7 +169,7 @@
 #endif
 
 #ifndef AMBIENT_LIGHT_EFFECT
-#define AMBIENT_LIGHT_EFFECT AL_CUSTOM_EFFECT_STATIC_COLOR
+#define AMBIENT_LIGHT_EFFECT AL_CUSTOM_EFFECT_STATIC_THEME
 #endif
 
 #ifndef AMBIENT_STATIC_COLOR_BRIGHTNESS
@@ -205,7 +205,7 @@
 #endif
 
 #ifndef AMBIENT_STATIC_COLOR
-#define AMBIENT_STATIC_COLOR ANIMATION_COLOR_PURPLE
+#define AMBIENT_STATIC_COLOR 0xFFA500
 #endif
 
 // Neo Pixel needs to tie into PlayerLEDS led Levels
@@ -240,7 +240,6 @@ private:
     std::vector<std::vector<Pixel>> createLEDLayout(ButtonLayout layout, uint8_t ledsPerPixel, uint8_t ledButtonCount);
     uint8_t setupButtonPositions();
     GamepadHotkey animationHotkeys(Gamepad *gamepad);
-    void ambientHotkeys(Gamepad *gamepad);
     void ambientLightCustom();
     const uint32_t intervalMS = 10;
     absolute_time_t nextRunTime;
@@ -253,12 +252,10 @@ private:
     AnimationStation as;
     std::map<std::string, int> buttonPositions;
     PLEDType ledType;
-    GamepadHotkey lastAmbientAction;
     uint32_t frame[100];
 
     // Ambient neopico leds
 	float alBrightnessBreathX;
-	uint8_t breathLedEffectCycle;
 	bool alReverse;
 	int alCurrentFrame;
 	int alFrameToRGB;

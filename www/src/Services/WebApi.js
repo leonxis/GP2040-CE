@@ -383,6 +383,38 @@ async function setLedOptions(options) {
 		});
 }
 
+async function getAmbientOptions(setLoading) {
+	if (setLoading) setLoading(true);
+
+	try {
+		const response = await Http.get(`${baseUrl}/api/getAmbientOptions`);
+		if (setLoading) setLoading(false);
+		response.data.ambientColor =
+			rgbIntToHex(response.data.ambientColor) || '#ffa500';
+		return response.data;
+	} catch (error) {
+		if (setLoading) setLoading(false);
+		console.error(error);
+	}
+}
+
+async function setAmbientOptions(options) {
+	const data = sanitizeRequest({
+		...options,
+		ambientColor: hexToInt((options.ambientColor || '#ffa500').replace('#', '')),
+	});
+
+	return Http.post(`${baseUrl}/api/setAmbientOptions`, data)
+		.then((response) => {
+			console.log(response.data);
+			return true;
+		})
+		.catch((err) => {
+			console.error(err);
+			return false;
+		});
+}
+
 async function getCustomTheme(setLoading) {
 	if (setLoading) setLoading(true);
 
@@ -826,6 +858,8 @@ export default {
 	setGamepadOptions,
 	getLedOptions,
 	setLedOptions,
+	getAmbientOptions,
+	setAmbientOptions,
 	getCustomTheme,
 	setCustomTheme,
 	getPinMappings,

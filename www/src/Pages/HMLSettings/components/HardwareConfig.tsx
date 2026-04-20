@@ -6,7 +6,13 @@ import { useTranslation } from 'react-i18next';
 import Section from '../../../Components/Section';
 import ColorPicker from '../../../Components/ColorPicker';
 import WebApi from '../../../Services/WebApi';
-import { hexToInt } from '../../../Services/Utilities';
+
+const AMBIENT_EFFECTS = {
+	GRADIENT: 1,
+	CHASE: 2,
+	BREATH: 3,
+	STATIC_RGB: 4,
+};
 
 export default function HardwareConfig() {
 	const navigate = useNavigate();
@@ -31,10 +37,19 @@ export default function HardwareConfig() {
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
 		brightnessMaximum: 255,
-		ledColor: '#00ff00',
 		ledFormat: 0,
 		ledLayout: 0,
 		ledsPerButton: 2,
+	});
+	const [ambientOptions, setAmbientOptions] = useState({
+		ambientLightEffectsCountIndex: AMBIENT_EFFECTS.STATIC_RGB,
+		ambientColor: '#ffa500',
+		alStaticBrightnessCustomThemeX: 1,
+		ambientLightGradientSpeed: 2,
+		alGradientBrightnessCustomX: 1,
+		ambientLightChaseSpeed: 100,
+		alChaseBrightnessCustomX: 1,
+		ambientLightBreathSpeed: 0.01,
 	});
 
 	const [hostSaveMessage, setHostSaveMessage] = useState('');
@@ -46,11 +61,12 @@ export default function HardwareConfig() {
 	useEffect(() => {
 		async function fetchData() {
 			try {
-				const [peripheral, display, twoKeyTouchpad, led, addons] = await Promise.all([
+				const [peripheral, display, twoKeyTouchpad, led, ambient, addons] = await Promise.all([
 					WebApi.getPeripheralOptions(),
 					WebApi.getDisplayOptions(),
 					WebApi.getTwoKeyTouchpadOptions(),
 					WebApi.getLedOptions(),
+					WebApi.getAmbientOptions(),
 					WebApi.getAddonsOptions(),
 				]);
 				setPeripheralOptions(peripheral);
@@ -82,14 +98,26 @@ export default function HardwareConfig() {
 					}));
 				}
 				
-				// pledColor is already converted to hex string by WebApi.getLedOptions()
 				setLedOptions({
 					dataPin: led.dataPin !== undefined ? led.dataPin : -1,
 					brightnessMaximum: led.brightnessMaximum || 255,
-					ledColor: led.pledColor || '#00ff00',
 					ledFormat: led.ledFormat || 0,
 					ledLayout: led.ledLayout || 0,
 					ledsPerButton: led.ledsPerButton || 2,
+				});
+				setAmbientOptions({
+					ambientLightEffectsCountIndex:
+						ambient?.ambientLightEffectsCountIndex ??
+						AMBIENT_EFFECTS.STATIC_RGB,
+					ambientColor: ambient?.ambientColor || '#ffa500',
+					alStaticBrightnessCustomThemeX:
+						ambient?.alStaticBrightnessCustomThemeX ?? 1,
+					ambientLightGradientSpeed: ambient?.ambientLightGradientSpeed ?? 2,
+					alGradientBrightnessCustomX:
+						ambient?.alGradientBrightnessCustomX ?? 1,
+					ambientLightChaseSpeed: ambient?.ambientLightChaseSpeed ?? 100,
+					alChaseBrightnessCustomX: ambient?.alChaseBrightnessCustomX ?? 1,
+					ambientLightBreathSpeed: ambient?.ambientLightBreathSpeed ?? 0.01,
 				});
 			} catch (error) {
 				console.error('Failed to fetch hardware config:', error);
@@ -146,13 +174,21 @@ export default function HardwareConfig() {
 				...currentLedOptions,
 				dataPin: ledOptions.dataPin,
 				brightnessMaximum: ledOptions.brightnessMaximum,
-				pledColor: hexToInt(ledOptions.ledColor || '#00ff00'),
 				ledFormat: ledOptions.ledFormat,
 				ledLayout: ledOptions.ledLayout,
 				ledsPerButton: ledOptions.ledsPerButton,
 			};
 			
-			await WebApi.setLedOptions(dataToSave);
+			const ambientToSave = {
+				...ambientOptions,
+				ambientColor: ambientOptions.ambientColor || '#ffa500',
+			};
+
+			const ledSaved = await WebApi.setLedOptions(dataToSave);
+			const ambientSaved = await WebApi.setAmbientOptions(ambientToSave);
+			if (!ledSaved || !ambientSaved) {
+				throw new Error('Failed to save LED or ambient options');
+			}
 			setLedSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setLedSaveMessage(''), 5000);
 		} catch (error) {
@@ -337,9 +373,41 @@ export default function HardwareConfig() {
 							</span>
 						</div>
 
-						{/* 颜色取色框 */}
+						{/* 环境光模式选择 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<label style={{ minWidth: '80px' }}>{t('SettingsPage:hml-color-label')}</label>
+							<label style={{ minWidth: '120px' }}>
+								{t('SettingsPage:hml-ambient-mode-label')}
+							</label>
+							<Form.Select
+								value={ambientOptions.ambientLightEffectsCountIndex}
+								onChange={(e) =>
+									setAmbientOptions((prev) => ({
+										...prev,
+										ambientLightEffectsCountIndex: Number(e.target.value),
+									}))
+								}
+								style={{ width: '180px' }}
+							>
+								<option value={AMBIENT_EFFECTS.STATIC_RGB}>
+									{t('SettingsPage:hml-ambient-mode-static-rgb')}
+								</option>
+								<option value={AMBIENT_EFFECTS.GRADIENT}>
+									{t('SettingsPage:hml-ambient-mode-gradient')}
+								</option>
+								<option value={AMBIENT_EFFECTS.CHASE}>
+									{t('SettingsPage:hml-ambient-mode-chase')}
+								</option>
+								<option value={AMBIENT_EFFECTS.BREATH}>
+									{t('SettingsPage:hml-ambient-mode-breath')}
+								</option>
+							</Form.Select>
+						</div>
+
+						{/* 颜色取色框（静态与呼吸共用） */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<label style={{ minWidth: '80px' }}>
+								{t('SettingsPage:hml-color-label')}
+							</label>
 							<div
 								ref={(el) => {
 									if (el && !colorPickerTarget) {
@@ -349,7 +417,7 @@ export default function HardwareConfig() {
 								style={{
 									width: '40px',
 									height: '40px',
-									backgroundColor: ledOptions.ledColor,
+									backgroundColor: ambientOptions.ambientColor,
 									border: '1px solid #ccc',
 									cursor: 'pointer',
 									borderRadius: '4px',
@@ -363,11 +431,11 @@ export default function HardwareConfig() {
 							></div>
 							{showColorPicker && colorPickerTarget && (
 								<ColorPicker
-									types={[{ label: t('SettingsPage:hml-led-strip-label'), value: ledOptions.ledColor }]}
+									types={[{ label: t('SettingsPage:hml-led-strip-label'), value: ambientOptions.ambientColor }]}
 									onChange={(color: string) => {
-										setLedOptions((prev) => ({
+										setAmbientOptions((prev) => ({
 											...prev,
-											ledColor: color,
+											ambientColor: color,
 										}));
 									}}
 									onDismiss={() => setShowColorPicker(false)}
@@ -379,6 +447,132 @@ export default function HardwareConfig() {
 								/>
 							)}
 						</div>
+
+						{/* 当前模式参数 */}
+						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.STATIC_RGB && (
+							<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+								<label style={{ minWidth: '120px' }}>
+									{t('SettingsPage:hml-ambient-brightness-label')}
+								</label>
+								<input
+									type="range"
+									min="0"
+									max="100"
+									value={Math.round(ambientOptions.alStaticBrightnessCustomThemeX * 100)}
+									onChange={(e) =>
+										setAmbientOptions((prev) => ({
+											...prev,
+											alStaticBrightnessCustomThemeX: Number(e.target.value) / 100,
+										}))
+									}
+									style={{ flex: 1 }}
+								/>
+							</div>
+						)}
+
+						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.GRADIENT && (
+							<>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+									<label style={{ minWidth: '120px' }}>
+										{t('SettingsPage:hml-ambient-brightness-label')}
+									</label>
+									<input
+										type="range"
+										min="0"
+										max="100"
+										value={Math.round(ambientOptions.alGradientBrightnessCustomX * 100)}
+										onChange={(e) =>
+											setAmbientOptions((prev) => ({
+												...prev,
+												alGradientBrightnessCustomX: Number(e.target.value) / 100,
+											}))
+										}
+										style={{ flex: 1 }}
+									/>
+								</div>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+									<label style={{ minWidth: '120px' }}>
+										{t('SettingsPage:hml-speed-label')}
+									</label>
+									<input
+										type="range"
+										min="1"
+										max="6"
+										value={ambientOptions.ambientLightGradientSpeed}
+										onChange={(e) =>
+											setAmbientOptions((prev) => ({
+												...prev,
+												ambientLightGradientSpeed: Number(e.target.value),
+											}))
+										}
+										style={{ flex: 1 }}
+									/>
+								</div>
+							</>
+						)}
+
+						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.CHASE && (
+							<>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+									<label style={{ minWidth: '120px' }}>
+										{t('SettingsPage:hml-ambient-brightness-label')}
+									</label>
+									<input
+										type="range"
+										min="0"
+										max="100"
+										value={Math.round(ambientOptions.alChaseBrightnessCustomX * 100)}
+										onChange={(e) =>
+											setAmbientOptions((prev) => ({
+												...prev,
+												alChaseBrightnessCustomX: Number(e.target.value) / 100,
+											}))
+										}
+										style={{ flex: 1 }}
+									/>
+								</div>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+									<label style={{ minWidth: '120px' }}>
+										{t('SettingsPage:hml-speed-label')}
+									</label>
+									<input
+										type="range"
+										min="0"
+										max="100"
+										value={ambientOptions.ambientLightChaseSpeed}
+										onChange={(e) =>
+											setAmbientOptions((prev) => ({
+												...prev,
+												ambientLightChaseSpeed: Number(e.target.value),
+											}))
+										}
+										style={{ flex: 1 }}
+									/>
+								</div>
+							</>
+						)}
+
+						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.BREATH && (
+							<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+								<label style={{ minWidth: '120px' }}>
+									{t('SettingsPage:hml-speed-label')}
+								</label>
+								<input
+									type="range"
+									min="1"
+									max="5"
+									step="1"
+									value={Math.round((ambientOptions.ambientLightBreathSpeed || 0.01) * 100)}
+									onChange={(e) =>
+										setAmbientOptions((prev) => ({
+											...prev,
+											ambientLightBreathSpeed: Number(e.target.value) / 100,
+										}))
+									}
+									style={{ flex: 1 }}
+								/>
+							</div>
+						)}
 
 						{/* 亮度调节滑块 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
