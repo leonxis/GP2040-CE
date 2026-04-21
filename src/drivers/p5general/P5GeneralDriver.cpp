@@ -226,10 +226,20 @@ bool P5GeneralDriver::process(Gamepad * gamepad) {
     }
     p5GeneralReport.touchpad_data = touchpadData;
 
-    memcpy(&p5GeneralReport_last, &p5GeneralReport, sizeof(p5GeneralReport));
-    memcpy(p5GeneralAuthData->hash_pending_buffer, &p5GeneralReport, sizeof(p5GeneralReport));
-    p5GeneralAuthData->hash_pending = true;
-    return true;
+    if (memcmp(&p5GeneralReport_last, &p5GeneralReport, sizeof(p5GeneralReport))) {
+        memcpy(&p5GeneralReport_last, &p5GeneralReport, sizeof(p5GeneralReport));
+        memcpy(p5GeneralAuthData->hash_pending_buffer, &p5GeneralReport, sizeof(p5GeneralReport));
+        p5GeneralAuthData->hash_pending = true;
+        diff_report_repeat = 4;
+        return true;
+    } else if (diff_report_repeat) {
+        diff_report_repeat--;
+        memcpy(p5GeneralAuthData->hash_pending_buffer, &p5GeneralReport, sizeof(p5GeneralReport));
+        p5GeneralAuthData->hash_pending = true;
+        return true;
+    } else {
+        return false;
+    }
 }
 
 void P5GeneralDriver::processAux() {

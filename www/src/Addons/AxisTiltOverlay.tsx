@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo } from 'react';
+import { ChangeEvent, useCallback, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Form, FormCheck, Row } from 'react-bootstrap';
 import { omit } from 'lodash';
@@ -29,46 +29,48 @@ const TRIGGER_MASK_SELECT_OPTIONS: AxisTiltTriggerMaskOption[] = [
 	})),
 ];
 
+const yupEx = yup as any;
+
 export const axisTiltOverlayScheme = {
-	AxisTiltOverlayInputEnabled: yup
+	AxisTiltOverlayInputEnabled: yupEx
 		.number()
 		.required()
 		.label('Axis Tilt Overlay Input Enabled'),
-	axisTiltOverlayLeftYTriggerButtonMask: yup
+	axisTiltOverlayLeftYTriggerButtonMask: yupEx
 		.number()
 		.label('Axis Tilt Overlay Left Y Trigger Button')
 		.validateSelectionWhenValue(
 			'AxisTiltOverlayInputEnabled',
 			BUTTON_OPTIONS,
 		),
-	axisTiltOverlayRightYTriggerButtonMask: yup
+	axisTiltOverlayRightYTriggerButtonMask: yupEx
 		.number()
 		.label('Axis Tilt Overlay Right Y Trigger Button')
 		.validateSelectionWhenValue(
 			'AxisTiltOverlayInputEnabled',
 			BUTTON_OPTIONS,
 		),
-	axisTiltOverlayLeftYPercent1: yup
+	axisTiltOverlayLeftYPercent1: yupEx
 		.number()
 		.label('Axis Tilt Overlay Left Y Percent 1')
 		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', -100, 100),
-	axisTiltOverlayLeftYPercent2: yup
+	axisTiltOverlayLeftYPercent2: yupEx
 		.number()
 		.label('Axis Tilt Overlay Left Y Percent 2')
 		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', -100, 100),
-	axisTiltOverlayRightYPercent1: yup
+	axisTiltOverlayRightYPercent1: yupEx
 		.number()
 		.label('Axis Tilt Overlay Right Y Percent 1')
 		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', -100, 100),
-	axisTiltOverlayRightYPercent2: yup
+	axisTiltOverlayRightYPercent2: yupEx
 		.number()
 		.label('Axis Tilt Overlay Right Y Percent 2')
 		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', -100, 100),
-	axisTiltOverlayLeftYActivePreset: yup
+	axisTiltOverlayLeftYActivePreset: yupEx
 		.number()
 		.label('Axis Tilt Overlay Left Y Active Preset')
 		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', 1, 2),
-	axisTiltOverlayRightYActivePreset: yup
+	axisTiltOverlayRightYActivePreset: yupEx
 		.number()
 		.label('Axis Tilt Overlay Right Y Active Preset')
 		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', 1, 2),
@@ -91,6 +93,10 @@ function percentFieldValue(v: unknown): number | string {
 		return 0;
 	}
 	return v as number | string;
+}
+
+function clampPercent(value: number): number {
+	return Math.min(100, Math.max(-100, value));
 }
 
 const AxisTiltOverlay = ({
@@ -126,6 +132,25 @@ const AxisTiltOverlay = ({
 			);
 		},
 		[buttonNames, t],
+	);
+
+	const handlePercentInputChange = useCallback(
+		(e: ChangeEvent<HTMLInputElement>) => {
+			const { name, value } = e.target;
+			if (value === '') {
+				void setFieldValue(name, 0);
+				return;
+			}
+			if (value === '-' || value === '+') {
+				return;
+			}
+			const parsed = Number(value);
+			if (Number.isNaN(parsed)) {
+				return;
+			}
+			void setFieldValue(name, clampPercent(parsed));
+		},
+		[setFieldValue],
 	);
 
 	return (
@@ -179,7 +204,7 @@ const AxisTiltOverlay = ({
 						value={percentFieldValue(values.axisTiltOverlayLeftYPercent1)}
 						error={errors.axisTiltOverlayLeftYPercent1}
 						isInvalid={Boolean(errors.axisTiltOverlayLeftYPercent1)}
-						onChange={handleChange}
+						onChange={handlePercentInputChange}
 						min={-100}
 						max={100}
 						step={0.1}
@@ -193,7 +218,7 @@ const AxisTiltOverlay = ({
 						value={percentFieldValue(values.axisTiltOverlayLeftYPercent2)}
 						error={errors.axisTiltOverlayLeftYPercent2}
 						isInvalid={Boolean(errors.axisTiltOverlayLeftYPercent2)}
-						onChange={handleChange}
+						onChange={handlePercentInputChange}
 						min={-100}
 						max={100}
 						step={0.1}
@@ -244,7 +269,7 @@ const AxisTiltOverlay = ({
 						value={percentFieldValue(values.axisTiltOverlayRightYPercent1)}
 						error={errors.axisTiltOverlayRightYPercent1}
 						isInvalid={Boolean(errors.axisTiltOverlayRightYPercent1)}
-						onChange={handleChange}
+						onChange={handlePercentInputChange}
 						min={-100}
 						max={100}
 						step={0.1}
@@ -258,7 +283,7 @@ const AxisTiltOverlay = ({
 						value={percentFieldValue(values.axisTiltOverlayRightYPercent2)}
 						error={errors.axisTiltOverlayRightYPercent2}
 						isInvalid={Boolean(errors.axisTiltOverlayRightYPercent2)}
-						onChange={handleChange}
+						onChange={handlePercentInputChange}
 						min={-100}
 						max={100}
 						step={0.1}

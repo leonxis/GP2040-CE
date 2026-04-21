@@ -42,15 +42,12 @@ uint32_t AxisTiltOverlayInput::getAxisTriggerMask(const AxisTiltOverlayOptions& 
 }
 
 uint16_t AxisTiltOverlayInput::applyPercentDelta(uint16_t axisValue, float percent) const {
-	if (percent == 0.0f || axisValue == GAMEPAD_JOYSTICK_MID) {
+	if (percent == 0.0f) {
 		return axisValue;
 	}
 
 	const float maxTravel = static_cast<float>(GAMEPAD_JOYSTICK_MAX - GAMEPAD_JOYSTICK_MID);
-	const float magnitude = std::fabs(percent) * maxTravel / 100.0f;
-	const int directionFromCenter = (axisValue > GAMEPAD_JOYSTICK_MID) ? 1 : -1;
-	const int direction = (percent > 0.0f) ? directionFromCenter : -directionFromCenter;
-	const int32_t delta = static_cast<int32_t>(std::lround(magnitude * static_cast<float>(direction)));
+	const int32_t delta = static_cast<int32_t>(std::lround((percent * maxTravel) / 100.0f));
 	const int32_t newValue = std::clamp<int32_t>(
 		static_cast<int32_t>(axisValue) + delta,
 		GAMEPAD_JOYSTICK_MIN,
