@@ -52,7 +52,7 @@ const Navigation = () => {
 	return (
 		<Navbar collapseOnSelect expand="md" fixed="top">
 			<Navbar.Brand title={`GP2040-CE ${t('Navigation:home-label')}`}>
-				<Nav.Link as={NavLink} to="/" eventKey={eventKey++}>
+				<Nav.Link as={NavLink} to="/home" eventKey={eventKey++}>
 					<img
 						src="images/logo.png"
 						className="title-logo"

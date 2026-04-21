@@ -28,6 +28,7 @@ const App = () => {
 				<div className="body-content container-lg">
 					<Routes>
 						<Route path="/" element={<HMLSettingsPage />} />
+						<Route path="/home" element={<HomePage />} />
 						<Route path="/hml-settings" element={<HMLSettingsPage />} />
 						<Route path="/settings" element={<SettingsPage />} />
 						<Route path="/pin-mapping" element={<PinMappingPage />} />
