@@ -160,6 +160,10 @@ export default {
 		'apply-curve-preset-3-right': 'Apply Joystick Curve Preset #3 (Right Stick)',
 		'apply-curve-preset-4-left': 'Apply Joystick Curve Preset #4 (Left Stick)',
 		'apply-curve-preset-4-right': 'Apply Joystick Curve Preset #4 (Right Stick)',
+		'axis-tilt-overlay-left-y-1': 'Set Y Axis Overlay Left Preset 1',
+		'axis-tilt-overlay-left-y-2': 'Set Y Axis Overlay Left Preset 2',
+		'axis-tilt-overlay-right-y-1': 'Set Y Axis Overlay Right Preset 1',
+		'axis-tilt-overlay-right-y-2': 'Set Y Axis Overlay Right Preset 2',
 	},
 	'forced-setup-mode-label': 'Forced Setup Mode',
 	'forced-setup-mode-options': {

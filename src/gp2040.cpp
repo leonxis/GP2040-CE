@@ -22,6 +22,7 @@
 #include "addons/bootsel_button.h"
 #include "addons/focus_mode.h"
 #include "addons/dualdirectional.h"
+#include "addons/axis_tilt_overlay.h"
 #include "addons/tilt.h"
 #include "addons/keyboard_host.h"
 #include "addons/reverse.h"
@@ -209,6 +210,7 @@ void GP2040::setup() {
 	// Input override addons
 	addons.LoadAddon(new ReverseInput());
 	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
+	addons.LoadAddon(new AxisTiltOverlayInput()); // Must execute after all joystick processing
 	addons.LoadAddon(new InputMacro());
 
 	InputMode inputMode = gamepad->getOptions().inputMode;
@@ -530,6 +532,12 @@ void GP2040::run() {
 				gamepad->state.rx = dpadToAnalogX(originalDpad);
 				gamepad->state.ry = dpadToAnalogY(originalDpad);
 			}
+		}
+
+		// Apply Y-axis overlay after all joystick transforms are complete.
+		AxisTiltOverlayInput* axisTiltOverlay = (AxisTiltOverlayInput*)addons.GetAddon(AxisTiltOverlayName);
+		if (axisTiltOverlay != nullptr) {
+			axisTiltOverlay->applyFinalProcess(gamepad);
 		}
 
 		checkProcessedState(processedGamepad->state, gamepad->state);

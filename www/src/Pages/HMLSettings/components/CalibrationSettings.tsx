@@ -149,6 +149,10 @@ const FLOAT_KEYS = [
 	'joystickFinetuneShapeAmplify2',
 	'ads8332JitterBoostAmplitude1',
 	'ads8332JitterBoostAmplitude2',
+	'axisTiltOverlayLeftYPercent1',
+	'axisTiltOverlayLeftYPercent2',
+	'axisTiltOverlayRightYPercent1',
+	'axisTiltOverlayRightYPercent2',
 	'lsm6dsrGyroMouseSensLR',
 	'lsm6dsrGyroMouseSensUD',
 ];

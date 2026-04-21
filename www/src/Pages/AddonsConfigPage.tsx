@@ -28,6 +28,10 @@ import OnBoardLed, {
 import Reverse, { reverseScheme, reverseState } from '../Addons/Reverse';
 import SOCD, { socdScheme, socdState } from '../Addons/SOCD';
 import Tilt, { tiltScheme, tiltState } from '../Addons/Tilt';
+import AxisTiltOverlay, {
+	axisTiltOverlayScheme,
+	axisTiltOverlayState,
+} from '../Addons/AxisTiltOverlay';
 import Turbo, { turboScheme, turboState } from '../Addons/Turbo';
 import Wii, { wiiScheme, wiiState } from '../Addons/Wii';
 import SNES, { snesState } from '../Addons/SNES';
@@ -74,6 +78,7 @@ const schema = yup.object().shape({
 	...reverseScheme,
 	...dualDirectionScheme,
 	...tiltScheme,
+	...axisTiltOverlayScheme,
 	...buzzerScheme,
 	...socdScheme,
 	...wiiScheme,
@@ -87,6 +92,13 @@ const schema = yup.object().shape({
 	...HETriggerScheme,
 });
 
+const FLOAT_KEYS = [
+	'axisTiltOverlayLeftYPercent1',
+	'axisTiltOverlayLeftYPercent2',
+	'axisTiltOverlayRightYPercent1',
+	'axisTiltOverlayRightYPercent2',
+];
+
 export const DEFAULT_VALUES = {
 	...analogState,
 	...ads8332State,
@@ -97,6 +109,7 @@ export const DEFAULT_VALUES = {
 	...reverseState,
 	...dualDirectionState,
 	...tiltState,
+	...axisTiltOverlayState,
 	...buzzerState,
 	...socdState,
 	...wiiState,
@@ -122,6 +135,7 @@ const ADDONS = [
 	LSM6DSR,
 	DualDirection,
 	Tilt,
+	AxisTiltOverlay,
 	Buzzer,
 	SOCD,
 	Wii,
@@ -168,9 +182,16 @@ const sanitizeData = (values) => {
 			continue;
 		}
 		if (values[prop] !== undefined && values[prop] !== null && values[prop] !== '') {
-			const parsed = parseInt(values[prop], 10);
-			if (!Number.isNaN(parsed)) {
-				values[prop] = parsed;
+			if (FLOAT_KEYS.includes(prop)) {
+				const parsed = parseFloat(values[prop]);
+				if (!Number.isNaN(parsed)) {
+					values[prop] = parsed;
+				}
+			} else {
+				const parsed = parseInt(values[prop], 10);
+				if (!Number.isNaN(parsed)) {
+					values[prop] = parsed;
+				}
 			}
 		}
 	}

@@ -2265,6 +2265,17 @@ std::string setAddonOptions()
     docToValue(tiltOptions.tiltSOCDMode, doc, "tiltSOCDMode");
     docToValue(tiltOptions.enabled, doc, "TiltInputEnabled");
 
+    AxisTiltOverlayOptions& axisTiltOverlayOptions = Storage::getInstance().getAddonOptions().axisTiltOverlayOptions;
+    docToValue(axisTiltOverlayOptions.leftYTriggerButtonMask, doc, "axisTiltOverlayLeftYTriggerButtonMask");
+    docToValue(axisTiltOverlayOptions.rightYTriggerButtonMask, doc, "axisTiltOverlayRightYTriggerButtonMask");
+    docToValue(axisTiltOverlayOptions.leftYPercent1, doc, "axisTiltOverlayLeftYPercent1");
+    docToValue(axisTiltOverlayOptions.leftYPercent2, doc, "axisTiltOverlayLeftYPercent2");
+    docToValue(axisTiltOverlayOptions.rightYPercent1, doc, "axisTiltOverlayRightYPercent1");
+    docToValue(axisTiltOverlayOptions.rightYPercent2, doc, "axisTiltOverlayRightYPercent2");
+    docToValue(axisTiltOverlayOptions.leftYActivePreset, doc, "axisTiltOverlayLeftYActivePreset");
+    docToValue(axisTiltOverlayOptions.rightYActivePreset, doc, "axisTiltOverlayRightYActivePreset");
+    docToValue(axisTiltOverlayOptions.enabled, doc, "AxisTiltOverlayInputEnabled");
+
     FocusModeOptions& focusModeOptions = Storage::getInstance().getAddonOptions().focusModeOptions;
     docToValue(focusModeOptions.buttonLockMask, doc, "focusModeButtonLockMask");
     docToValue(focusModeOptions.buttonLockEnabled, doc, "focusModeButtonLockEnabled");
@@ -2943,6 +2954,17 @@ std::string getAddonOptions()
     writeDoc(doc, "factorTilt2RightY", tiltOptions.factorTilt2RightY);
     writeDoc(doc, "tiltSOCDMode", tiltOptions.tiltSOCDMode);
     writeDoc(doc, "TiltInputEnabled", tiltOptions.enabled);
+
+    const AxisTiltOverlayOptions& axisTiltOverlayOptions = Storage::getInstance().getAddonOptions().axisTiltOverlayOptions;
+    writeDoc(doc, "axisTiltOverlayLeftYTriggerButtonMask", axisTiltOverlayOptions.leftYTriggerButtonMask);
+    writeDoc(doc, "axisTiltOverlayRightYTriggerButtonMask", axisTiltOverlayOptions.rightYTriggerButtonMask);
+    writeDoc(doc, "axisTiltOverlayLeftYPercent1", axisTiltOverlayOptions.leftYPercent1);
+    writeDoc(doc, "axisTiltOverlayLeftYPercent2", axisTiltOverlayOptions.leftYPercent2);
+    writeDoc(doc, "axisTiltOverlayRightYPercent1", axisTiltOverlayOptions.rightYPercent1);
+    writeDoc(doc, "axisTiltOverlayRightYPercent2", axisTiltOverlayOptions.rightYPercent2);
+    writeDoc(doc, "axisTiltOverlayLeftYActivePreset", axisTiltOverlayOptions.leftYActivePreset);
+    writeDoc(doc, "axisTiltOverlayRightYActivePreset", axisTiltOverlayOptions.rightYActivePreset);
+    writeDoc(doc, "AxisTiltOverlayInputEnabled", axisTiltOverlayOptions.enabled);
 
     const ReverseOptions& reverseOptions = Storage::getInstance().getAddonOptions().reverseOptions;
     writeDoc(doc, "reversePinLED", cleanPin(reverseOptions.ledPin));

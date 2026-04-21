@@ -147,6 +147,10 @@ export default {
 		'apply-curve-preset-3-right': '应用摇杆曲线预设方案 #3 (右摇杆)',
 		'apply-curve-preset-4-left': '应用摇杆曲线预设方案 #4 (左摇杆)',
 		'apply-curve-preset-4-right': '应用摇杆曲线预设方案 #4 (右摇杆)',
+		'axis-tilt-overlay-left-y-1': '设置 Y 轴叠加左摇杆预设 1',
+		'axis-tilt-overlay-left-y-2': '设置 Y 轴叠加左摇杆预设 2',
+		'axis-tilt-overlay-right-y-1': '设置 Y 轴叠加右摇杆预设 1',
+		'axis-tilt-overlay-right-y-2': '设置 Y 轴叠加右摇杆预设 2',
 	},
 	'forced-setup-mode-label': '强制设置模式',
 	'forced-setup-mode-options': {

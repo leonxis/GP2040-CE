@@ -933,6 +933,30 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 				}
 			}
 			break;
+		case HOTKEY_AXIS_TILT_OVERLAY_LEFT_Y_1:
+			if (action != lastAction) {
+				Storage::getInstance().getAddonOptions().axisTiltOverlayOptions.leftYActivePreset = 1;
+				reqSave = true;
+			}
+			break;
+		case HOTKEY_AXIS_TILT_OVERLAY_LEFT_Y_2:
+			if (action != lastAction) {
+				Storage::getInstance().getAddonOptions().axisTiltOverlayOptions.leftYActivePreset = 2;
+				reqSave = true;
+			}
+			break;
+		case HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_1:
+			if (action != lastAction) {
+				Storage::getInstance().getAddonOptions().axisTiltOverlayOptions.rightYActivePreset = 1;
+				reqSave = true;
+			}
+			break;
+		case HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_2:
+			if (action != lastAction) {
+				Storage::getInstance().getAddonOptions().axisTiltOverlayOptions.rightYActivePreset = 2;
+				reqSave = true;
+			}
+			break;
 		case HOTKEY_FOCUS_MODE_TOGGLE:
 		{
 			auto &focusModeOptions = Storage::getInstance().getAddonOptions().focusModeOptions;

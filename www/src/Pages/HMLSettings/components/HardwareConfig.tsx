@@ -420,11 +420,7 @@ export default function HardwareConfig() {
 									{t('SettingsPage:hml-ambient-mode-breath')}
 								</option>
 							</Form.Select>
-						</div>
-
-						{/* 颜色取色框（静态与呼吸共用） */}
-						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<label style={{ minWidth: '80px' }}>
+							<label style={{ minWidth: '80px', marginLeft: '8px' }}>
 								{t('SettingsPage:hml-color-label')}
 							</label>
 							<div

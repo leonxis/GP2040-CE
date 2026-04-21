@@ -305,6 +305,7 @@ src/addons/wiiext.cpp
 src/addons/input_macro.cpp
 src/addons/snes_input.cpp
 src/addons/tilt.cpp
+src/addons/axis_tilt_overlay.cpp
 src/addons/gamepad_usb_host.cpp
 src/addons/gamepad_usb_host_listener.cpp
 src/addons/tg16_input.cpp
