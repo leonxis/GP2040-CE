@@ -1,6 +1,7 @@
 #include "drivers/ps4b/PS4BDriver.h"
 #include "drivers/shared/driverhelper.h"
 #include "storagemanager.h"
+#include "usbdriver.h"
 #include <string.h>
 
 #include "enums.pb.h"
@@ -683,6 +684,8 @@ bool PS4BDriver::process(Gamepad * gamepad) {
                 ps4Report.gamepad.axisTiming = prev_axis_timing;
             }
         }
+    } else {
+        usb_notify_main_gamepad_poll_done_not_ready();
     }
 
     uint16_t featureSize = sizeof(PS4FeatureOutputReport);

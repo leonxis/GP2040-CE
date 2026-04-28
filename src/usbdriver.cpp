@@ -12,6 +12,7 @@
 #include "config.pb.h"
 #include "class/hid/hid.h"
 #include "drivers/shared/CompositeHID.h"
+#include "hardware/sync.h"
 #include <string.h>
 
 #define USB_CONFIG_DESC_COPY_SIZE 512
@@ -21,10 +22,24 @@
 
 static bool usb_mounted;
 static bool usb_suspended;
-static volatile uint32_t usb_sof_count = 0;
-// Main-loop gate: HID gamepad (non-XInput modes) + XInput vendor IN completions.
-static volatile uint32_t usb_main_gamepad_in_complete_count = 0;
+// Main-loop gate: ISR/driver sets pending; core0 consumes once per gated frame.
+// Total IN-side marks (success + latched not-ready) used for diagnostics and USB warm-up gate bypass.
+static volatile bool usb_main_gamepad_poll_event_pending = false;
+static volatile uint32_t usb_main_gamepad_in_mark_total = 0;
+static volatile bool usb_main_gamepad_not_ready_latched = false;
+
+static constexpr uint32_t MAIN_LOOP_GATE_COLD_START_IN_MARKS = 1000;
 static uint8_t compositeHIDInstance = 0xFF;
+static inline bool shouldCountMainLoopPollDoneEvents() {
+	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+	if (addonOptions.reportRate != 1000u) {
+		return false;
+	}
+	const InputMode mode = DriverManager::getInstance().getInputMode();
+	return (mode == INPUT_MODE_PS4 || mode == INPUT_MODE_PS4B || mode == INPUT_MODE_SWITCH_PRO ||
+	        mode == INPUT_MODE_XINPUT || mode == INPUT_MODE_XINPUTB);
+}
+
 
 // Global variable to track current interface for get_report callback
 // This is used by drivers to determine which interface is being queried
@@ -162,20 +177,46 @@ bool get_usb_suspended(void) {
 	return usb_suspended;
 }
 
-uint32_t get_usb_sof_count(void) {
-	return usb_sof_count;
+bool usb_main_loop_gate_usb_warmup_active(void) {
+	return usb_main_gamepad_in_mark_total < MAIN_LOOP_GATE_COLD_START_IN_MARKS;
 }
 
-uint32_t get_usb_main_gamepad_in_complete_count(void) {
-	return usb_main_gamepad_in_complete_count;
+bool usb_consume_main_gamepad_poll_pending(void) {
+	uint32_t irqState = save_and_disable_interrupts();
+	const bool pending = usb_main_gamepad_poll_event_pending;
+	usb_main_gamepad_poll_event_pending = false;
+	restore_interrupts(irqState);
+	return pending;
 }
 
-uint32_t get_usb_hid_gamepad_in_complete_count(void) {
-	return get_usb_main_gamepad_in_complete_count();
+void usb_notify_main_gamepad_poll_done_success(void) {
+	if (!shouldCountMainLoopPollDoneEvents()) {
+		return;
+	}
+	usb_main_gamepad_poll_event_pending = true;
+	usb_main_gamepad_not_ready_latched = false;
+	usb_main_gamepad_in_mark_total++;
+}
+
+void usb_notify_main_gamepad_poll_done_not_ready(void) {
+	if (!shouldCountMainLoopPollDoneEvents()) {
+		return;
+	}
+	if (usb_main_gamepad_not_ready_latched) {
+		return;
+	}
+	usb_main_gamepad_poll_event_pending = true;
+	usb_main_gamepad_not_ready_latched = true;
+	usb_main_gamepad_in_mark_total++;
+}
+
+void usb_reset_main_gamepad_poll_done_state(void) {
+	usb_main_gamepad_not_ready_latched = false;
+	usb_main_gamepad_poll_event_pending = false;
 }
 
 void usb_notify_main_gamepad_in_xfer_complete_from_xinput(void) {
-	usb_main_gamepad_in_complete_count++;
+	usb_notify_main_gamepad_poll_done_success();
 }
 
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *driver_count) {
@@ -217,13 +258,7 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_
 	if (mode == INPUT_MODE_XINPUT || mode == INPUT_MODE_XINPUTB) {
 		return;
 	}
-	usb_main_gamepad_in_complete_count++;
-}
-
-// Invoked every USB SOF (1ms on full-speed) when enabled by tud_sof_cb_enable(true).
-void tud_sof_cb(uint32_t frame_count) {
-	(void)frame_count;
-	usb_sof_count++;
+	usb_notify_main_gamepad_poll_done_success();
 }
 
 // Invoked when device is mounted
@@ -231,6 +266,8 @@ void tud_mount_cb(void)
 {
 	usb_mounted = true;
 	usb_suspended = false;
+	usb_main_gamepad_in_mark_total = 0;
+	usb_reset_main_gamepad_poll_done_state();
 }
 
 // Invoked when device is unmounted
@@ -238,6 +275,7 @@ void tud_umount_cb(void)
 {
 	usb_mounted = false;
 	usb_suspended = false;
+	usb_reset_main_gamepad_poll_done_state();
 }
 
 // Invoked when usb bus is suspended

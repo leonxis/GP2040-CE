@@ -56,14 +56,10 @@
 
 static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
-static uint32_t main_loop_last_sof_count = 0;
-static uint32_t main_loop_last_in_complete_count = 0;
-static uint64_t main_loop_sof_t0_us = 0;
-static uint64_t main_loop_last_frame_run_us = 0;
-static uint32_t main_loop_interval_us = 1000u;
 static bool main_loop_gate_enabled = false;
+static bool main_loop_gate_runtime_enabled = false;
+static bool main_loop_gate_bootstrap_pending = false;
 static bool composite_hid_enabled = false;
-static const uint32_t MAIN_LOOP_GATE_IN_EVENT_TOLERANCE_MAX_US = 100u;
 static const uint32_t CPU_FREQ_ENHANCED_KHZ = 144000;
 static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
@@ -85,13 +81,25 @@ static inline bool shouldUseMainLoopGate() {
 	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
 }
 
-static inline uint32_t getInEventMinFrameGapUs() {
-	// Allow up to 10% slack for IN-driven gating to tolerate host/device clock skew.
-	uint32_t toleranceUs = main_loop_interval_us / 10u;
-	if (toleranceUs > MAIN_LOOP_GATE_IN_EVENT_TOLERANCE_MAX_US) {
-		toleranceUs = MAIN_LOOP_GATE_IN_EVENT_TOLERANCE_MAX_US;
+static inline bool shouldSkipMainLoopFrameForGate(bool configMode) {
+	const bool gateEnabledNow = (!configMode && main_loop_gate_enabled);
+	if (gateEnabledNow != main_loop_gate_runtime_enabled) {
+		main_loop_gate_runtime_enabled = gateEnabledNow;
+		// Clear pending marker on each mode transition to avoid stale edge after profile/mode changes.
+		usb_reset_main_gamepad_poll_done_state();
+		main_loop_gate_bootstrap_pending = gateEnabledNow;
 	}
-	return (main_loop_interval_us > toleranceUs) ? (main_loop_interval_us - toleranceUs) : 0u;
+
+	if (!main_loop_gate_runtime_enabled || usb_main_loop_gate_usb_warmup_active()) {
+		return false;
+	}
+
+	const bool pollEventPending = usb_consume_main_gamepad_poll_pending();
+	const bool runFrame = main_loop_gate_bootstrap_pending || pollEventPending;
+	if (runFrame) {
+		main_loop_gate_bootstrap_pending = false;
+	}
+	return !runFrame;
 }
 
 const static uint32_t rebootDelayMs = 500;
@@ -159,13 +167,6 @@ void GP2040::setup() {
 	// new set of GPIOs to use...
 	this->initializeStandardGpio();
 	configureWebConfigHotkeyGPIOs();
-
-	// 主循环门控参数（仅在 setup 时从配置读取一次）
-	{
-		const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-		uint32_t rate_hz = addonOptions.reportRate;
-		main_loop_interval_us = (rate_hz > 0u) ? (1000000u / rate_hz) : 1000u;
-	}
 
 	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
 
@@ -402,7 +403,6 @@ void GP2040::run() {
 
 	// Start the TinyUSB Device functionality
 	tud_init(TUD_OPT_RHPORT);
-	tud_sof_cb_enable(true);
 
 	// Initialize our USB manager
 	USBHostManager::getInstance().start();
@@ -414,51 +414,12 @@ void GP2040::run() {
 	while (1) { // LOOP
 		this->getReinitGamepad(gamepad);
 
-		// IN/SOF-driven gate only when report rate is configured to 1kHz.
-		if (!configMode && main_loop_gate_enabled) {
-			bool runFrame = false;
-			bool runByInEvent = false;
-			uint64_t now_us = time_us_64();
-			uint32_t inCount = get_usb_main_gamepad_in_complete_count();
-			if (inCount != main_loop_last_in_complete_count) {
-				runFrame = true;
-				runByInEvent = true;
-			} else {
-				uint32_t sofCount = get_usb_sof_count();
-				if (sofCount != main_loop_last_sof_count) {
-					main_loop_last_sof_count = sofCount;
-					if (main_loop_sof_t0_us == 0) {
-						main_loop_sof_t0_us = now_us;
-					}
-				}
-				if (main_loop_sof_t0_us == 0) {
-					main_loop_sof_t0_us = now_us;
-				}
-				if (main_loop_sof_t0_us != 0 &&
-				    (now_us - main_loop_sof_t0_us) >= (main_loop_interval_us + 20u)) {
-					runFrame = true;
-					main_loop_sof_t0_us = now_us;
-				}
-			}
-			uint32_t minFrameGapUs = runByInEvent ? getInEventMinFrameGapUs() : main_loop_interval_us;
-			if (runFrame && main_loop_last_frame_run_us != 0 &&
-			    (now_us - main_loop_last_frame_run_us) < minFrameGapUs) {
-				runFrame = false;
-			}
-
-			if (!runFrame) {
-				// Keep host side polling responsive even when main-loop gate skips this frame.
-				USBHostManager::getInstance().process();
-				tud_task();
-				sleep_us(0);
-				continue;
-			}
-
-			if (runByInEvent) {
-				main_loop_last_in_complete_count = inCount;
-				main_loop_sof_t0_us = 0;
-			}
-			main_loop_last_frame_run_us = now_us;
+		if (shouldSkipMainLoopFrameForGate(configMode)) {
+			// Keep host side polling responsive even when main-loop gate skips this frame.
+			USBHostManager::getInstance().process();
+			tud_task();
+			sleep_us(0);
+			continue;
 		}
 
 		memcpy(&prevState, &gamepad->state, sizeof(GamepadState));

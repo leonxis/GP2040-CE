@@ -336,15 +336,17 @@ bool XInputDriver::process(Gamepad * gamepad) {
 
     bool reportSent = false;
 
+    const bool canStartInTransfer = tud_ready() && (endpoint_in != 0) && (!usbd_edpt_busy(0, endpoint_in));
     // Send continuously while endpoint is available so idle rate matches USB poll rate.
-    if ( tud_ready() &&											// Is the device ready?
-        (endpoint_in != 0) && (!usbd_edpt_busy(0, endpoint_in)) ) // Is the IN endpoint available?
-    {
+    if (canStartInTransfer) {
         usbd_edpt_claim(0, endpoint_in);								// Take control of IN endpoint
         usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport)); // Send report buffer
         usbd_edpt_release(0, endpoint_in);								// Release control of IN endpoint
         memcpy(last_report, &xinputReport, sizeof(XInputReport)); // save if we sent it
         reportSent = true;
+    } else {
+        // NAK-near approximation path: transfer was not started because endpoint/device wasn't ready.
+        usb_notify_main_gamepad_poll_done_not_ready();
     }
 
     // clear potential initial uncaught data in endpoint_out from before registration of xfer_cb

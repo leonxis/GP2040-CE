@@ -1,6 +1,7 @@
 #include "drivers/switchpro/SwitchProDriver.h"
 #include "drivers/shared/driverhelper.h"
 #include "storagemanager.h"
+#include "usbdriver.h"
 #include "pico/rand.h"
 #include <cstring>
 
@@ -168,10 +169,13 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
         void * inputReport = &switchReport;
         uint16_t report_size = sizeof(switchReport);
         // Send continuously while endpoint is ready to keep idle report rate pinned.
-        if (tud_hid_ready() && sendReport(0, inputReport, report_size) == true ) {
+        const bool hidReady = tud_hid_ready();
+        if (hidReady && sendReport(0, inputReport, report_size) == true ) {
             memcpy(last_report, inputReport, report_size);
             reportSent = true;
             last_report_timer = now;
+        } else if (!hidReady) {
+            usb_notify_main_gamepad_poll_done_not_ready();
         }
     } else {
         if (!isInitialized) {
