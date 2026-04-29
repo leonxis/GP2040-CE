@@ -179,16 +179,6 @@ export const analogScheme = {
 		.min(0)
 		.max(4096)
 		.label('Joystick Jitter Filter 2'),
-	ads8332JitterBoostIntervalMs1: yup
-		.number()
-		.min(0)
-		.max(100)
-		.label('ADS8332 Jitter Boost Interval Ms 1'),
-	ads8332JitterBoostIntervalMs2: yup
-		.number()
-		.min(0)
-		.max(100)
-		.label('ADS8332 Jitter Boost Interval Ms 2'),
 };
 
 export const analogState = {
@@ -244,8 +234,6 @@ export const analogState = {
 	joystickTravelButtonThreshold2: 0,
 	joystickJitterFilter1: 0,
 	joystickJitterFilter2: 0,
-	ads8332JitterBoostIntervalMs1: 0,
-	ads8332JitterBoostIntervalMs2: 0,
 };
 
 // errorRateToPercent and percentToErrorRate removed - no longer used after removing forced_circularity

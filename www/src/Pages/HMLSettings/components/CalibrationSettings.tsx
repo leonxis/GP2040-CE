@@ -53,10 +53,10 @@ import {
 	HETriggerScheme,
 	HETriggerState,
 } from '../../../Addons/HETrigger';
-import TriggerCalibrationSettings, {
-	triggerCalibrationScheme,
-	triggerCalibrationState,
-} from './TriggerCalibration';
+import AxisTiltOverlaySettings, {
+	axisTiltOverlaySettingsScheme,
+	axisTiltOverlaySettingsState,
+} from './AxisTiltOverlaySettings';
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
 	errors: FormikErrors<typeof DEFAULT_VALUES>;
@@ -87,7 +87,7 @@ export const schema = yup.object().shape({
 	...drv8833RumbleScheme,
 	...reactiveLEDScheme,
 	...HETriggerScheme,
-	...triggerCalibrationScheme,
+	...axisTiltOverlaySettingsScheme,
 });
 
 export const DEFAULT_VALUES = {
@@ -112,13 +112,7 @@ export const DEFAULT_VALUES = {
 	...reactiveLEDState,
 	...gamepadUSBHostState,
 	...HETriggerState,
-	...triggerCalibrationState,
-	ads8332JitterBoostEnabled1: 0,
-	ads8332JitterBoostAmplitude1: 0.0,
-	ads8332JitterBoostIntervalMs1: 0,
-	ads8332JitterBoostEnabled2: 0,
-	ads8332JitterBoostAmplitude2: 0.0,
-	ads8332JitterBoostIntervalMs2: 0,
+	...axisTiltOverlaySettingsState,
 } as const;
 
 export const FormContext = ({ setStoredData }) => {
@@ -147,12 +141,12 @@ export const FormContext = ({ setStoredData }) => {
 const FLOAT_KEYS = [
 	'joystickFinetuneShapeAmplify1',
 	'joystickFinetuneShapeAmplify2',
-	'ads8332JitterBoostAmplitude1',
-	'ads8332JitterBoostAmplitude2',
-	'axisTiltOverlayLeftYPercent1',
-	'axisTiltOverlayLeftYPercent2',
 	'axisTiltOverlayRightYPercent1',
 	'axisTiltOverlayRightYPercent2',
+	'axisTiltOverlayRightYPercent3',
+	'axisTiltOverlayRcGainReserved1',
+	'axisTiltOverlayRcGainReserved2',
+	'axisTiltOverlayRcGainReserved3',
 	'lsm6dsrGyroMouseSensLR',
 	'lsm6dsrGyroMouseSensUD',
 ];
@@ -205,13 +199,13 @@ export function flattenObject(object) {
 	return toReturn;
 }
 
-type SaveSection = 'joystick' | 'curve' | 'trigger';
+type SaveSection = 'joystick' | 'curve' | 'axisOverlay';
 
 export default function CalibrationSettings() {
 	const { updateUsedPins } = useContext(AppContext);
 	const [saveMessageJoystick, setSaveMessageJoystick] = useState('');
 	const [saveMessageCurve, setSaveMessageCurve] = useState('');
-	const [saveMessageTrigger, setSaveMessageTrigger] = useState('');
+	const [saveMessageAxisOverlay, setSaveMessageAxisOverlay] = useState('');
 	const [storedData, setStoredData] = useState({});
 	const [triggerErrorModalShow, setTriggerErrorModalShow] = useState(false);
 	const lastSaveSectionRef = useRef<SaveSection | null>(null);
@@ -253,14 +247,14 @@ export default function CalibrationSettings() {
 			const msg = t('Common:saved-error-message');
 			if (section === 'joystick') setSaveMessageJoystick(msg);
 			else if (section === 'curve') setSaveMessageCurve(msg);
-			else if (section === 'trigger') setSaveMessageTrigger(msg);
+			else if (section === 'axisOverlay') setSaveMessageAxisOverlay(msg);
 			return;
 		}
 		setStoredData(JSON.parse(JSON.stringify(values)));
 		const msg = t('Common:saved-success-message');
 		if (section === 'joystick') setSaveMessageJoystick(msg);
 		else if (section === 'curve') setSaveMessageCurve(msg);
-		else if (section === 'trigger') setSaveMessageTrigger(msg);
+		else if (section === 'axisOverlay') setSaveMessageAxisOverlay(msg);
 		updateUsedPins();
 	};
 
@@ -300,6 +294,21 @@ export default function CalibrationSettings() {
 						}}
 					/>
 
+					<AxisTiltOverlaySettings
+						values={values}
+						errors={errors}
+						handleChange={handleChange}
+						handleCheckbox={(name: keyof typeof DEFAULT_VALUES) => {
+							setFieldValue(name, values[name] === 1 ? 0 : 1);
+						}}
+						setFieldValue={setFieldValue}
+						saveMessage={saveMessageAxisOverlay}
+						onSaveClick={() => {
+							lastSaveSectionRef.current = 'axisOverlay';
+							handleSubmit();
+						}}
+					/>
+
 					<JoystickCurveSettings
 						values={values}
 						errors={errors}
@@ -308,16 +317,6 @@ export default function CalibrationSettings() {
 						saveMessage={saveMessageCurve}
 						onSaveClick={() => {
 							lastSaveSectionRef.current = 'curve';
-							handleSubmit();
-						}}
-					/>
-
-					<TriggerCalibrationSettings
-						values={values}
-						setFieldValue={setFieldValue}
-						saveMessage={saveMessageTrigger}
-						onSaveClick={() => {
-							lastSaveSectionRef.current = 'trigger';
 							handleSubmit();
 						}}
 					/>

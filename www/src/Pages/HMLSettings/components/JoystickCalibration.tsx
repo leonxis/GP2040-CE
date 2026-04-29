@@ -629,12 +629,6 @@ const quantizeAdcPair = (
 /** Firmware stores quantize step; 0 = off. UI uses bits b∈[4,16] with step = 2^(16-b). */
 const JITTER_BITS_MIN = 4;
 const JITTER_BITS_MAX = 16;
-const JITTER_BOOST_AMPLITUDE_MIN = 0.0;
-const JITTER_BOOST_AMPLITUDE_MAX = 3.0;
-const JITTER_BOOST_AMPLITUDE_STEP = 0.1;
-const JITTER_BOOST_INTERVAL_MS_MIN = 0;
-const JITTER_BOOST_INTERVAL_MS_MAX = 100;
-const JITTER_BOOST_INTERVAL_MS_STEP = 1;
 
 const bitsToStoredThreshold = (bits: number): number => {
 	const b = Math.round(bits);
@@ -1509,41 +1503,6 @@ const JoystickCalibration = ({
 							{t('CalibrationSettings:hml-stick-step-help')}
 						</div>
 					</div>
-					<div className="mb-4">
-						<Form.Check
-							type="switch"
-							id="ads8332JitterBoostEnabled-left"
-							label={t('CalibrationSettings:hml-ads8332-jitter-boost-enable')}
-							checked={Boolean(values?.ads8332JitterBoostEnabled1)}
-							onChange={(e) => setFieldValue('ads8332JitterBoostEnabled1', e.target.checked ? 1 : 0)}
-						/>
-						<Form.Label className="mt-3">
-							{t('CalibrationSettings:hml-ads8332-jitter-boost-amplitude', {
-								value: Number(values?.ads8332JitterBoostAmplitude1 ?? 0).toFixed(1),
-							})}
-						</Form.Label>
-						<Form.Range
-							min={JITTER_BOOST_AMPLITUDE_MIN}
-							max={JITTER_BOOST_AMPLITUDE_MAX}
-							step={JITTER_BOOST_AMPLITUDE_STEP}
-							value={Number(values?.ads8332JitterBoostAmplitude1 ?? 0)}
-							onChange={(e) => setFieldValue('ads8332JitterBoostAmplitude1', parseFloat(e.target.value))}
-							disabled={!Boolean(values?.ads8332JitterBoostEnabled1)}
-						/>
-						<Form.Label className="mt-3">
-							{t('CalibrationSettings:hml-ads8332-jitter-boost-interval-ms', {
-								value: Number(values?.ads8332JitterBoostIntervalMs1 ?? 0),
-							})}
-						</Form.Label>
-						<Form.Range
-							min={JITTER_BOOST_INTERVAL_MS_MIN}
-							max={JITTER_BOOST_INTERVAL_MS_MAX}
-							step={JITTER_BOOST_INTERVAL_MS_STEP}
-							value={Number(values?.ads8332JitterBoostIntervalMs1 ?? 0)}
-							onChange={(e) => setFieldValue('ads8332JitterBoostIntervalMs1', parseInt(e.target.value, 10))}
-							disabled={!Boolean(values?.ads8332JitterBoostEnabled1)}
-						/>
-					</div>
 				</Modal.Body>
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => {
@@ -1599,41 +1558,6 @@ const JoystickCalibration = ({
 						<div className="mt-3 small text-muted">
 							{t('CalibrationSettings:hml-stick-step-help')}
 						</div>
-					</div>
-					<div className="mb-4">
-						<Form.Check
-							type="switch"
-							id="ads8332JitterBoostEnabled-right"
-							label={t('CalibrationSettings:hml-ads8332-jitter-boost-enable')}
-							checked={Boolean(values?.ads8332JitterBoostEnabled2)}
-							onChange={(e) => setFieldValue('ads8332JitterBoostEnabled2', e.target.checked ? 1 : 0)}
-						/>
-						<Form.Label className="mt-3">
-							{t('CalibrationSettings:hml-ads8332-jitter-boost-amplitude', {
-								value: Number(values?.ads8332JitterBoostAmplitude2 ?? 0).toFixed(1),
-							})}
-						</Form.Label>
-						<Form.Range
-							min={JITTER_BOOST_AMPLITUDE_MIN}
-							max={JITTER_BOOST_AMPLITUDE_MAX}
-							step={JITTER_BOOST_AMPLITUDE_STEP}
-							value={Number(values?.ads8332JitterBoostAmplitude2 ?? 0)}
-							onChange={(e) => setFieldValue('ads8332JitterBoostAmplitude2', parseFloat(e.target.value))}
-							disabled={!Boolean(values?.ads8332JitterBoostEnabled2)}
-						/>
-						<Form.Label className="mt-3">
-							{t('CalibrationSettings:hml-ads8332-jitter-boost-interval-ms', {
-								value: Number(values?.ads8332JitterBoostIntervalMs2 ?? 0),
-							})}
-						</Form.Label>
-						<Form.Range
-							min={JITTER_BOOST_INTERVAL_MS_MIN}
-							max={JITTER_BOOST_INTERVAL_MS_MAX}
-							step={JITTER_BOOST_INTERVAL_MS_STEP}
-							value={Number(values?.ads8332JitterBoostIntervalMs2 ?? 0)}
-							onChange={(e) => setFieldValue('ads8332JitterBoostIntervalMs2', parseInt(e.target.value, 10))}
-							disabled={!Boolean(values?.ads8332JitterBoostEnabled2)}
-						/>
 					</div>
 				</Modal.Body>
 				<Modal.Footer>

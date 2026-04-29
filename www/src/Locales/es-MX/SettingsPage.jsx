@@ -141,6 +141,10 @@ export default {
 		'menu-nav-select': 'Menú Seleccionar',
 		'menu-nav-back': 'Menú Atrás',
 		'menu-nav-toggle': 'Alternar Menú',
+		'right-stick-press-preset-1': 'Right stick press preset 1',
+		'right-stick-press-preset-2': 'Right stick press preset 2',
+		'right-stick-press-preset-3': 'Right stick press preset 3',
+		'right-stick-press-preset-clear': 'Clear right stick press preset',
 	},
 	'forced-setup-mode-label': 'Modo de Configuración Forzado',
 	'forced-setup-mode-options': {

@@ -147,6 +147,10 @@ export default {
 		'focus-mode-toggle': 'Odak Modu Geçişi',
 		'turbo-count-up': 'Turbo Miktarı Yukarı',
 		'turbo-count-down': 'Turbo Miktaro Aşağı',
+		'right-stick-press-preset-1': 'Right stick press preset 1',
+		'right-stick-press-preset-2': 'Right stick press preset 2',
+		'right-stick-press-preset-3': 'Right stick press preset 3',
+		'right-stick-press-preset-clear': 'Clear right stick press preset',
 	},
 	'forced-setup-mode-label': 'Zorunlu Kurulum Modu',
 	'forced-setup-mode-options': {

@@ -147,6 +147,10 @@ export default {
 		'focus-mode-toggle': '포커스 모드 전환',
 		'turbo-count-up': '터보 카운트 증가',
 		'turbo-count-down': '터보 카운트 감소',
+		'right-stick-press-preset-1': '오른쪽 스틱 누르기 프리셋 1',
+		'right-stick-press-preset-2': '오른쪽 스틱 누르기 프리셋 2',
+		'right-stick-press-preset-3': '오른쪽 스틱 누르기 프리셋 3',
+		'right-stick-press-preset-clear': '오른쪽 스틱 누르기 프리셋 지우기',
 	},
 	'forced-setup-mode-label': '강제 설정 모드',
 	'forced-setup-mode-options': {

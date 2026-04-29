@@ -147,6 +147,10 @@ export default {
 		'focus-mode-toggle': 'Basculer le mode Focus',
 		'turbo-count-up': 'Augmenter la cadence du turbo',
 		'turbo-count-down': 'Réduire la cadence du turbo',
+		'right-stick-press-preset-1': 'Préréglage appui stick droit 1',
+		'right-stick-press-preset-2': 'Préréglage appui stick droit 2',
+		'right-stick-press-preset-3': 'Préréglage appui stick droit 3',
+		'right-stick-press-preset-clear': 'Effacer préréglage appui stick droit',
 	},
 	'forced-setup-mode-label': 'Mode de configuration forcé',
 	'forced-setup-mode-options': {

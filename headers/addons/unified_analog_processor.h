@@ -41,10 +41,6 @@ private:
         float anti_deadzone;
         bool fixed_anti_deadzone;
         uint32_t jitter_filter;
-        bool jitter_boost_enabled;
-        float jitter_boost_amplitude;
-        uint16_t jitter_boost_interval_frames;
-        uint16_t jitter_boost_frame_counter;
         uint16_t last_x_adc;
         uint16_t last_y_adc;
         float range_data[48];

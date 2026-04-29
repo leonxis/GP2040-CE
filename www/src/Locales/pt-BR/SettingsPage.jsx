@@ -76,6 +76,10 @@ export default {
 		'load-profile-6': 'Carregar Perfil #6',
 		'next-profile': 'Próximo Perfil',
 		'reboot-default': 'Reiniciar GP2040-CE',
+		'right-stick-press-preset-1': 'Right stick press preset 1',
+		'right-stick-press-preset-2': 'Right stick press preset 2',
+		'right-stick-press-preset-3': 'Right stick press preset 3',
+		'right-stick-press-preset-clear': 'Clear right stick press preset',
 	},
 	'forced-setup-mode-label': 'Modo de Configuração Forçada',
 	'forced-setup-mode-options': {

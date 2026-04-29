@@ -643,16 +643,10 @@ std::string setBackButtonAddonOptions() {
 }
 
 std::string getADS8332Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(10);
+    const size_t capacity = JSON_OBJECT_SIZE(2);
     DynamicJsonDocument doc(capacity);
     const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    writeDoc(doc, "ads8332JitterBoostEnabled1", opts.jitterBoostEnabled1 ? 1 : 0);
-    writeDoc(doc, "ads8332JitterBoostAmplitude1", opts.jitterBoostAmplitude1);
-    writeDoc(doc, "ads8332JitterBoostEnabled2", opts.jitterBoostEnabled2 ? 1 : 0);
-    writeDoc(doc, "ads8332JitterBoostAmplitude2", opts.jitterBoostAmplitude2);
-    writeDoc(doc, "ads8332JitterBoostIntervalMs1", opts.jitterBoostIntervalMs1);
-    writeDoc(doc, "ads8332JitterBoostIntervalMs2", opts.jitterBoostIntervalMs2);
     return serialize_json(doc);
 }
 
@@ -660,40 +654,6 @@ std::string setADS8332Options() {
     DynamicJsonDocument doc = get_post_data();
     ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
     docToValue(opts.enabled, doc, "enabled");
-    if (doc.containsKey("ads8332JitterBoostEnabled1")) {
-        opts.jitterBoostEnabled1 = doc["ads8332JitterBoostEnabled1"].as<int>() != 0;
-    }
-    if (doc.containsKey("ads8332JitterBoostAmplitude1")) {
-        opts.jitterBoostAmplitude1 = doc["ads8332JitterBoostAmplitude1"].as<float>();
-    }
-    if (doc.containsKey("ads8332JitterBoostEnabled2")) {
-        opts.jitterBoostEnabled2 = doc["ads8332JitterBoostEnabled2"].as<int>() != 0;
-    }
-    if (doc.containsKey("ads8332JitterBoostAmplitude2")) {
-        opts.jitterBoostAmplitude2 = doc["ads8332JitterBoostAmplitude2"].as<float>();
-    }
-    if (doc.containsKey("ads8332JitterBoostIntervalMs1")) {
-        opts.jitterBoostIntervalMs1 = doc["ads8332JitterBoostIntervalMs1"].as<uint32_t>();
-    }
-    if (doc.containsKey("ads8332JitterBoostIntervalMs2")) {
-        opts.jitterBoostIntervalMs2 = doc["ads8332JitterBoostIntervalMs2"].as<uint32_t>();
-    }
-    if (opts.jitterBoostAmplitude1 < 0.0f) {
-        opts.jitterBoostAmplitude1 = 0.0f;
-    } else if (opts.jitterBoostAmplitude1 > 3.0f) {
-        opts.jitterBoostAmplitude1 = 3.0f;
-    }
-    if (opts.jitterBoostAmplitude2 < 0.0f) {
-        opts.jitterBoostAmplitude2 = 0.0f;
-    } else if (opts.jitterBoostAmplitude2 > 3.0f) {
-        opts.jitterBoostAmplitude2 = 3.0f;
-    }
-    if (opts.jitterBoostIntervalMs1 > 100u) {
-        opts.jitterBoostIntervalMs1 = 100u;
-    }
-    if (opts.jitterBoostIntervalMs2 > 100u) {
-        opts.jitterBoostIntervalMs2 = 100u;
-    }
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -2266,15 +2226,18 @@ std::string setAddonOptions()
     docToValue(tiltOptions.enabled, doc, "TiltInputEnabled");
 
     AxisTiltOverlayOptions& axisTiltOverlayOptions = Storage::getInstance().getAddonOptions().axisTiltOverlayOptions;
-    docToValue(axisTiltOverlayOptions.leftYTriggerButtonMask, doc, "axisTiltOverlayLeftYTriggerButtonMask");
+    docToValue(axisTiltOverlayOptions.enabled, doc, "AxisTiltOverlayInputEnabled");
+    docToValue(axisTiltOverlayOptions.pressEnabled, doc, "axisTiltOverlayPressEnabled");
     docToValue(axisTiltOverlayOptions.rightYTriggerButtonMask, doc, "axisTiltOverlayRightYTriggerButtonMask");
-    docToValue(axisTiltOverlayOptions.leftYPercent1, doc, "axisTiltOverlayLeftYPercent1");
-    docToValue(axisTiltOverlayOptions.leftYPercent2, doc, "axisTiltOverlayLeftYPercent2");
     docToValue(axisTiltOverlayOptions.rightYPercent1, doc, "axisTiltOverlayRightYPercent1");
     docToValue(axisTiltOverlayOptions.rightYPercent2, doc, "axisTiltOverlayRightYPercent2");
-    docToValue(axisTiltOverlayOptions.leftYActivePreset, doc, "axisTiltOverlayLeftYActivePreset");
+    docToValue(axisTiltOverlayOptions.rightYPercent3, doc, "axisTiltOverlayRightYPercent3");
     docToValue(axisTiltOverlayOptions.rightYActivePreset, doc, "axisTiltOverlayRightYActivePreset");
-    docToValue(axisTiltOverlayOptions.enabled, doc, "AxisTiltOverlayInputEnabled");
+    docToValue(axisTiltOverlayOptions.rcGainEnabled, doc, "axisTiltOverlayRcGainEnabled");
+    docToValue(axisTiltOverlayOptions.rcGainTriggerButtonMask, doc, "axisTiltOverlayRcGainTriggerButtonMask");
+    docToValue(axisTiltOverlayOptions.rcGainReserved1, doc, "axisTiltOverlayRcGainReserved1");
+    docToValue(axisTiltOverlayOptions.rcGainReserved2, doc, "axisTiltOverlayRcGainReserved2");
+    docToValue(axisTiltOverlayOptions.rcGainReserved3, doc, "axisTiltOverlayRcGainReserved3");
 
     FocusModeOptions& focusModeOptions = Storage::getInstance().getAddonOptions().focusModeOptions;
     docToValue(focusModeOptions.buttonLockMask, doc, "focusModeButtonLockMask");
@@ -2363,40 +2326,6 @@ std::string setAddonOptions()
 
     ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
     docToValue(ads8332Options.enabled, doc, "ADS8332AddonEnabled");
-    if (doc.containsKey("ads8332JitterBoostEnabled1")) {
-        ads8332Options.jitterBoostEnabled1 = doc["ads8332JitterBoostEnabled1"].as<int>() != 0;
-    }
-    if (doc.containsKey("ads8332JitterBoostAmplitude1")) {
-        ads8332Options.jitterBoostAmplitude1 = doc["ads8332JitterBoostAmplitude1"].as<float>();
-    }
-    if (doc.containsKey("ads8332JitterBoostEnabled2")) {
-        ads8332Options.jitterBoostEnabled2 = doc["ads8332JitterBoostEnabled2"].as<int>() != 0;
-    }
-    if (doc.containsKey("ads8332JitterBoostAmplitude2")) {
-        ads8332Options.jitterBoostAmplitude2 = doc["ads8332JitterBoostAmplitude2"].as<float>();
-    }
-    if (doc.containsKey("ads8332JitterBoostIntervalMs1")) {
-        ads8332Options.jitterBoostIntervalMs1 = doc["ads8332JitterBoostIntervalMs1"].as<uint32_t>();
-    }
-    if (doc.containsKey("ads8332JitterBoostIntervalMs2")) {
-        ads8332Options.jitterBoostIntervalMs2 = doc["ads8332JitterBoostIntervalMs2"].as<uint32_t>();
-    }
-    if (ads8332Options.jitterBoostAmplitude1 < 0.0f) {
-        ads8332Options.jitterBoostAmplitude1 = 0.0f;
-    } else if (ads8332Options.jitterBoostAmplitude1 > 3.0f) {
-        ads8332Options.jitterBoostAmplitude1 = 3.0f;
-    }
-    if (ads8332Options.jitterBoostAmplitude2 < 0.0f) {
-        ads8332Options.jitterBoostAmplitude2 = 0.0f;
-    } else if (ads8332Options.jitterBoostAmplitude2 > 3.0f) {
-        ads8332Options.jitterBoostAmplitude2 = 3.0f;
-    }
-    if (ads8332Options.jitterBoostIntervalMs1 > 100u) {
-        ads8332Options.jitterBoostIntervalMs1 = 100u;
-    }
-    if (ads8332Options.jitterBoostIntervalMs2 > 100u) {
-        ads8332Options.jitterBoostIntervalMs2 = 100u;
-    }
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
@@ -2896,12 +2825,6 @@ std::string getAddonOptions()
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
     const ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "ADS8332AddonEnabled", ads8332Options.enabled ? 1 : 0);
-    writeDoc(doc, "ads8332JitterBoostEnabled1", ads8332Options.jitterBoostEnabled1 ? 1 : 0);
-    writeDoc(doc, "ads8332JitterBoostAmplitude1", ads8332Options.jitterBoostAmplitude1);
-    writeDoc(doc, "ads8332JitterBoostEnabled2", ads8332Options.jitterBoostEnabled2 ? 1 : 0);
-    writeDoc(doc, "ads8332JitterBoostAmplitude2", ads8332Options.jitterBoostAmplitude2);
-    writeDoc(doc, "ads8332JitterBoostIntervalMs1", ads8332Options.jitterBoostIntervalMs1);
-    writeDoc(doc, "ads8332JitterBoostIntervalMs2", ads8332Options.jitterBoostIntervalMs2);
     const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOutputMode", lsm6dsrOptions.outputMode);
@@ -2956,15 +2879,18 @@ std::string getAddonOptions()
     writeDoc(doc, "TiltInputEnabled", tiltOptions.enabled);
 
     const AxisTiltOverlayOptions& axisTiltOverlayOptions = Storage::getInstance().getAddonOptions().axisTiltOverlayOptions;
-    writeDoc(doc, "axisTiltOverlayLeftYTriggerButtonMask", axisTiltOverlayOptions.leftYTriggerButtonMask);
+    writeDoc(doc, "AxisTiltOverlayInputEnabled", axisTiltOverlayOptions.enabled ? 1 : 0);
+    writeDoc(doc, "axisTiltOverlayPressEnabled", axisTiltOverlayOptions.pressEnabled ? 1 : 0);
     writeDoc(doc, "axisTiltOverlayRightYTriggerButtonMask", axisTiltOverlayOptions.rightYTriggerButtonMask);
-    writeDoc(doc, "axisTiltOverlayLeftYPercent1", axisTiltOverlayOptions.leftYPercent1);
-    writeDoc(doc, "axisTiltOverlayLeftYPercent2", axisTiltOverlayOptions.leftYPercent2);
     writeDoc(doc, "axisTiltOverlayRightYPercent1", axisTiltOverlayOptions.rightYPercent1);
     writeDoc(doc, "axisTiltOverlayRightYPercent2", axisTiltOverlayOptions.rightYPercent2);
-    writeDoc(doc, "axisTiltOverlayLeftYActivePreset", axisTiltOverlayOptions.leftYActivePreset);
+    writeDoc(doc, "axisTiltOverlayRightYPercent3", axisTiltOverlayOptions.rightYPercent3);
     writeDoc(doc, "axisTiltOverlayRightYActivePreset", axisTiltOverlayOptions.rightYActivePreset);
-    writeDoc(doc, "AxisTiltOverlayInputEnabled", axisTiltOverlayOptions.enabled);
+    writeDoc(doc, "axisTiltOverlayRcGainEnabled", axisTiltOverlayOptions.rcGainEnabled ? 1 : 0);
+    writeDoc(doc, "axisTiltOverlayRcGainTriggerButtonMask", axisTiltOverlayOptions.rcGainTriggerButtonMask);
+    writeDoc(doc, "axisTiltOverlayRcGainReserved1", axisTiltOverlayOptions.rcGainReserved1);
+    writeDoc(doc, "axisTiltOverlayRcGainReserved2", axisTiltOverlayOptions.rcGainReserved2);
+    writeDoc(doc, "axisTiltOverlayRcGainReserved3", axisTiltOverlayOptions.rcGainReserved3);
 
     const ReverseOptions& reverseOptions = Storage::getInstance().getAddonOptions().reverseOptions;
     writeDoc(doc, "reversePinLED", cleanPin(reverseOptions.ledPin));

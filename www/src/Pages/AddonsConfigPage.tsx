@@ -28,10 +28,6 @@ import OnBoardLed, {
 import Reverse, { reverseScheme, reverseState } from '../Addons/Reverse';
 import SOCD, { socdScheme, socdState } from '../Addons/SOCD';
 import Tilt, { tiltScheme, tiltState } from '../Addons/Tilt';
-import AxisTiltOverlay, {
-	axisTiltOverlayScheme,
-	axisTiltOverlayState,
-} from '../Addons/AxisTiltOverlay';
 import Turbo, { turboScheme, turboState } from '../Addons/Turbo';
 import Wii, { wiiScheme, wiiState } from '../Addons/Wii';
 import SNES, { snesState } from '../Addons/SNES';
@@ -78,7 +74,6 @@ const schema = yup.object().shape({
 	...reverseScheme,
 	...dualDirectionScheme,
 	...tiltScheme,
-	...axisTiltOverlayScheme,
 	...buzzerScheme,
 	...socdScheme,
 	...wiiScheme,
@@ -92,11 +87,20 @@ const schema = yup.object().shape({
 	...HETriggerScheme,
 });
 
+/** Decimal addon fields (avoid parseInt in sanitizeData). */
 const FLOAT_KEYS = [
-	'axisTiltOverlayLeftYPercent1',
-	'axisTiltOverlayLeftYPercent2',
-	'axisTiltOverlayRightYPercent1',
-	'axisTiltOverlayRightYPercent2',
+	'joystickFinetuneShapeAmplify1',
+	'joystickFinetuneShapeAmplify2',
+	'joystickFinetuneShapeXTopPercent1',
+	'joystickFinetuneShapeXBottomPercent1',
+	'joystickFinetuneShapeYLeftPercent1',
+	'joystickFinetuneShapeYRightPercent1',
+	'joystickFinetuneShapeXTopPercent2',
+	'joystickFinetuneShapeXBottomPercent2',
+	'joystickFinetuneShapeYLeftPercent2',
+	'joystickFinetuneShapeYRightPercent2',
+	'lsm6dsrGyroMouseSensLR',
+	'lsm6dsrGyroMouseSensUD',
 ];
 
 export const DEFAULT_VALUES = {
@@ -109,7 +113,6 @@ export const DEFAULT_VALUES = {
 	...reverseState,
 	...dualDirectionState,
 	...tiltState,
-	...axisTiltOverlayState,
 	...buzzerState,
 	...socdState,
 	...wiiState,
@@ -135,7 +138,6 @@ const ADDONS = [
 	LSM6DSR,
 	DualDirection,
 	Tilt,
-	AxisTiltOverlay,
 	Buzzer,
 	SOCD,
 	Wii,

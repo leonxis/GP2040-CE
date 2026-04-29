@@ -743,16 +743,19 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltRightAnalogRightPin, (Pin_t)-1);
     INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltSOCDMode, TILT_SOCD_MODE);
 
-    // addonOptions.axisTiltOverlayOptions
+    // addonOptions.axisTiltOverlayOptions (right stick Y overlay only)
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, enabled, !!AXIS_TILT_OVERLAY_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, leftYTriggerButtonMask, AXIS_TILT_OVERLAY_LEFT_Y_TRIGGER_BUTTON_MASK);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, pressEnabled, !!AXIS_TILT_OVERLAY_PRESS_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYTriggerButtonMask, AXIS_TILT_OVERLAY_RIGHT_Y_TRIGGER_BUTTON_MASK);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, leftYPercent1, AXIS_TILT_OVERLAY_LEFT_Y_PERCENT1);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, leftYPercent2, AXIS_TILT_OVERLAY_LEFT_Y_PERCENT2);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYPercent1, AXIS_TILT_OVERLAY_RIGHT_Y_PERCENT1);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYPercent2, AXIS_TILT_OVERLAY_RIGHT_Y_PERCENT2);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, leftYActivePreset, AXIS_TILT_OVERLAY_LEFT_Y_ACTIVE_PRESET);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYPercent3, AXIS_TILT_OVERLAY_RIGHT_Y_PERCENT3);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYActivePreset, AXIS_TILT_OVERLAY_RIGHT_Y_ACTIVE_PRESET);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainEnabled, false);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainTriggerButtonMask, 0u);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved1, 0.0f);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved2, 0.0f);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved3, 0.0f);
 
     // addonOptions.buzzerOptions
     INIT_UNSET_PROPERTY(config.addonOptions.buzzerOptions, enabled, !!BUZZER_ENABLED);
@@ -1081,28 +1084,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
  #else
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, 0);
  #endif
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostEnabled1, false);
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostAmplitude1, 0.0f);
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostEnabled2, false);
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostAmplitude2, 0.0f);
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostIntervalMs1, 0u);
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, jitterBoostIntervalMs2, 0u);
-    if (config.addonOptions.ads8332Options.jitterBoostAmplitude1 < 0.0f) {
-        config.addonOptions.ads8332Options.jitterBoostAmplitude1 = 0.0f;
-    } else if (config.addonOptions.ads8332Options.jitterBoostAmplitude1 > 3.0f) {
-        config.addonOptions.ads8332Options.jitterBoostAmplitude1 = 3.0f;
-    }
-    if (config.addonOptions.ads8332Options.jitterBoostAmplitude2 < 0.0f) {
-        config.addonOptions.ads8332Options.jitterBoostAmplitude2 = 0.0f;
-    } else if (config.addonOptions.ads8332Options.jitterBoostAmplitude2 > 3.0f) {
-        config.addonOptions.ads8332Options.jitterBoostAmplitude2 = 3.0f;
-    }
-    if (config.addonOptions.ads8332Options.jitterBoostIntervalMs1 > 100u) {
-        config.addonOptions.ads8332Options.jitterBoostIntervalMs1 = 100u;
-    }
-    if (config.addonOptions.ads8332Options.jitterBoostIntervalMs2 > 100u) {
-        config.addonOptions.ads8332Options.jitterBoostIntervalMs2 = 100u;
-    }
 #if defined(LSM6DSR_DEFAULT_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);
 #else

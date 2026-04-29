@@ -141,6 +141,10 @@ export default {
 		'focus-mode-toggle': 'フォーカスモード切替え',
 		'turbo-count-up': 'ターボカウントUP',
 		'turbo-count-down': 'ターボカウントDOWN',
+		'right-stick-press-preset-1': '右スティック押し込みプリセット1',
+		'right-stick-press-preset-2': '右スティック押し込みプリセット2',
+		'right-stick-press-preset-3': '右スティック押し込みプリセット3',
+		'right-stick-press-preset-clear': '右スティック押し込みプリセット解除',
 	},
 	'forced-setup-mode-label': '強制セットアップモード',
 	'forced-setup-mode-options': {
