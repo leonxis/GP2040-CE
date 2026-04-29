@@ -595,7 +595,7 @@ message AxisTiltOverlayOptions
     optional uint32 rightYTriggerButtonMask = 3 [default = 0];
     optional float rightYPercent1 = 6 [default = 0.0];
     optional float rightYPercent2 = 7 [default = 0.0];
-    optional uint32 rightYActivePreset = 9 [default = 1];
+    optional uint32 rightYActivePreset = 9 [default = 0];
     optional float rightYPercent3 = 10 [default = 0.0];
     optional bool pressEnabled = 11 [default = false];
     optional bool rcGainEnabled = 12 [default = false];

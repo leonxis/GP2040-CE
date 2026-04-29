@@ -28,7 +28,7 @@
 #endif
 
 #ifndef AXIS_TILT_OVERLAY_RIGHT_Y_ACTIVE_PRESET
-#define AXIS_TILT_OVERLAY_RIGHT_Y_ACTIVE_PRESET 1
+#define AXIS_TILT_OVERLAY_RIGHT_Y_ACTIVE_PRESET 0
 #endif
 
 #define AxisTiltOverlayName "AxisTiltOverlay"

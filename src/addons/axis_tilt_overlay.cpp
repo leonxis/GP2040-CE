@@ -10,7 +10,7 @@ bool AxisTiltOverlayInput::available() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const AxisTiltOverlayOptions& options = addonOptions.axisTiltOverlayOptions;
 
-	if (!options.enabled || !options.pressEnabled) {
+	if (!options.enabled) {
 		return false;
 	}
 
@@ -18,12 +18,8 @@ bool AxisTiltOverlayInput::available() {
 		return false;
 	}
 
-	if (options.rightYTriggerButtonMask == 0) {
-		return false;
-	}
-
-	return (options.rightYPercent1 != 0.0f) || (options.rightYPercent2 != 0.0f) ||
-		(options.rightYPercent3 != 0.0f);
+	// Plugin is available when master switch is on and at least one sub-feature is enabled.
+	return options.pressEnabled || options.rcGainEnabled;
 }
 
 float AxisTiltOverlayInput::getRightYOverlayPercent(const AxisTiltOverlayOptions& options) const {
@@ -59,17 +55,31 @@ uint16_t AxisTiltOverlayInput::applyPercentDelta(uint16_t axisValue, float perce
 void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const AxisTiltOverlayOptions& options = addonOptions.axisTiltOverlayOptions;
-	if (!options.enabled || !options.pressEnabled) {
+	if (!options.enabled) {
 		return;
 	}
 	if (!addonOptions.ads8332Options.enabled || addonOptions.analogOptions.enabled) {
 		return;
 	}
+	if (!options.pressEnabled && !options.rcGainEnabled) {
+		return;
+	}
+
+	const bool anyPressPercent = (options.rightYPercent1 != 0.0f) || (options.rightYPercent2 != 0.0f) ||
+		(options.rightYPercent3 != 0.0f);
+	const bool pressFeatureEnabled = options.pressEnabled && anyPressPercent;
+	const bool rcGainFeatureEnabled = options.rcGainEnabled;
 
 	const uint32_t buttons = gamepad->state.buttons;
-	const uint32_t rightMask = options.rightYTriggerButtonMask;
 
-	if ((rightMask != 0) && ((buttons & rightMask) != 0)) {
-		gamepad->state.ry = applyPercentDelta(gamepad->state.ry, getRightYOverlayPercent(options));
+	if (pressFeatureEnabled) {
+		const uint32_t rightMask = options.rightYTriggerButtonMask;
+		if ((rightMask != 0) && ((buttons & rightMask) != 0)) {
+			gamepad->state.ry = applyPercentDelta(gamepad->state.ry, getRightYOverlayPercent(options));
+		}
+	}
+
+	if (rcGainFeatureEnabled) {
+		// RC gain feature placeholder (intentionally no-op for now).
 	}
 }

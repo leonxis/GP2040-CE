@@ -76,7 +76,7 @@ export const axisTiltOverlaySettingsState = {
 	axisTiltOverlayRightYPercent1: 0,
 	axisTiltOverlayRightYPercent2: 0,
 	axisTiltOverlayRightYPercent3: 0,
-	axisTiltOverlayRightYActivePreset: 1,
+	axisTiltOverlayRightYActivePreset: 0,
 	axisTiltOverlayRcGainEnabled: 0,
 	axisTiltOverlayRcGainTriggerButtonMask: 0,
 	axisTiltOverlayRcGainReserved1: 0,
