@@ -600,9 +600,14 @@ message AxisTiltOverlayOptions
     optional bool pressEnabled = 11 [default = false];
     optional bool rcGainEnabled = 12 [default = false];
     optional uint32 rcGainTriggerButtonMask = 13 [default = 0];
+    // RC params (reuse reserved fields for compatibility):
+    // rcGainReserved1: jitter strength percent (0..100)
+    // rcGainReserved2: diamond A percent (0..100)
+    // rcGainReserved3: diamond B percent (0..100, clamped to <= A)
     optional float rcGainReserved1 = 14 [default = 0.0];
     optional float rcGainReserved2 = 15 [default = 0.0];
     optional float rcGainReserved3 = 16 [default = 0.0];
+    optional bool rcGainAlwaysOn = 17 [default = false];
 }
 
 message BuzzerOptions

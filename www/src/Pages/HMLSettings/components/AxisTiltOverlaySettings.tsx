@@ -54,19 +54,20 @@ export const axisTiltOverlaySettingsScheme = {
 		.label('Axis Tilt Overlay Right Y Active Preset')
 		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', 0, 3),
 	axisTiltOverlayRcGainEnabled: yupEx.number().label('RC Gain Enabled'),
+	axisTiltOverlayRcGainAlwaysOn: yupEx.number().label('RC Gain Always On'),
 	axisTiltOverlayRcGainTriggerButtonMask: yupEx
 		.number()
 		.label('RC Gain Trigger Button')
 		.validateSelectionWhenValue('AxisTiltOverlayInputEnabled', BUTTON_OPTIONS),
 	axisTiltOverlayRcGainReserved1: yupEx
 		.number()
-		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', -100, 100),
+		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', 0, 100),
 	axisTiltOverlayRcGainReserved2: yupEx
 		.number()
-		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', -100, 100),
+		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', 0, 100),
 	axisTiltOverlayRcGainReserved3: yupEx
 		.number()
-		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', -100, 100),
+		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', 0, 100),
 };
 
 export const axisTiltOverlaySettingsState = {
@@ -78,6 +79,7 @@ export const axisTiltOverlaySettingsState = {
 	axisTiltOverlayRightYPercent3: 0,
 	axisTiltOverlayRightYActivePreset: 0,
 	axisTiltOverlayRcGainEnabled: 0,
+	axisTiltOverlayRcGainAlwaysOn: 0,
 	axisTiltOverlayRcGainTriggerButtonMask: 0,
 	axisTiltOverlayRcGainReserved1: 0,
 	axisTiltOverlayRcGainReserved2: 0,
@@ -86,6 +88,10 @@ export const axisTiltOverlaySettingsState = {
 
 function clampPercent(value: number): number {
 	return Math.min(100, Math.max(-100, value));
+}
+
+function clampRcPercent(value: number): number {
+	return Math.min(100, Math.max(0, value));
 }
 
 export default function AxisTiltOverlaySettings({
@@ -161,6 +167,19 @@ export default function AxisTiltOverlaySettings({
 								setFieldValue('axisTiltOverlayRcGainEnabled', e.target.checked ? 1 : 0)
 							}
 						/>
+						<FormCheck
+							type="switch"
+							id="axisTiltOverlayRcGainAlwaysOn"
+							label={t(
+								Boolean(values.axisTiltOverlayRcGainAlwaysOn)
+									? 'AddonsConfig:axis-tilt-overlay-rc-gain-mode-always-on-label'
+									: 'AddonsConfig:axis-tilt-overlay-rc-gain-mode-trigger-label',
+							)}
+							checked={Boolean(values.axisTiltOverlayRcGainAlwaysOn)}
+							onChange={(e) =>
+								setFieldValue('axisTiltOverlayRcGainAlwaysOn', e.target.checked ? 1 : 0)
+							}
+						/>
 					</div>
 
 					<div>
@@ -233,15 +252,15 @@ export default function AxisTiltOverlaySettings({
 							<div>
 								<Form.Label>
 									{t(`AddonsConfig:axis-tilt-overlay-rc-gain-reserved-${idx}-label`)}{' '}
-									{Number(values[rcName] ?? 0).toFixed(1)}
+									{Number(values[rcName] ?? 0).toFixed(1)}%
 								</Form.Label>
 								<Form.Range
-									min={-100}
+									min={0}
 									max={100}
 									step={0.1}
 									value={Number(values[rcName] ?? 0)}
 									onChange={(e) =>
-										setFieldValue(rcName, clampPercent(parseFloat(e.target.value)))
+										setFieldValue(rcName, clampRcPercent(parseFloat(e.target.value)))
 									}
 								/>
 							</div>

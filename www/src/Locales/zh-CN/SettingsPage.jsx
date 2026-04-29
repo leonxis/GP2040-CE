@@ -181,7 +181,7 @@ export default {
 
 	'hml-tab-mode': '模式设置',
 	'hml-tab-back-buttons': '背键映射',
-	'hml-tab-calibration': '校准设置',
+	'hml-tab-calibration': '摇杆设置',
 	'hml-tab-motion': '体感设置',
 	'hml-tab-function-buttons': '其他功能',
 	'hml-tab-hardware': '硬件配置',

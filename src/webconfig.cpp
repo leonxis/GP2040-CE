@@ -2238,6 +2238,7 @@ std::string setAddonOptions()
     docToValue(axisTiltOverlayOptions.rcGainReserved1, doc, "axisTiltOverlayRcGainReserved1");
     docToValue(axisTiltOverlayOptions.rcGainReserved2, doc, "axisTiltOverlayRcGainReserved2");
     docToValue(axisTiltOverlayOptions.rcGainReserved3, doc, "axisTiltOverlayRcGainReserved3");
+    docToValue(axisTiltOverlayOptions.rcGainAlwaysOn, doc, "axisTiltOverlayRcGainAlwaysOn");
 
     FocusModeOptions& focusModeOptions = Storage::getInstance().getAddonOptions().focusModeOptions;
     docToValue(focusModeOptions.buttonLockMask, doc, "focusModeButtonLockMask");
@@ -2891,6 +2892,7 @@ std::string getAddonOptions()
     writeDoc(doc, "axisTiltOverlayRcGainReserved1", axisTiltOverlayOptions.rcGainReserved1);
     writeDoc(doc, "axisTiltOverlayRcGainReserved2", axisTiltOverlayOptions.rcGainReserved2);
     writeDoc(doc, "axisTiltOverlayRcGainReserved3", axisTiltOverlayOptions.rcGainReserved3);
+    writeDoc(doc, "axisTiltOverlayRcGainAlwaysOn", axisTiltOverlayOptions.rcGainAlwaysOn ? 1 : 0);
 
     const ReverseOptions& reverseOptions = Storage::getInstance().getAddonOptions().reverseOptions;
     writeDoc(doc, "reversePinLED", cleanPin(reverseOptions.ledPin));
