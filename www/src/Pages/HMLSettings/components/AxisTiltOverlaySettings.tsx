@@ -157,7 +157,7 @@ export default function AxisTiltOverlaySettings({
 							}
 						/>
 					</div>
-					<div>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
 						<FormCheck
 							type="switch"
 							id="axisTiltOverlayRcGainEnabled"

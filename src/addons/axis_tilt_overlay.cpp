@@ -10,7 +10,6 @@
 namespace {
 constexpr float kMotionFeedforwardGain = 12.0f;
 constexpr float kMotionFeedforwardDeadzone = 0.0015f;
-constexpr float kCenterSnap = 0.02f;
 constexpr bool kUsePairedBlockAlgorithm = false;
 }
 
@@ -153,9 +152,7 @@ bool AxisTiltOverlayInput::shouldApplyJitter() {
 }
 
 AxisTiltOverlayInput::Offset AxisTiltOverlayInput::resolveCenter(float observedX, float observedY) const {
-	if (std::fabs(observedX) < kCenterSnap && std::fabs(observedY) < kCenterSnap) {
-		return Offset{0.0f, 0.0f};
-	}
+	// Center snapping is intentionally disabled: always use the live observed stick point.
 	return Offset{observedX, observedY};
 }
 
