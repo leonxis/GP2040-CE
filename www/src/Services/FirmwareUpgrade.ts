@@ -40,6 +40,12 @@ function emitProgress(callback: ProgressCallback | undefined, value: number) {
 	callback(isValidPercent(value) ? value : 0);
 }
 
+function buildNoCacheUrl(url: string, cacheBustValue = Date.now().toString()): string {
+	const hasQuery = url.includes('?');
+	const separator = hasQuery ? '&' : '?';
+	return `${url}${separator}_=${encodeURIComponent(cacheBustValue)}`;
+}
+
 async function fetchWithTimeout(
 	url: string,
 	options: RequestInit = {},
@@ -112,8 +118,15 @@ function parseLatestResponseData(data: unknown): LatestInfo {
 
 export async function checkLatestInfo(url = LATEST_INFO_URL): Promise<LatestInfo> {
 	const response = await fetchWithTimeout(
-		url,
-		{ method: 'GET' },
+		buildNoCacheUrl(url),
+		{
+			method: 'GET',
+			cache: 'no-store',
+			headers: {
+				'Cache-Control': 'no-cache, no-store, must-revalidate',
+				Pragma: 'no-cache',
+			},
+		},
 		LATEST_REQUEST_TIMEOUT_MS,
 	);
 	if (!response.ok) {
@@ -148,10 +161,18 @@ export async function shouldDownloadFirmware(serverVersion: string): Promise<boo
 export async function downloadFirmwareWithProgress(
 	url = FIRMWARE_DOWNLOAD_URL,
 	onProgress?: ProgressCallback,
+	cacheBustValue?: string,
 ): Promise<Blob> {
 	const response = await fetchWithTimeout(
-		url,
-		{ method: 'GET' },
+		buildNoCacheUrl(url, cacheBustValue ?? Date.now().toString()),
+		{
+			method: 'GET',
+			cache: 'no-store',
+			headers: {
+				'Cache-Control': 'no-cache, no-store, must-revalidate',
+				Pragma: 'no-cache',
+			},
+		},
 		FIRMWARE_REQUEST_TIMEOUT_MS,
 	);
 	if (!response.ok || !response.body) {

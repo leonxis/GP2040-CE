@@ -327,6 +327,7 @@ export default function BackupReset() {
 					await FirmwareUpgradeService.downloadFirmwareWithProgress(
 						FirmwareUpgradeService.FIRMWARE_DOWNLOAD_URL,
 						(progress) => setDownloadProgress(progress),
+						latest.version,
 					);
 				await FirmwareUpgradeService.cacheFirmware(firmwareBlob, latest.version);
 				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-cache-updated'));
