@@ -1,7 +1,5 @@
 const FIRMWARE_DOWNLOAD_URL = 'https://home.chobits.site:51000/GNS/updata.uf2';
 const LATEST_INFO_URL = 'https://home.chobits.site:51000/GNS/latest.json';
-const PROXY_FIRMWARE_URL = '/api/proxyFirmware';
-const PROXY_LATEST_INFO_URL = '/api/proxyLatestInfo';
 const LATEST_INFO_KEY = 'GNS2040';
 const LATEST_REQUEST_TIMEOUT_MS = 10000;
 const FIRMWARE_REQUEST_TIMEOUT_MS = 60000;
@@ -117,51 +115,16 @@ function parseLatestResponseData(data: unknown): LatestInfo {
 }
 
 export async function checkLatestInfo(url = LATEST_INFO_URL): Promise<LatestInfo> {
-	const urls = [PROXY_LATEST_INFO_URL, url];
-	let lastError: Error | null = null;
-	for (const candidateUrl of urls) {
-		try {
-			const response = await fetchWithTimeout(
-				candidateUrl,
-				{ method: 'GET' },
-				LATEST_REQUEST_TIMEOUT_MS,
-			);
-			if (!response.ok) {
-				throw new Error(`Latest info request failed: ${response.status}`);
-			}
-			const data = await response.json();
-			return parseLatestResponseData(data);
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error('Unknown latest info error');
-		}
+	const response = await fetchWithTimeout(
+		url,
+		{ method: 'GET' },
+		LATEST_REQUEST_TIMEOUT_MS,
+	);
+	if (!response.ok) {
+		throw new Error(`Latest info request failed: ${response.status}`);
 	}
-	throw lastError ?? new Error('Failed to request latest info');
-}
-
-export async function checkFirmwareAvailable(url = FIRMWARE_DOWNLOAD_URL): Promise<boolean> {
-	try {
-		const headResponse = await fetchWithTimeout(
-			url,
-			{ method: 'HEAD' },
-			FIRMWARE_REQUEST_TIMEOUT_MS,
-		);
-		if (headResponse.ok) {
-			return true;
-		}
-	} catch {
-		// Fallback to GET request, as some servers reject HEAD.
-	}
-
-	try {
-		const getResponse = await fetchWithTimeout(
-			url,
-			{ method: 'GET', headers: { Range: 'bytes=0-0' } },
-			FIRMWARE_REQUEST_TIMEOUT_MS,
-		);
-		return getResponse.ok;
-	} catch {
-		return false;
-	}
+	const data = await response.json();
+	return parseLatestResponseData(data);
 }
 
 export async function getCachedFirmwareVersion(): Promise<string | null> {
@@ -215,25 +178,13 @@ export async function downloadFirmwareWithProgress(
 	url = FIRMWARE_DOWNLOAD_URL,
 	onProgress?: ProgressCallback,
 ): Promise<Blob> {
-	const urls = [PROXY_FIRMWARE_URL, url];
-	let response: Response | null = null;
-	for (const candidateUrl of urls) {
-		try {
-			const current = await fetchWithTimeout(
-				candidateUrl,
-				{ method: 'GET' },
-				FIRMWARE_REQUEST_TIMEOUT_MS,
-			);
-			if (current.ok && current.body) {
-				response = current;
-				break;
-			}
-		} catch {
-			// Try next URL.
-		}
-	}
-	if (!response || !response.body) {
-		throw new Error('Firmware download failed');
+	const response = await fetchWithTimeout(
+		url,
+		{ method: 'GET' },
+		FIRMWARE_REQUEST_TIMEOUT_MS,
+	);
+	if (!response.ok || !response.body) {
+		throw new Error(`Firmware download failed: ${response.status}`);
 	}
 
 	const contentLength = Number(response.headers.get('Content-Length') || 0);
@@ -304,8 +255,6 @@ export async function writeUf2ToBootDrive(
 export default {
 	FIRMWARE_DOWNLOAD_URL,
 	LATEST_INFO_URL,
-	PROXY_FIRMWARE_URL,
-	PROXY_LATEST_INFO_URL,
 	TARGET_UF2_FILENAME,
 	supportsFileSystemAccess,
 	getCachedFirmwareVersion,
@@ -313,7 +262,6 @@ export default {
 	cacheFirmware,
 	shouldDownloadFirmware,
 	checkLatestInfo,
-	checkFirmwareAvailable,
 	pickBootDrive,
 	validateBootDrive,
 	downloadFirmwareWithProgress,

@@ -3272,22 +3272,6 @@ DataAndStatusCode setConfig()
     }
 }
 
-DataAndStatusCode proxyLatestInfo()
-{
-    return DataAndStatusCode(
-        "{ \"error\": \"proxy endpoint not available in this build; fallback to direct download\" }",
-        HttpStatusCode::_500
-    );
-}
-
-DataAndStatusCode proxyFirmware()
-{
-    return DataAndStatusCode(
-        "{ \"error\": \"proxy endpoint not available in this build; fallback to direct download\" }",
-        HttpStatusCode::_500
-    );
-}
-
 // This should be a storage feature
 std::string resetSettings()
 {
@@ -3447,8 +3431,6 @@ typedef DataAndStatusCode (*HandlerFuncStatusCodePtr)();
 static const std::pair<const char*, HandlerFuncStatusCodePtr> handlerFuncsWithStatusCode[] =
 {
     { "/api/setConfig", setConfig },
-    { "/api/proxyLatestInfo", proxyLatestInfo },
-    { "/api/proxyFirmware", proxyFirmware },
 };
 
 int fs_open_custom(struct fs_file *file, const char *name)
