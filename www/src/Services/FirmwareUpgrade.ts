@@ -122,10 +122,6 @@ export async function checkLatestInfo(url = LATEST_INFO_URL): Promise<LatestInfo
 		{
 			method: 'GET',
 			cache: 'no-store',
-			headers: {
-				'Cache-Control': 'no-cache, no-store, must-revalidate',
-				Pragma: 'no-cache',
-			},
 		},
 		LATEST_REQUEST_TIMEOUT_MS,
 	);
@@ -168,10 +164,6 @@ export async function downloadFirmwareWithProgress(
 		{
 			method: 'GET',
 			cache: 'no-store',
-			headers: {
-				'Cache-Control': 'no-cache, no-store, must-revalidate',
-				Pragma: 'no-cache',
-			},
 		},
 		FIRMWARE_REQUEST_TIMEOUT_MS,
 	);
