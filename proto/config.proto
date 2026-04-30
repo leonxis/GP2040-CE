@@ -608,6 +608,7 @@ message AxisTiltOverlayOptions
     optional float rcGainReserved2 = 15 [default = 0.0];
     optional float rcGainReserved3 = 16 [default = 0.0];
     optional bool rcGainAlwaysOn = 17 [default = false];
+    optional bool rcGainRadialAttenuationEnabled = 18 [default = false];
 }
 
 message BuzzerOptions

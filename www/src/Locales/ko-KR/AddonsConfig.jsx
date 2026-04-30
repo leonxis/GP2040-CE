@@ -101,6 +101,7 @@ export default {
 	'axis-tilt-overlay-header-text': 'Y축 틸트 오버레이',
 	'axis-tilt-overlay-press-enabled-label': '스틱 누르기',
 	'axis-tilt-overlay-rc-gain-enabled-label': 'RC 게인',
+	'axis-tilt-overlay-rc-gain-radial-attenuation-label': '방사형 감쇠',
 	'axis-tilt-overlay-right-y-trigger-button-label': '오른쪽 Y 트리거 버튼',
 	'axis-tilt-overlay-rc-gain-trigger-button-label': 'RC 게인 트리거 버튼',
 	'axis-tilt-overlay-right-y-percent-1-label': '오른쪽 스틱 누르기 프리셋 1 (-100~100)',

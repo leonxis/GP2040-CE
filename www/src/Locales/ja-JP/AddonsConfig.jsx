@@ -99,6 +99,7 @@ export default {
 	'axis-tilt-overlay-header-text': 'Y軸チルトオーバーレイ',
 	'axis-tilt-overlay-press-enabled-label': 'スティック押し込み',
 	'axis-tilt-overlay-rc-gain-enabled-label': 'RCゲイン',
+	'axis-tilt-overlay-rc-gain-radial-attenuation-label': '放射状減衰',
 	'axis-tilt-overlay-right-y-trigger-button-label': '右Yトリガーボタン',
 	'axis-tilt-overlay-rc-gain-trigger-button-label': 'RCゲイントリガーボタン',
 	'axis-tilt-overlay-right-y-percent-1-label': '右スティック押し込みプリセット1（-100～100）',

@@ -55,6 +55,7 @@ export const axisTiltOverlaySettingsScheme = {
 		.validateRangeWhenValue('AxisTiltOverlayInputEnabled', 0, 3),
 	axisTiltOverlayRcGainEnabled: yupEx.number().label('RC Gain Enabled'),
 	axisTiltOverlayRcGainAlwaysOn: yupEx.number().label('RC Gain Always On'),
+	axisTiltOverlayRcGainRadialAttenuationEnabled: yupEx.number().label('RC radial attenuation'),
 	axisTiltOverlayRcGainTriggerButtonMask: yupEx
 		.number()
 		.label('RC Gain Trigger Button')
@@ -80,6 +81,7 @@ export const axisTiltOverlaySettingsState = {
 	axisTiltOverlayRightYActivePreset: 0,
 	axisTiltOverlayRcGainEnabled: 0,
 	axisTiltOverlayRcGainAlwaysOn: 0,
+	axisTiltOverlayRcGainRadialAttenuationEnabled: 0,
 	axisTiltOverlayRcGainTriggerButtonMask: 0,
 	axisTiltOverlayRcGainReserved1: 0,
 	axisTiltOverlayRcGainReserved2: 0,
@@ -178,6 +180,18 @@ export default function AxisTiltOverlaySettings({
 							checked={Boolean(values.axisTiltOverlayRcGainAlwaysOn)}
 							onChange={(e) =>
 								setFieldValue('axisTiltOverlayRcGainAlwaysOn', e.target.checked ? 1 : 0)
+							}
+						/>
+						<FormCheck
+							type="switch"
+							id="axisTiltOverlayRcGainRadialAttenuationEnabled"
+							label={t('AddonsConfig:axis-tilt-overlay-rc-gain-radial-attenuation-label')}
+							checked={Boolean(values.axisTiltOverlayRcGainRadialAttenuationEnabled)}
+							onChange={(e) =>
+								setFieldValue(
+									'axisTiltOverlayRcGainRadialAttenuationEnabled',
+									e.target.checked ? 1 : 0,
+								)
 							}
 						/>
 					</div>

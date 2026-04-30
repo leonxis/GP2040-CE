@@ -191,6 +191,7 @@ export default {
 	'axis-tilt-overlay-rc-gain-enabled-label': 'RC 增益',
 	'axis-tilt-overlay-rc-gain-mode-always-on-label': '功能常开',
 	'axis-tilt-overlay-rc-gain-mode-trigger-label': '按键触发',
+	'axis-tilt-overlay-rc-gain-radial-attenuation-label': '径向衰减',
 	'axis-tilt-overlay-right-y-trigger-button-label': '摇杆下压触发按键',
 	'axis-tilt-overlay-rc-gain-trigger-button-label': 'RC 增益触发按键',
 	'axis-tilt-overlay-right-y-percent-1-label': '右摇杆下压预设 1（-100～100）',

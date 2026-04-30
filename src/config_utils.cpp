@@ -757,6 +757,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved2, 0.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved3, 0.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainAlwaysOn, false);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainRadialAttenuationEnabled, false);
 
     // addonOptions.buzzerOptions
     INIT_UNSET_PROPERTY(config.addonOptions.buzzerOptions, enabled, !!BUZZER_ENABLED);

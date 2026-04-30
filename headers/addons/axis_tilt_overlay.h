@@ -54,22 +54,38 @@ private:
 	};
 
 	static constexpr uint16_t RC_BLOCK_SIZE = 32;
+	static constexpr uint16_t RC_PAIR_COUNT = RC_BLOCK_SIZE / 2;
 
-	void loadRcOptionsIfDirty(const AxisTiltOverlayOptions& options);
+	void refreshCachedOptions();
+	void loadRcOptionsIfDirty();
 	uint32_t randomU32();
 	float randomFloat(float minValue, float maxValue);
 	Offset randomDiamondOffset();
-	void generateBlockClassic();
-	void generateBlockPaired();
-	void generateBlock();
-	bool shouldApplyJitter();
+	void generateOffsetBlock();
+	bool shouldStartJitterUnit();
+	float radialAmpScaleFromCenter(float cx, float cy) const;
 	Offset resolveCenter(float observedX, float observedY) const;
 	float normalizeAxis(uint16_t v) const;
 	uint16_t denormalizeAxis(float v) const;
 	void resetRcState();
 
-	float getRightYOverlayPercent(const AxisTiltOverlayOptions& options) const;
+	float getRightYOverlayPercent() const;
 	uint16_t applyPercentDelta(uint16_t axisValue, float percent) const;
+
+	// Cached immutable options for runtime fast-path.
+	bool runtimeEnabled {false};
+	bool pressFeatureEnabled {false};
+	bool rcGainFeatureEnabled {false};
+	uint32_t rightYTriggerButtonMaskCached {0};
+	uint32_t rcGainTriggerButtonMaskCached {0};
+	bool rcGainAlwaysOnCached {false};
+	float rightYPercent1Cached {0.0f};
+	float rightYPercent2Cached {0.0f};
+	float rightYPercent3Cached {0.0f};
+	float rcGainReserved1Cached {0.0f};
+	float rcGainReserved2Cached {0.0f};
+	float rcGainReserved3Cached {0.0f};
+	bool rcRadialAttenuationEnabledCached {false};
 
 	// Cached, normalized RC params from rcGainReserved1..3
 	bool rcOptionsDirty {true};
@@ -79,6 +95,7 @@ private:
 	float rcRawReserved1 {-1000.0f};
 	float rcRawReserved2 {-1000.0f};
 	float rcRawReserved3 {-1000.0f};
+	bool rcRadialAttenuationEnabled {false};
 
 	// RC runtime state
 	bool motionHistoryReady {false};
@@ -86,7 +103,10 @@ private:
 	Offset prevVelocity {0.0f, 0.0f};
 	uint32_t rngState {0xA53C9E17u};
 	float jitterAccumulator {1.0f};
-	uint16_t blockIndex {RC_BLOCK_SIZE};
+	uint16_t pairIndex {RC_PAIR_COUNT};
+	bool jitterAwaitNeg {false};
+	Offset pendingJitterA {0.0f, 0.0f};
+	float radialAmpScaleCached {1.0f};
 	std::array<Offset, RC_BLOCK_SIZE> offsetBlock {};
 };
 

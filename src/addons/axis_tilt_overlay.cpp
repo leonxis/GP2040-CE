@@ -10,7 +10,9 @@
 namespace {
 constexpr float kMotionFeedforwardGain = 12.0f;
 constexpr float kMotionFeedforwardDeadzone = 0.0015f;
-constexpr bool kUsePairedBlockAlgorithm = false;
+/** L∞ radius: full scale within inner square, linear falloff to edge. */
+constexpr float kRadialInner = 0.04f;
+constexpr float kRadialOuter = 0.30f;
 }
 
 bool AxisTiltOverlayInput::available() {
@@ -30,13 +32,39 @@ bool AxisTiltOverlayInput::available() {
 }
 
 void AxisTiltOverlayInput::setup() {
-	rcOptionsDirty = true;
 	reinit();
 }
 
 void AxisTiltOverlayInput::reinit() {
+	refreshCachedOptions();
 	rcOptionsDirty = true;
 	resetRcState();
+}
+
+void AxisTiltOverlayInput::refreshCachedOptions() {
+	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+	const AxisTiltOverlayOptions& options = addonOptions.axisTiltOverlayOptions;
+
+	rightYTriggerButtonMaskCached = options.rightYTriggerButtonMask;
+	rightYPercent1Cached = options.rightYPercent1;
+	rightYPercent2Cached = options.rightYPercent2;
+	rightYPercent3Cached = options.rightYPercent3;
+	rcGainTriggerButtonMaskCached = options.rcGainTriggerButtonMask;
+	rcGainAlwaysOnCached = options.rcGainAlwaysOn;
+	rcGainReserved1Cached = options.rcGainReserved1;
+	rcGainReserved2Cached = options.rcGainReserved2;
+	rcGainReserved3Cached = options.rcGainReserved3;
+	rcRadialAttenuationEnabledCached = options.rcGainRadialAttenuationEnabled;
+
+	const bool anyPressPercent = (rightYPercent1Cached != 0.0f) ||
+		(rightYPercent2Cached != 0.0f) ||
+		(rightYPercent3Cached != 0.0f);
+	pressFeatureEnabled = options.pressEnabled && anyPressPercent;
+	rcGainFeatureEnabled = options.rcGainEnabled;
+	runtimeEnabled = options.enabled &&
+		addonOptions.ads8332Options.enabled &&
+		!addonOptions.analogOptions.enabled &&
+		(pressFeatureEnabled || rcGainFeatureEnabled);
 }
 
 void AxisTiltOverlayInput::resetRcState() {
@@ -45,20 +73,21 @@ void AxisTiltOverlayInput::resetRcState() {
 	prevVelocity = Offset{0.0f, 0.0f};
 	rngState = 0xA53C9E17u;
 	jitterAccumulator = 1.0f;
-	blockIndex = RC_BLOCK_SIZE;
+	pairIndex = RC_PAIR_COUNT;
+	jitterAwaitNeg = false;
+	radialAmpScaleCached = 1.0f;
+	pendingJitterA = Offset{0.0f, 0.0f};
 }
 
-void AxisTiltOverlayInput::loadRcOptionsIfDirty(const AxisTiltOverlayOptions& options) {
-	const bool optionsChanged = (options.rcGainReserved1 != rcRawReserved1) ||
-		(options.rcGainReserved2 != rcRawReserved2) ||
-		(options.rcGainReserved3 != rcRawReserved3);
-	if (!rcOptionsDirty && !optionsChanged) {
+void AxisTiltOverlayInput::loadRcOptionsIfDirty() {
+	if (!rcOptionsDirty) {
 		return;
 	}
 
-	rcRawReserved1 = options.rcGainReserved1;
-	rcRawReserved2 = options.rcGainReserved2;
-	rcRawReserved3 = options.rcGainReserved3;
+	rcRawReserved1 = rcGainReserved1Cached;
+	rcRawReserved2 = rcGainReserved2Cached;
+	rcRawReserved3 = rcGainReserved3Cached;
+	rcRadialAttenuationEnabled = rcRadialAttenuationEnabledCached;
 
 	rcJitterStrength = std::clamp(rcRawReserved1 / 100.0f, 0.0f, 1.0f);
 	rcDiamondA = std::clamp(rcRawReserved2 / 100.0f, 0.0f, 1.0f);
@@ -100,40 +129,31 @@ AxisTiltOverlayInput::Offset AxisTiltOverlayInput::randomDiamondOffset() {
 	return Offset{u * rcDiamondA, v * rcDiamondB};
 }
 
-void AxisTiltOverlayInput::generateBlockClassic() {
-	const uint16_t halfSize = RC_BLOCK_SIZE / 2;
-	for (uint16_t i = 0; i < halfSize; ++i) {
-		const Offset q = randomDiamondOffset();
-		offsetBlock[i] = q;
-		offsetBlock[i + halfSize] = Offset{-q.x, -q.y};
+void AxisTiltOverlayInput::generateOffsetBlock() {
+	for (uint16_t i = 0; i < RC_PAIR_COUNT; ++i) {
+		offsetBlock[i] = randomDiamondOffset();
 	}
-
-	for (uint16_t i = RC_BLOCK_SIZE - 1; i > 0; --i) {
+	for (uint16_t i = RC_PAIR_COUNT - 1; i > 0; --i) {
 		const uint16_t j = static_cast<uint16_t>(randomU32() % (i + 1));
 		std::swap(offsetBlock[i], offsetBlock[j]);
 	}
-	blockIndex = 0;
+	pairIndex = 0;
 }
 
-void AxisTiltOverlayInput::generateBlockPaired() {
-	uint16_t outIndex = 0;
-	while (outIndex < RC_BLOCK_SIZE) {
-		const Offset q = randomDiamondOffset();
-		offsetBlock[outIndex++] = q;
-		offsetBlock[outIndex++] = Offset{-q.x, -q.y};
+float AxisTiltOverlayInput::radialAmpScaleFromCenter(float cx, float cy) const {
+	const float r = std::max(std::fabs(cx), std::fabs(cy));
+	if (r <= kRadialInner) {
+		return 1.0f;
 	}
-	blockIndex = 0;
-}
-
-void AxisTiltOverlayInput::generateBlock() {
-	if (kUsePairedBlockAlgorithm) {
-		generateBlockPaired();
-	} else {
-		generateBlockClassic();
+	if (r >= kRadialOuter) {
+		return 0.0f;
 	}
+	return std::clamp((kRadialOuter - r) / (kRadialOuter - kRadialInner), 0.0f, 1.0f);
 }
 
-bool AxisTiltOverlayInput::shouldApplyJitter() {
+// Jitter is scheduled in 2-frame units: first frame applies offset A, second frame applies -A.
+// shouldStartJitterUnit() is only used when not finishing a unit; rcJitterStrength accumulates per unit.
+bool AxisTiltOverlayInput::shouldStartJitterUnit() {
 	if (rcJitterStrength <= 0.0f) {
 		jitterAccumulator = 1.0f;
 		return false;
@@ -194,17 +214,20 @@ uint16_t AxisTiltOverlayInput::denormalizeAxis(float v) const {
 	)));
 }
 
-float AxisTiltOverlayInput::getRightYOverlayPercent(const AxisTiltOverlayOptions& options) const {
-	switch (options.rightYActivePreset) {
+float AxisTiltOverlayInput::getRightYOverlayPercent() const {
+	// rightYActivePreset 可由热键在运行中修改，每帧读实时值；百分数仍用 refreshCachedOptions 缓存。
+	const uint32_t preset =
+		Storage::getInstance().getAddonOptions().axisTiltOverlayOptions.rightYActivePreset;
+	switch (preset) {
 		case 0:
 			return 0.0f;
 		case 2:
-			return options.rightYPercent2;
+			return rightYPercent2Cached;
 		case 3:
-			return options.rightYPercent3;
+			return rightYPercent3Cached;
 		case 1:
 		default:
-			return options.rightYPercent1;
+			return rightYPercent1Cached;
 	}
 }
 
@@ -228,47 +251,35 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 	if (gamepad == nullptr) {
 		return;
 	}
-
-	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-	const AxisTiltOverlayOptions& options = addonOptions.axisTiltOverlayOptions;
-	if (!options.enabled) {
+	if (!runtimeEnabled) {
 		return;
 	}
-	if (!addonOptions.ads8332Options.enabled || addonOptions.analogOptions.enabled) {
-		return;
-	}
-	if (!options.pressEnabled && !options.rcGainEnabled) {
-		return;
-	}
-
-	const bool anyPressPercent = (options.rightYPercent1 != 0.0f) || (options.rightYPercent2 != 0.0f) ||
-		(options.rightYPercent3 != 0.0f);
-	const bool pressFeatureEnabled = options.pressEnabled && anyPressPercent;
-	const bool rcGainFeatureEnabled = options.rcGainEnabled;
 
 	const uint32_t buttons = gamepad->state.buttons;
 
 	if (pressFeatureEnabled) {
-		const uint32_t rightMask = options.rightYTriggerButtonMask;
+		const uint32_t rightMask = rightYTriggerButtonMaskCached;
 		if ((rightMask != 0) && ((buttons & rightMask) != 0)) {
-			gamepad->state.ry = applyPercentDelta(gamepad->state.ry, getRightYOverlayPercent(options));
+			gamepad->state.ry = applyPercentDelta(gamepad->state.ry, getRightYOverlayPercent());
 		}
 	}
 
 	if (rcGainFeatureEnabled) {
-		const uint32_t rcMask = options.rcGainTriggerButtonMask;
+		const uint32_t rcMask = rcGainTriggerButtonMaskCached;
 		const bool rcTriggeredByButton = (rcMask != 0) && ((buttons & rcMask) != 0);
-		const bool rcTriggered = options.rcGainAlwaysOn || rcTriggeredByButton;
+		const bool rcTriggered = rcGainAlwaysOnCached || rcTriggeredByButton;
 		if (!rcTriggered) {
-			// Reset motion history when trigger is released to avoid stale velocity/acceleration
-			// bursts when RC is engaged again later.
 			motionHistoryReady = false;
 			prevCenter = Offset{0.0f, 0.0f};
 			prevVelocity = Offset{0.0f, 0.0f};
+			jitterAwaitNeg = false;
+			jitterAccumulator = 1.0f;
+			pairIndex = RC_PAIR_COUNT;
+			radialAmpScaleCached = 1.0f;
 			return;
 		}
 
-		loadRcOptionsIfDirty(options);
+		loadRcOptionsIfDirty();
 		const bool rcHasEffect = (rcJitterStrength > 0.0f) && ((rcDiamondA > 0.0f) || (rcDiamondB > 0.0f));
 		if (!rcHasEffect) {
 			return;
@@ -290,31 +301,46 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 		prevVelocity = velocity;
 
 		Offset offset{0.0f, 0.0f};
-		if (shouldApplyJitter()) {
-			if (blockIndex >= RC_BLOCK_SIZE) {
-				generateBlock();
+
+		if (jitterAwaitNeg) {
+			offset = Offset{-pendingJitterA.x, -pendingJitterA.y};
+			offset.x *= radialAmpScaleCached;
+			offset.y *= radialAmpScaleCached;
+			jitterAwaitNeg = false;
+			++pairIndex;
+			if (pairIndex >= RC_PAIR_COUNT) {
+				generateOffsetBlock();
 			}
-			offset = offsetBlock[blockIndex++];
-
-			const auto applyAccelerationFeedforward = [](float offsetValue, float accelValue) -> float {
-				const float accelAbs = std::fabs(accelValue);
-				if (accelAbs <= kMotionFeedforwardDeadzone || offsetValue == 0.0f) {
-					return offsetValue;
-				}
-
-				const float motionAmount = std::clamp(
-					(accelAbs - kMotionFeedforwardDeadzone) * kMotionFeedforwardGain,
-					0.0f,
-					1.0f
-				);
-				const bool sameDirection = (offsetValue * accelValue) > 0.0f;
-				const float scale = sameDirection ? (1.0f + motionAmount) : (1.0f - motionAmount);
-				return offsetValue * scale;
-			};
-
-			offset.x = applyAccelerationFeedforward(offset.x, acceleration.x);
-			offset.y = applyAccelerationFeedforward(offset.y, acceleration.y);
+		} else if (shouldStartJitterUnit()) {
+			if (pairIndex >= RC_PAIR_COUNT) {
+				generateOffsetBlock();
+			}
+			pendingJitterA = offsetBlock[pairIndex];
+			radialAmpScaleCached =
+				rcRadialAttenuationEnabled ? radialAmpScaleFromCenter(center.x, center.y) : 1.0f;
+			offset.x = pendingJitterA.x * radialAmpScaleCached;
+			offset.y = pendingJitterA.y * radialAmpScaleCached;
+			jitterAwaitNeg = true;
 		}
+
+		const auto applyAccelerationFeedforward = [](float offsetValue, float accelValue) -> float {
+			const float accelAbs = std::fabs(accelValue);
+			if (accelAbs <= kMotionFeedforwardDeadzone || offsetValue == 0.0f) {
+				return offsetValue;
+			}
+
+			const float motionAmount = std::clamp(
+				(accelAbs - kMotionFeedforwardDeadzone) * kMotionFeedforwardGain,
+				0.0f,
+				1.0f
+			);
+			const bool sameDirection = (offsetValue * accelValue) > 0.0f;
+			const float scale = sameDirection ? (1.0f + motionAmount) : (1.0f - motionAmount);
+			return offsetValue * scale;
+		};
+
+		offset.x = applyAccelerationFeedforward(offset.x, acceleration.x);
+		offset.y = applyAccelerationFeedforward(offset.y, acceleration.y);
 
 		const float outX = std::clamp(center.x + offset.x, -1.0f, 1.0f);
 		const float outY = std::clamp(center.y + offset.y, -1.0f, 1.0f);

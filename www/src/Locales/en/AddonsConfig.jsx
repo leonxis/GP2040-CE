@@ -196,6 +196,7 @@ export default {
 	'axis-tilt-overlay-rc-gain-enabled-label': 'RC gain',
 	'axis-tilt-overlay-rc-gain-mode-always-on-label': 'Always on',
 	'axis-tilt-overlay-rc-gain-mode-trigger-label': 'Button trigger',
+	'axis-tilt-overlay-rc-gain-radial-attenuation-label': 'Radial attenuation',
 	'axis-tilt-overlay-right-y-trigger-button-label': 'Stick press trigger button',
 	'axis-tilt-overlay-rc-gain-trigger-button-label': 'RC gain trigger button',
 	'axis-tilt-overlay-right-y-percent-1-label': 'Right stick press preset 1 (-100~100)',
