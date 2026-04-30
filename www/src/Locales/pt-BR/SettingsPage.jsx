@@ -142,7 +142,9 @@ export default {
 	'hml-upgrade-instruction-2':
 		'2. After valid firmware info is shown, click Upgrade Mode to enter flashing mode.',
 	'hml-upgrade-instruction-3':
-		'3. In flashing mode, click Firmware Upgrade to write the new firmware and wait for reboot.',
+		'3. In flashing mode, click Firmware Upgrade to automatically download firmware, then manually copy it to the RPI-RP2 drive.',
+	'hml-upgrade-manual-copy-hint':
+		'Firmware download started. Please manually copy GNS.uf2 to the root directory of the RPI-RP2 drive.',
 	'hml-upgrade-cancel-button': 'Cancel',
 	'hml-upgrade-check-button': 'Check update',
 	'hml-upgrade-mode-button': 'Upgrade mode',

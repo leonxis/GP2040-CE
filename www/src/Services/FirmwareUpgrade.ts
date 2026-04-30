@@ -3,7 +3,7 @@ const LATEST_INFO_URL = 'https://home.chobits.site:51000/GNS/latest.json';
 const LATEST_INFO_KEY = 'GNS2040';
 const LATEST_REQUEST_TIMEOUT_MS = 10000;
 const FIRMWARE_REQUEST_TIMEOUT_MS = 60000;
-const TARGET_UF2_FILENAME = 'GP2040-CE.uf2';
+const TARGET_UF2_FILENAME = 'GNS.uf2';
 const CACHE_DB_NAME = 'gp2040_firmware_cache';
 const CACHE_DB_VERSION = 1;
 const CACHE_STORE = 'firmware';
@@ -16,10 +16,6 @@ export type LatestInfo = {
 };
 
 export type ProgressCallback = (progressPercent: number) => void;
-
-export function supportsFileSystemAccess(): boolean {
-	return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
-}
 
 function compareVersionParts(left: string, right: string): number {
 	const leftParts = left.split('.').map((part) => Number(part));
@@ -149,31 +145,6 @@ export async function shouldDownloadFirmware(serverVersion: string): Promise<boo
 	return compareVersionParts(localVersion, serverVersion) < 0;
 }
 
-export async function pickBootDrive(): Promise<FileSystemDirectoryHandle> {
-	if (!supportsFileSystemAccess()) {
-		throw new Error('Browser does not support File System Access API');
-	}
-
-	const pickerWindow = window as unknown as Window & {
-		showDirectoryPicker: (options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>;
-	};
-
-	return await pickerWindow.showDirectoryPicker({
-		mode: 'readwrite',
-	});
-}
-
-export async function validateBootDrive(dirHandle: FileSystemDirectoryHandle): Promise<boolean> {
-	try {
-		const infoFileHandle = await dirHandle.getFileHandle('INFO_UF2.TXT');
-		const infoFile = await infoFileHandle.getFile();
-		const text = (await infoFile.text()).toUpperCase();
-		return text.includes('UF2') || text.includes('RP2040') || text.includes('RPI-RP2');
-	} catch {
-		return false;
-	}
-}
-
 export async function downloadFirmwareWithProgress(
 	url = FIRMWARE_DOWNLOAD_URL,
 	onProgress?: ProgressCallback,
@@ -214,56 +185,14 @@ export async function downloadFirmwareWithProgress(
 	return new Blob(chunks as BlobPart[], { type: 'application/octet-stream' });
 }
 
-export async function writeUf2ToBootDrive(
-	dirHandle: FileSystemDirectoryHandle,
-	blob: Blob,
-	onProgress?: ProgressCallback,
-	fileName = TARGET_UF2_FILENAME,
-): Promise<void> {
-	const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-	const writable = await fileHandle.createWritable();
-	const reader = blob.stream().getReader();
-	const total = blob.size;
-	let written = 0;
-
-	emitProgress(onProgress, 0);
-
-	try {
-		let done = false;
-		while (!done) {
-			const { done: readDone, value } = await reader.read();
-			if (readDone) {
-				done = true;
-				continue;
-			}
-			if (value) {
-				await writable.write(value);
-				written += value.length;
-				if (total > 0) {
-					emitProgress(onProgress, Math.min((written / total) * 100, 100));
-				}
-			}
-		}
-		await writable.close();
-		emitProgress(onProgress, 100);
-	} catch (error) {
-		await writable.abort();
-		throw error;
-	}
-}
-
 export default {
 	FIRMWARE_DOWNLOAD_URL,
 	LATEST_INFO_URL,
 	TARGET_UF2_FILENAME,
-	supportsFileSystemAccess,
 	getCachedFirmwareVersion,
 	getCachedFirmwareBlob,
 	cacheFirmware,
 	shouldDownloadFirmware,
 	checkLatestInfo,
-	pickBootDrive,
-	validateBootDrive,
 	downloadFirmwareWithProgress,
-	writeUf2ToBootDrive,
 };
