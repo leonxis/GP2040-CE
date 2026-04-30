@@ -1,14 +1,42 @@
 import { useEffect, useState, useRef } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button, Modal, ProgressBar } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
-import merge from 'lodash/merge';
-import cloneDeep from 'lodash/cloneDeep';
 
 import Section from '../../../Components/Section';
 import WebApi from '../../../Services/WebApi';
+import FirmwareUpgradeService from '../../../Services/FirmwareUpgrade';
 
 const FILE_EXTENSION = '.gp2040';
 const FILENAME = 'gp2040ce_backup_{DATE}' + FILE_EXTENSION;
+type AnyRecord = Record<string, any>;
+
+function deepClone<T>(value: T): T {
+	if (typeof structuredClone === 'function') {
+		return structuredClone(value);
+	}
+	return JSON.parse(JSON.stringify(value));
+}
+
+function mergeDeep(target: AnyRecord, source: AnyRecord): AnyRecord {
+	const output: AnyRecord = { ...target };
+	for (const key of Object.keys(source)) {
+		const sourceValue = source[key];
+		const targetValue = output[key];
+		if (
+			sourceValue &&
+			typeof sourceValue === 'object' &&
+			!Array.isArray(sourceValue) &&
+			targetValue &&
+			typeof targetValue === 'object' &&
+			!Array.isArray(targetValue)
+		) {
+			output[key] = mergeDeep(targetValue, sourceValue);
+		} else {
+			output[key] = sourceValue;
+		}
+	}
+	return output;
+}
 
 const API_BINDING = {
 	display: {
@@ -51,17 +79,34 @@ const API_BINDING = {
 };
 
 export default function BackupReset() {
-	const inputFileSelect = useRef();
+	const inputFileSelect = useRef<HTMLInputElement | null>(null);
 	const { t } = useTranslation();
 
-	const [optionState, setOptionStateData] = useState({});
+	const [optionState, setOptionStateData] = useState<AnyRecord>({});
 	const [noticeMessage, setNoticeMessage] = useState('');
 	const [saveMessage, setSaveMessage] = useState('');
 	const [loadMessage, setLoadMessage] = useState('');
+	const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+	const [versionInfo, setVersionInfo] = useState('');
+	const [versionUpdate, setVersionUpdate] = useState('');
+	const [upgradeStepMessage, setUpgradeStepMessage] = useState('');
+	const [downloadProgress, setDownloadProgress] = useState(0);
+	const [writeProgress, setWriteProgress] = useState(0);
+	const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+	const [isEnteringUpgradeMode, setIsEnteringUpgradeMode] = useState(false);
+	const [isUpgradingFirmware, setIsUpgradingFirmware] = useState(false);
+
+	const resetUpgradeModalState = () => {
+		setVersionInfo(t('SettingsPage:hml-upgrade-pending'));
+		setVersionUpdate(t('SettingsPage:hml-upgrade-pending'));
+		setUpgradeStepMessage('');
+		setDownloadProgress(0);
+		setWriteProgress(0);
+	};
 
 	useEffect(() => {
 		async function fetchData() {
-			const exportData = {};
+			const exportData: AnyRecord = {};
 			for (const [key, func] of Object.entries(API_BINDING)) {
 				exportData[key] = await func.get();
 			}
@@ -70,30 +115,31 @@ export default function BackupReset() {
 		fetchData();
 	}, []);
 
-	const validateValues = (data, nextData) => {
+	const validateValues = (data: AnyRecord, nextData: AnyRecord) => {
 		// Handle array cases - always use backup data for arrays to allow clearing
 		if (Array.isArray(nextData)) {
 			return nextData;
 		}
 
-		return merge(cloneDeep(data), nextData);
+		return mergeDeep(deepClone(data), nextData);
 	};
 
-	const setOptionsToAPIStorage = async (options) => {
+	const setOptionsToAPIStorage = async (options: AnyRecord) => {
 		for (const [key, func] of Object.entries(API_BINDING)) {
 			const values = options[key];
 			if (values) {
 				try {
 					await func.set(values);
-				} catch (error) {
-					setNoticeMessage(`Failed to set ${key} options: ${error.message}`);
+				} catch (error: unknown) {
+					const message = error instanceof Error ? error.message : 'unknown error';
+					setNoticeMessage(`Failed to set ${key} options: ${message}`);
 				}
 			}
 		}
 	};
 
 	// Reset settings function (from ResetSettingsPage)
-	const handleReset = async (e) => {
+	const handleReset = async (e: React.MouseEvent<HTMLButtonElement>) => {
 		e.preventDefault();
 		e.stopPropagation();
 
@@ -108,7 +154,7 @@ export default function BackupReset() {
 
 	// Save settings function (from BackupPage)
 	const handleSave = async () => {
-		const exportData = {};
+		const exportData: AnyRecord = {};
 		for (const [key] of Object.entries(API_BINDING)) {
 			if (optionState[key] !== undefined) {
 				exportData[key] = optionState[key];
@@ -126,6 +172,10 @@ export default function BackupReset() {
 		a.innerHTML = 'Save Backup';
 
 		const container = document.getElementById('root');
+		if (!container) {
+			setNoticeMessage('Could not find app root element.');
+			return;
+		}
 		container.appendChild(a);
 
 		a.click();
@@ -139,24 +189,25 @@ export default function BackupReset() {
 	};
 
 	// Load settings function (from BackupPage)
-	const handleFileSelect = (ev) => {
+	const handleFileSelect = (ev: React.ChangeEvent<HTMLInputElement>) => {
 		const input = ev.target;
 		if (!input) {
 			setNoticeMessage(`Unknown browser error, missing event data!`);
 			return;
 		}
-		if (input.files.length === 0) {
+		const files = input.files;
+		if (!files || files.length === 0) {
 			setNoticeMessage(`No files are loaded.`);
 			return;
 		}
 
-		const fileName = input.files[0].name;
+		const fileName = files[0].name;
 
 		const reader = new FileReader();
 		reader.onload = function () {
-			let fileData = undefined;
+			let fileData: AnyRecord | undefined = undefined;
 			try {
-				fileData = JSON.parse(reader.result);
+				fileData = JSON.parse(String(reader.result));
 			} catch (e) {
 				// error dialog
 				setNoticeMessage(`Failed to parse data for ${fileName}!`);
@@ -167,7 +218,7 @@ export default function BackupReset() {
 				return;
 			}
 
-			const filteredData = {};
+			const filteredData: AnyRecord = {};
 			for (const [key] of Object.entries(API_BINDING)) {
 				if (fileData[key] !== undefined) {
 					const validData = validateValues(optionState[key], fileData[key]);
@@ -193,11 +244,120 @@ export default function BackupReset() {
 		reader.onerror = () => {
 			setNoticeMessage(`Error occured while reading ${fileName}.`);
 		};
-		reader.readAsText(input.files[0]);
+		reader.readAsText(files[0]);
 	};
 
 	const handleLoad = () => {
 		inputFileSelect.current?.click();
+	};
+
+	const handleOpenUpgradeModal = () => {
+		resetUpgradeModalState();
+		setShowUpgradeModal(true);
+	};
+
+	const handleCloseUpgradeModal = () => {
+		if (isCheckingUpdate || isEnteringUpgradeMode || isUpgradingFirmware) return;
+		setShowUpgradeModal(false);
+	};
+
+	const handleCheckUpdate = async () => {
+		setIsCheckingUpdate(true);
+		setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-checking-update'));
+		setDownloadProgress(0);
+		try {
+			const latest = await FirmwareUpgradeService.checkLatestInfo();
+			setVersionInfo(latest.version);
+			setVersionUpdate(latest.releaseNote);
+
+			const needDownload = await FirmwareUpgradeService.shouldDownloadFirmware(
+				latest.version,
+			);
+			if (needDownload) {
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-downloading'));
+				const firmwareBlob =
+					await FirmwareUpgradeService.downloadFirmwareWithProgress(
+						FirmwareUpgradeService.FIRMWARE_DOWNLOAD_URL,
+						(progress) => setDownloadProgress(progress),
+					);
+				await FirmwareUpgradeService.cacheFirmware(firmwareBlob, latest.version);
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-cache-updated'));
+			} else {
+				setDownloadProgress(100);
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-cache-up-to-date'));
+			}
+		} catch (error) {
+			console.error('Failed to check latest firmware info:', error);
+			setVersionInfo(t('SettingsPage:hml-upgrade-check-failed'));
+			setVersionUpdate(t('SettingsPage:hml-upgrade-check-failed'));
+			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-check-failed'));
+		} finally {
+			setIsCheckingUpdate(false);
+		}
+	};
+
+	const handleEnterUpgradeMode = async () => {
+		setIsEnteringUpgradeMode(true);
+		try {
+			await WebApi.reboot(2);
+			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-mode-triggered'));
+		} catch (error) {
+			console.error('Failed to enter upgrade mode:', error);
+			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-generic-failed'));
+		} finally {
+			setIsEnteringUpgradeMode(false);
+		}
+	};
+
+	const handleFirmwareUpgrade = async () => {
+		setIsUpgradingFirmware(true);
+		setWriteProgress(0);
+		setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-preparing-copy'));
+
+		try {
+			if (!FirmwareUpgradeService.supportsFileSystemAccess()) {
+				throw new Error('Browser not supported');
+			}
+			const firmwareBlob = await FirmwareUpgradeService.getCachedFirmwareBlob();
+			if (!firmwareBlob) {
+				throw new Error('Cached firmware not found');
+			}
+
+			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-select-drive'));
+			const dirHandle = await FirmwareUpgradeService.pickBootDrive();
+			const isBootDrive = await FirmwareUpgradeService.validateBootDrive(dirHandle);
+			if (!isBootDrive) {
+				throw new Error('Invalid boot drive');
+			}
+
+			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-writing'));
+			await FirmwareUpgradeService.writeUf2ToBootDrive(
+				dirHandle,
+				firmwareBlob,
+				(progress) => setWriteProgress(progress),
+			);
+
+			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-success'));
+		} catch (error: unknown) {
+			console.error('Firmware upgrade failed:', error);
+			const errorName = error instanceof DOMException ? error.name : '';
+			const errorMessage = error instanceof Error ? error.message : '';
+			if (errorName === 'AbortError') {
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-check-failed'));
+			} else if (errorName === 'NotAllowedError') {
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-user-cancelled'));
+			} else if (errorMessage === 'Invalid boot drive') {
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-invalid-drive'));
+			} else if (errorMessage === 'Browser not supported') {
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-browser-unsupported'));
+			} else if (errorMessage === 'Cached firmware not found') {
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-no-cached-firmware'));
+			} else {
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-generic-failed'));
+			}
+		} finally {
+			setIsUpgradingFirmware(false);
+		}
 	};
 
 	return (
@@ -241,6 +401,18 @@ export default function BackupReset() {
 							{t('SettingsPage:hml-load-hint')}
 						</span>
 					</div>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Button
+							variant="secondary"
+							onClick={handleOpenUpgradeModal}
+							style={{ minWidth: '120px' }}
+						>
+							{t('SettingsPage:hml-upgrade-open-modal-button')}
+						</Button>
+						<span className="text-muted">
+							{t('SettingsPage:hml-upgrade-entry-hint')}
+						</span>
+					</div>
 					{/* Hidden file input for load */}
 					<input
 						ref={inputFileSelect}
@@ -272,6 +444,90 @@ export default function BackupReset() {
 				</div>
 			</div>
 		</Section>
+
+		<Modal show={showUpgradeModal} onHide={handleCloseUpgradeModal} centered>
+			<Modal.Header closeButton={!isCheckingUpdate && !isEnteringUpgradeMode && !isUpgradingFirmware}>
+				<Modal.Title>{t('SettingsPage:hml-upgrade-modal-title')}</Modal.Title>
+			</Modal.Header>
+			<Modal.Body>
+				<div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+					<div>
+						<strong>{t('SettingsPage:hml-upgrade-version-info-label')}:</strong> {versionInfo}
+					</div>
+					<div>
+						<strong>{t('SettingsPage:hml-upgrade-release-note-label')}:</strong> {versionUpdate}
+					</div>
+					<div className="text-muted">
+						<div>{t('SettingsPage:hml-upgrade-instruction-1')}</div>
+						<div>{t('SettingsPage:hml-upgrade-instruction-2')}</div>
+						<div>{t('SettingsPage:hml-upgrade-instruction-3')}</div>
+					</div>
+
+					<div style={{ minHeight: '52px' }}>
+						{upgradeStepMessage && (
+							<div style={{ marginBottom: '8px' }}>{upgradeStepMessage}</div>
+						)}
+						{(isCheckingUpdate || downloadProgress > 0) && (
+							<>
+								<div style={{ fontSize: '0.9rem', marginBottom: '4px' }}>
+									{t('SettingsPage:hml-upgrade-download-progress', {
+										progress: Math.round(downloadProgress),
+									})}
+								</div>
+								<ProgressBar
+									now={downloadProgress}
+									style={{ marginBottom: '8px' }}
+									animated={isCheckingUpdate && downloadProgress < 100}
+								/>
+							</>
+						)}
+						{(isUpgradingFirmware || writeProgress > 0) && (
+							<>
+								<div style={{ fontSize: '0.9rem', marginBottom: '4px' }}>
+									{t('SettingsPage:hml-upgrade-write-progress', {
+										progress: Math.round(writeProgress),
+									})}
+								</div>
+								<ProgressBar
+									now={writeProgress}
+									animated={isUpgradingFirmware && writeProgress < 100}
+								/>
+							</>
+						)}
+					</div>
+				</div>
+			</Modal.Body>
+			<Modal.Footer>
+				<Button
+					variant="secondary"
+					onClick={handleCloseUpgradeModal}
+					disabled={isCheckingUpdate || isEnteringUpgradeMode || isUpgradingFirmware}
+				>
+					{t('SettingsPage:hml-upgrade-cancel-button')}
+				</Button>
+				<Button
+					variant="primary"
+					onClick={handleCheckUpdate}
+					disabled={isCheckingUpdate || isEnteringUpgradeMode || isUpgradingFirmware}
+				>
+					{t('SettingsPage:hml-upgrade-check-button')}
+				</Button>
+				<Button
+					variant="warning"
+					onClick={handleEnterUpgradeMode}
+					disabled={isCheckingUpdate || isEnteringUpgradeMode || isUpgradingFirmware}
+				>
+					{t('SettingsPage:hml-upgrade-mode-button')}
+				</Button>
+				<Button
+					variant="success"
+					onClick={handleFirmwareUpgrade}
+					disabled={isCheckingUpdate || isEnteringUpgradeMode || isUpgradingFirmware}
+				>
+					{t('SettingsPage:hml-upgrade-firmware-button')}
+				</Button>
+			</Modal.Footer>
+		</Modal>
 		</div>
 	);
 }

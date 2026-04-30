@@ -58,7 +58,7 @@ export default function HardwareConfig() {
 
 	const [hostSaveMessage, setHostSaveMessage] = useState('');
 	const [ledSaveMessage, setLedSaveMessage] = useState('');
-	const [colorPickerTarget, setColorPickerTarget] = useState<any>(null);
+	const [colorPickerTarget, setColorPickerTarget] = useState<HTMLElement | null>(null);
 	const [showColorPicker, setShowColorPicker] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 
@@ -610,6 +610,7 @@ export default function HardwareConfig() {
 					</div>
 				</div>
 			</Section>
+
 		</div>
 	);
 }
