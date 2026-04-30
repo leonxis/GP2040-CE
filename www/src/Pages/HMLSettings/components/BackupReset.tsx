@@ -10,6 +10,17 @@ const FILE_EXTENSION = '.gp2040';
 const FILENAME = 'gp2040ce_backup_{DATE}' + FILE_EXTENSION;
 type AnyRecord = Record<string, any>;
 
+function downloadBlobAsFile(blob: Blob, fileName: string) {
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = fileName;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	URL.revokeObjectURL(url);
+}
+
 function deepClone<T>(value: T): T {
 	if (typeof structuredClone === 'function') {
 		return structuredClone(value);
@@ -315,12 +326,19 @@ export default function BackupReset() {
 		setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-preparing-copy'));
 
 		try {
-			if (!FirmwareUpgradeService.supportsFileSystemAccess()) {
-				throw new Error('Browser not supported');
-			}
 			const firmwareBlob = await FirmwareUpgradeService.getCachedFirmwareBlob();
 			if (!firmwareBlob) {
 				throw new Error('Cached firmware not found');
+			}
+			if (!FirmwareUpgradeService.supportsFileSystemAccess()) {
+				downloadBlobAsFile(
+					firmwareBlob,
+					FirmwareUpgradeService.TARGET_UF2_FILENAME,
+				);
+				setUpgradeStepMessage(
+					`${t('SettingsPage:hml-upgrade-browser-unsupported')} ${t('SettingsPage:hml-upgrade-step-select-drive')}`,
+				);
+				return;
 			}
 
 			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-select-drive'));
