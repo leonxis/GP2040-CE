@@ -84,14 +84,11 @@ void AxisTiltOverlayInput::loadRcOptionsIfDirty() {
 		return;
 	}
 
-	rcRawReserved1 = rcGainReserved1Cached;
-	rcRawReserved2 = rcGainReserved2Cached;
-	rcRawReserved3 = rcGainReserved3Cached;
 	rcRadialAttenuationEnabled = rcRadialAttenuationEnabledCached;
 
-	rcJitterStrength = std::clamp(rcRawReserved1 / 100.0f, 0.0f, 1.0f);
-	rcDiamondA = std::clamp(rcRawReserved2 / 100.0f, 0.0f, 1.0f);
-	rcDiamondB = std::clamp(rcRawReserved3 / 100.0f, 0.0f, 1.0f);
+	rcJitterStrength = std::clamp(rcGainReserved1Cached / 100.0f, 0.0f, 1.0f);
+	rcDiamondA = std::clamp(rcGainReserved2Cached / 100.0f, 0.0f, 1.0f);
+	rcDiamondB = std::clamp(rcGainReserved3Cached / 100.0f, 0.0f, 1.0f);
 	if (rcDiamondB > rcDiamondA) {
 		std::swap(rcDiamondA, rcDiamondB);
 	}
@@ -169,11 +166,6 @@ bool AxisTiltOverlayInput::shouldStartJitterUnit() {
 		return true;
 	}
 	return false;
-}
-
-AxisTiltOverlayInput::Offset AxisTiltOverlayInput::resolveCenter(float observedX, float observedY) const {
-	// Center snapping is intentionally disabled: always use the live observed stick point.
-	return Offset{observedX, observedY};
 }
 
 float AxisTiltOverlayInput::normalizeAxis(uint16_t v) const {
@@ -287,7 +279,7 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 
 		const float observedX = normalizeAxis(gamepad->state.rx);
 		const float observedY = normalizeAxis(gamepad->state.ry);
-		const Offset center = resolveCenter(observedX, observedY);
+		const Offset center{observedX, observedY};
 
 		Offset velocity{0.0f, 0.0f};
 		Offset acceleration{0.0f, 0.0f};

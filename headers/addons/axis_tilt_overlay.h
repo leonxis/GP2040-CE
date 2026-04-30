@@ -64,7 +64,6 @@ private:
 	void generateOffsetBlock();
 	bool shouldStartJitterUnit();
 	float radialAmpScaleFromCenter(float cx, float cy) const;
-	Offset resolveCenter(float observedX, float observedY) const;
 	float normalizeAxis(uint16_t v) const;
 	uint16_t denormalizeAxis(float v) const;
 	void resetRcState();
@@ -92,9 +91,6 @@ private:
 	float rcJitterStrength {0.0f}; // 0..1
 	float rcDiamondA {0.0f}; // 0..1
 	float rcDiamondB {0.0f}; // 0..1 and <= rcDiamondA
-	float rcRawReserved1 {-1000.0f};
-	float rcRawReserved2 {-1000.0f};
-	float rcRawReserved3 {-1000.0f};
 	bool rcRadialAttenuationEnabled {false};
 
 	// RC runtime state
