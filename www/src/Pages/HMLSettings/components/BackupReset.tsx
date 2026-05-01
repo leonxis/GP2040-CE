@@ -10,6 +10,54 @@ const FILE_EXTENSION = '.gp2040';
 const FILENAME = 'gp2040ce_backup_{DATE}' + FILE_EXTENSION;
 type AnyRecord = Record<string, any>;
 
+async function saveBlobWithUserPicker(blob: Blob, fileName: string): Promise<boolean> {
+	const pickerWindow = window as unknown as Window & {
+		showSaveFilePicker?: (options?: {
+			suggestedName?: string;
+			types?: Array<{
+				description?: string;
+				accept: Record<string, string[]>;
+			}>;
+		}) => Promise<FileSystemFileHandle>;
+	};
+
+	// Prefer native save picker so user can explicitly choose RPI-RP2.
+	if (typeof pickerWindow.showSaveFilePicker === 'function') {
+		try {
+			const fileHandle = await pickerWindow.showSaveFilePicker({
+				suggestedName: fileName,
+				types: [
+					{
+						description: 'UF2 Firmware',
+						accept: { 'application/octet-stream': ['.uf2'] },
+					},
+				],
+			});
+			const writable = await fileHandle.createWritable();
+			await writable.write(blob);
+			await writable.close();
+			return true;
+		} catch (error) {
+			if (error instanceof DOMException && error.name === 'AbortError') {
+				return false;
+			}
+		}
+	}
+
+	const url = URL.createObjectURL(blob);
+	try {
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = fileName;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		return true;
+	} finally {
+		URL.revokeObjectURL(url);
+	}
+}
+
 function deepClone<T>(value: T): T {
 	if (typeof structuredClone === 'function') {
 		return structuredClone(value);
@@ -87,11 +135,11 @@ export default function BackupReset() {
 	const [saveMessage, setSaveMessage] = useState('');
 	const [loadMessage, setLoadMessage] = useState('');
 	const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+	const [showManualCopyModal, setShowManualCopyModal] = useState(false);
 	const [versionInfo, setVersionInfo] = useState('');
 	const [versionUpdate, setVersionUpdate] = useState('');
 	const [upgradeStepMessage, setUpgradeStepMessage] = useState('');
 	const [downloadProgress, setDownloadProgress] = useState(0);
-	const [writeProgress, setWriteProgress] = useState(0);
 	const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 	const [isEnteringUpgradeMode, setIsEnteringUpgradeMode] = useState(false);
 	const [isUpgradingFirmware, setIsUpgradingFirmware] = useState(false);
@@ -101,7 +149,6 @@ export default function BackupReset() {
 		setVersionUpdate(t('SettingsPage:hml-upgrade-pending'));
 		setUpgradeStepMessage('');
 		setDownloadProgress(0);
-		setWriteProgress(0);
 	};
 
 	useEffect(() => {
@@ -253,6 +300,7 @@ export default function BackupReset() {
 
 	const handleOpenUpgradeModal = () => {
 		resetUpgradeModalState();
+		setShowManualCopyModal(false);
 		setShowUpgradeModal(true);
 	};
 
@@ -279,6 +327,7 @@ export default function BackupReset() {
 					await FirmwareUpgradeService.downloadFirmwareWithProgress(
 						FirmwareUpgradeService.FIRMWARE_DOWNLOAD_URL,
 						(progress) => setDownloadProgress(progress),
+						latest.version,
 					);
 				await FirmwareUpgradeService.cacheFirmware(firmwareBlob, latest.version);
 				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-cache-updated'));
@@ -311,45 +360,32 @@ export default function BackupReset() {
 
 	const handleFirmwareUpgrade = async () => {
 		setIsUpgradingFirmware(true);
-		setWriteProgress(0);
 		setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-preparing-copy'));
 
 		try {
-			if (!FirmwareUpgradeService.supportsFileSystemAccess()) {
-				throw new Error('Browser not supported');
-			}
 			const firmwareBlob = await FirmwareUpgradeService.getCachedFirmwareBlob();
 			if (!firmwareBlob) {
 				throw new Error('Cached firmware not found');
 			}
 
-			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-select-drive'));
-			const dirHandle = await FirmwareUpgradeService.pickBootDrive();
-			const isBootDrive = await FirmwareUpgradeService.validateBootDrive(dirHandle);
-			if (!isBootDrive) {
-				throw new Error('Invalid boot drive');
-			}
-
-			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-step-writing'));
-			await FirmwareUpgradeService.writeUf2ToBootDrive(
-				dirHandle,
+			setShowManualCopyModal(true);
+			const saved = await saveBlobWithUserPicker(
 				firmwareBlob,
-				(progress) => setWriteProgress(progress),
+				FirmwareUpgradeService.TARGET_UF2_FILENAME,
 			);
-
-			setUpgradeStepMessage(t('SettingsPage:hml-upgrade-success'));
+			setUpgradeStepMessage(
+				saved
+					? t('SettingsPage:hml-upgrade-manual-copy-hint')
+					: t('SettingsPage:hml-upgrade-user-cancelled'),
+			);
 		} catch (error: unknown) {
 			console.error('Firmware upgrade failed:', error);
 			const errorName = error instanceof DOMException ? error.name : '';
 			const errorMessage = error instanceof Error ? error.message : '';
 			if (errorName === 'AbortError') {
-				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-check-failed'));
+				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-user-cancelled'));
 			} else if (errorName === 'NotAllowedError') {
 				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-user-cancelled'));
-			} else if (errorMessage === 'Invalid boot drive') {
-				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-invalid-drive'));
-			} else if (errorMessage === 'Browser not supported') {
-				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-browser-unsupported'));
 			} else if (errorMessage === 'Cached firmware not found') {
 				setUpgradeStepMessage(t('SettingsPage:hml-upgrade-no-cached-firmware'));
 			} else {
@@ -481,19 +517,6 @@ export default function BackupReset() {
 								/>
 							</>
 						)}
-						{(isUpgradingFirmware || writeProgress > 0) && (
-							<>
-								<div style={{ fontSize: '0.9rem', marginBottom: '4px' }}>
-									{t('SettingsPage:hml-upgrade-write-progress', {
-										progress: Math.round(writeProgress),
-									})}
-								</div>
-								<ProgressBar
-									now={writeProgress}
-									animated={isUpgradingFirmware && writeProgress < 100}
-								/>
-							</>
-						)}
 					</div>
 				</div>
 			</Modal.Body>
@@ -525,6 +548,25 @@ export default function BackupReset() {
 					disabled={isCheckingUpdate || isEnteringUpgradeMode || isUpgradingFirmware}
 				>
 					{t('SettingsPage:hml-upgrade-firmware-button')}
+				</Button>
+			</Modal.Footer>
+		</Modal>
+
+		<Modal
+			show={showManualCopyModal}
+			onHide={() => setShowManualCopyModal(false)}
+			centered
+		>
+			<Modal.Header closeButton>
+				<Modal.Title>固件操作提示</Modal.Title>
+			</Modal.Header>
+			<Modal.Body>
+				<div>1、浏览器将自动下载升级固件。</div>
+				<div>2、请手动将下载的固件 GNS.uf2 复制到电脑中 RPI-RP2 磁盘中完成升级。</div>
+			</Modal.Body>
+			<Modal.Footer>
+				<Button variant="secondary" onClick={() => setShowManualCopyModal(false)}>
+					{t('SettingsPage:hml-upgrade-cancel-button')}
 				</Button>
 			</Modal.Footer>
 		</Modal>
