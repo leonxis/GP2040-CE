@@ -115,8 +115,9 @@ void TwoKeyTouchpadAddon::preprocess() {
                 outputScope_.apply(gamepad, *entry);
             }
         }
-    } else if (enableEntry != nullptr) {
-        // 无触摸：输出使能键映射（开启插件时从 GPIO12 原映射复制）
+    } else if (enableEntry != nullptr && !leftRaw && !rightRaw) {
+        // 无触摸（含原始电平）：输出使能键映射。
+        // 若任一触摸键 raw 已按下但防抖尚未稳定，暂不直通 enable，避免“使能键闪现”。
         outputScope_.apply(gamepad, *enableEntry);
     }
 
