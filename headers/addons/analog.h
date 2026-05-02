@@ -61,13 +61,13 @@ private:
  */
 inline float analogDeadzonePercentFromRaw(uint32_t raw)
 {
-    const uint32_t t = std::min(200u, raw);
+    const uint32_t t = std::min<uint32_t>(raw, 200u);
     return std::min(20.0f, static_cast<float>(t) / 10.0f);
 }
 
 inline float analogDeadzoneNormFromRaw(uint32_t raw)
 {
-    const uint32_t t = std::min(200u, raw);
+    const uint32_t t = std::min<uint32_t>(raw, 200u);
     return static_cast<float>(t) / 1000.0f;
 }
 
