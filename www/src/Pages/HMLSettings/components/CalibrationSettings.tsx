@@ -57,10 +57,20 @@ import AxisTiltOverlaySettings, {
 	axisTiltOverlaySettingsScheme,
 	axisTiltOverlaySettingsState,
 } from './AxisTiltOverlaySettings';
-import {
-	decodeStickDeadzoneFromDevice,
-	encodeStickDeadzoneToDevice,
-} from '../utils/stickDeadzoneWire';
+
+/** Inner/anti deadzone wire: uint32 0–200 = tenths of a percent; UI uses value/10 (device norm value/1000). */
+function decodeStickDeadzoneFromDevice(raw: unknown): number {
+	const n = Number(raw);
+	if (Number.isNaN(n)) return 0;
+	const r = Math.min(200, Math.max(0, Math.floor(n)));
+	return Math.min(20, r / 10);
+}
+
+function encodeStickDeadzoneToDevice(percent: number): number {
+	const p = Math.min(20, Math.max(0, percent));
+	return Math.round(p * 10);
+}
+
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
 	errors: FormikErrors<typeof DEFAULT_VALUES>;
