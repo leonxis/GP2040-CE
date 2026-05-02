@@ -20,7 +20,7 @@ const StickButtons: React.FC<StickButtonsProps> = ({
 
 	return (
 		<>
-			<div className="mt-3 d-flex gap-2 justify-content-center flex-wrap">
+			<div className="d-flex gap-2 justify-content-center flex-wrap">
 				<Button
 					variant="primary"
 					size="sm"
@@ -37,7 +37,7 @@ const StickButtons: React.FC<StickButtonsProps> = ({
 				</Button>
 			</div>
 			<div
-				className="mt-2 d-flex gap-2 justify-content-center flex-wrap"
+				className="d-flex gap-2 justify-content-center flex-wrap"
 				data-finetune-active={finetuneCenterActive ? '1' : '0'}
 			>
 				<Button
@@ -60,12 +60,3 @@ const StickButtons: React.FC<StickButtonsProps> = ({
 };
 
 export default StickButtons;
-
-
-
-
-
-
-
-
-

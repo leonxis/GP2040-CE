@@ -591,7 +591,6 @@ message TiltOptions
 // Right stick Y overlay only; rightYActivePreset: 0=clear (no offset), 1-3=preset percents
 message AxisTiltOverlayOptions
 {
-    optional bool enabled = 1 [default = false];
     optional uint32 rightYTriggerButtonMask = 3 [default = 0];
     optional float rightYPercent1 = 6 [default = 0.0];
     optional float rightYPercent2 = 7 [default = 0.0];

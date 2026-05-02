@@ -294,6 +294,18 @@ export default function CalibrationSettings() {
 						}}
 					/>
 
+					<JoystickCurveSettings
+						values={values}
+						errors={errors}
+						handleChange={handleChange}
+						setFieldValue={setFieldValue}
+						saveMessage={saveMessageCurve}
+						onSaveClick={() => {
+							lastSaveSectionRef.current = 'curve';
+							handleSubmit();
+						}}
+					/>
+
 					<AxisTiltOverlaySettings
 						values={values}
 						errors={errors}
@@ -305,18 +317,6 @@ export default function CalibrationSettings() {
 						saveMessage={saveMessageAxisOverlay}
 						onSaveClick={() => {
 							lastSaveSectionRef.current = 'axisOverlay';
-							handleSubmit();
-						}}
-					/>
-
-					<JoystickCurveSettings
-						values={values}
-						errors={errors}
-						handleChange={handleChange}
-						setFieldValue={setFieldValue}
-						saveMessage={saveMessageCurve}
-						onSaveClick={() => {
-							lastSaveSectionRef.current = 'curve';
 							handleSubmit();
 						}}
 					/>

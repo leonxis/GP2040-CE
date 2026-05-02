@@ -744,7 +744,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltSOCDMode, TILT_SOCD_MODE);
 
     // addonOptions.axisTiltOverlayOptions (right stick Y overlay only)
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, enabled, !!AXIS_TILT_OVERLAY_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, pressEnabled, !!AXIS_TILT_OVERLAY_PRESS_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYTriggerButtonMask, AXIS_TILT_OVERLAY_RIGHT_Y_TRIGGER_BUTTON_MASK);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYPercent1, AXIS_TILT_OVERLAY_RIGHT_Y_PERCENT1);

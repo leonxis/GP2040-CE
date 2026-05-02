@@ -2226,7 +2226,6 @@ std::string setAddonOptions()
     docToValue(tiltOptions.enabled, doc, "TiltInputEnabled");
 
     AxisTiltOverlayOptions& axisTiltOverlayOptions = Storage::getInstance().getAddonOptions().axisTiltOverlayOptions;
-    docToValue(axisTiltOverlayOptions.enabled, doc, "AxisTiltOverlayInputEnabled");
     docToValue(axisTiltOverlayOptions.pressEnabled, doc, "axisTiltOverlayPressEnabled");
     docToValue(axisTiltOverlayOptions.rightYTriggerButtonMask, doc, "axisTiltOverlayRightYTriggerButtonMask");
     docToValue(axisTiltOverlayOptions.rightYPercent1, doc, "axisTiltOverlayRightYPercent1");
@@ -2881,7 +2880,6 @@ std::string getAddonOptions()
     writeDoc(doc, "TiltInputEnabled", tiltOptions.enabled);
 
     const AxisTiltOverlayOptions& axisTiltOverlayOptions = Storage::getInstance().getAddonOptions().axisTiltOverlayOptions;
-    writeDoc(doc, "AxisTiltOverlayInputEnabled", axisTiltOverlayOptions.enabled ? 1 : 0);
     writeDoc(doc, "axisTiltOverlayPressEnabled", axisTiltOverlayOptions.pressEnabled ? 1 : 0);
     writeDoc(doc, "axisTiltOverlayRightYTriggerButtonMask", axisTiltOverlayOptions.rightYTriggerButtonMask);
     writeDoc(doc, "axisTiltOverlayRightYPercent1", axisTiltOverlayOptions.rightYPercent1);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFormikContext } from 'formik';
-import { Button, Modal, Table, Form } from 'react-bootstrap';
+import { Button, Modal, Form } from 'react-bootstrap';
 
 import Section from '../../../Components/Section';
 import StickCalibrationModal from '../../../Components/StickCalibrationModal';
@@ -10,7 +10,6 @@ import type { AddonPropTypes } from './CalibrationSettings';
 import StickPositionInfo from './StickPositionInfo';
 import FinetuneShapeControls from './FinetuneShapeControls';
 import StickButtons from './StickButtons';
-import ViewCalibrationData from './ViewCalibrationData';
 
 // Type definitions
 type CurvePoint = { x: number; y: number };
@@ -63,19 +62,24 @@ export const finetuneControlsTitleStyle: React.CSSProperties = {
 	textAlign: 'center'
 };
 
-const positionInfoContainerStyle: React.CSSProperties = {
+/** Row 2 side columns: top-align with button columns (no vertical centering in cell) */
+const calibrationRow2SideCellStyle: React.CSSProperties = {
 	display: 'flex',
-	justifyContent: 'center',
+	flexDirection: 'column',
 	alignItems: 'center',
-	width: COLUMN_WIDTH
+	justifyContent: 'flex-start',
+	gap: '8px',
+	width: COLUMN_WIDTH,
 };
 
 const buttonsContainerStyle: React.CSSProperties = {
 	display: 'flex',
 	flexDirection: 'column',
 	alignItems: 'center',
+	justifyContent: 'flex-start',
 	gap: '8px',
-	width: COLUMN_WIDTH
+	width: COLUMN_WIDTH,
+	height: '100%',
 };
 
 export const positionInfoInnerStyle: React.CSSProperties = {
@@ -659,15 +663,8 @@ const JoystickCalibration = ({
 	const [showRightCalibrationModal, setShowRightCalibrationModal] = useState(false);
 	const [showLeftRangeModal, setShowLeftRangeModal] = useState(false);
 	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
-	const [showLeftRangeDataModal, setShowLeftRangeDataModal] = useState(false);
-	const [showRightRangeDataModal, setShowRightRangeDataModal] = useState(false);
-	const [leftRangeDataSnapshot, setLeftRangeDataSnapshot] = useState<number[]>([]);
-	const [rightRangeDataSnapshot, setRightRangeDataSnapshot] = useState<number[]>([]);
-	const [leftAngleIndexSnapshot, setLeftAngleIndexSnapshot] = useState(0);
-	const [rightAngleIndexSnapshot, setRightAngleIndexSnapshot] = useState(0);
 	const [leftFinetuneCenterActive, setLeftFinetuneCenterActive] = useState(false);
 	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
-	const [showRangeCalibrationWarning, setShowRangeCalibrationWarning] = useState(false);
 	// Curve control points: array of {x, y} where x and y are in [0, 1] range
 	// Maximum 3 points (plus start (0,0) and end (1,1)) = 4 segments
 	// Load from config if available - these are used for curve application in stick position canvas
@@ -725,22 +722,6 @@ const JoystickCalibration = ({
 	const [leftFinetuneShapeCircularityData, setLeftFinetuneShapeCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	const [rightFinetuneShapeCircularityData, setRightFinetuneShapeCircularityData] = useState<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 	
-	// Detailed data for display
-	const [leftStickDetailData, setLeftStickDetailData] = useState({
-		centerX: 0,
-		centerY: 0,
-		angleIndex: 0,
-		scale: 0,
-		currentDistance: 0,
-	});
-	const [rightStickDetailData, setRightStickDetailData] = useState({
-		centerX: 0,
-		centerY: 0,
-		angleIndex: 0,
-		scale: 0,
-		currentDistance: 0,
-	});
-
 	// Fetch joystick data periodically from unified joystick endpoints.
 	useEffect(() => {
 		if (!values) {
@@ -877,8 +858,6 @@ const JoystickCalibration = ({
 								rawY: filtered1.y,
 								progressRatio: progressRatio,
 							});
-							
-							setLeftStickDetailData(detailData);
 							
 							// Collect circularity data only when error rate is enabled
 							if (leftShowErrorRate) {
@@ -1020,8 +999,6 @@ const JoystickCalibration = ({
 								rawY: filtered2.y,
 								progressRatio: progressRatio,
 							});
-							
-							setRightStickDetailData(detailData);
 							
 							// Collect circularity data only when error rate is enabled
 							if (rightShowErrorRate) {
@@ -1199,7 +1176,7 @@ const JoystickCalibration = ({
 		<Section title={t('AddonsConfig:joystick-calibration-header-text')}>
 			<div id="JoystickCalibrationOptions" hidden={!values} style={{ overflowX: 'auto' }}>
 				{/* 4 columns x 2 rows grid layout */}
-				<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: `repeat(4, ${COLUMN_WIDTH})`, gridTemplateRows: '270px auto auto', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
+				<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: `repeat(4, ${COLUMN_WIDTH})`, gridTemplateRows: '270px auto', gap: '16px', justifyContent: 'center', alignItems: 'stretch', width: 'max-content', margin: '0 auto' }}>
 					{/* Row 1, Column 1: Left stick canvas (position or curve) */}
 					<div className="text-center" style={canvasContainerStyle}>
 						<div style={canvasWrapperStyle}>
@@ -1254,8 +1231,8 @@ const JoystickCalibration = ({
 						</div>
 					</div>
 
-					{/* Row 2, Column 1: Left stick XY position info */}
-					<div style={{ ...positionInfoContainerStyle, gridColumn: '1' }}>
+					{/* Row 2, Column 1: Left stick XY position info + error-rate switch */}
+					<div style={{ ...calibrationRow2SideCellStyle, gridColumn: '1' }}>
 						<StickPositionInfo
 							stickData={leftStickData}
 							finetuneCenterActive={leftFinetuneCenterActive}
@@ -1265,24 +1242,25 @@ const JoystickCalibration = ({
 							onCenterYChange={(value) => setFieldValue('joystickCenterY', value)}
 							convertToXInputNormalized={convertToXInputNormalized}
 						/>
+						<div style={{ display: 'flex', justifyContent: 'center' }}>
+							<Form.Check
+								type="switch"
+								label={t('CalibrationSettings:hml-error-rate-label')}
+								checked={leftShowErrorRate}
+								onChange={(e) => {
+									const enabled = e.target.checked;
+									setLeftShowErrorRate(enabled);
+									if (!enabled) {
+										setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
+									}
+								}}
+							/>
+						</div>
 					</div>
 
 
-					{/* Row 2, Column 4: Right stick XY position info */}
-					<div style={{ ...positionInfoContainerStyle, gridColumn: '4' }}>
-						<StickPositionInfo
-							stickData={rightStickData}
-							finetuneCenterActive={rightFinetuneCenterActive}
-							centerX={values?.joystickCenterX2 || DEFAULT_ADC_CENTER}
-							centerY={values?.joystickCenterY2 || DEFAULT_ADC_CENTER}
-							onCenterXChange={(value) => setFieldValue('joystickCenterX2', value)}
-							onCenterYChange={(value) => setFieldValue('joystickCenterY2', value)}
-							convertToXInputNormalized={convertToXInputNormalized}
-						/>
-					</div>
-
-					{/* Row 3, Column 1: Left stick buttons */}
-					<div style={{ ...buttonsContainerStyle, gridColumn: '1' }}>
+					{/* Row 2, Column 2: Left stick buttons */}
+					<div style={{ ...buttonsContainerStyle, gridColumn: '2' }}>
 						<StickButtons
 							onCenterCalibration={() => setShowLeftCalibrationModal(true)}
 							onRangeCalibration={() => setShowLeftRangeModal(true)}
@@ -1292,41 +1270,8 @@ const JoystickCalibration = ({
 						/>
 					</div>
 
-					{/* Row 3, Column 2: Left stick view calibration data button and error rate switch */}
-					<div style={{ ...buttonsContainerStyle, gridColumn: '2' }}>
-						<ViewCalibrationData
-							errorRateEnabled={leftShowErrorRate}
-							onErrorRateChange={(value) => setLeftShowErrorRate(value)}
-							onViewData={() => {
-								const rangeData = values?.joystickRangeData1;
-								setLeftRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
-								setLeftAngleIndexSnapshot(leftStickDetailData.angleIndex);
-								setShowLeftRangeDataModal(true);
-							}}
-							circularityDataSize={CIRCULARITY_DATA_SIZE}
-							onClearCircularityData={() => setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0))}
-						/>
-					</div>
-
-
-					{/* Row 3, Column 3: Right stick view calibration data button and error rate switch */}
+					{/* Row 2, Column 3: Right stick buttons */}
 					<div style={{ ...buttonsContainerStyle, gridColumn: '3' }}>
-						<ViewCalibrationData
-							errorRateEnabled={rightShowErrorRate}
-							onErrorRateChange={(value) => setRightShowErrorRate(value)}
-							onViewData={() => {
-								const rangeData = values?.joystickRangeData2;
-								setRightRangeDataSnapshot(Array.isArray(rangeData) ? rangeData : []);
-								setRightAngleIndexSnapshot(rightStickDetailData.angleIndex);
-								setShowRightRangeDataModal(true);
-							}}
-							circularityDataSize={CIRCULARITY_DATA_SIZE}
-							onClearCircularityData={() => setRightFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0))}
-						/>
-					</div>
-
-					{/* Row 3, Column 4: Right stick buttons */}
-					<div style={{ ...buttonsContainerStyle, gridColumn: '4' }}>
 						<StickButtons
 							onCenterCalibration={() => setShowRightCalibrationModal(true)}
 							onRangeCalibration={() => setShowRightRangeModal(true)}
@@ -1334,6 +1279,33 @@ const JoystickCalibration = ({
 							finetuneCenterActive={rightFinetuneCenterActive}
 							onJitterSampling={() => setShowRightJitterDataModal(true)}
 						/>
+					</div>
+
+					{/* Row 2, Column 4: Right stick XY position info + error-rate switch */}
+					<div style={{ ...calibrationRow2SideCellStyle, gridColumn: '4' }}>
+						<StickPositionInfo
+							stickData={rightStickData}
+							finetuneCenterActive={rightFinetuneCenterActive}
+							centerX={values?.joystickCenterX2 || DEFAULT_ADC_CENTER}
+							centerY={values?.joystickCenterY2 || DEFAULT_ADC_CENTER}
+							onCenterXChange={(value) => setFieldValue('joystickCenterX2', value)}
+							onCenterYChange={(value) => setFieldValue('joystickCenterY2', value)}
+							convertToXInputNormalized={convertToXInputNormalized}
+						/>
+						<div style={{ display: 'flex', justifyContent: 'center' }}>
+							<Form.Check
+								type="switch"
+								label={t('CalibrationSettings:hml-error-rate-label')}
+								checked={rightShowErrorRate}
+								onChange={(e) => {
+									const enabled = e.target.checked;
+									setRightShowErrorRate(enabled);
+									if (!enabled) {
+										setRightFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
+									}
+								}}
+							/>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -1383,94 +1355,6 @@ const JoystickCalibration = ({
 				centerX={values?.joystickCenterX2}
 				centerY={values?.joystickCenterY2}
 			/>
-			
-			
-			
-			{/* Range Data Detail Modals */}
-			<Modal show={showLeftRangeDataModal} onHide={() => setShowLeftRangeDataModal(false)} size="lg">
-				<Modal.Header closeButton>
-					<Modal.Title>{t('CalibrationSettings:hml-modal-outer-ring-left-title')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<div className="mb-3">
-						<strong>{t('CalibrationSettings:hml-stick-center-data')}</strong> ({leftStickDetailData.centerX.toFixed(1)}, {leftStickDetailData.centerY.toFixed(1)})
-					</div>
-					<div className="mb-2 small text-muted">
-						{t('CalibrationSettings:hml-data-count', { n: leftRangeDataSnapshot.length, max: CIRCULARITY_DATA_SIZE })}
-					</div>
-					<Table striped bordered hover size="sm">
-						<thead>
-							<tr>
-								<th>{t('CalibrationSettings:hml-table-index')}</th>
-								<th>{t('CalibrationSettings:hml-table-angle-range')}</th>
-								<th>{t('CalibrationSettings:hml-table-scale')}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{Array.from({ length: CIRCULARITY_DATA_SIZE }, (_, index) => {
-								const scale = leftRangeDataSnapshot[index];
-								const angleStart = ((index * 360 / CIRCULARITY_DATA_SIZE) - 180).toFixed(1);
-								const angleEnd = (((index + 1) * 360 / CIRCULARITY_DATA_SIZE) - 180).toFixed(1);
-								return (
-									<tr key={index} className={index === leftAngleIndexSnapshot ? 'table-primary' : ''}>
-										<td>{index}</td>
-										<td>{t('CalibrationSettings:hml-angle-range-value', { start: angleStart, end: angleEnd })}</td>
-										<td>{scale !== undefined && scale !== null && scale > 0 ? scale.toFixed(4) : 'N/A'}</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</Table>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowLeftRangeDataModal(false)}>
-						{t('CalibrationSettings:hml-button-close')}
-					</Button>
-				</Modal.Footer>
-			</Modal>
-
-			<Modal show={showRightRangeDataModal} onHide={() => setShowRightRangeDataModal(false)} size="lg">
-				<Modal.Header closeButton>
-					<Modal.Title>{t('CalibrationSettings:hml-modal-outer-ring-right-title')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<div className="mb-3">
-						<strong>{t('CalibrationSettings:hml-stick-center-data')}</strong> ({rightStickDetailData.centerX.toFixed(1)}, {rightStickDetailData.centerY.toFixed(1)})
-					</div>
-					<div className="mb-2 small text-muted">
-						{t('CalibrationSettings:hml-data-count', { n: rightRangeDataSnapshot.length, max: CIRCULARITY_DATA_SIZE })}
-					</div>
-					<Table striped bordered hover size="sm">
-						<thead>
-							<tr>
-								<th>{t('CalibrationSettings:hml-table-index')}</th>
-								<th>{t('CalibrationSettings:hml-table-angle-range')}</th>
-								<th>{t('CalibrationSettings:hml-table-scale')}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{Array.from({ length: CIRCULARITY_DATA_SIZE }, (_, index) => {
-								const scale = rightRangeDataSnapshot[index];
-								const angleStart = ((index * 360 / CIRCULARITY_DATA_SIZE) - 180).toFixed(1);
-								const angleEnd = (((index + 1) * 360 / CIRCULARITY_DATA_SIZE) - 180).toFixed(1);
-								return (
-									<tr key={index} className={index === rightAngleIndexSnapshot ? 'table-primary' : ''}>
-										<td>{index}</td>
-										<td>{t('CalibrationSettings:hml-angle-range-value', { start: angleStart, end: angleEnd })}</td>
-										<td>{scale !== undefined && scale !== null && scale > 0 ? scale.toFixed(4) : 'N/A'}</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</Table>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowRightRangeDataModal(false)}>
-						{t('CalibrationSettings:hml-button-close')}
-					</Button>
-				</Modal.Footer>
-			</Modal>
-
 			{/* Left Jitter Data Modal */}
 			<Modal
 				show={showLeftJitterDataModal}
@@ -1594,24 +1478,6 @@ const JoystickCalibration = ({
 				)}
 			</div>
 
-			{/* Range calibration warning modal */}
-			<Modal
-				show={showRangeCalibrationWarning}
-				onHide={() => setShowRangeCalibrationWarning(false)}
-				centered
-			>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('CalibrationSettings:hml-modal-title-hint')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<p className="mb-0">{t('CalibrationSettings:hml-modal-calibrate-outer-first')}</p>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="primary" onClick={() => setShowRangeCalibrationWarning(false)}>
-						{t('CalibrationSettings:hml-button-ok')}
-					</Button>
-				</Modal.Footer>
-			</Modal>
 		</Section>
 	);
 };

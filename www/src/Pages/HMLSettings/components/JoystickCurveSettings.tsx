@@ -1,96 +1,34 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Form } from 'react-bootstrap';
+import { Button, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useFormikContext } from 'formik';
-import { MultiValue, SingleValue } from 'react-select';
 
+import InfoCircle from '../../../Icons/InfoCircle';
 import Section from '../../../Components/Section';
-import CustomSelect from '../../../Components/CustomSelect';
 import type { AddonPropTypes } from './CalibrationSettings';
 import { BUTTON_MASKS_OPTIONS, getButtonLabels } from '../../../Data/Buttons';
-import { BUTTON_ACTIONS, PinActionValues } from '../../../Data/Pins';
 import { AppContext } from '../../../Contexts/AppContext';
-import {
-	OptionType,
-	groupedMappingOptions,
-	isDisabled,
-	keyboardKeyOptions,
-	mappingOptions,
-	mouseKeyOptions,
-} from './ActionMappingOptions';
 
 // Type definitions
 type CurvePoint = { x: number; y: number };
 type CurvePointInput = { x: string; y: string };
 const DEFAULT_ADC_MAX = 4095;
 const CIRCULARITY_DATA_SIZE = 48;
-const joystickTravelGroupedOptions = groupedMappingOptions;
 
-const getPayloadFromSelected = (
-	selected: MultiValue<OptionType> | SingleValue<OptionType>,
-) => {
-	if (!selected || (Array.isArray(selected) && !selected.length)) {
-		return { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 };
-	}
-	if (Array.isArray(selected) && selected.length > 1) {
-		const hasKeyboard = selected.some((opt) => opt.type === 'keyboard');
-		const hasAction = selected.some((opt) => opt.type === 'action');
-		if (hasKeyboard || hasAction) {
-			const last = selected[selected.length - 1];
-			return { action: last.value, customButtonMask: 0, customDpadMask: 0 };
-		}
-		return selected.reduce(
-			(acc, option) => ({
-				...acc,
-				customButtonMask:
-					option.type === 'customButtonMask'
-						? acc.customButtonMask ^ option.customButtonMask
-						: acc.customButtonMask,
-				customDpadMask:
-					option.type === 'customDpadMask'
-						? acc.customDpadMask ^ option.customDpadMask
-						: acc.customDpadMask,
-			}),
-			{ action: BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO, customButtonMask: 0, customDpadMask: 0 },
-		);
-	}
-	const single = Array.isArray(selected) ? selected[0] : selected;
-	return { action: single.value, customButtonMask: 0, customDpadMask: 0 };
-};
+type QuickSwitchHeadingProps = { t: (key: string) => string; tooltipIdSuffix: string };
 
-const getMultiValue = (mappingData: { action: PinActionValues; customButtonMask: number; customDpadMask: number }) => {
-	if (mappingData.action === BUTTON_ACTIONS.NONE) return;
-	if (isDisabled(mappingData.action)) {
-		const actionKey = Object.entries(BUTTON_ACTIONS).find(([, value]) => value === mappingData.action)?.[0] || 'NONE';
-		return [
-			{
-				label: actionKey,
-				value: mappingData.action,
-				type: 'action',
-				customButtonMask: mappingData.customButtonMask,
-				customDpadMask: mappingData.customDpadMask,
-			},
-		];
-	}
-
-	const keyboardOption = keyboardKeyOptions.find((opt) => opt.value === mappingData.action);
-	if (keyboardOption) {
-		return [keyboardOption];
-	}
-	const mouseOption = mouseKeyOptions.find((opt) => opt.value === mappingData.action);
-	if (mouseOption) {
-		return [mouseOption];
-	}
-
-	return mappingData.action === BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO
-		? mappingOptions.filter(
-			({ type, customButtonMask, customDpadMask }) =>
-				(mappingData.customButtonMask & customButtonMask &&
-					type === 'customButtonMask') ||
-				(mappingData.customDpadMask & customDpadMask &&
-					type === 'customDpadMask'),
-		)
-		: mappingOptions.filter((option) => option.value === mappingData.action);
+const RightStickQuickSwitchHeading = ({ t, tooltipIdSuffix }: QuickSwitchHeadingProps) => {
+	const tip = t('CalibrationSettings:hml-right-stick-quick-switch-tooltip');
+	return (
+		<>
+			<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
+			<OverlayTrigger placement="top" overlay={<Tooltip id={`right-stick-quick-switch-tip-${tooltipIdSuffix}`}>{tip}</Tooltip>}>
+				<span style={{ display: 'inline-flex', cursor: 'help', alignItems: 'center' }} aria-label={tip}>
+					<InfoCircle />
+				</span>
+			</OverlayTrigger>
+		</>
+	);
 };
 
 const areCurvePointsEqual = (a: CurvePoint[], b: CurvePoint[]) => {
@@ -664,50 +602,6 @@ const JoystickCurveSettings = ({
 	const buttonLabelType = appContext?.buttonLabels?.buttonLabelType || 'ps4';
 	const swapTpShareLabels = appContext?.buttonLabels?.swapTpShareLabels || false;
 	const currentButtonLabels = getButtonLabels(buttonLabelType, swapTpShareLabels);
-	const joystickTravelButtonMappingLeft = {
-		action: (values?.joystickTravelButtonAction ?? BUTTON_ACTIONS.NONE) as PinActionValues,
-		customButtonMask: values?.joystickTravelButtonCustomButtonMask ?? 0,
-		customDpadMask: values?.joystickTravelButtonCustomDpadMask ?? 0,
-	};
-	const joystickTravelButtonMappingRight = {
-		action: (values?.joystickTravelButtonAction2 ?? BUTTON_ACTIONS.NONE) as PinActionValues,
-		customButtonMask: values?.joystickTravelButtonCustomButtonMask2 ?? 0,
-		customDpadMask: values?.joystickTravelButtonCustomDpadMask2 ?? 0,
-	};
-	const joystickTravelButtonThresholdLeft = Math.max(0, Math.min(99, values?.joystickTravelButtonThreshold ?? 0));
-	const joystickTravelButtonThresholdRight = Math.max(0, Math.min(99, values?.joystickTravelButtonThreshold2 ?? 0));
-	const getOptionLabel = (option: OptionType) => {
-		if (option.type === 'keyboard') {
-			const keyName = option.label?.replace('KEYBOARD_KEY_', '');
-			if (keyName === 'ALT_F4') {
-				return 'KB: Alt+F4';
-			}
-			return `KB: ${keyName || option.label}`;
-		}
-		if (option.type === 'mouse') {
-			return t(`Proto:GpioAction.${option.label}`);
-		}
-		const labelKey = option.label?.split('BUTTON_PRESS_')?.pop();
-		return (
-			(labelKey && currentButtonLabels[labelKey]) ||
-			t(`Proto:GpioAction.${option.label}`)
-		);
-	};
-	const handleJoystickTravelMappingChange = (
-		selected: MultiValue<OptionType> | SingleValue<OptionType>,
-		stick: 'left' | 'right',
-	) => {
-		const payload = getPayloadFromSelected(selected);
-		if (stick === 'left') {
-			setFieldValue('joystickTravelButtonAction', payload.action);
-			setFieldValue('joystickTravelButtonCustomButtonMask', payload.customButtonMask);
-			setFieldValue('joystickTravelButtonCustomDpadMask', payload.customDpadMask);
-			return;
-		}
-		setFieldValue('joystickTravelButtonAction2', payload.action);
-		setFieldValue('joystickTravelButtonCustomButtonMask2', payload.customButtonMask);
-		setFieldValue('joystickTravelButtonCustomDpadMask2', payload.customDpadMask);
-	};
 	
 	const [isExpanded, setIsExpanded] = useState(() => {
 		// Default to disabled (collapsed) if not set
@@ -1650,7 +1544,7 @@ const JoystickCurveSettings = ({
 	return (
 		<Section title={t('CalibrationSettings:hml-stick-curve-title')}>
 			{isExpanded && (
-			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gridTemplateRows: 'auto auto auto', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
+			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gridTemplateRows: 'auto auto', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
 				{/* Row 1, Column 1: Left stick curve canvas */}
 				<div className="text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', width: '260px' }}>
 					<div style={{ position: 'relative', width: '260px', height: '260px' }}>
@@ -1673,7 +1567,7 @@ const JoystickCurveSettings = ({
 				</div>
 
 				{/* Row 1, Column 2: Left stick control points */}
-				<div style={{ width: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start' }}>
+				<div style={{ width: '260px', minHeight: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start' }}>
 					<div style={{ width: '260px', textAlign: 'left' }}>
 						<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>{t('CalibrationSettings:hml-control-points')}</div>
 						{leftCurvePoints.length > 0 ? (
@@ -1725,38 +1619,15 @@ const JoystickCurveSettings = ({
 						) : (
 							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>{t('CalibrationSettings:hml-no-control-points')}</div>
 						)}
-						<div style={{ marginTop: '12px' }}>
-							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								{t('CalibrationSettings:hml-joystick-travel-button-threshold', { pct: joystickTravelButtonThresholdLeft })}
-							</Form.Label>
-							<Form.Range
-								min={0}
-								max={99}
-								step={1}
-								value={joystickTravelButtonThresholdLeft}
-								onChange={(e) => setFieldValue('joystickTravelButtonThreshold', parseInt(e.target.value, 10))}
-							/>
-							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginTop: '8px', marginBottom: '4px' }}>
-								{t('CalibrationSettings:hml-joystick-travel-mapping-key')}
-							</Form.Label>
-							<CustomSelect
-								isClearable
-								isMulti={!isDisabled(joystickTravelButtonMappingLeft.action) &&
-									!keyboardKeyOptions.some((opt) => opt.value === joystickTravelButtonMappingLeft.action) &&
-									!mouseKeyOptions.some((opt) => opt.value === joystickTravelButtonMappingLeft.action) &&
-									!mappingOptions.some((opt) => opt.value === joystickTravelButtonMappingLeft.action && opt.type === 'action')}
-								options={joystickTravelGroupedOptions}
-								isDisabled={isDisabled(joystickTravelButtonMappingLeft.action)}
-								getOptionLabel={getOptionLabel}
-								onChange={(selected: MultiValue<OptionType> | SingleValue<OptionType>) => handleJoystickTravelMappingChange(selected, 'left')}
-								value={getMultiValue(joystickTravelButtonMappingLeft)}
-							/>
-						</div>
+					</div>
+					<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
+						<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftLightX !== undefined ? leftLightX * 100 : 0).toFixed(1) })}</div>
+						<div>{t('CalibrationSettings:hml-out-distance-left', { pct: (leftLightY !== undefined ? leftLightY * 100 : 0).toFixed(1) })}</div>
 					</div>
 				</div>
 
 				{/* Row 1, Column 3: Right stick control points */}
-				<div style={{ width: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start' }}>
+				<div style={{ width: '260px', minHeight: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start' }}>
 					<div style={{ width: '260px', textAlign: 'left' }}>
 						<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>{t('CalibrationSettings:hml-control-points')}</div>
 						{rightCurvePoints.length > 0 ? (
@@ -1808,33 +1679,10 @@ const JoystickCurveSettings = ({
 						) : (
 							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>{t('CalibrationSettings:hml-no-control-points')}</div>
 						)}
-						<div style={{ marginTop: '12px' }}>
-							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								{t('CalibrationSettings:hml-joystick-travel-button-threshold', { pct: joystickTravelButtonThresholdRight })}
-							</Form.Label>
-							<Form.Range
-								min={0}
-								max={99}
-								step={1}
-								value={joystickTravelButtonThresholdRight}
-								onChange={(e) => setFieldValue('joystickTravelButtonThreshold2', parseInt(e.target.value, 10))}
-							/>
-							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginTop: '8px', marginBottom: '4px' }}>
-								{t('CalibrationSettings:hml-joystick-travel-mapping-key')}
-							</Form.Label>
-							<CustomSelect
-								isClearable
-								isMulti={!isDisabled(joystickTravelButtonMappingRight.action) &&
-									!keyboardKeyOptions.some((opt) => opt.value === joystickTravelButtonMappingRight.action) &&
-									!mouseKeyOptions.some((opt) => opt.value === joystickTravelButtonMappingRight.action) &&
-									!mappingOptions.some((opt) => opt.value === joystickTravelButtonMappingRight.action && opt.type === 'action')}
-								options={joystickTravelGroupedOptions}
-								isDisabled={isDisabled(joystickTravelButtonMappingRight.action)}
-								getOptionLabel={getOptionLabel}
-								onChange={(selected: MultiValue<OptionType> | SingleValue<OptionType>) => handleJoystickTravelMappingChange(selected, 'right')}
-								value={getMultiValue(joystickTravelButtonMappingRight)}
-							/>
-						</div>
+					</div>
+					<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
+						<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightLightX !== undefined ? rightLightX * 100 : 0).toFixed(1) })}</div>
+						<div>{t('CalibrationSettings:hml-out-distance-right', { pct: (rightLightY !== undefined ? rightLightY * 100 : 0).toFixed(1) })}</div>
 					</div>
 				</div>
 
@@ -1859,111 +1707,7 @@ const JoystickCurveSettings = ({
 					</div>
 				</div>
 
-				{/* Row 2, Column 1: Left stick physical/output distance */}
-				<div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '260px', gridColumn: '1', gap: '8px' }}>
-					<div style={{ fontSize: '0.875rem', textAlign: 'center' }}>
-						<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftLightX !== undefined ? leftLightX * 100 : 0).toFixed(1) })}</div>
-						<div>{t('CalibrationSettings:hml-out-distance-left', { pct: (leftLightY !== undefined ? leftLightY * 100 : 0).toFixed(1) })}</div>
-					</div>
-				</div>
-
-				{/* Row 2, Column 2: Left stick deadzone/anti-deadzone sliders */}
-				<div style={{ width: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start' }}>
-					<div style={{ width: '260px', textAlign: 'left' }}>
-						<div style={{ marginBottom: '6px' }}>
-							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								{t('CalibrationSettings:hml-inner-deadzone-left', { pct: (values?.inner_deadzone || 0).toFixed(1) })}
-							</Form.Label>
-							<Form.Range
-								min={0}
-								max={20}
-								step={1}
-								value={values?.inner_deadzone || 0}
-								onChange={(e) => setFieldValue('inner_deadzone', parseFloat(e.target.value))}
-							/>
-						</div>
-						<div style={{ marginBottom: '6px' }}>
-							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-								<Form.Label className="mb-0" style={{ textAlign: 'left', fontSize: '0.875rem', marginBottom: '0' }}>
-									{t('CalibrationSettings:hml-anti-deadzone-left', { pct: (values?.anti_deadzone || 0).toFixed(1) })}
-								</Form.Label>
-								<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-									<span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
-										{values?.fixed_anti_deadzone ? t('CalibrationSettings:hml-fixed') : t('CalibrationSettings:hml-linear')}
-									</span>
-									<Form.Check
-										type="switch"
-										id="fixed-anti-deadzone-1"
-										label=""
-										checked={values?.fixed_anti_deadzone || false}
-										onChange={(e) => setFieldValue('fixed_anti_deadzone', e.target.checked)}
-									/>
-								</div>
-							</div>
-							<Form.Range
-								min={0}
-								max={20}
-								step={1}
-								value={values?.anti_deadzone || 0}
-								onChange={(e) => setFieldValue('anti_deadzone', parseFloat(e.target.value))}
-							/>
-						</div>
-					</div>
-				</div>
-
-				{/* Row 2, Column 3: Right stick deadzone/anti-deadzone sliders */}
-				<div style={{ width: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start' }}>
-					<div style={{ width: '260px', textAlign: 'left' }}>
-						<div style={{ marginBottom: '6px' }}>
-							<Form.Label className="mb-0" style={{ textAlign: 'left', display: 'block', width: '100%', fontSize: '0.875rem', marginBottom: '4px' }}>
-								{t('CalibrationSettings:hml-inner-deadzone-right', { pct: (values?.inner_deadzone2 || 0).toFixed(1) })}
-							</Form.Label>
-							<Form.Range
-								min={0}
-								max={20}
-								step={1}
-								value={values?.inner_deadzone2 || 0}
-								onChange={(e) => setFieldValue('inner_deadzone2', parseFloat(e.target.value))}
-							/>
-						</div>
-						<div style={{ marginBottom: '6px' }}>
-							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-								<Form.Label className="mb-0" style={{ textAlign: 'left', fontSize: '0.875rem', marginBottom: '0' }}>
-									{t('CalibrationSettings:hml-anti-deadzone-right', { pct: (values?.anti_deadzone2 || 0).toFixed(1) })}
-								</Form.Label>
-								<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-									<span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
-										{values?.fixed_anti_deadzone2 ? t('CalibrationSettings:hml-fixed') : t('CalibrationSettings:hml-linear')}
-									</span>
-									<Form.Check
-										type="switch"
-										id="fixed-anti-deadzone-2"
-										label=""
-										checked={values?.fixed_anti_deadzone2 || false}
-										onChange={(e) => setFieldValue('fixed_anti_deadzone2', e.target.checked)}
-									/>
-								</div>
-							</div>
-							<Form.Range
-								min={0}
-								max={20}
-								step={1}
-								value={values?.anti_deadzone2 || 0}
-								onChange={(e) => setFieldValue('anti_deadzone2', parseFloat(e.target.value))}
-							/>
-						</div>
-					</div>
-				</div>
-
-				{/* Row 2, Column 4: Right stick physical/output distance */}
-				<div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '260px', gridColumn: '4', gap: '8px' }}>
-					<div style={{ fontSize: '0.875rem', textAlign: 'center' }}>
-						<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightLightX !== undefined ? rightLightX * 100 : 0).toFixed(1) })}</div>
-						<div>{t('CalibrationSettings:hml-out-distance-right', { pct: (rightLightY !== undefined ? rightLightY * 100 : 0).toFixed(1) })}</div>
-					</div>
-				</div>
-
-				{/* Row 3, Column 1: Preset 1 */}
+				{/* Row 2, Column 1: Preset 1 */}
 				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '1', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
 					{/* Row 1: Name input with apply buttons */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
@@ -1994,7 +1738,7 @@ const JoystickCurveSettings = ({
 					</div>
 					{/* Row 2: Activation button with label */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
+						<RightStickQuickSwitchHeading t={t} tooltipIdSuffix="0" />
 						<Form.Select
 							size="sm"
 							value={presetInputs[0].activationButtonMask ?? 0}
@@ -2061,7 +1805,7 @@ const JoystickCurveSettings = ({
 					))}
 				</div>
 
-				{/* Row 3, Column 2: Preset 2 */}
+				{/* Row 2, Column 2: Preset 2 */}
 				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '2', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
 					{/* Row 1: Name input with apply buttons */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
@@ -2092,7 +1836,7 @@ const JoystickCurveSettings = ({
 					</div>
 					{/* Row 2: Activation button with label */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
+						<RightStickQuickSwitchHeading t={t} tooltipIdSuffix="1" />
 						<Form.Select
 							size="sm"
 							value={presetInputs[1].activationButtonMask ?? 0}
@@ -2158,7 +1902,7 @@ const JoystickCurveSettings = ({
 					))}
 				</div>
 
-				{/* Row 3, Column 3: Preset 3 */}
+				{/* Row 2, Column 3: Preset 3 */}
 				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '3', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
 					{/* Row 1: Name input with apply buttons */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
@@ -2189,7 +1933,7 @@ const JoystickCurveSettings = ({
 					</div>
 					{/* Row 2: Activation button with label */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
+						<RightStickQuickSwitchHeading t={t} tooltipIdSuffix="2" />
 						<Form.Select
 							size="sm"
 							value={presetInputs[2].activationButtonMask ?? 0}
@@ -2255,7 +1999,7 @@ const JoystickCurveSettings = ({
 					))}
 				</div>
 
-				{/* Row 3, Column 4: Preset 4 */}
+				{/* Row 2, Column 4: Preset 4 */}
 				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '4', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
 					{/* Row 1: Name input with apply buttons */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
@@ -2286,7 +2030,7 @@ const JoystickCurveSettings = ({
 					</div>
 					{/* Row 2: Activation button with label */}
 					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
+						<RightStickQuickSwitchHeading t={t} tooltipIdSuffix="3" />
 						<Form.Select
 							size="sm"
 							value={presetInputs[3].activationButtonMask ?? 0}

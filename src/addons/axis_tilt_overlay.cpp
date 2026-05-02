@@ -19,15 +19,11 @@ bool AxisTiltOverlayInput::available() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const AxisTiltOverlayOptions& options = addonOptions.axisTiltOverlayOptions;
 
-	if (!options.enabled) {
-		return false;
-	}
-
 	if (!addonOptions.ads8332Options.enabled || addonOptions.analogOptions.enabled) {
 		return false;
 	}
 
-	// Plugin is available when master switch is on and at least one sub-feature is enabled.
+	// Plugin is available when at least one sub-feature is enabled.
 	return options.pressEnabled || options.rcGainEnabled;
 }
 
@@ -61,8 +57,7 @@ void AxisTiltOverlayInput::refreshCachedOptions() {
 		(rightYPercent3Cached != 0.0f);
 	pressFeatureEnabled = options.pressEnabled && anyPressPercent;
 	rcGainFeatureEnabled = options.rcGainEnabled;
-	runtimeEnabled = options.enabled &&
-		addonOptions.ads8332Options.enabled &&
+	runtimeEnabled = addonOptions.ads8332Options.enabled &&
 		!addonOptions.analogOptions.enabled &&
 		(pressFeatureEnabled || rcGainFeatureEnabled);
 }
