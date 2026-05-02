@@ -57,30 +57,18 @@ private:
 };
 
 /**
- * Inner/anti deadzone persistence (uint32): canonical range 0–200 = tenths of a percent (55 → 5.5%).
- * Percent = tenths/10, normalized stick factor = tenths/1000.
- * Migrates: raw ≤20 → legacy whole percent ×10; 200–400 → previous 200+tenths encoding.
+ * Inner/anti deadzone (uint32): 0–200 = tenths of a percent (55 → 5.5%).
+ * Percent = clamp(raw)/10, normalized factor = clamp(raw)/1000.
  */
-inline uint32_t analogDeadzoneMigrateToTenths(uint32_t raw)
-{
-    if (raw <= 20u) {
-        return raw * 10u;
-    }
-    if (raw >= 200u && raw <= 400u) {
-        return raw - 200u;
-    }
-    return std::min(200u, raw);
-}
-
 inline float analogDeadzonePercentFromRaw(uint32_t raw)
 {
-    const uint32_t t = analogDeadzoneMigrateToTenths(raw);
+    const uint32_t t = std::min(200u, raw);
     return std::min(20.0f, static_cast<float>(t) / 10.0f);
 }
 
 inline float analogDeadzoneNormFromRaw(uint32_t raw)
 {
-    const uint32_t t = analogDeadzoneMigrateToTenths(raw);
+    const uint32_t t = std::min(200u, raw);
     return static_cast<float>(t) / 1000.0f;
 }
 
