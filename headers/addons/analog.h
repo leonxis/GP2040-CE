@@ -6,7 +6,6 @@
 #include "types.h"
 
 #include <algorithm>
-#include <cmath>
 
 
 
