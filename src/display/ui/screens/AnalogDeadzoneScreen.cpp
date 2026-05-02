@@ -338,12 +338,13 @@ void AnalogDeadzoneScreen::adjustCurrentValue(int delta) {
 void AnalogDeadzoneScreen::applyChanges() {
     AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
 
+    // OLED edits 0–10 whole %; persist as tenths 0–100 (same encoding as web 0–200 scale)
     if (editingStick == 0) {
-        analogOptions.inner_deadzone = static_cast<uint32_t>(innerDeadzoneValue);
-        analogOptions.anti_deadzone = static_cast<uint32_t>(antiDeadzoneValue);
+        analogOptions.inner_deadzone = static_cast<uint32_t>(innerDeadzoneValue * 10);
+        analogOptions.anti_deadzone = static_cast<uint32_t>(antiDeadzoneValue * 10);
     } else {
-        analogOptions.inner_deadzone2 = static_cast<uint32_t>(innerDeadzoneValue);
-        analogOptions.anti_deadzone2 = static_cast<uint32_t>(antiDeadzoneValue);
+        analogOptions.inner_deadzone2 = static_cast<uint32_t>(innerDeadzoneValue * 10);
+        analogOptions.anti_deadzone2 = static_cast<uint32_t>(antiDeadzoneValue * 10);
     }
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));

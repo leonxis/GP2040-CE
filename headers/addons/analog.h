@@ -5,6 +5,7 @@
 #include "enums.pb.h"
 #include "types.h"
 
+#include <algorithm>
 #include <cmath>
 
 
@@ -56,22 +57,31 @@ private:
 };
 
 /**
- * Inner/anti deadzone raw (uint32): legacy 0–20 = whole %; ≥200 = 200 + tenths (0.1% steps, 20.0% max → 400).
+ * Inner/anti deadzone persistence (uint32): canonical range 0–200 = tenths of a percent (55 → 5.5%).
+ * Percent = tenths/10, normalized stick factor = tenths/1000.
+ * Migrates: raw ≤20 → legacy whole percent ×10; 200–400 → previous 200+tenths encoding.
  */
+inline uint32_t analogDeadzoneMigrateToTenths(uint32_t raw)
+{
+    if (raw <= 20u) {
+        return raw * 10u;
+    }
+    if (raw >= 200u && raw <= 400u) {
+        return raw - 200u;
+    }
+    return std::min(200u, raw);
+}
+
 inline float analogDeadzonePercentFromRaw(uint32_t raw)
 {
-    if (raw <= 20) {
-        return static_cast<float>(raw);
-    }
-    if (raw >= 200) {
-        return static_cast<float>(raw - 200) / 10.0f;
-    }
-    return static_cast<float>(raw);
+    const uint32_t t = analogDeadzoneMigrateToTenths(raw);
+    return std::min(20.0f, static_cast<float>(t) / 10.0f);
 }
 
 inline float analogDeadzoneNormFromRaw(uint32_t raw)
 {
-    return analogDeadzonePercentFromRaw(raw) / 100.0f;
+    const uint32_t t = analogDeadzoneMigrateToTenths(raw);
+    return static_cast<float>(t) / 1000.0f;
 }
 
 #endif  // _Analog_H_
