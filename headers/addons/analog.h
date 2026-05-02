@@ -5,6 +5,8 @@
 #include "enums.pb.h"
 #include "types.h"
 
+#include <cmath>
+
 
 
 
@@ -52,5 +54,24 @@ private:
     void refreshConfigFromStorage();
     uint16_t readPinRaw(Pin_t pinAdc);
 };
+
+/**
+ * Inner/anti deadzone raw (uint32): legacy 0–20 = whole %; ≥200 = 200 + tenths (0.1% steps, 20.0% max → 400).
+ */
+inline float analogDeadzonePercentFromRaw(uint32_t raw)
+{
+    if (raw <= 20) {
+        return static_cast<float>(raw);
+    }
+    if (raw >= 200) {
+        return static_cast<float>(raw - 200) / 10.0f;
+    }
+    return static_cast<float>(raw);
+}
+
+inline float analogDeadzoneNormFromRaw(uint32_t raw)
+{
+    return analogDeadzonePercentFromRaw(raw) / 100.0f;
+}
 
 #endif  // _Analog_H_

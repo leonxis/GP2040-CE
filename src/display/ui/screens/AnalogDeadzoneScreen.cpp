@@ -7,8 +7,10 @@
 #include "storagemanager.h"
 #include "system.h"
 #include "MainMenuScreen.h"
+#include "addons/analog.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
@@ -277,11 +279,23 @@ void AnalogDeadzoneScreen::enterEdit(int stickIndex) {
     AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
 
     if (editingStick == 0) {
-        innerDeadzoneValue = std::clamp<int>(analogOptions.inner_deadzone, 0, 10);
-        antiDeadzoneValue = std::clamp<int>(analogOptions.anti_deadzone, 0, 10);
+        innerDeadzoneValue = std::clamp<int>(
+            static_cast<int>(std::lround(analogDeadzonePercentFromRaw(analogOptions.inner_deadzone))),
+            0,
+            10);
+        antiDeadzoneValue = std::clamp<int>(
+            static_cast<int>(std::lround(analogDeadzonePercentFromRaw(analogOptions.anti_deadzone))),
+            0,
+            10);
     } else {
-        innerDeadzoneValue = std::clamp<int>(analogOptions.inner_deadzone2, 0, 10);
-        antiDeadzoneValue = std::clamp<int>(analogOptions.anti_deadzone2, 0, 10);
+        innerDeadzoneValue = std::clamp<int>(
+            static_cast<int>(std::lround(analogDeadzonePercentFromRaw(analogOptions.inner_deadzone2))),
+            0,
+            10);
+        antiDeadzoneValue = std::clamp<int>(
+            static_cast<int>(std::lround(analogDeadzonePercentFromRaw(analogOptions.anti_deadzone2))),
+            0,
+            10);
     }
 
     resetInputState();

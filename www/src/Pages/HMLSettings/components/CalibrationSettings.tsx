@@ -57,6 +57,10 @@ import AxisTiltOverlaySettings, {
 	axisTiltOverlaySettingsScheme,
 	axisTiltOverlaySettingsState,
 } from './AxisTiltOverlaySettings';
+import {
+	decodeStickDeadzoneFromDevice,
+	encodeStickDeadzoneToDevice,
+} from '../utils/stickDeadzoneWire';
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
 	errors: FormikErrors<typeof DEFAULT_VALUES>;
@@ -128,6 +132,10 @@ export const FormContext = ({ setStoredData }) => {
 			if (typeof r3 === 'number' && !Number.isNaN(r3) && r3 < 3) {
 				merged.axisTiltOverlayRcGainReserved3 = 3;
 			}
+			merged.inner_deadzone = decodeStickDeadzoneFromDevice(merged.inner_deadzone);
+			merged.inner_deadzone2 = decodeStickDeadzoneFromDevice(merged.inner_deadzone2);
+			merged.anti_deadzone = decodeStickDeadzoneFromDevice(merged.anti_deadzone);
+			merged.anti_deadzone2 = decodeStickDeadzoneFromDevice(merged.anti_deadzone2);
 			setValues(merged);
 			setStoredData(JSON.parse(JSON.stringify(merged)));
 		}
@@ -145,6 +153,10 @@ export const FormContext = ({ setStoredData }) => {
 const FLOAT_KEYS = [
 	'joystickFinetuneShapeAmplify1',
 	'joystickFinetuneShapeAmplify2',
+	'inner_deadzone',
+	'inner_deadzone2',
+	'anti_deadzone',
+	'anti_deadzone2',
 	'axisTiltOverlayRightYPercent1',
 	'axisTiltOverlayRightYPercent2',
 	'axisTiltOverlayRightYPercent3',
@@ -241,6 +253,10 @@ export default function CalibrationSettings() {
 				set(resultObject, field, newVal);
 			}
 		});
+		resultObject.inner_deadzone = encodeStickDeadzoneToDevice(Number(values.inner_deadzone ?? 0));
+		resultObject.inner_deadzone2 = encodeStickDeadzoneToDevice(Number(values.inner_deadzone2 ?? 0));
+		resultObject.anti_deadzone = encodeStickDeadzoneToDevice(Number(values.anti_deadzone ?? 0));
+		resultObject.anti_deadzone2 = encodeStickDeadzoneToDevice(Number(values.anti_deadzone2 ?? 0));
 		sanitizeData(resultObject);
 		const result = await WebApi.setAddonsOptions(resultObject);
 		if (result && result.error) {

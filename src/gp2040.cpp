@@ -300,8 +300,12 @@ void GP2040::setup() {
 		cached_dpad_deadzone = 0.1f;
 		if (options.dpadDeadzone > 0 && options.dpadDeadzone <= 90) {
 			cached_dpad_deadzone = options.dpadDeadzone / 100.0f;
-		} else if (addonOptions.analogOptions.enabled && addonOptions.analogOptions.inner_deadzone > 0) {
-			cached_dpad_deadzone = addonOptions.analogOptions.inner_deadzone / 100.0f;
+		} else if (addonOptions.analogOptions.enabled) {
+			const float idzNorm =
+				analogDeadzoneNormFromRaw(addonOptions.analogOptions.inner_deadzone);
+			if (idzNorm > 0.0f) {
+				cached_dpad_deadzone = idzNorm;
+			}
 		}
 
 		cached_dpad_threshold = 0.1f;

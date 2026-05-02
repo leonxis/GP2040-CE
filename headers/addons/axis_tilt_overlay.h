@@ -33,6 +33,17 @@
 #define AXIS_TILT_OVERLAY_RIGHT_Y_ACTIVE_PRESET 0
 #endif
 
+// RC gain defaults (percent); boards may override before including this header via BoardConfig.h
+#ifndef AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT
+#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT 0.0f
+#endif
+#ifndef AXIS_TILT_OVERLAY_RC_GAIN_RESERVED2_DEFAULT
+#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED2_DEFAULT 0.0f
+#endif
+#ifndef AXIS_TILT_OVERLAY_RC_GAIN_RESERVED3_DEFAULT
+#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED3_DEFAULT 3.0f
+#endif
+
 #define AxisTiltOverlayName "AxisTiltOverlay"
 
 class AxisTiltOverlayInput : public GPAddon {

@@ -90,8 +90,11 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.y_value = ANALOG_CENTER;
     stick.analog_invert = isFirst ? options.analogAdc1Invert : options.analogAdc2Invert;
     stick.analog_dpad = isFirst ? options.analogAdc1Mode : options.analogAdc2Mode;
-    stick.in_deadzone = (isFirst ? options.inner_deadzone : options.inner_deadzone2) / 100.0f;
-    stick.anti_deadzone = std::clamp((isFirst ? options.anti_deadzone : options.anti_deadzone2) / 100.0f, 0.0f, 1.0f);
+    stick.in_deadzone = analogDeadzoneNormFromRaw(isFirst ? options.inner_deadzone : options.inner_deadzone2);
+    stick.anti_deadzone = std::clamp(
+        analogDeadzoneNormFromRaw(isFirst ? options.anti_deadzone : options.anti_deadzone2),
+        0.0f,
+        1.0f);
     stick.fixed_anti_deadzone = isFirst ? options.fixed_anti_deadzone : options.fixed_anti_deadzone2;
     stick.jitter_filter = isFirst ? options.joystick_jitter_filter_1 : options.joystick_jitter_filter_2;
     stick.x_center = static_cast<uint16_t>((isFirst ? options.joystick_center_x : options.joystick_center_x2) > 0

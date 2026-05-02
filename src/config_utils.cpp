@@ -752,9 +752,9 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYActivePreset, AXIS_TILT_OVERLAY_RIGHT_Y_ACTIVE_PRESET);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainEnabled, false);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainTriggerButtonMask, 0u);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved1, 0.0f);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved2, 0.0f);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved3, 3.0f);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved1, AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved2, AXIS_TILT_OVERLAY_RC_GAIN_RESERVED2_DEFAULT);
+    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved3, AXIS_TILT_OVERLAY_RC_GAIN_RESERVED3_DEFAULT);
     INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainAlwaysOn, false);
 
     // addonOptions.buzzerOptions

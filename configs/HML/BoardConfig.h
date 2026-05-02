@@ -113,6 +113,11 @@
 #define HML_BACK_L2_ACTION GpioAction::BUTTON_PRESS_B3 // 左背键2
 #define HML_BACK_R2_ACTION GpioAction::BUTTON_PRESS_B4  // 右背键2
 
+// 摇杆叠加 RC 增益：首次写入存储时的默认值（RC 抖动强度 / 抖动幅度 / 衰减范围，单位 %）
+#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT 100.0f
+#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED2_DEFAULT 4.0f
+#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED3_DEFAULT 3.0f
+
 // LED Configuration
 #define BOARD_LEDS_PIN 20
 #define LED_BRIGHTNESS_MAXIMUM 35
