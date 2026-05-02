@@ -12,8 +12,8 @@ class UnifiedVoltageSwitchAddon : public GPAddon {
 public:
     virtual bool available();
     virtual void setup();
-    virtual void preprocess() {}
-    virtual void process();
+    virtual void preprocess();
+    virtual void process() {}
     virtual void postprocess(bool) {}
     virtual void reinit();
     virtual std::string name() { return UnifiedVoltageSwitchName; }
