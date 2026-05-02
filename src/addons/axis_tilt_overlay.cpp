@@ -10,9 +10,9 @@
 namespace {
 constexpr float kMotionFeedforwardGain = 12.0f;
 constexpr float kMotionFeedforwardDeadzone = 0.0015f;
-/** L∞ radius: full scale within inner square, linear falloff to edge. */
-constexpr float kRadialInner = 0.04f;
-constexpr float kRadialOuter = 0.30f;
+/** L∞ stick deflection where radial decay of overlay jitter begins (normalized 0..1). */
+constexpr float kRcDecayStart = 0.03f;
+constexpr float kTwoPi = 6.2831855f;
 }
 
 bool AxisTiltOverlayInput::available() {
@@ -50,7 +50,6 @@ void AxisTiltOverlayInput::refreshCachedOptions() {
 	rcGainReserved1Cached = options.rcGainReserved1;
 	rcGainReserved2Cached = options.rcGainReserved2;
 	rcGainReserved3Cached = options.rcGainReserved3;
-	rcRadialAttenuationEnabledCached = options.rcGainRadialAttenuationEnabled;
 
 	const bool anyPressPercent = (rightYPercent1Cached != 0.0f) ||
 		(rightYPercent2Cached != 0.0f) ||
@@ -79,13 +78,15 @@ void AxisTiltOverlayInput::loadRcOptionsIfDirty() {
 		return;
 	}
 
-	rcRadialAttenuationEnabled = rcRadialAttenuationEnabledCached;
-
 	rcJitterStrength = std::clamp(rcGainReserved1Cached / 100.0f, 0.0f, 1.0f);
-	rcDiamondA = std::clamp(rcGainReserved2Cached / 100.0f, 0.0f, 1.0f);
-	rcDiamondB = std::clamp(rcGainReserved3Cached / 100.0f, 0.0f, 1.0f);
-	if (rcDiamondB > rcDiamondA) {
-		std::swap(rcDiamondA, rcDiamondB);
+	rcJitterRadius = std::clamp(rcGainReserved2Cached / 100.0f, 0.0f, 1.0f);
+
+	const float reserved3Clamped = std::clamp(rcGainReserved3Cached, 0.0f, 100.0f);
+	rcRadialDecayActive = (reserved3Clamped > 3.0f);
+	if (rcRadialDecayActive) {
+		rcDecayOuterNorm = reserved3Clamped / 100.0f;
+	} else {
+		rcDecayOuterNorm = 0.0f;
 	}
 
 	rcOptionsDirty = false;
@@ -110,20 +111,16 @@ float AxisTiltOverlayInput::randomFloat(float minValue, float maxValue) {
 	return minValue + (maxValue - minValue) * t;
 }
 
-AxisTiltOverlayInput::Offset AxisTiltOverlayInput::randomDiamondOffset() {
-	float u = 0.0f;
-	float v = 0.0f;
-	do {
-		u = randomFloat(-1.0f, 1.0f);
-		v = randomFloat(-1.0f, 1.0f);
-	} while ((std::fabs(u) + std::fabs(v)) > 1.0f);
-
-	return Offset{u * rcDiamondA, v * rcDiamondB};
+AxisTiltOverlayInput::Offset AxisTiltOverlayInput::randomCircularOffset() {
+	const float u = randomFloat(0.0f, 1.0f);
+	const float radius = rcJitterRadius * std::sqrt(u);
+	const float theta = randomFloat(0.0f, kTwoPi);
+	return Offset{radius * std::cos(theta), radius * std::sin(theta)};
 }
 
 void AxisTiltOverlayInput::generateOffsetBlock() {
 	for (uint16_t i = 0; i < RC_PAIR_COUNT; ++i) {
-		offsetBlock[i] = randomDiamondOffset();
+		offsetBlock[i] = randomCircularOffset();
 	}
 	for (uint16_t i = RC_PAIR_COUNT - 1; i > 0; --i) {
 		const uint16_t j = static_cast<uint16_t>(randomU32() % (i + 1));
@@ -133,14 +130,21 @@ void AxisTiltOverlayInput::generateOffsetBlock() {
 }
 
 float AxisTiltOverlayInput::radialAmpScaleFromCenter(float cx, float cy) const {
-	const float r = std::max(std::fabs(cx), std::fabs(cy));
-	if (r <= kRadialInner) {
+	if (!rcRadialDecayActive) {
 		return 1.0f;
 	}
-	if (r >= kRadialOuter) {
+	const float r = std::max(std::fabs(cx), std::fabs(cy));
+	if (r <= kRcDecayStart) {
+		return 1.0f;
+	}
+	if (r >= rcDecayOuterNorm) {
 		return 0.0f;
 	}
-	return std::clamp((kRadialOuter - r) / (kRadialOuter - kRadialInner), 0.0f, 1.0f);
+	return std::clamp(
+		(rcDecayOuterNorm - r) / (rcDecayOuterNorm - kRcDecayStart),
+		0.0f,
+		1.0f
+	);
 }
 
 // Jitter is scheduled in 2-frame units: first frame applies offset A, second frame applies -A.
@@ -267,7 +271,7 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 		}
 
 		loadRcOptionsIfDirty();
-		const bool rcHasEffect = (rcJitterStrength > 0.0f) && ((rcDiamondA > 0.0f) || (rcDiamondB > 0.0f));
+		const bool rcHasEffect = (rcJitterStrength > 0.0f) && (rcJitterRadius > 0.0f);
 		if (!rcHasEffect) {
 			return;
 		}
@@ -303,8 +307,7 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 				generateOffsetBlock();
 			}
 			pendingJitterA = offsetBlock[pairIndex];
-			radialAmpScaleCached =
-				rcRadialAttenuationEnabled ? radialAmpScaleFromCenter(center.x, center.y) : 1.0f;
+			radialAmpScaleCached = radialAmpScaleFromCenter(center.x, center.y);
 			offset.x = pendingJitterA.x * radialAmpScaleCached;
 			offset.y = pendingJitterA.y * radialAmpScaleCached;
 			jitterAwaitNeg = true;

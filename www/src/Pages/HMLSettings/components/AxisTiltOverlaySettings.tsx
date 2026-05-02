@@ -95,11 +95,10 @@ export const axisTiltOverlaySettingsScheme = {
 	axisTiltOverlayRightYActivePreset: yupEx.number().label('Axis Tilt Overlay Right Y Active Preset').validateRangeWhenValue('axisTiltOverlayPressEnabled', 0, 3),
 	axisTiltOverlayRcGainEnabled: yupEx.number().label('RC Gain Enabled'),
 	axisTiltOverlayRcGainAlwaysOn: yupEx.number().label('RC Gain Always On'),
-	axisTiltOverlayRcGainRadialAttenuationEnabled: yupEx.number().label('RC radial attenuation'),
 	axisTiltOverlayRcGainTriggerButtonMask: yupEx.number().label('RC Gain Trigger Button').validateSelectionWhenValue('axisTiltOverlayRcGainEnabled', BUTTON_OPTIONS),
 	axisTiltOverlayRcGainReserved1: yupEx.number().validateRangeWhenValue('axisTiltOverlayRcGainEnabled', 0, 100),
 	axisTiltOverlayRcGainReserved2: yupEx.number().validateRangeWhenValue('axisTiltOverlayRcGainEnabled', 0, 100),
-	axisTiltOverlayRcGainReserved3: yupEx.number().validateRangeWhenValue('axisTiltOverlayRcGainEnabled', 0, 100),
+	axisTiltOverlayRcGainReserved3: yupEx.number().validateRangeWhenValue('axisTiltOverlayRcGainEnabled', 3, 100),
 };
 
 export const axisTiltOverlaySettingsState = {
@@ -111,15 +110,15 @@ export const axisTiltOverlaySettingsState = {
 	axisTiltOverlayRightYActivePreset: 0,
 	axisTiltOverlayRcGainEnabled: 0,
 	axisTiltOverlayRcGainAlwaysOn: 0,
-	axisTiltOverlayRcGainRadialAttenuationEnabled: 0,
 	axisTiltOverlayRcGainTriggerButtonMask: 0,
 	axisTiltOverlayRcGainReserved1: 0,
 	axisTiltOverlayRcGainReserved2: 0,
-	axisTiltOverlayRcGainReserved3: 0,
+	axisTiltOverlayRcGainReserved3: 3,
 };
 
 const clampPercent = (value: number) => Math.min(100, Math.max(-100, value));
 const clampRcPercent = (value: number) => Math.min(100, Math.max(0, value));
+const clampRcDecayPercent = (value: number) => Math.min(100, Math.max(3, value));
 
 export default function AxisTiltOverlaySettings({ values, errors, setFieldValue, saveMessage = '', onSaveClick }: AddonPropTypes) {
 	const { t } = useTranslation();
@@ -200,16 +199,32 @@ export default function AxisTiltOverlaySettings({ values, errors, setFieldValue,
 						<div style={{ ...row1Style, gap: '10px', flexWrap: 'nowrap', minWidth: 0 }}>
 							<FormCheck className="mb-0 flex-shrink-0" type="switch" id="axisTiltOverlayRcGainEnabled" label={t('AddonsConfig:axis-tilt-overlay-rc-gain-enabled-label')} checked={Boolean(values.axisTiltOverlayRcGainEnabled)} onChange={(e) => setFieldValue('axisTiltOverlayRcGainEnabled', e.target.checked ? 1 : 0)} />
 							<FormCheck className="mb-0 flex-shrink-0" type="switch" id="axisTiltOverlayRcGainAlwaysOn" label={t(Boolean(values.axisTiltOverlayRcGainAlwaysOn) ? 'AddonsConfig:axis-tilt-overlay-rc-gain-mode-always-on-label' : 'AddonsConfig:axis-tilt-overlay-rc-gain-mode-trigger-label')} checked={Boolean(values.axisTiltOverlayRcGainAlwaysOn)} onChange={(e) => setFieldValue('axisTiltOverlayRcGainAlwaysOn', e.target.checked ? 1 : 0)} />
-							<FormCheck className="mb-0 flex-shrink-0" type="switch" id="axisTiltOverlayRcGainRadialAttenuationEnabled" label={t('AddonsConfig:axis-tilt-overlay-rc-gain-radial-attenuation-label')} checked={Boolean(values.axisTiltOverlayRcGainRadialAttenuationEnabled)} onChange={(e) => setFieldValue('axisTiltOverlayRcGainRadialAttenuationEnabled', e.target.checked ? 1 : 0)} />
 						</div>
 						<Form.Label htmlFor="axisTiltOverlayRcGainTriggerButtonMask" className="mt-3 mb-1">{t('AddonsConfig:axis-tilt-overlay-rc-gain-trigger-button-label')}</Form.Label>
 						<CustomSelect<TriggerMaskOption, false> inputId="axisTiltOverlayRcGainTriggerButtonMask" isClearable={false} isSearchable options={TRIGGER_MASK_SELECT_OPTIONS} value={TRIGGER_MASK_SELECT_OPTIONS.find((o) => o.value === (values.axisTiltOverlayRcGainTriggerButtonMask ?? 0)) ?? TRIGGER_MASK_SELECT_OPTIONS[0]} getOptionLabel={getMaskOptionLabel} onChange={(opt) => void setFieldValue('axisTiltOverlayRcGainTriggerButtonMask', opt?.value ?? 0)} />
-						{([['axisTiltOverlayRcGainReserved1', 1], ['axisTiltOverlayRcGainReserved2', 2], ['axisTiltOverlayRcGainReserved3', 3]] as const).map(([rcName, idx]) => (
-							<div key={rcName} style={sliderBlockStyle}>
-								<Form.Label className="mb-1">{t(`AddonsConfig:axis-tilt-overlay-rc-gain-reserved-${idx}-label`)} {Number(values[rcName] ?? 0).toFixed(1)}%</Form.Label>
-								<Form.Range min={0} max={100} step={0.1} value={Number(values[rcName] ?? 0)} onChange={(e) => setFieldValue(rcName, clampRcPercent(parseFloat(e.target.value)))} />
-							</div>
-						))}
+						<div style={sliderBlockStyle}>
+							<Form.Label className="mb-1">{t('AddonsConfig:axis-tilt-overlay-rc-gain-reserved-1-label')} {Number(values.axisTiltOverlayRcGainReserved1 ?? 0).toFixed(1)}%</Form.Label>
+							<Form.Range min={0} max={100} step={0.1} value={Number(values.axisTiltOverlayRcGainReserved1 ?? 0)} onChange={(e) => setFieldValue('axisTiltOverlayRcGainReserved1', clampRcPercent(parseFloat(e.target.value)))} />
+						</div>
+						<div style={sliderBlockStyle}>
+							<Form.Label className="mb-1 d-flex align-items-center gap-1 flex-wrap">
+								<span>{t('AddonsConfig:axis-tilt-overlay-rc-gain-reserved-2-label')} {Number(values.axisTiltOverlayRcGainReserved2 ?? 0).toFixed(1)}%</span>
+								<OverlayTrigger placement="top" overlay={<Tooltip id="axis-tilt-rc-jitter-amp-tip">{t('AddonsConfig:axis-tilt-overlay-rc-jitter-amplitude-tooltip')}</Tooltip>}>
+									<span style={{ display: 'inline-flex', cursor: 'help' }}><InfoCircle /></span>
+								</OverlayTrigger>
+							</Form.Label>
+							<Form.Range min={0} max={100} step={0.1} value={Number(values.axisTiltOverlayRcGainReserved2 ?? 0)} onChange={(e) => setFieldValue('axisTiltOverlayRcGainReserved2', clampRcPercent(parseFloat(e.target.value)))} />
+						</div>
+						<div style={sliderBlockStyle}>
+							<Form.Label className="mb-1 d-flex align-items-center gap-1 flex-wrap">
+								<span>{t('AddonsConfig:axis-tilt-overlay-rc-gain-reserved-3-label')} {Number(values.axisTiltOverlayRcGainReserved3 ?? 3).toFixed(1)}%</span>
+								<OverlayTrigger placement="top" overlay={<Tooltip id="axis-tilt-rc-decay-tip">{t('AddonsConfig:axis-tilt-overlay-rc-decay-range-tooltip')}</Tooltip>}>
+									<span style={{ display: 'inline-flex', cursor: 'help' }}><InfoCircle /></span>
+								</OverlayTrigger>
+							</Form.Label>
+							<Form.Range min={3} max={100} step={0.1} value={Number(values.axisTiltOverlayRcGainReserved3 ?? 3)} onChange={(e) => setFieldValue('axisTiltOverlayRcGainReserved3', clampRcDecayPercent(parseFloat(e.target.value)))} />
+							{errors.axisTiltOverlayRcGainReserved3 && <div className="text-danger small mt-1">{errors.axisTiltOverlayRcGainReserved3}</div>}
+						</div>
 					</div>
 					<div style={columnCellStyle}>
 						<div style={{ ...row1Style, justifyContent: 'flex-end', gap: '8px' }}>

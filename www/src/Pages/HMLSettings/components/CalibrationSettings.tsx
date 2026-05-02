@@ -124,6 +124,10 @@ export const FormContext = ({ setStoredData }) => {
 			const data = await WebApi.getAddonsOptions(setLoading);
 			// 合并默认值，避免 API 未返回的字段（如扳机校准）丢失默认配置
 			const merged = { ...DEFAULT_VALUES, ...data };
+			const r3 = merged.axisTiltOverlayRcGainReserved3;
+			if (typeof r3 === 'number' && !Number.isNaN(r3) && r3 < 3) {
+				merged.axisTiltOverlayRcGainReserved3 = 3;
+			}
 			setValues(merged);
 			setStoredData(JSON.parse(JSON.stringify(merged)));
 		}

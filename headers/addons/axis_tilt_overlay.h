@@ -60,7 +60,7 @@ private:
 	void loadRcOptionsIfDirty();
 	uint32_t randomU32();
 	float randomFloat(float minValue, float maxValue);
-	Offset randomDiamondOffset();
+	Offset randomCircularOffset();
 	void generateOffsetBlock();
 	bool shouldStartJitterUnit();
 	float radialAmpScaleFromCenter(float cx, float cy) const;
@@ -84,14 +84,13 @@ private:
 	float rcGainReserved1Cached {0.0f};
 	float rcGainReserved2Cached {0.0f};
 	float rcGainReserved3Cached {0.0f};
-	bool rcRadialAttenuationEnabledCached {false};
 
 	// Cached, normalized RC params from rcGainReserved1..3
 	bool rcOptionsDirty {true};
 	float rcJitterStrength {0.0f}; // 0..1
-	float rcDiamondA {0.0f}; // 0..1
-	float rcDiamondB {0.0f}; // 0..1 and <= rcDiamondA
-	bool rcRadialAttenuationEnabled {false};
+	float rcJitterRadius {0.0f}; // 0..1, circular offset bound
+	bool rcRadialDecayActive {false};
+	float rcDecayOuterNorm {0.0f}; // reserved3/100 when rcRadialDecayActive
 
 	// RC runtime state
 	bool motionHistoryReady {false};
