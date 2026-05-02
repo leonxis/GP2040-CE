@@ -27,6 +27,11 @@ type AppContextShape = {
 	buttonLabels?: { buttonLabelType?: string; swapTpShareLabels?: boolean };
 };
 
+/** HML 按键交换表格行：可映射引脚，或仅展示的锁定行（如 PS 键）。 */
+type SwapPinRow =
+	| { rowId: string; labelKey: string; pinKey: string }
+	| { rowId: string; labelKey: string; selectDisabled: true };
+
 const getMultiValue = (pinData: MaskPayload) => {
 	if (pinData.action === BUTTON_ACTIONS.NONE) return;
 	if (isDisabled(pinData.action)) {
@@ -354,29 +359,30 @@ export default function BackButtonMapping() {
 	// - 左背键EL=GPIO25
 	// - 右背键ER=GPIO24
 	const gpioPins = [25, 24];
-	
+
 	const backGpioLabelKey: Record<number, string> = {
 		25: 'hml-paddle-left-el',
 		24: 'hml-paddle-right-er',
 	};
 
-	const swapGpioPins = [
-		{ pin: 18, labelKey: 'hml-pin-share', pinKey: getPinKey(18) },
-		{ pin: 19, labelKey: 'hml-pin-options', pinKey: getPinKey(19) },
-		{ pin: 8, labelKey: 'hml-pin-ps', pinKey: getPinKey(8) },
-		{ pin: 12, labelKey: 'hml-pin-touchpad', pinKey: getPinKey(12) },
-		{ pin: 16, labelKey: 'hml-pin-mouse-left', pinKey: getPinKey(16) },
-		{ pin: 17, labelKey: 'hml-pin-mouse-right', pinKey: getPinKey(17) },
-		{ pin: 23, labelKey: 'hml-pin-up', pinKey: getPinKey(23) },
-		{ pin: 7, labelKey: 'hml-pin-down', pinKey: getPinKey(7) },
-		{ pin: 9, labelKey: 'hml-pin-circle', pinKey: getPinKey(9) },
-		{ pin: 15, labelKey: 'hml-pin-cross', pinKey: getPinKey(15) },
-		{ pin: 14, labelKey: 'hml-pin-triangle', pinKey: getPinKey(14) },
-		{ pin: 13, labelKey: 'hml-pin-square', pinKey: getPinKey(13) },
-		{ pin: 22, labelKey: 'hml-pin-l1', pinKey: getPinKey(22) },
-		{ pin: 21, labelKey: 'hml-pin-r1', pinKey: getPinKey(21) },
-		{ pin: 29, labelKey: 'hml-pin-l2', pinKey: getPinKey(29) },
-		{ pin: 28, labelKey: 'hml-pin-r2', pinKey: getPinKey(28) },
+	// 按键交换：与 HML BoardConfig 一致时下键对应 GPIO08；PS 键行仅展示、不可修改
+	const swapGpioPins: SwapPinRow[] = [
+		{ rowId: '18', labelKey: 'hml-pin-share', pinKey: getPinKey(18) },
+		{ rowId: '19', labelKey: 'hml-pin-options', pinKey: getPinKey(19) },
+		{ rowId: 'ps', labelKey: 'hml-pin-ps', selectDisabled: true },
+		{ rowId: '12', labelKey: 'hml-pin-touchpad', pinKey: getPinKey(12) },
+		{ rowId: '16', labelKey: 'hml-pin-mouse-left', pinKey: getPinKey(16) },
+		{ rowId: '17', labelKey: 'hml-pin-mouse-right', pinKey: getPinKey(17) },
+		{ rowId: '23', labelKey: 'hml-pin-up', pinKey: getPinKey(23) },
+		{ rowId: '8', labelKey: 'hml-pin-down', pinKey: getPinKey(8) },
+		{ rowId: '9', labelKey: 'hml-pin-circle', pinKey: getPinKey(9) },
+		{ rowId: '15', labelKey: 'hml-pin-cross', pinKey: getPinKey(15) },
+		{ rowId: '14', labelKey: 'hml-pin-triangle', pinKey: getPinKey(14) },
+		{ rowId: '13', labelKey: 'hml-pin-square', pinKey: getPinKey(13) },
+		{ rowId: '22', labelKey: 'hml-pin-l1', pinKey: getPinKey(22) },
+		{ rowId: '21', labelKey: 'hml-pin-r1', pinKey: getPinKey(21) },
+		{ rowId: '29', labelKey: 'hml-pin-l2', pinKey: getPinKey(29) },
+		{ rowId: '28', labelKey: 'hml-pin-r2', pinKey: getPinKey(28) },
 	];
 
 	// 保存按钮组件（避免重复代码）
@@ -609,24 +615,29 @@ export default function BackButtonMapping() {
 				<Card.Header>{t('SettingsPage:hml-key-swap-title')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{swapGpioPins.map(({ pin, labelKey, pinKey }) => {
-							const pinData = pins[pinKey] || defaultPinData;
+						{swapGpioPins.map((row) => {
+							const labelKey = row.labelKey;
+							const pinKey = 'pinKey' in row ? row.pinKey : undefined;
+							const pinData = pinKey ? pins[pinKey] || defaultPinData : defaultPinData;
+							const selectLocked = 'selectDisabled' in row && row.selectDisabled;
+							const mappingDisabled =
+								selectLocked || (pinKey ? isDisabled(pinData.action) : true);
 							return (
-								<Col sm={6} md={6} key={`swap-gpio-${pin}`}>
+								<Col sm={6} md={6} key={row.rowId}>
 									<div className="d-flex align-items-center">
 										<div className="d-flex flex-shrink-0" style={{ width: '8rem' }}>
 											<label>{t(`CalibrationSettings:${labelKey}`)}</label>
 										</div>
 										<CustomSelect
-											isClearable
-											isMulti={!isDisabled(pinData.action) &&
+											isClearable={!selectLocked}
+											isMulti={!mappingDisabled &&
 												!keyboardKeyOptions.some(opt => opt.value === pinData.action) &&
 												!mouseKeyOptions.some(opt => opt.value === pinData.action) &&
 												!mappingOptions.some(opt => opt.value === pinData.action && opt.type === 'action')}
 											options={groupedMappingOptions}
-											isDisabled={isDisabled(pinData.action)}
+											isDisabled={mappingDisabled}
 											getOptionLabel={getOptionLabel}
-											onChange={onChange(pinKey)}
+											onChange={pinKey ? onChange(pinKey) : undefined}
 											value={getMultiValue(pinData)}
 										/>
 									</div>
