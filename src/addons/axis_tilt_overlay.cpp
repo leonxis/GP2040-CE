@@ -24,6 +24,21 @@ constexpr float kJoyNegSpanF =
 	static_cast<float>(GAMEPAD_JOYSTICK_MID - GAMEPAD_JOYSTICK_MIN);
 constexpr float kInvJoyPosSpan = 1.0f / kJoyPosSpanF;
 constexpr float kInvJoyNegSpan = 1.0f / kJoyNegSpanF;
+
+static inline float applyAccelerationFeedforward(float offsetValue, float accelValue) {
+	const float accelAbs = std::fabs(accelValue);
+	if (accelAbs <= kMotionFeedforwardDeadzone || offsetValue == 0.0f) {
+		return offsetValue;
+	}
+	const float motionAmount = std::clamp(
+		(accelAbs - kMotionFeedforwardDeadzone) * kMotionFeedforwardGain,
+		0.0f,
+		1.0f
+	);
+	const bool sameDirection = (offsetValue * accelValue) > 0.0f;
+	const float scale = sameDirection ? (1.0f + motionAmount) : (1.0f - motionAmount);
+	return offsetValue * scale;
+}
 }
 
 bool AxisTiltOverlayInput::available() {
@@ -310,7 +325,9 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 			const float span = rcJitterRadius - kRcXSampleMinNorm;
 			const float base = kRcXSampleMinNorm + t * span;
 			pendingJitterBaseNorm = base;
-			radialAmpScaleCached = radialAmpScaleFromCenter(center.x, center.y);
+			radialAmpScaleCached = rcRadialDecayActive
+				? radialAmpScaleFromCenter(center.x, center.y)
+				: 1.0f;
 			offset.x = pendingJitterBaseNorm * radialAmpScaleCached;
 			jitterPhase = 1;
 		} else if (jitterPhase == 1) {
@@ -328,27 +345,11 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 			}
 		}
 
-		const auto applyAccelerationFeedforward = [](float offsetValue, float accelValue) -> float {
-			const float accelAbs = std::fabs(accelValue);
-			if (accelAbs <= kMotionFeedforwardDeadzone || offsetValue == 0.0f) {
-				return offsetValue;
-			}
-
-			const float motionAmount = std::clamp(
-				(accelAbs - kMotionFeedforwardDeadzone) * kMotionFeedforwardGain,
-				0.0f,
-				1.0f
-			);
-			const bool sameDirection = (offsetValue * accelValue) > 0.0f;
-			const float scale = sameDirection ? (1.0f + motionAmount) : (1.0f - motionAmount);
-			return offsetValue * scale;
-		};
-
 		offset.x = applyAccelerationFeedforward(offset.x, acceleration.x);
-		offset.y = applyAccelerationFeedforward(offset.y, acceleration.y);
+		// RX-only overlay: offset.y stays 0; skip Y feedforward (would only call fabs on accel).
 
 		const float outX = std::clamp(center.x + offset.x, -1.0f, 1.0f);
-		const float outY = std::clamp(center.y + offset.y, -1.0f, 1.0f);
+		const float outY = std::clamp(center.y, -1.0f, 1.0f);
 		gamepad->state.rx = denormalizeAxis(outX);
 		gamepad->state.ry = denormalizeAxis(outY);
 	}
