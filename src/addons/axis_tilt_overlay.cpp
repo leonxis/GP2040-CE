@@ -13,6 +13,8 @@ constexpr float kMotionFeedforwardDeadzone = 0.0015f;
 constexpr float kRcDecayStart = 0.03f;
 /** Golden angle (rad) for Vogel disk layout: π(3 − √5). */
 constexpr float kRcDiskGoldenAngle = 2.39996322972865332f;
+/** Inner radius of RC jitter annulus as a fraction of stick span (matches rcJitterRadius units). */
+constexpr float kRcAnnulusInnerNorm = 0.02f;
 
 // Joystick axis linear map (GAMEPAD_JOYSTICK_*); spans differ by 1 (32768 vs 32767).
 constexpr float kJoyMidF = static_cast<float>(GAMEPAD_JOYSTICK_MID);
@@ -118,7 +120,7 @@ uint32_t AxisTiltOverlayInput::randomU32() {
 }
 
 void AxisTiltOverlayInput::fillUnitDiskOffsetTemplate() {
-	// Fixed Vogel / sunflower disk samples (unit max radius); scaled by rcJitterRadius when consumed.
+	// Fixed Vogel / sunflower disk samples (unit max radius); consumed as uniform annulus via |v|^2.
 	const float invN = 1.0f / static_cast<float>(RC_PAIR_COUNT);
 	for (uint16_t i = 0; i < RC_PAIR_COUNT; ++i) {
 		const float r = std::sqrt((static_cast<float>(i) + 0.5f) * invN);
@@ -318,7 +320,18 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 				generateOffsetBlock();
 			}
 			const Offset unitDisk = offsetBlock[pairIndex];
-			pendingJitterA = Offset{unitDisk.x * rcJitterRadius, unitDisk.y * rcJitterRadius};
+			float rInner = kRcAnnulusInnerNorm;
+			const float rOuter = rcJitterRadius;
+			if (rInner >= rOuter) {
+				rInner = 0.0f;
+			}
+			const float du = unitDisk.x * unitDisk.x + unitDisk.y * unitDisk.y;
+			const float rMag = std::sqrt(
+				rInner * rInner + du * (rOuter * rOuter - rInner * rInner)
+			);
+			const float rt = std::sqrt(std::max(du, 1.0e-10f));
+			const float s = rMag / rt;
+			pendingJitterA = Offset{unitDisk.x * s, unitDisk.y * s};
 			radialAmpScaleCached = radialAmpScaleFromCenter(center.x, center.y);
 			offset.x = pendingJitterA.x * radialAmpScaleCached;
 			offset.y = pendingJitterA.y * radialAmpScaleCached;
