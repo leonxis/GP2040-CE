@@ -97,7 +97,7 @@ export const axisTiltOverlaySettingsScheme = {
 	axisTiltOverlayRcGainAlwaysOn: yupEx.number().label('RC Gain Always On'),
 	axisTiltOverlayRcGainTriggerButtonMask: yupEx.number().label('RC Gain Trigger Button').validateSelectionWhenValue('axisTiltOverlayRcGainEnabled', BUTTON_OPTIONS),
 	axisTiltOverlayRcGainReserved1: yupEx.number().validateRangeWhenValue('axisTiltOverlayRcGainEnabled', 0, 100),
-	axisTiltOverlayRcGainReserved2: yupEx.number().validateRangeWhenValue('axisTiltOverlayRcGainEnabled', 0, 100),
+	axisTiltOverlayRcGainReserved2: yupEx.number().validateRangeWhenValue('axisTiltOverlayRcGainEnabled', 2, 100),
 	axisTiltOverlayRcGainReserved3: yupEx.number().validateRangeWhenValue('axisTiltOverlayRcGainEnabled', 3, 100),
 };
 
@@ -118,6 +118,8 @@ export const axisTiltOverlaySettingsState = {
 
 const clampPercent = (value: number) => Math.min(100, Math.max(-100, value));
 const clampRcPercent = (value: number) => Math.min(100, Math.max(0, value));
+/** RC jitter amplitude (reserved2): firmware samples in [1.9%, value]; UI lower bound 2%. */
+const clampRcJitterAmplitudePercent = (value: number) => Math.min(100, Math.max(2, value));
 const clampRcDecayPercent = (value: number) => Math.min(100, Math.max(3, value));
 /** Inner/anti deadzone sliders: 0–20%, step 0.1 in UI */
 const clampStickDeadzonePct = (value: number) =>
@@ -211,12 +213,13 @@ export default function AxisTiltOverlaySettings({ values, errors, setFieldValue,
 						</div>
 						<div style={sliderBlockStyle}>
 							<Form.Label className="mb-1 d-flex align-items-center gap-1 flex-wrap">
-								<span>{t('AddonsConfig:axis-tilt-overlay-rc-gain-reserved-2-label')} {Number(values.axisTiltOverlayRcGainReserved2 ?? 0).toFixed(1)}%</span>
+								<span>{t('AddonsConfig:axis-tilt-overlay-rc-gain-reserved-2-label')} {Number(values.axisTiltOverlayRcGainReserved2 ?? 2).toFixed(1)}%</span>
 								<OverlayTrigger placement="top" overlay={<Tooltip id="axis-tilt-rc-jitter-amp-tip">{t('AddonsConfig:axis-tilt-overlay-rc-jitter-amplitude-tooltip')}</Tooltip>}>
 									<span style={{ display: 'inline-flex', cursor: 'help' }}><InfoCircle /></span>
 								</OverlayTrigger>
 							</Form.Label>
-							<Form.Range min={0} max={100} step={0.1} value={Number(values.axisTiltOverlayRcGainReserved2 ?? 0)} onChange={(e) => setFieldValue('axisTiltOverlayRcGainReserved2', clampRcPercent(parseFloat(e.target.value)))} />
+							<Form.Range min={2} max={100} step={0.1} value={Number(values.axisTiltOverlayRcGainReserved2 ?? 2)} onChange={(e) => setFieldValue('axisTiltOverlayRcGainReserved2', clampRcJitterAmplitudePercent(parseFloat(e.target.value)))} />
+							{errors.axisTiltOverlayRcGainReserved2 && <div className="text-danger small mt-1">{errors.axisTiltOverlayRcGainReserved2}</div>}
 						</div>
 						<div style={sliderBlockStyle}>
 							<Form.Label className="mb-1 d-flex align-items-center gap-1 flex-wrap">

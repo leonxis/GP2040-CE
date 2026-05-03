@@ -64,13 +64,13 @@ private:
 		float y;
 	};
 
-	static constexpr uint16_t RC_BLOCK_SIZE = 32;
-	static constexpr uint16_t RC_PAIR_COUNT = RC_BLOCK_SIZE / 2;
+	/** Pre-generated RX jitter template slots (0..1 stratified); shuffled; each expands to a 4-frame unit. */
+	static constexpr uint16_t RC_TEMPLATE_COUNT = 20;
 
 	void refreshCachedOptions();
 	void loadRcOptionsIfDirty();
 	uint32_t randomU32();
-	void fillUnitDiskOffsetTemplate();
+	void fillRcXOffsetTemplate();
 	void generateOffsetBlock();
 	bool shouldStartJitterUnit();
 	float radialAmpScaleFromCenter(float cx, float cy) const;
@@ -98,7 +98,7 @@ private:
 	// Cached, normalized RC params from rcGainReserved1..3
 	bool rcOptionsDirty {true};
 	float rcJitterStrength {0.0f}; // 0..1
-	float rcJitterRadius {0.0f}; // 0..1, circular offset bound
+	float rcJitterRadius {0.0f}; // 0..1, RX jitter upper bound (reserved2/100)
 	bool rcRadialDecayActive {false};
 	float rcDecayOuterNorm {0.0f}; // reserved3/100 when rcRadialDecayActive
 
@@ -108,11 +108,14 @@ private:
 	Offset prevVelocity {0.0f, 0.0f};
 	uint32_t rngState {0xA53C9E17u};
 	float jitterAccumulator {1.0f};
-	uint16_t pairIndex {RC_PAIR_COUNT};
-	bool jitterAwaitNeg {false};
-	Offset pendingJitterA {0.0f, 0.0f};
+	uint16_t pairIndex {RC_TEMPLATE_COUNT};
+	/** 0 = idle or first frame of a unit (first frame only when startJitterUnit); 1..3 = continuation frames. */
+	uint8_t jitterPhase {0};
+	/** Positive base magnitude on normalized RX axis for the current 4-frame unit. */
+	float pendingJitterBaseNorm {0.0f};
 	float radialAmpScaleCached {1.0f};
-	std::array<Offset, RC_BLOCK_SIZE> offsetBlock {};
+	/** Stratified template t in (0,1); linearly mapped to the RX jitter segment when starting a unit. */
+	std::array<float, RC_TEMPLATE_COUNT> offsetBlock {};
 };
 
 #endif

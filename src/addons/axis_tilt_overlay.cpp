@@ -11,10 +11,8 @@ constexpr float kMotionFeedforwardGain = 12.0f;
 constexpr float kMotionFeedforwardDeadzone = 0.0015f;
 /** L∞ stick deflection where radial decay of overlay jitter begins (normalized 0..1). */
 constexpr float kRcDecayStart = 0.03f;
-/** Golden angle (rad) for Vogel disk layout: π(3 − √5). */
-constexpr float kRcDiskGoldenAngle = 2.39996322972865332f;
-/** Inner radius of RC jitter annulus as a fraction of stick span (matches rcJitterRadius units). */
-constexpr float kRcAnnulusInnerNorm = 0.02f;
+/** Lower end of RX jitter sample segment (normalized); below rcJitterRadius so min reserved2 (2%) yields non-zero span. */
+constexpr float kRcXSampleMinNorm = 0.019f;
 
 // Joystick axis linear map (GAMEPAD_JOYSTICK_*); spans differ by 1 (32768 vs 32767).
 constexpr float kJoyMidF = static_cast<float>(GAMEPAD_JOYSTICK_MID);
@@ -48,7 +46,7 @@ void AxisTiltOverlayInput::reinit() {
 	refreshCachedOptions();
 	rcOptionsDirty = true;
 	resetRcState();
-	fillUnitDiskOffsetTemplate();
+	fillRcXOffsetTemplate();
 }
 
 void AxisTiltOverlayInput::refreshCachedOptions() {
@@ -81,10 +79,10 @@ void AxisTiltOverlayInput::resetRcState() {
 	prevVelocity = Offset{0.0f, 0.0f};
 	rngState = 0xA53C9E17u;
 	jitterAccumulator = 1.0f;
-	pairIndex = RC_PAIR_COUNT;
-	jitterAwaitNeg = false;
+	pairIndex = RC_TEMPLATE_COUNT;
+	jitterPhase = 0;
 	radialAmpScaleCached = 1.0f;
-	pendingJitterA = Offset{0.0f, 0.0f};
+	pendingJitterBaseNorm = 0.0f;
 }
 
 void AxisTiltOverlayInput::loadRcOptionsIfDirty() {
@@ -119,18 +117,15 @@ uint32_t AxisTiltOverlayInput::randomU32() {
 	return x;
 }
 
-void AxisTiltOverlayInput::fillUnitDiskOffsetTemplate() {
-	// Fixed Vogel / sunflower disk samples (unit max radius); consumed as uniform annulus via |v|^2.
-	const float invN = 1.0f / static_cast<float>(RC_PAIR_COUNT);
-	for (uint16_t i = 0; i < RC_PAIR_COUNT; ++i) {
-		const float r = std::sqrt((static_cast<float>(i) + 0.5f) * invN);
-		const float theta = static_cast<float>(i) * kRcDiskGoldenAngle;
-		offsetBlock[i] = Offset{r * std::cos(theta), r * std::sin(theta)};
+void AxisTiltOverlayInput::fillRcXOffsetTemplate() {
+	const float invN = 1.0f / static_cast<float>(RC_TEMPLATE_COUNT);
+	for (uint16_t i = 0; i < RC_TEMPLATE_COUNT; ++i) {
+		offsetBlock[i] = (static_cast<float>(i) + 0.5f) * invN;
 	}
 }
 
 void AxisTiltOverlayInput::generateOffsetBlock() {
-	for (uint16_t i = RC_PAIR_COUNT - 1; i > 0; --i) {
+	for (uint16_t i = RC_TEMPLATE_COUNT - 1; i > 0; --i) {
 		const uint16_t j = static_cast<uint16_t>(randomU32() % (i + 1));
 		std::swap(offsetBlock[i], offsetBlock[j]);
 	}
@@ -155,8 +150,8 @@ float AxisTiltOverlayInput::radialAmpScaleFromCenter(float cx, float cy) const {
 	);
 }
 
-// Jitter is scheduled in 2-frame units: first frame applies offset A, second frame applies -A.
-// shouldStartJitterUnit() is only used when not finishing a unit; rcJitterStrength accumulates per unit.
+// RC jitter runs in 4-frame units (+A, +1.5A, -1.5A, -A). shouldStartJitterUnit() is evaluated only
+// when jitterPhase == 0 (idle / start of cycle); rcJitterStrength gates how often a new unit starts.
 bool AxisTiltOverlayInput::shouldStartJitterUnit() {
 	if (rcJitterStrength <= 0.0f) {
 		jitterAccumulator = 1.0f;
@@ -251,9 +246,9 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 			motionHistoryReady = false;
 			prevCenter = Offset{0.0f, 0.0f};
 			prevVelocity = Offset{0.0f, 0.0f};
-			jitterAwaitNeg = false;
+			jitterPhase = 0;
 			jitterAccumulator = 1.0f;
-			pairIndex = RC_PAIR_COUNT;
+			pairIndex = RC_TEMPLATE_COUNT;
 			radialAmpScaleCached = 1.0f;
 			return;
 		}
@@ -262,26 +257,27 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 		// strength in (0,1) must still run shouldStartJitterUnit while radius is 0.)
 		if (!rcOptionsDirty && (rcJitterStrength <= 0.0f)) {
 			jitterAccumulator = 1.0f;
-			jitterAwaitNeg = false;
-			pairIndex = RC_PAIR_COUNT;
+			jitterPhase = 0;
+			pairIndex = RC_TEMPLATE_COUNT;
 			return;
 		}
 
 		loadRcOptionsIfDirty();
-		const bool rcHasEffect = (rcJitterStrength > 0.0f) && (rcJitterRadius > 0.0f);
+		const bool rcHasEffect =
+			(rcJitterStrength > 0.0f) && (rcJitterRadius > kRcXSampleMinNorm);
 		if (!rcHasEffect) {
 			if (rcJitterStrength <= 0.0f) {
 				jitterAccumulator = 1.0f;
-			} else if (!jitterAwaitNeg) {
+			} else if (jitterPhase == 0) {
 				(void)shouldStartJitterUnit();
 			}
-			jitterAwaitNeg = false;
-			pairIndex = RC_PAIR_COUNT;
+			jitterPhase = 0;
+			pairIndex = RC_TEMPLATE_COUNT;
 			return;
 		}
 
-		const bool startJitterUnit = jitterAwaitNeg ? false : shouldStartJitterUnit();
-		const bool rcOverlayActive = jitterAwaitNeg || startJitterUnit;
+		const bool startJitterUnit = (jitterPhase == 0) && shouldStartJitterUnit();
+		const bool rcOverlayActive = (jitterPhase > 0) || startJitterUnit;
 
 		const float observedX = normalizeAxis(gamepad->state.rx);
 		const float observedY = normalizeAxis(gamepad->state.ry);
@@ -306,36 +302,30 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 
 		Offset offset{0.0f, 0.0f};
 
-		if (jitterAwaitNeg) {
-			offset = Offset{-pendingJitterA.x, -pendingJitterA.y};
-			offset.x *= radialAmpScaleCached;
-			offset.y *= radialAmpScaleCached;
-			jitterAwaitNeg = false;
-			++pairIndex;
-			if (pairIndex >= RC_PAIR_COUNT) {
+		if (startJitterUnit) {
+			if (pairIndex >= RC_TEMPLATE_COUNT) {
 				generateOffsetBlock();
 			}
-		} else if (startJitterUnit) {
-			if (pairIndex >= RC_PAIR_COUNT) {
-				generateOffsetBlock();
-			}
-			const Offset unitDisk = offsetBlock[pairIndex];
-			float rInner = kRcAnnulusInnerNorm;
-			const float rOuter = rcJitterRadius;
-			if (rInner >= rOuter) {
-				rInner = 0.0f;
-			}
-			const float du = unitDisk.x * unitDisk.x + unitDisk.y * unitDisk.y;
-			const float rMag = std::sqrt(
-				rInner * rInner + du * (rOuter * rOuter - rInner * rInner)
-			);
-			const float rt = std::sqrt(std::max(du, 1.0e-10f));
-			const float s = rMag / rt;
-			pendingJitterA = Offset{unitDisk.x * s, unitDisk.y * s};
+			const float t = offsetBlock[pairIndex];
+			const float span = rcJitterRadius - kRcXSampleMinNorm;
+			const float base = kRcXSampleMinNorm + t * span;
+			pendingJitterBaseNorm = base;
 			radialAmpScaleCached = radialAmpScaleFromCenter(center.x, center.y);
-			offset.x = pendingJitterA.x * radialAmpScaleCached;
-			offset.y = pendingJitterA.y * radialAmpScaleCached;
-			jitterAwaitNeg = true;
+			offset.x = pendingJitterBaseNorm * radialAmpScaleCached;
+			jitterPhase = 1;
+		} else if (jitterPhase == 1) {
+			offset.x = pendingJitterBaseNorm * radialAmpScaleCached * 1.5f;
+			jitterPhase = 2;
+		} else if (jitterPhase == 2) {
+			offset.x = pendingJitterBaseNorm * radialAmpScaleCached * -1.5f;
+			jitterPhase = 3;
+		} else if (jitterPhase == 3) {
+			offset.x = pendingJitterBaseNorm * radialAmpScaleCached * -1.0f;
+			jitterPhase = 0;
+			++pairIndex;
+			if (pairIndex >= RC_TEMPLATE_COUNT) {
+				generateOffsetBlock();
+			}
 		}
 
 		const auto applyAccelerationFeedforward = [](float offsetValue, float accelValue) -> float {
