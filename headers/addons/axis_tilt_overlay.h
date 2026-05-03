@@ -70,8 +70,7 @@ private:
 	void refreshCachedOptions();
 	void loadRcOptionsIfDirty();
 	uint32_t randomU32();
-	float randomFloat(float minValue, float maxValue);
-	Offset randomCircularOffset();
+	void fillUnitDiskOffsetTemplate();
 	void generateOffsetBlock();
 	bool shouldStartJitterUnit();
 	float radialAmpScaleFromCenter(float cx, float cy) const;

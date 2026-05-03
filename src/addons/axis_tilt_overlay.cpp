@@ -1,6 +1,5 @@
 #include "addons/axis_tilt_overlay.h"
 
-#include "config.pb.h"
 #include "storagemanager.h"
 
 #include <algorithm>
@@ -12,7 +11,19 @@ constexpr float kMotionFeedforwardGain = 12.0f;
 constexpr float kMotionFeedforwardDeadzone = 0.0015f;
 /** L∞ stick deflection where radial decay of overlay jitter begins (normalized 0..1). */
 constexpr float kRcDecayStart = 0.03f;
-constexpr float kTwoPi = 6.2831855f;
+/** Golden angle (rad) for Vogel disk layout: π(3 − √5). */
+constexpr float kRcDiskGoldenAngle = 2.39996322972865332f;
+
+// Joystick axis linear map (GAMEPAD_JOYSTICK_*); spans differ by 1 (32768 vs 32767).
+constexpr float kJoyMidF = static_cast<float>(GAMEPAD_JOYSTICK_MID);
+constexpr float kJoyMinF = static_cast<float>(GAMEPAD_JOYSTICK_MIN);
+constexpr float kJoyMaxF = static_cast<float>(GAMEPAD_JOYSTICK_MAX);
+constexpr float kJoyPosSpanF =
+	static_cast<float>(GAMEPAD_JOYSTICK_MAX - GAMEPAD_JOYSTICK_MID);
+constexpr float kJoyNegSpanF =
+	static_cast<float>(GAMEPAD_JOYSTICK_MID - GAMEPAD_JOYSTICK_MIN);
+constexpr float kInvJoyPosSpan = 1.0f / kJoyPosSpanF;
+constexpr float kInvJoyNegSpan = 1.0f / kJoyNegSpanF;
 }
 
 bool AxisTiltOverlayInput::available() {
@@ -35,6 +46,7 @@ void AxisTiltOverlayInput::reinit() {
 	refreshCachedOptions();
 	rcOptionsDirty = true;
 	resetRcState();
+	fillUnitDiskOffsetTemplate();
 }
 
 void AxisTiltOverlayInput::refreshCachedOptions() {
@@ -105,23 +117,17 @@ uint32_t AxisTiltOverlayInput::randomU32() {
 	return x;
 }
 
-float AxisTiltOverlayInput::randomFloat(float minValue, float maxValue) {
-	constexpr float kInv24 = 1.0f / 16777215.0f;
-	const float t = static_cast<float>(randomU32() & 0x00FFFFFFu) * kInv24;
-	return minValue + (maxValue - minValue) * t;
-}
-
-AxisTiltOverlayInput::Offset AxisTiltOverlayInput::randomCircularOffset() {
-	const float u = randomFloat(0.0f, 1.0f);
-	const float radius = rcJitterRadius * std::sqrt(u);
-	const float theta = randomFloat(0.0f, kTwoPi);
-	return Offset{radius * std::cos(theta), radius * std::sin(theta)};
+void AxisTiltOverlayInput::fillUnitDiskOffsetTemplate() {
+	// Fixed Vogel / sunflower disk samples (unit max radius); scaled by rcJitterRadius when consumed.
+	const float invN = 1.0f / static_cast<float>(RC_PAIR_COUNT);
+	for (uint16_t i = 0; i < RC_PAIR_COUNT; ++i) {
+		const float r = std::sqrt((static_cast<float>(i) + 0.5f) * invN);
+		const float theta = static_cast<float>(i) * kRcDiskGoldenAngle;
+		offsetBlock[i] = Offset{r * std::cos(theta), r * std::sin(theta)};
+	}
 }
 
 void AxisTiltOverlayInput::generateOffsetBlock() {
-	for (uint16_t i = 0; i < RC_PAIR_COUNT; ++i) {
-		offsetBlock[i] = randomCircularOffset();
-	}
 	for (uint16_t i = RC_PAIR_COUNT - 1; i > 0; --i) {
 		const uint16_t j = static_cast<uint16_t>(randomU32() % (i + 1));
 		std::swap(offsetBlock[i], offsetBlock[j]);
@@ -168,41 +174,21 @@ bool AxisTiltOverlayInput::shouldStartJitterUnit() {
 }
 
 float AxisTiltOverlayInput::normalizeAxis(uint16_t v) const {
-	if (v >= GAMEPAD_JOYSTICK_MID) {
-		return std::clamp(
-			static_cast<float>(v - GAMEPAD_JOYSTICK_MID) /
-			static_cast<float>(GAMEPAD_JOYSTICK_MAX - GAMEPAD_JOYSTICK_MID),
-			0.0f,
-			1.0f
-		);
+	const int32_t d = static_cast<int32_t>(v) - static_cast<int32_t>(GAMEPAD_JOYSTICK_MID);
+	if (d >= 0) {
+		return std::clamp(static_cast<float>(d) * kInvJoyPosSpan, 0.0f, 1.0f);
 	}
-	return std::clamp(
-		-static_cast<float>(GAMEPAD_JOYSTICK_MID - v) /
-		static_cast<float>(GAMEPAD_JOYSTICK_MID - GAMEPAD_JOYSTICK_MIN),
-		-1.0f,
-		0.0f
-	);
+	return std::clamp(static_cast<float>(d) * kInvJoyNegSpan, -1.0f, 0.0f);
 }
 
 uint16_t AxisTiltOverlayInput::denormalizeAxis(float v) const {
 	v = std::clamp(v, -1.0f, 1.0f);
 	if (v >= 0.0f) {
-		const float raw = static_cast<float>(GAMEPAD_JOYSTICK_MID) +
-			v * static_cast<float>(GAMEPAD_JOYSTICK_MAX - GAMEPAD_JOYSTICK_MID);
-		return static_cast<uint16_t>(std::lround(std::clamp(
-			raw,
-			static_cast<float>(GAMEPAD_JOYSTICK_MID),
-			static_cast<float>(GAMEPAD_JOYSTICK_MAX)
-		)));
+		const float raw = kJoyMidF + v * kJoyPosSpanF;
+		return static_cast<uint16_t>(std::lround(std::clamp(raw, kJoyMidF, kJoyMaxF)));
 	}
-
-	const float raw = static_cast<float>(GAMEPAD_JOYSTICK_MID) +
-		v * static_cast<float>(GAMEPAD_JOYSTICK_MID - GAMEPAD_JOYSTICK_MIN);
-	return static_cast<uint16_t>(std::lround(std::clamp(
-		raw,
-		static_cast<float>(GAMEPAD_JOYSTICK_MIN),
-		static_cast<float>(GAMEPAD_JOYSTICK_MID)
-	)));
+	const float raw = kJoyMidF + v * kJoyNegSpanF;
+	return static_cast<uint16_t>(std::lround(std::clamp(raw, kJoyMinF, kJoyMidF)));
 }
 
 float AxisTiltOverlayInput::getRightYOverlayPercent() const {
@@ -270,11 +256,30 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 			return;
 		}
 
+		// Cached zero strength: skip reload and remap. (Do not fast-path on radius alone:
+		// strength in (0,1) must still run shouldStartJitterUnit while radius is 0.)
+		if (!rcOptionsDirty && (rcJitterStrength <= 0.0f)) {
+			jitterAccumulator = 1.0f;
+			jitterAwaitNeg = false;
+			pairIndex = RC_PAIR_COUNT;
+			return;
+		}
+
 		loadRcOptionsIfDirty();
 		const bool rcHasEffect = (rcJitterStrength > 0.0f) && (rcJitterRadius > 0.0f);
 		if (!rcHasEffect) {
+			if (rcJitterStrength <= 0.0f) {
+				jitterAccumulator = 1.0f;
+			} else if (!jitterAwaitNeg) {
+				(void)shouldStartJitterUnit();
+			}
+			jitterAwaitNeg = false;
+			pairIndex = RC_PAIR_COUNT;
 			return;
 		}
+
+		const bool startJitterUnit = jitterAwaitNeg ? false : shouldStartJitterUnit();
+		const bool rcOverlayActive = jitterAwaitNeg || startJitterUnit;
 
 		const float observedX = normalizeAxis(gamepad->state.rx);
 		const float observedY = normalizeAxis(gamepad->state.ry);
@@ -284,12 +289,18 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 		Offset acceleration{0.0f, 0.0f};
 		if (motionHistoryReady) {
 			velocity = Offset{center.x - prevCenter.x, center.y - prevCenter.y};
-			acceleration = Offset{velocity.x - prevVelocity.x, velocity.y - prevVelocity.y};
+			if (rcOverlayActive) {
+				acceleration = Offset{velocity.x - prevVelocity.x, velocity.y - prevVelocity.y};
+			}
 		} else {
 			motionHistoryReady = true;
 		}
 		prevCenter = center;
 		prevVelocity = velocity;
+
+		if (!rcOverlayActive) {
+			return;
+		}
 
 		Offset offset{0.0f, 0.0f};
 
@@ -302,11 +313,12 @@ void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
 			if (pairIndex >= RC_PAIR_COUNT) {
 				generateOffsetBlock();
 			}
-		} else if (shouldStartJitterUnit()) {
+		} else if (startJitterUnit) {
 			if (pairIndex >= RC_PAIR_COUNT) {
 				generateOffsetBlock();
 			}
-			pendingJitterA = offsetBlock[pairIndex];
+			const Offset unitDisk = offsetBlock[pairIndex];
+			pendingJitterA = Offset{unitDisk.x * rcJitterRadius, unitDisk.y * rcJitterRadius};
 			radialAmpScaleCached = radialAmpScaleFromCenter(center.x, center.y);
 			offset.x = pendingJitterA.x * radialAmpScaleCached;
 			offset.y = pendingJitterA.y * radialAmpScaleCached;
