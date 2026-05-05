@@ -30,7 +30,6 @@ export default {
 		primary: 'Modes d\'entrée principaux',
 		mini: 'Modes de console Mini/Classique',
 	},
-	'boot-input-mode-label': 'Modes d\'entrée au démarrage',
 	'ps4-mode-options': {
 		controller: 'Contrôleur',
 		arcadestick: 'Stick Arcade',
@@ -152,16 +151,6 @@ export default {
 		'right-stick-press-preset-3': 'Préréglage appui stick droit 3',
 		'right-stick-press-preset-clear': 'Effacer préréglage appui stick droit',
 	},
-	'forced-setup-mode-label': 'Mode de configuration forcé',
-	'forced-setup-mode-options': {
-		off: 'Désactivé',
-		'disable-input-mode': 'Désactiver le mode d\'entrée',
-		'disable-web-config': 'Désactiver la config web',
-		'disable-both': 'Désactiver les deux',
-	},
-	'forced-setup-mode-modal-title': 'Avertissement de mode de configuration forcé',
-	'forced-setup-mode-modal-body':
-		'Si vous redémarrez en mode Contrôleur après avoir sauvegardé, vous n\'aurez plus accès à la configuration web. Veuillez taper "<strong>{{warningCheckText}}</strong>" ci-dessous pour déverrouiller le bouton Sauvegarder si vous comprenez et acceptez cela. Cliquer sur Ignorer rétablira ce paramètre, qu’il faudra ensuite sauvegarder.',
 	'4-way-joystick-mode-label': 'Mode Joystick 4 voies',
 	'lock-hotkeys-label': 'Verrouiller les raccourcis',
 	'keyboard-mapping-header-text': 'Mappage du clavier',

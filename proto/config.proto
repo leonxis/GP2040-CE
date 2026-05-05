@@ -16,14 +16,6 @@ message GamepadOptions
     optional uint32 profileNumber = 9;
     optional PS4ControllerType ps4ControllerType = 10;
     optional uint32 debounceDelay = 11;
-    optional int32 inputModeB1 = 12;
-    optional int32 inputModeB2 = 13;
-    optional int32 inputModeB3 = 14;
-    optional int32 inputModeB4 = 15;
-    optional int32 inputModeL1 = 16;
-    optional int32 inputModeL2 = 17;
-    optional int32 inputModeR1 = 18;
-    optional int32 inputModeR2 = 19;
     optional bool ps4ReportHack = 20 [deprecated = true];
     optional InputModeAuthType ps4AuthType = 21;
     optional InputModeAuthType ps5AuthType = 22;
@@ -40,6 +32,10 @@ message GamepadOptions
     optional InputModeDeviceType inputDeviceType = 33;
     optional uint32 dpadTriggerThreshold = 34;
     optional uint32 dpadDeadzone = 35;
+    optional int32 runtimeModeHotkeyX = 36;
+    optional int32 runtimeModeHotkeyO = 37;
+    optional int32 runtimeModeHotkeySquare = 38;
+    optional int32 runtimeModeHotkeyTriangle = 39;
 }
 
 message KeyboardMapping
@@ -137,11 +133,6 @@ message PeripheralOptions
     optional SPIOptions blockSPI1 = 4;
     optional USBOptions blockUSB0 = 5;
 }
-
-message ForcedSetupOptions
-{
-    optional ForcedSetupMode mode = 1;
-};
 
 message ButtonLayoutParamsCommon
 {
@@ -1087,7 +1078,6 @@ message Config
     optional LEDOptions ledOptions = 7;
     optional AnimationOptions animationOptions = 8;
     optional AddonOptions addonOptions = 9;
-    optional ForcedSetupOptions forcedSetupOptions = 10;
     optional ProfileOptions profileOptions = 11;
 
     optional string boardConfig = 12 [(nanopb).max_length = 63];

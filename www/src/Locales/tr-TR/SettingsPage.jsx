@@ -30,7 +30,6 @@ export default {
 		primary: 'Birincil Giriş Modları',
 		mini: 'Mini/Klasik Konsol Modları',
 	},
-	'boot-input-mode-label': 'Önyükleme Giriş Modları',
 	'ps4-mode-options': {
 		controller: 'Kontroller',
 		arcadestick: 'Arcade Çubuk',
@@ -152,16 +151,6 @@ export default {
 		'right-stick-press-preset-3': 'Right stick press preset 3',
 		'right-stick-press-preset-clear': 'Clear right stick press preset',
 	},
-	'forced-setup-mode-label': 'Zorunlu Kurulum Modu',
-	'forced-setup-mode-options': {
-		off: 'Kapalı',
-		'disable-input-mode': 'Giriş Modunu devre dışı bırak',
-		'disable-web-config': 'Web Yapılandırmasını Devre Dışı Bırak',
-		'disable-both': 'Her İkisini de Devre Dışı Bırak',
-	},
-	'forced-setup-mode-modal-title': 'Zorunlu Kurulum Modu Uyarısı',
-	'forced-setup-mode-modal-body':
-		'Kaydettikten sonra Denetleyici moduna yeniden başlatırsanız, web yapılandırmasına artık erişemezsiniz. Bunu tamamen kabul ediyor ve istiyorsanız, Kaydet düğmesinin kilidini açmak için lütfen aşağıya "<strong>{{warningCheckText}}</strong>" yazın. Kapata tıklamak, bu ayarı geri döndürecek ve ardından kaydedilecektir.',
 	'4-way-joystick-mode-label': '4 Yönlü Joystick Modu',
 	'lock-hotkeys-label': 'Kısayol Tuşlarını Kilitle',
 	'keyboard-mapping-header-text': 'Klavye Ataması',

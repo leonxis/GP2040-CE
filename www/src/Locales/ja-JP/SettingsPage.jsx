@@ -24,7 +24,6 @@ export default {
 		primary: '主要入力モード',
 		mini: 'Mini/Classic コンソールモード',
 	},
-	'boot-input-mode-label': '起動時入力モード',
 	'ps4-mode-options': {
 		controller: 'コントローラ',
 		arcadestick: 'アケコン',
@@ -146,16 +145,6 @@ export default {
 		'right-stick-press-preset-3': '右スティック押し込みプリセット3',
 		'right-stick-press-preset-clear': '右スティック押し込みプリセット解除',
 	},
-	'forced-setup-mode-label': '強制セットアップモード',
-	'forced-setup-mode-options': {
-		off: '無効',
-		'disable-input-mode': '入力モードを無効化',
-		'disable-web-config': 'Web設定モードを無効化',
-		'disable-both': '両方無効化',
-	},
-	'forced-setup-mode-modal-title': '強制セットアップモードに関する注意',
-	'forced-setup-mode-modal-body':
-		'保存後にコントローラモードで再起動すると、以降Web設定モードにはアクセスできなくなります。注意点をよく理解したうえで、保存ボタンを有効化するには「{{warningCheckText}}」を以下に入力してください。閉じるボタンを押下した場合はこの設定は元に戻され保存されます。',
 	'4-way-joystick-mode-label': '4方向ジョイスティックモード',
 	'lock-hotkeys-label': 'ホットキーをロック',
 	'keyboard-mapping-header-text': 'キーボードキー割り当て',

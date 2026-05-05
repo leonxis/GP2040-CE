@@ -34,7 +34,6 @@ public:
 	Config& getConfig() { return config; }
 	GamepadOptions& getGamepadOptions() { return config.gamepadOptions; }
 	HotkeyOptions& getHotkeyOptions() { return config.hotkeyOptions; }
-	ForcedSetupOptions& getForcedSetupOptions() { return config.forcedSetupOptions; }
 	PinMappings& getDeprecatedPinMappings() { return config.deprecatedPinMappings; }
 	GpioMappings& getGpioMappings() { return config.gpioMappings; }
 	KeyboardMapping& getKeyboardMapping() { return config.keyboardMapping; }

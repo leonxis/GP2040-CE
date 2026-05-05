@@ -595,16 +595,6 @@ enum AnimationColor // Sync with Animation.h
     ANIMATION_COLOR_VIOLET = 15;
 };
 
-enum ForcedSetupMode
-{
-    option (nanopb_enumopt).long_names = false;
-
-	FORCED_SETUP_MODE_OFF = 0;
-	FORCED_SETUP_MODE_LOCK_MODE_SWITCH = 1;
-	FORCED_SETUP_MODE_LOCK_WEB_CONFIG = 2;
-	FORCED_SETUP_MODE_LOCK_BOTH = 3;
-};
-
 enum DualDirectionalCombinationMode
 {
 	option (nanopb_enumopt).long_names = false;

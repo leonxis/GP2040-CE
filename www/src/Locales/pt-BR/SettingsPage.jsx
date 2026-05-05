@@ -81,16 +81,6 @@ export default {
 		'right-stick-press-preset-3': 'Right stick press preset 3',
 		'right-stick-press-preset-clear': 'Clear right stick press preset',
 	},
-	'forced-setup-mode-label': 'Modo de Configuração Forçada',
-	'forced-setup-mode-options': {
-		off: 'Desativado',
-		'disable-input-mode': 'Desativar Modo de Entrada',
-		'disable-web-config': 'Desativar Configuração Web',
-		'disable-both': 'Desativar Ambos',
-	},
-	'forced-setup-mode-modal-title': 'Aviso de Modo de Configuração Forçada',
-	'forced-setup-mode-modal-body':
-		'Se você reiniciar para o modo Controlador após salvar, não terá mais acesso à configuração web. Digite "<strong>{{warningCheckText}}</strong>" abaixo para desbloquear o botão Salvar se você estiver ciente disso e tiver a intenção de fazê-lo. Clicar em Descartar reverterá essa configuração, que deverá então ser salva.',
 	'4-way-joystick-mode-label': 'Modo de Joystick de 4 Vias',
 	'lock-hotkeys-label': 'Travar Teclas de Atalho',
 	'keyboard-mapping-header-text': 'Mapeamento de Teclado',

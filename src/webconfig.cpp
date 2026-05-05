@@ -972,14 +972,10 @@ std::string setGamepadOptions()
     readDoc(gamepadOptions.dpadDeadzone, doc, "dpadDeadzone");
     readDoc(gamepadOptions.profileNumber, doc, "profileNumber");
     readDoc(gamepadOptions.debounceDelay, doc, "debounceDelay");
-    readDoc(gamepadOptions.inputModeB1, doc, "inputModeB1");
-    readDoc(gamepadOptions.inputModeB2, doc, "inputModeB2");
-    readDoc(gamepadOptions.inputModeB3, doc, "inputModeB3");
-    readDoc(gamepadOptions.inputModeB4, doc, "inputModeB4");
-    readDoc(gamepadOptions.inputModeL1, doc, "inputModeL1");
-    readDoc(gamepadOptions.inputModeL2, doc, "inputModeL2");
-    readDoc(gamepadOptions.inputModeR1, doc, "inputModeR1");
-    readDoc(gamepadOptions.inputModeR2, doc, "inputModeR2");
+    readDoc(gamepadOptions.runtimeModeHotkeyX, doc, "runtimeModeHotkeyX");
+    readDoc(gamepadOptions.runtimeModeHotkeyO, doc, "runtimeModeHotkeyO");
+    readDoc(gamepadOptions.runtimeModeHotkeySquare, doc, "runtimeModeHotkeySquare");
+    readDoc(gamepadOptions.runtimeModeHotkeyTriangle, doc, "runtimeModeHotkeyTriangle");
     readDoc(gamepadOptions.ps4AuthType, doc, "ps4AuthType");
     readDoc(gamepadOptions.ps5AuthType, doc, "ps5AuthType");
     readDoc(gamepadOptions.xinputAuthType, doc, "xinputAuthType");
@@ -1019,9 +1015,6 @@ std::string setGamepadOptions()
     save_hotkey(&hotkeyOptions.hotkey15, doc, "hotkey15");
     save_hotkey(&hotkeyOptions.hotkey16, doc, "hotkey16");
 
-    ForcedSetupOptions& forcedSetupOptions = Storage::getInstance().getForcedSetupOptions();
-    readDoc(forcedSetupOptions.mode, doc, "forcedSetupMode");
-
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
     return serialize_json(doc);
@@ -1044,14 +1037,10 @@ std::string getGamepadOptions()
     writeDoc(doc, "dpadDeadzone", gamepadOptions.dpadDeadzone);
     writeDoc(doc, "profileNumber", gamepadOptions.profileNumber);
     writeDoc(doc, "debounceDelay", gamepadOptions.debounceDelay);
-    writeDoc(doc, "inputModeB1", gamepadOptions.inputModeB1);
-    writeDoc(doc, "inputModeB2", gamepadOptions.inputModeB2);
-    writeDoc(doc, "inputModeB3", gamepadOptions.inputModeB3);
-    writeDoc(doc, "inputModeB4", gamepadOptions.inputModeB4);
-    writeDoc(doc, "inputModeL1", gamepadOptions.inputModeL1);
-    writeDoc(doc, "inputModeL2", gamepadOptions.inputModeL2);
-    writeDoc(doc, "inputModeR1", gamepadOptions.inputModeR1);
-    writeDoc(doc, "inputModeR2", gamepadOptions.inputModeR2);
+    writeDoc(doc, "runtimeModeHotkeyX", gamepadOptions.runtimeModeHotkeyX);
+    writeDoc(doc, "runtimeModeHotkeyO", gamepadOptions.runtimeModeHotkeyO);
+    writeDoc(doc, "runtimeModeHotkeySquare", gamepadOptions.runtimeModeHotkeySquare);
+    writeDoc(doc, "runtimeModeHotkeyTriangle", gamepadOptions.runtimeModeHotkeyTriangle);
     writeDoc(doc, "ps4AuthType", gamepadOptions.ps4AuthType);
     writeDoc(doc, "ps5AuthType", gamepadOptions.ps5AuthType);
     writeDoc(doc, "xinputAuthType", gamepadOptions.xinputAuthType);
@@ -1122,8 +1111,6 @@ std::string getGamepadOptions()
     load_hotkey(&hotkeyOptions.hotkey15, doc, "hotkey15");
     load_hotkey(&hotkeyOptions.hotkey16, doc, "hotkey16");
 
-    ForcedSetupOptions& forcedSetupOptions = Storage::getInstance().getForcedSetupOptions();
-    writeDoc(doc, "forcedSetupMode", forcedSetupOptions.mode);
     return serialize_json(doc);
 }
 

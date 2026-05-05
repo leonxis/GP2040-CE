@@ -66,9 +66,25 @@ static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
 static const uint8_t WEBCONFIG_BOOT_GPIO = 19; //修改为GPIO19
-static const uint8_t WEBCONFIG_RUNTIME_GPIO_A = 19;
-static const uint8_t WEBCONFIG_RUNTIME_GPIO_B = 13;
-static const uint8_t WEBCONFIG_RUNTIME_GPIO_C = 14;
+static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_A = 18;
+static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_B = 19;
+static const uint8_t RUNTIME_HOTKEY_WEBCONFIG_GPIO = 21;
+static const uint8_t RUNTIME_HOTKEY_USB_BOOT_GPIO = 22;
+static const uint8_t RUNTIME_HOTKEY_MODE_X_GPIO = 15;
+static const uint8_t RUNTIME_HOTKEY_MODE_O_GPIO = 9;
+static const uint8_t RUNTIME_HOTKEY_MODE_SQUARE_GPIO = 13;
+static const uint8_t RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO = 14;
+
+enum class RuntimeHotkeyAction {
+	NONE,
+	INVALID,
+	TOGGLE_WEBCONFIG,
+	ENTER_USB_BOOTLOADER,
+	SWITCH_MODE_X,
+	SWITCH_MODE_O,
+	SWITCH_MODE_SQUARE,
+	SWITCH_MODE_TRIANGLE,
+};
 
 extern void processCompositeHID(Gamepad *gamepad);
 
@@ -113,19 +129,128 @@ static bool isWebConfigBootGPIOPressed() {
 	return isGPIOHeldLow(WEBCONFIG_BOOT_GPIO);
 }
 
-static bool isWebConfigRuntimeGPIOPressed() {
-	return isGPIOHeldLow(WEBCONFIG_RUNTIME_GPIO_A) &&
-		   isGPIOHeldLow(WEBCONFIG_RUNTIME_GPIO_B) &&
-		   isGPIOHeldLow(WEBCONFIG_RUNTIME_GPIO_C);
+static RuntimeHotkeyAction getRuntimeHotkeyAction() {
+	if (!isGPIOHeldLow(RUNTIME_HOTKEY_SHARED_GPIO_A) || !isGPIOHeldLow(RUNTIME_HOTKEY_SHARED_GPIO_B)) {
+		return RuntimeHotkeyAction::NONE;
+	}
+
+	const bool webConfigPressed = isGPIOHeldLow(RUNTIME_HOTKEY_WEBCONFIG_GPIO);
+	const bool usbBootPressed = isGPIOHeldLow(RUNTIME_HOTKEY_USB_BOOT_GPIO);
+	const bool modeXPressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_X_GPIO);
+	const bool modeOPressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_O_GPIO);
+	const bool modeSquarePressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_SQUARE_GPIO);
+	const bool modeTrianglePressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO);
+
+	const uint8_t thirdPinPressedCount =
+		static_cast<uint8_t>(webConfigPressed) +
+		static_cast<uint8_t>(usbBootPressed) +
+		static_cast<uint8_t>(modeXPressed) +
+		static_cast<uint8_t>(modeOPressed) +
+		static_cast<uint8_t>(modeSquarePressed) +
+		static_cast<uint8_t>(modeTrianglePressed);
+
+	if (thirdPinPressedCount == 0) {
+		return RuntimeHotkeyAction::NONE;
+	}
+
+	// Runtime hotkeys only trigger with one third-pin pressed to avoid collisions.
+	if (thirdPinPressedCount > 1) {
+		return RuntimeHotkeyAction::INVALID;
+	}
+
+	if (webConfigPressed) {
+		return RuntimeHotkeyAction::TOGGLE_WEBCONFIG;
+	}
+	if (usbBootPressed) {
+		return RuntimeHotkeyAction::ENTER_USB_BOOTLOADER;
+	}
+	if (modeXPressed) {
+		return RuntimeHotkeyAction::SWITCH_MODE_X;
+	}
+	if (modeOPressed) {
+		return RuntimeHotkeyAction::SWITCH_MODE_O;
+	}
+	if (modeSquarePressed) {
+		return RuntimeHotkeyAction::SWITCH_MODE_SQUARE;
+	}
+	return RuntimeHotkeyAction::SWITCH_MODE_TRIANGLE;
+}
+
+static bool isRuntimeSwitchableInputMode(int32_t inputMode) {
+	switch (inputMode) {
+		case INPUT_MODE_XINPUT:
+		case INPUT_MODE_XINPUTB:
+		case INPUT_MODE_SWITCH:
+		case INPUT_MODE_SWITCH_PRO:
+		case INPUT_MODE_KEYBOARD:
+		case INPUT_MODE_GENERIC:
+		case INPUT_MODE_PS3:
+		case INPUT_MODE_PS4:
+		case INPUT_MODE_PS4B:
+		case INPUT_MODE_PS5:
+		case INPUT_MODE_P5GENERAL:
+		case INPUT_MODE_NEOGEO:
+		case INPUT_MODE_MDMINI:
+		case INPUT_MODE_PCEMINI:
+		case INPUT_MODE_EGRET:
+		case INPUT_MODE_ASTRO:
+		case INPUT_MODE_PSCLASSIC:
+		case INPUT_MODE_XBOXORIGINAL:
+		case INPUT_MODE_XBONE:
+			return true;
+		default:
+			return false;
+	}
+}
+
+static bool applyRuntimeInputModeSwitch(RuntimeHotkeyAction action) {
+	GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
+	int32_t targetInputMode = -1;
+
+	switch (action) {
+		case RuntimeHotkeyAction::SWITCH_MODE_X:
+			targetInputMode = gamepadOptions.runtimeModeHotkeyX;
+			break;
+		case RuntimeHotkeyAction::SWITCH_MODE_O:
+			targetInputMode = gamepadOptions.runtimeModeHotkeyO;
+			break;
+		case RuntimeHotkeyAction::SWITCH_MODE_SQUARE:
+			targetInputMode = gamepadOptions.runtimeModeHotkeySquare;
+			break;
+		case RuntimeHotkeyAction::SWITCH_MODE_TRIANGLE:
+			targetInputMode = gamepadOptions.runtimeModeHotkeyTriangle;
+			break;
+		default:
+			return false;
+	}
+
+	if (!isRuntimeSwitchableInputMode(targetInputMode)) {
+		return false;
+	}
+
+	if (gamepadOptions.inputMode == targetInputMode) {
+		return false;
+	}
+
+	// Reuse boot-time mode switch logic on next reboot.
+	System::setPendingInputMode(targetInputMode);
+	System::reboot(System::BootMode::DEFAULT);
+	return true;
 }
 
 static void configureWebConfigHotkeyGPIOs() {
 	const uint8_t pins[] = {
 		WEBCONFIG_BOOT_GPIO,
-		WEBCONFIG_RUNTIME_GPIO_B,
-		WEBCONFIG_RUNTIME_GPIO_C,
+		RUNTIME_HOTKEY_SHARED_GPIO_A,
+		RUNTIME_HOTKEY_SHARED_GPIO_B,
+		RUNTIME_HOTKEY_WEBCONFIG_GPIO,
+		RUNTIME_HOTKEY_USB_BOOT_GPIO,
+		RUNTIME_HOTKEY_MODE_X_GPIO,
+		RUNTIME_HOTKEY_MODE_O_GPIO,
+		RUNTIME_HOTKEY_MODE_SQUARE_GPIO,
+		RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO,
 	};
-	for (uint8_t i = 0; i < 3; i++) {
+	for (uint8_t i = 0; i < count_of(pins); i++) {
 		gpio_init(pins[i]);
 		gpio_set_dir(pins[i], GPIO_IN);
 		gpio_pull_up(pins[i]);
@@ -167,19 +292,6 @@ void GP2040::setup() {
 	// new set of GPIOs to use...
 	this->initializeStandardGpio();
 	configureWebConfigHotkeyGPIOs();
-
-	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
-
-	// check setup options and add modes to the list
-	// user modes
-	bootActions.insert({GAMEPAD_MASK_B1, gamepadOptions.inputModeB1});
-	bootActions.insert({GAMEPAD_MASK_B2, gamepadOptions.inputModeB2});
-	bootActions.insert({GAMEPAD_MASK_B3, gamepadOptions.inputModeB3});
-	bootActions.insert({GAMEPAD_MASK_B4, gamepadOptions.inputModeB4});
-	bootActions.insert({GAMEPAD_MASK_L1, gamepadOptions.inputModeL1});
-	bootActions.insert({GAMEPAD_MASK_L2, gamepadOptions.inputModeL2});
-	bootActions.insert({GAMEPAD_MASK_R1, gamepadOptions.inputModeR1});
-	bootActions.insert({GAMEPAD_MASK_R2, gamepadOptions.inputModeR2});
 
 	// Initialize our ADC (various add-ons)
 	adc_init();
@@ -441,7 +553,7 @@ void GP2040::run() {
 		// Config Loop (Web-Config skips Core0 add-ons)
 		if (configMode == true) {
 			inputDriver->process(gamepad);
-			rebootHotkeys.process(gamepad, configMode);
+			rebootHotkeys.process(configMode);
 			checkSaveRebootState();
 			continue;
 		}
@@ -450,7 +562,7 @@ void GP2040::run() {
 		addons.PreprocessAddons();
 
 		gamepad->hotkey(); 	// check for MPGS hotkeys
-		rebootHotkeys.process(gamepad, configMode);
+		rebootHotkeys.process(configMode);
 
 		gamepad->process(); // process through MPGS
 
@@ -566,7 +678,15 @@ void GP2040::getReinitGamepad(Gamepad * gamepad) {
 }
 
 GP2040::BootAction GP2040::getBootAction() {
-	switch (System::takeBootMode()) {
+	const System::BootMode bootMode = System::takeBootMode();
+	if (bootMode == System::BootMode::DEFAULT) {
+		const int32_t pendingInputMode = System::takePendingInputMode();
+		if (pendingInputMode >= 0) {
+			return bootActionFromInputMode(pendingInputMode);
+		}
+	}
+
+	switch (bootMode) {
 		case System::BootMode::GAMEPAD: return BootAction::NONE;
 		case System::BootMode::WEBCONFIG: return BootAction::ENTER_WEBCONFIG_MODE;
 		case System::BootMode::USB: return BootAction::ENTER_USB_MODE;
@@ -590,62 +710,10 @@ GP2040::BootAction GP2040::getBootAction() {
 				// Copy Processed Gamepad for Core1 (race condition otherwise)
 				memcpy(&processedGamepad->state, &gamepad->state, sizeof(GamepadState));
 
-                const ForcedSetupOptions& forcedSetupOptions = Storage::getInstance().getForcedSetupOptions();
-                bool modeSwitchLocked = forcedSetupOptions.mode == FORCED_SETUP_MODE_LOCK_MODE_SWITCH ||
-                                        forcedSetupOptions.mode == FORCED_SETUP_MODE_LOCK_BOTH;
-
-                bool webConfigLocked  = forcedSetupOptions.mode == FORCED_SETUP_MODE_LOCK_WEB_CONFIG ||
-                                        forcedSetupOptions.mode == FORCED_SETUP_MODE_LOCK_BOTH;
-
 				if (gamepad->pressedS1() && gamepad->pressedS2() && gamepad->pressedUp()) {
 					return BootAction::ENTER_USB_MODE;
-				} else if (!webConfigLocked && isWebConfigBootGPIOPressed()) {
+				} else if (isWebConfigBootGPIOPressed()) {
 					return BootAction::ENTER_WEBCONFIG_MODE;
-                } else {
-                    if (!modeSwitchLocked) {
-                        if (auto search = bootActions.find(gamepad->state.buttons); search != bootActions.end()) {
-                            switch (search->second) {
-                                case INPUT_MODE_XINPUT:
-                                    return BootAction::SET_INPUT_MODE_XINPUT;
-                                case INPUT_MODE_XINPUTB:
-                                    return BootAction::SET_INPUT_MODE_XINPUTB;
-                                case INPUT_MODE_SWITCH:
-                                    return BootAction::SET_INPUT_MODE_SWITCH;
-                                case INPUT_MODE_KEYBOARD:
-                                    return BootAction::SET_INPUT_MODE_KEYBOARD;
-                                case INPUT_MODE_GENERIC:
-                                    return BootAction::SET_INPUT_MODE_GENERIC;
-                                case INPUT_MODE_PS3:
-                                    return BootAction::SET_INPUT_MODE_PS3;
-                                case INPUT_MODE_PS4:
-                                    return BootAction::SET_INPUT_MODE_PS4;
-                                case INPUT_MODE_PS5:
-                                    return BootAction::SET_INPUT_MODE_PS5;
-                                case INPUT_MODE_P5GENERAL: 
-                                    return BootAction::SET_INPUT_MODE_P5GENERAL;
-                                case INPUT_MODE_NEOGEO:
-                                    return BootAction::SET_INPUT_MODE_NEOGEO;
-                                case INPUT_MODE_MDMINI:
-                                    return BootAction::SET_INPUT_MODE_MDMINI;
-                                case INPUT_MODE_PCEMINI:
-                                    return BootAction::SET_INPUT_MODE_PCEMINI;
-                                case INPUT_MODE_EGRET:
-                                    return BootAction::SET_INPUT_MODE_EGRET;
-                                case INPUT_MODE_ASTRO:
-                                    return BootAction::SET_INPUT_MODE_ASTRO;
-                                case INPUT_MODE_PSCLASSIC:
-                                    return BootAction::SET_INPUT_MODE_PSCLASSIC;
-                                case INPUT_MODE_XBOXORIGINAL:
-                                    return BootAction::SET_INPUT_MODE_XBOXORIGINAL;
-                                case INPUT_MODE_XBONE:
-                                    return BootAction::SET_INPUT_MODE_XBONE;
-                                case INPUT_MODE_SWITCH_PRO:
-                                    return BootAction::SET_INPUT_MODE_SWITCH_PRO;
-                                default:
-                                    return BootAction::NONE;
-                            }
-                        }
-                    }
                 }
 
 				break;
@@ -655,21 +723,67 @@ GP2040::BootAction GP2040::getBootAction() {
 	return BootAction::NONE;
 }
 
+GP2040::BootAction GP2040::bootActionFromInputMode(int32_t inputMode) {
+	switch (inputMode) {
+		case INPUT_MODE_XINPUT:
+			return BootAction::SET_INPUT_MODE_XINPUT;
+		case INPUT_MODE_XINPUTB:
+			return BootAction::SET_INPUT_MODE_XINPUTB;
+		case INPUT_MODE_SWITCH:
+			return BootAction::SET_INPUT_MODE_SWITCH;
+		case INPUT_MODE_KEYBOARD:
+			return BootAction::SET_INPUT_MODE_KEYBOARD;
+		case INPUT_MODE_GENERIC:
+			return BootAction::SET_INPUT_MODE_GENERIC;
+		case INPUT_MODE_PS3:
+			return BootAction::SET_INPUT_MODE_PS3;
+		case INPUT_MODE_PS4:
+			return BootAction::SET_INPUT_MODE_PS4;
+		case INPUT_MODE_PS4B:
+			return BootAction::SET_INPUT_MODE_PS4B;
+		case INPUT_MODE_PS5:
+			return BootAction::SET_INPUT_MODE_PS5;
+		case INPUT_MODE_P5GENERAL:
+			return BootAction::SET_INPUT_MODE_P5GENERAL;
+		case INPUT_MODE_NEOGEO:
+			return BootAction::SET_INPUT_MODE_NEOGEO;
+		case INPUT_MODE_MDMINI:
+			return BootAction::SET_INPUT_MODE_MDMINI;
+		case INPUT_MODE_PCEMINI:
+			return BootAction::SET_INPUT_MODE_PCEMINI;
+		case INPUT_MODE_EGRET:
+			return BootAction::SET_INPUT_MODE_EGRET;
+		case INPUT_MODE_ASTRO:
+			return BootAction::SET_INPUT_MODE_ASTRO;
+		case INPUT_MODE_PSCLASSIC:
+			return BootAction::SET_INPUT_MODE_PSCLASSIC;
+		case INPUT_MODE_XBOXORIGINAL:
+			return BootAction::SET_INPUT_MODE_XBOXORIGINAL;
+		case INPUT_MODE_XBONE:
+			return BootAction::SET_INPUT_MODE_XBONE;
+		case INPUT_MODE_SWITCH_PRO:
+			return BootAction::SET_INPUT_MODE_SWITCH_PRO;
+		default:
+			return BootAction::NONE;
+	}
+}
+
 GP2040::RebootHotkeys::RebootHotkeys() :
 	active(false),
+	waitForHotkeyRelease(false),
 	noButtonsPressedTimeout(nil_time),
-	bootselHotkeyMask(GAMEPAD_MASK_S1 | GAMEPAD_MASK_B3 | GAMEPAD_MASK_B4),
 	rebootHotkeysHoldTimeout(nil_time) {
 }
 
-void GP2040::RebootHotkeys::process(Gamepad* gamepad, bool configMode) {
+void GP2040::RebootHotkeys::process(bool configMode) {
 	// We only allow the hotkey to trigger after we observed no buttons pressed for a certain period of time.
 	// We do this to avoid detecting buttons that are held during the boot process. In particular we want to avoid
 	// oscillating between webconfig and default mode when the user keeps holding the hotkey buttons.
+	const RuntimeHotkeyAction runtimeHotkeyAction = getRuntimeHotkeyAction();
+	const bool runtimeHotkeyPressed = (runtimeHotkeyAction != RuntimeHotkeyAction::NONE);
+
 	if (!active) {
-		const bool webConfigHotkeyPressed = isWebConfigRuntimeGPIOPressed();
-		const bool bootselHotkeyPressed = (gamepad->state.buttons == bootselHotkeyMask);
-		if (!webConfigHotkeyPressed && !bootselHotkeyPressed) {
+		if (!runtimeHotkeyPressed) {
 			if (is_nil_time(noButtonsPressedTimeout)) {
 				noButtonsPressedTimeout = make_timeout_time_us(REBOOT_HOTKEY_ACTIVATION_TIME_MS);
 			}
@@ -681,22 +795,39 @@ void GP2040::RebootHotkeys::process(Gamepad* gamepad, bool configMode) {
 			noButtonsPressedTimeout = nil_time;
 		}
 	} else {
-		const bool webConfigHotkeyPressed = isWebConfigRuntimeGPIOPressed();
-		const bool bootselHotkeyPressed = (gamepad->state.buttons == bootselHotkeyMask);
-		if (webConfigHotkeyPressed || bootselHotkeyPressed) {
+		// Do not retrigger until the full combo is released.
+		if (waitForHotkeyRelease) {
+			if (!runtimeHotkeyPressed) {
+				waitForHotkeyRelease = false;
+			}
+			rebootHotkeysHoldTimeout = nil_time;
+			return;
+		}
+
+		if (runtimeHotkeyAction == RuntimeHotkeyAction::TOGGLE_WEBCONFIG ||
+			runtimeHotkeyAction == RuntimeHotkeyAction::ENTER_USB_BOOTLOADER ||
+			runtimeHotkeyAction == RuntimeHotkeyAction::SWITCH_MODE_X ||
+			runtimeHotkeyAction == RuntimeHotkeyAction::SWITCH_MODE_O ||
+			runtimeHotkeyAction == RuntimeHotkeyAction::SWITCH_MODE_SQUARE ||
+			runtimeHotkeyAction == RuntimeHotkeyAction::SWITCH_MODE_TRIANGLE) {
 			if (is_nil_time(rebootHotkeysHoldTimeout)) {
 				rebootHotkeysHoldTimeout = make_timeout_time_ms(REBOOT_HOTKEY_HOLD_TIME_MS);
 			}
 
 			if (time_reached(rebootHotkeysHoldTimeout)) {
-				if (webConfigHotkeyPressed) {
+				waitForHotkeyRelease = true;
+				if (runtimeHotkeyAction == RuntimeHotkeyAction::TOGGLE_WEBCONFIG) {
 					// If we are in webconfig mode we go to gamepad mode and vice versa
 					System::reboot(configMode ? System::BootMode::GAMEPAD : System::BootMode::WEBCONFIG);
-				} else if (bootselHotkeyPressed) {
+				} else if (runtimeHotkeyAction == RuntimeHotkeyAction::ENTER_USB_BOOTLOADER) {
 					System::reboot(System::BootMode::USB);
+				} else if (!applyRuntimeInputModeSwitch(runtimeHotkeyAction)) {
+					// Unsupported/disabled input mode target. Require release before retry.
+					rebootHotkeysHoldTimeout = nil_time;
 				}
 			}
 		} else {
+			// Either no runtime hotkey combo is held or the combo is invalid (multiple third-pins).
 			rebootHotkeysHoldTimeout = nil_time;
 		}
 	}

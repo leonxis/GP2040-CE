@@ -30,7 +30,6 @@ export default {
 		primary: '주 입력 모드',
 		mini: '미니/클래식 콘솔 모드',
 	},
-	'boot-input-mode-label': '부트 입력 모드',
 	'ps4-mode-options': {
 		controller: '컨트롤러',
 		arcadestick: '아케이드 스틱',
@@ -152,16 +151,6 @@ export default {
 		'right-stick-press-preset-3': '오른쪽 스틱 누르기 프리셋 3',
 		'right-stick-press-preset-clear': '오른쪽 스틱 누르기 프리셋 지우기',
 	},
-	'forced-setup-mode-label': '강제 설정 모드',
-	'forced-setup-mode-options': {
-		off: '끄기',
-		'disable-input-mode': '입력 모드 비활성화',
-		'disable-web-config': '웹 설정 비활성화',
-		'disable-both': '모두 비활성화',
-	},
-	'forced-setup-mode-modal-title': '강제 설정 모드 경고',
-	'forced-setup-mode-modal-body':
-		'저장 후 컨트롤러 모드로 재시작하면 더 이상 웹 설정모드에 접속하지 못하게 됩니다. 현재 작업을 이해하고 있고 의도한 바라면 다음을 입력해 저장 버튼을 활성화해 주세요. "<strong>{{warningCheckText}}</strong>" 해제를 클릭하면 설정이 복원된 후 저장됩니다.',
 	'4-way-joystick-mode-label': '4방향 조이스틱 모드',
 	'lock-hotkeys-label': '핫키 잠금',
 	'keyboard-mapping-header-text': '키보드 매핑',

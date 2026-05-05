@@ -6,8 +6,6 @@
 #ifndef GP2040_H_
 #define GP2040_H_
 
-#include <map>
-
 // GP2040 Classes
 #include "gamepad.h"
 #include "addonmanager.h"
@@ -32,12 +30,12 @@ private:
 
     struct RebootHotkeys {
         RebootHotkeys();
-        void process(Gamepad* gamepad, bool configMode);
+        void process(bool configMode);
 
         bool active;
+        bool waitForHotkeyRelease;
 
         absolute_time_t noButtonsPressedTimeout;
-        uint16_t bootselHotkeyMask;
         absolute_time_t rebootHotkeysHoldTimeout;
     };
     RebootHotkeys rebootHotkeys;
@@ -67,6 +65,7 @@ private:
         SET_INPUT_MODE_SWITCH_PRO,
     };
     BootAction getBootAction();
+    BootAction bootActionFromInputMode(int32_t inputMode);
     void getReinitGamepad(Gamepad * gamepad);
 
     // GPIO manipulation for setup and profile reinit
@@ -76,9 +75,6 @@ private:
     // event handling checking
     void checkRawState(GamepadState prevState, GamepadState currState);
     void checkProcessedState(GamepadState prevState, GamepadState currState);
-
-    // input mask, action
-    std::map<uint32_t, int32_t> bootActions;
 
     void checkSaveRebootState();
     bool saveRequested = false;

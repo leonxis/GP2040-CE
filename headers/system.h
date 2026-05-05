@@ -29,6 +29,10 @@ namespace System {
     void reboot(BootMode bootMode);
     // Retrieves the BootMode value from the watchdog scratch register and resets its value to BootMode::DEFAULT
     BootMode takeBootMode();
+    // Stores a one-time target input mode to be consumed on next software reboot
+    void setPendingInputMode(int32_t inputMode);
+    // Retrieves and clears one-time target input mode. Returns -1 if not set.
+    int32_t takePendingInputMode();
 }
 
 #endif

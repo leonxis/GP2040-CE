@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { Button, Form, Modal, Nav, Row, Col, Tab } from 'react-bootstrap';
+import { Button, Form, Nav, Row, Col, Tab } from 'react-bootstrap';
 import { Formik, useFormikContext } from 'formik';
 import { NavLink, useLocation } from 'react-router-dom';
 import * as yup from 'yup';
@@ -18,7 +18,7 @@ import { BUTTON_MASKS_OPTIONS, getButtonLabels } from '../Data/Buttons';
 
 import { hexToInt } from '../Services/Utilities';
 
-import { InputModeDeviceType, PS4ControllerType } from '@proto/enums';
+import { InputModeDeviceType } from '@proto/enums';
 
 import './SettingsPage.scss';
 
@@ -79,7 +79,6 @@ const SHA256 = (ascii) => {
 		hash = hash.slice(0, 8);
 
 		for (i = 0; i < 64; i++) {
-			const i2 = i + j;
 			// Expand the message into 64 words
 			// Used below if
 			const w15 = w[i - 15];
@@ -227,59 +226,6 @@ const INPUT_MODES = [
 	{ labelKey: 'input-mode-options.psclassic', value: 11, group: 'mini' },
 ];
 
-const INPUT_BOOT_MODES = [
-	{ labelKey: 'input-mode-options.none', value: -1, group: 'primary' },
-	{ labelKey: 'input-mode-options.xinput', value: 0, group: 'primary' },
-	{ labelKey: 'input-mode-options.xinputb', value: 18, group: 'primary' },
-	{
-		labelKey: 'input-mode-options.xbone',
-		value: 5,
-		group: 'primary',
-		required: ['usb'],
-	},
-	{ labelKey: 'input-mode-options.xboxoriginal', value: 12, group: 'primary' },
-	{ labelKey: 'input-mode-options.ps3', value: 2, group: 'primary' },
-	{
-		labelKey: 'input-mode-options.ps4',
-		value: 4,
-		group: 'primary',
-		optional: ['usb'],
-	},
-	{
-		labelKey: 'input-mode-options.ps4b',
-		value: 17,
-		group: 'primary',
-		optional: ['usb'],
-	},
-	{
-		labelKey: 'input-mode-options.ps5',
-		value: 13,
-		group: 'primary',
-		optional: ['usb'],
-	},
-	{
-		labelKey: 'input-mode-options.p5general',
-		value: 16,
-		group: 'primary',
-		optional: ['usb'],
-		authentication: ['usb'],
-	},
-	{
-		labelKey: 'input-mode-options.nintendo-switch',
-		value: 1,
-		group: 'primary',
-	},
-	{ labelKey: 'input-mode-options.nintendo-switch-pro', value: 15, group: 'primary' },
-	{ labelKey: 'input-mode-options.keyboard', value: 3, group: 'primary' },
-	{ labelKey: 'input-mode-options.generic', value: 14, group: 'primary' },
-	{ labelKey: 'input-mode-options.mdmini', value: 6, group: 'mini' },
-	{ labelKey: 'input-mode-options.neogeo', value: 7, group: 'mini' },
-	{ labelKey: 'input-mode-options.pcemini', value: 8, group: 'mini' },
-	{ labelKey: 'input-mode-options.egret', value: 9, group: 'mini' },
-	{ labelKey: 'input-mode-options.astro', value: 10, group: 'mini' },
-	{ labelKey: 'input-mode-options.psclassic', value: 11, group: 'mini' },
-];
-
 const INPUT_MODE_GROUPS = [
 	{ labelKey: 'input-mode-group.primary', value: 0, group: 'primary' },
 	{ labelKey: 'input-mode-group.mini', value: 1, group: 'mini' },
@@ -389,24 +335,6 @@ const HOTKEY_ACTIONS = [
 	{ labelKey: 'hotkey-actions.focus-mode-toggle', value: 77 },
 ];
 
-const FORCED_SETUP_MODES = [
-	{ labelKey: 'forced-setup-mode-options.off', value: 0 },
-	{ labelKey: 'forced-setup-mode-options.disable-input-mode', value: 1 },
-	{ labelKey: 'forced-setup-mode-options.disable-web-config', value: 2 },
-	{ labelKey: 'forced-setup-mode-options.disable-both', value: 3 },
-];
-
-const INPUT_MODES_BINDS = [
-	{ value: 'B1' },
-	{ value: 'B2' },
-	{ value: 'B3' },
-	{ value: 'B4' },
-	{ value: 'L1' },
-	{ value: 'L2' },
-	{ value: 'R1' },
-	{ value: 'R2' },
-];
-
 const hotkeySchema = {
 	action: yup
 		.number()
@@ -481,11 +409,6 @@ const schema = yup.object().shape({
 		.required()
 		.oneOf(PS4_ID_MODES.map((o) => o.value))
 		.label('PS4 Controller Identification Mode'),
-	forcedSetupMode: yup
-		.number()
-		.required()
-		.oneOf(FORCED_SETUP_MODES.map((o) => o.value))
-		.label('SOCD Cleaning Mode'),
 	lockHotkeys: yup.number().required().label('Lock Hotkeys'),
 	fourWayMode: yup.number().required().label('4-Way Joystick Mode'),
 	profileNumber: yup.number().required().label('Profile Number'),
@@ -506,46 +429,6 @@ const schema = yup.object().shape({
 		.label('X-Input Authentication Type'),
 	debounceDelay: yup.number().required().label('Debounce Delay'),
 	miniMenuGamepadInput: yup.number().required().label('Mini Menu'),
-	inputModeB1: yup
-		.number()
-		.required()
-		.oneOf(INPUT_BOOT_MODES.map((o) => o.value))
-		.label('B1 Input Mode'),
-	inputModeB2: yup
-		.number()
-		.required()
-		.oneOf(INPUT_BOOT_MODES.map((o) => o.value))
-		.label('B2 Input Mode'),
-	inputModeB3: yup
-		.number()
-		.required()
-		.oneOf(INPUT_BOOT_MODES.map((o) => o.value))
-		.label('B3 Input Mode'),
-	inputModeB4: yup
-		.number()
-		.required()
-		.oneOf(INPUT_BOOT_MODES.map((o) => o.value))
-		.label('B4 Input Mode'),
-	inputModeL1: yup
-		.number()
-		.required()
-		.oneOf(INPUT_BOOT_MODES.map((o) => o.value))
-		.label('L1 Input Mode'),
-	inputModeL2: yup
-		.number()
-		.required()
-		.oneOf(INPUT_BOOT_MODES.map((o) => o.value))
-		.label('L2 Input Mode'),
-	inputModeR1: yup
-		.number()
-		.required()
-		.oneOf(INPUT_BOOT_MODES.map((o) => o.value))
-		.label('R1 Input Mode'),
-	inputModeR2: yup
-		.number()
-		.required()
-		.oneOf(INPUT_BOOT_MODES.map((o) => o.value))
-		.label('R2 Input Mode'),
 	usbDescProduct: yup.string().label('USB Description: Product Name'),
 	usbDescManufacturer: yup.string().label('USB Description: Manufacturer'),
 	usbDescVersion: yup.string().label('USB Description: Version'),
@@ -576,8 +459,6 @@ const FormContext = ({ setButtonLabels, setKeyMappings }) => {
 		if (!!values.socdMode) values.socdMode = parseInt(values.socdMode);
 		if (!!values.switchTpShareForDs4)
 			values.switchTpShareForDs4 = parseInt(values.switchTpShareForDs4);
-		if (!!values.forcedSetupMode)
-			values.forcedSetupMode = parseInt(values.forcedSetupMode);
 		if (!!values.lockHotkeys) values.lockHotkeys = parseInt(values.lockHotkeys);
 		if (!!values.fourWayMode) values.fourWayMode = parseInt(values.fourWayMode);
 		if (!!values.profileNumber)
@@ -630,8 +511,6 @@ export default function SettingsPage() {
 	}, []);
 
 	const [saveMessage, setSaveMessage] = useState('');
-	const [warning, setWarning] = useState({ show: false, acceptText: '' });
-	const [validated, setValidated] = useState(false);
 	const [keyMappings, setKeyMappings] = useState(baseButtonMappings);
 
 	const [message, setMessage] = useState(null);
@@ -675,7 +554,7 @@ export default function SettingsPage() {
 		const loadFile = (file, text) => {
 			return new Promise((resolve, reject) => {
 				const keyReader = new FileReader();
-				keyReader.onloadend = (e) => {
+				keyReader.onloadend = () => {
 					if (!isNil(keyReader.error)) {
 						reject(keyReader.error);
 					} else {
@@ -780,8 +659,6 @@ export default function SettingsPage() {
 		}
 	};
 
-	const WARNING_CHECK_TEXT = 'GP2040-CE';
-
 	const INPUT_MODE_PERMISSIONS = [
 		{
 			permission: 'usb',
@@ -879,12 +756,7 @@ export default function SettingsPage() {
 		);
 	};
 
-	const keyboardModeSpecifics = (
-		values,
-		errors,
-		setFieldValue,
-		handleChange,
-	) => {
+	const keyboardModeSpecifics = () => {
 		return (
 			<div>
 				<Row className="mb-3">
@@ -1341,7 +1213,7 @@ export default function SettingsPage() {
 		);
 	};
 
-	const xboneModeSpecifics = (values, errors, setFieldValue, handleChange) => {
+	const xboneModeSpecifics = () => {
 		return (
 			<div className="row mb-3">
 				<Row className="mb-3">
@@ -1357,7 +1229,7 @@ export default function SettingsPage() {
 		);
 	};
 
-	const p5generalModeSpecifics = (values, errors, setFieldValue, handleChange) => {
+	const p5generalModeSpecifics = () => {
 		return (
 			<div className="row mb-3">
 				<Row className="mb-3">
@@ -1378,7 +1250,6 @@ export default function SettingsPage() {
 		errors,
 		setFieldValue,
 		handleChange,
-		inputMode,
 	) => {
 		return (
 			<div className="row mb-3">
@@ -1399,12 +1270,7 @@ export default function SettingsPage() {
 		}
 		switch (inputMode.labelKey) {
 			case 'input-mode-options.keyboard':
-				return keyboardModeSpecifics(
-					values,
-					errors,
-					setFieldValue,
-					handleChange,
-				);
+				return keyboardModeSpecifics();
 			case 'input-mode-options.ps4':
 				return ps4ModeSpecifics(
 					values,
@@ -1425,12 +1291,7 @@ export default function SettingsPage() {
 					inputMode,
 				);
 			case 'input-mode-options.p5general':
-				return p5generalModeSpecifics(
-					values,
-					errors,
-					setFieldValue,
-					handleChange
-				);
+				return p5generalModeSpecifics();
 			case 'input-mode-options.generic':
 				return genericHidModeSpecifics(
 					values,
@@ -1449,7 +1310,7 @@ export default function SettingsPage() {
 			case 'input-mode-options.xinputb':
 				return null;
 			case 'input-mode-options.xbone':
-				return xboneModeSpecifics(values, errors, setFieldValue, handleChange);
+				return xboneModeSpecifics();
 			default:
 				return (
 					<Row className="mb-3">
@@ -1462,16 +1323,6 @@ export default function SettingsPage() {
 					</Row>
 				);
 		}
-	};
-
-	const handleWarningClose = async (accepted, values, setFieldValue) => {
-		setWarning({ show: false, acceptText: '' });
-		if (accepted) await saveSettings(values);
-		else setFieldValue('forcedSetupMode', 0);
-	};
-
-	const setWarningAcceptText = (e) => {
-		setWarning({ ...warning, acceptText: e.target.value });
 	};
 
 	const saveSettings = async (values) => {
@@ -1492,14 +1343,10 @@ export default function SettingsPage() {
 			usbVendorID: hexToInt(values.usbVendorID || '0000'),
 		};
 
-		if (values.forcedSetupMode > 1) {
-			setWarning({ show: true, acceptText: '' });
-		} else {
-			if (isKeyboardMode) {
-				await WebApi.setKeyMappings(keyMappings);
-			}
-			await saveSettings(data);
+		if (isKeyboardMode) {
+			await WebApi.setKeyMappings(keyMappings);
 		}
+		await saveSettings(data);
 	};
 
 	const translateArray = (array) => {
@@ -1551,17 +1398,11 @@ export default function SettingsPage() {
 
 	const { t } = useTranslation('');
 
-	const translatedInputBootModes = translateArray(
-		checkRequiredArray(INPUT_BOOT_MODES),
-	);
 	const translatedInputModes = translateArray(checkRequiredArray(INPUT_MODES));
 	const translatedInputModeGroups = translateArray(INPUT_MODE_GROUPS);
 	const translatedDpadModes = translateArray(DPAD_MODES);
 	const translatedSocdModes = translateArray(SOCD_MODES);
 	const translatedHotkeyActions = translateArray(HOTKEY_ACTIONS);
-	const translatedForcedSetupModes = translateArray(FORCED_SETUP_MODES);
-	// Not currently used but we might add the option at a later date (wheel type, etc.)
-	const translatedPS4ControllerTypeModes = translateArray(PS4_MODES);
 	const translatedInputModeAuthentications =
 		translateArray(AUTHENTICATION_TYPES);
 
@@ -1583,11 +1424,6 @@ export default function SettingsPage() {
 											<Nav.Item>
 												<Nav.Link eventKey="gamepad">
 													{t('SettingsPage:gamepad-settings-header-text')}
-												</Nav.Link>
-											</Nav.Item>
-											<Nav.Item>
-												<Nav.Link eventKey="bootmode">
-													{t('SettingsPage:boot-input-mode-label')}
 												</Nav.Link>
 											</Nav.Item>
 											<Nav.Item>
@@ -1739,32 +1575,6 @@ export default function SettingsPage() {
 													<p>{t('SettingsPage:socd-cleaning-mode-note')}</p>
 													<Form.Group className="row mb-3">
 														<Form.Label>
-															{t('SettingsPage:forced-setup-mode-label')}
-														</Form.Label>
-														<Col sm={3}>
-															<Form.Select
-																name="forcedSetupMode"
-																className="form-select-sm"
-																value={values.forcedSetupMode}
-																onChange={handleChange}
-																isInvalid={errors.forcedSetupMode}
-															>
-																{translatedForcedSetupModes.map((o, i) => (
-																	<option
-																		key={`button-forcedSetupMode-option-${i}`}
-																		value={o.value}
-																	>
-																		{o.label}
-																	</option>
-																))}
-															</Form.Select>
-															<Form.Control.Feedback type="invalid">
-																{errors.forcedSetupMode}
-															</Form.Control.Feedback>
-														</Col>
-													</Form.Group>
-													<Form.Group className="row mb-3">
-														<Form.Label>
 															{t('SettingsPage:profile-label')}
 														</Form.Label>
 														<Col sm={3}>
@@ -1835,70 +1645,6 @@ export default function SettingsPage() {
 															/>
 														</Col>
 													</Form.Group>
-													<Button type="submit">
-														{t('Common:button-save-label')}
-													</Button>
-													{saveMessage ? (
-														<span className="alert">{saveMessage}</span>
-													) : null}
-												</Section>
-											</Tab.Pane>
-											<Tab.Pane eventKey="bootmode">
-												<Section
-													title={t('SettingsPage:boot-input-mode-label')}
-												>
-													<Row sm={3}>
-														{INPUT_MODES_BINDS.map((mode, index) => (
-															<Form.Group
-																className="mb-3 col-sm-6"
-																key={`input-mode-${index}`}
-															>
-																<Form.Label>
-																	{mode.value in currentButtonLabels
-																		? currentButtonLabels[mode.value]
-																		: mode.value}
-																</Form.Label>
-																<Col sm={10}>
-																	<Form.Select
-																		name={`inputMode${mode.value}`}
-																		className="form-select-sm"
-																		value={values[`inputMode${mode.value}`]}
-																		onChange={handleChange}
-																		isInvalid={errors[`inputMode${mode.value}`]}
-																	>
-																		{translatedInputModeGroups.map((o, i) => (
-																			<optgroup
-																				label={o.label}
-																				key={`optgroup-${o.label}-${i}`}
-																			>
-																				{translatedInputBootModes
-																					.filter(
-																						({ group }) => group == o.group,
-																					)
-																					.map((o, i) => (
-																						<option
-																							key={`button-inputMode-${mode.value
-																								.toString()
-																								.toLowerCase()}-option-${i}`}
-																							value={o.value}
-																							disabled={o.disabled}
-																						>
-																							{o.label}
-																							{o.disabled && o.reason != ''
-																								? ' (' + o.reason + ')'
-																								: ''}
-																						</option>
-																					))}
-																			</optgroup>
-																		))}
-																	</Form.Select>
-																	<Form.Control.Feedback type="invalid">
-																		{errors[`inputMode${mode.value}`]}
-																	</Form.Control.Feedback>
-																</Col>
-															</Form.Group>
-														))}
-													</Row>
 													<Button type="submit">
 														{t('Common:button-save-label')}
 													</Button>
@@ -2106,44 +1852,6 @@ export default function SettingsPage() {
 								setKeyMappings={setKeyMappings}
 							/>
 						</Form>
-						<Modal size="lg" show={warning.show} onHide={handleWarningClose}>
-							<Modal.Header closeButton>
-								<Modal.Title>
-									{t('SettingsPage:forced-setup-mode-modal-title')}
-								</Modal.Title>
-							</Modal.Header>
-							<Modal.Body>
-								<div className="mb-3">
-									<Trans
-										ns="SettingsPage"
-										i18nKey="forced-setup-mode-modal-body"
-										components={{ strong: <strong /> }}
-										values={{ warningCheckText: WARNING_CHECK_TEXT }}
-									/>
-								</div>
-								<Form.Control
-									value={warning.acceptText}
-									onChange={setWarningAcceptText}
-								></Form.Control>
-							</Modal.Body>
-							<Modal.Footer>
-								<Button
-									disabled={warning.acceptText != WARNING_CHECK_TEXT}
-									variant="warning"
-									onClick={() => handleWarningClose(true, values)}
-								>
-									{t('Common:button-save-label')}
-								</Button>
-								<Button
-									variant="primary"
-									onClick={() =>
-										handleWarningClose(false, values, setFieldValue)
-									}
-								>
-									{t('Common:button-dismiss-label')}
-								</Button>
-							</Modal.Footer>
-						</Modal>
 					</div>
 				)
 			}

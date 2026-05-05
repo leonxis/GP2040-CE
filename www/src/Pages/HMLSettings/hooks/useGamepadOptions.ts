@@ -65,6 +65,18 @@ export function useGamepadOptions(): UseGamepadOptionsReturn {
 					if (options.switchTpShareForDs4 !== undefined) {
 						options.switchTpShareForDs4 = parseInt(options.switchTpShareForDs4);
 					}
+					if (options.runtimeModeHotkeyX !== undefined) {
+						options.runtimeModeHotkeyX = parseInt(options.runtimeModeHotkeyX);
+					}
+					if (options.runtimeModeHotkeyO !== undefined) {
+						options.runtimeModeHotkeyO = parseInt(options.runtimeModeHotkeyO);
+					}
+					if (options.runtimeModeHotkeySquare !== undefined) {
+						options.runtimeModeHotkeySquare = parseInt(options.runtimeModeHotkeySquare);
+					}
+					if (options.runtimeModeHotkeyTriangle !== undefined) {
+						options.runtimeModeHotkeyTriangle = parseInt(options.runtimeModeHotkeyTriangle);
+					}
 					setValues(options as GamepadOptionsState);
 					if (setButtonLabels) {
 						setButtonLabels({
@@ -87,7 +99,6 @@ export function useGamepadOptions(): UseGamepadOptionsReturn {
 			}
 		}
 		fetchData();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []); // 只在组件挂载时执行一次
 
 	return { values, setValues, inputMode, setInputMode, isLoading, error };

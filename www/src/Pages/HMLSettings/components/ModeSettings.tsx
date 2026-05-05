@@ -15,10 +15,22 @@ type InputModeConfig = {
 	value: number;
 	authentication?: string[];
 };
+type QuickModeHotkeyField =
+	| 'runtimeModeHotkeyX'
+	| 'runtimeModeHotkeyO'
+	| 'runtimeModeHotkeySquare'
+	| 'runtimeModeHotkeyTriangle';
 type AppContextShape = {
 	buttonLabels?: unknown;
 	setButtonLabels?: (args: { swapTpShareLabels: boolean }) => void;
 };
+
+const QUICK_MODE_SWITCH_FIELDS: { key: QuickModeHotkeyField; labelKey: string }[] = [
+	{ key: 'runtimeModeHotkeyX', labelKey: 'hml-quick-mode-label-x' },
+	{ key: 'runtimeModeHotkeyO', labelKey: 'hml-quick-mode-label-o' },
+	{ key: 'runtimeModeHotkeySquare', labelKey: 'hml-quick-mode-label-square' },
+	{ key: 'runtimeModeHotkeyTriangle', labelKey: 'hml-quick-mode-label-triangle' },
+];
 
 export default function ModeSettings() {
 	const { t } = useTranslation();
@@ -83,7 +95,15 @@ export default function ModeSettings() {
 		const { name, value } = e.target;
 		setValues((prev) => ({
 			...prev,
-			[name]: parseInt(value),
+			[name]: parseInt(value, 10),
+		}));
+	};
+
+	const handleQuickModeHotkeyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+		const { name, value } = e.target;
+		setValues((prev) => ({
+			...prev,
+			[name]: parseInt(value, 10),
 		}));
 	};
 
@@ -93,7 +113,7 @@ export default function ModeSettings() {
 		label: string,
 		name: string,
 		value: number | undefined,
-		hasError?: boolean,
+		hasError: boolean | undefined,
 		handleChange: (e: React.ChangeEvent<HTMLSelectElement>) => void,
 	) => {
 		if (!inputModeConfig || !inputModeConfig.authentication) {
@@ -363,7 +383,9 @@ export default function ModeSettings() {
 		}
 	};
 
-	const currentValues = { ...values, inputMode };
+	const currentValues: ModeValues = { ...values, inputMode };
+	const getQuickModeValue = (value: number | undefined) =>
+		translatedInputModes.some((mode) => mode.value === value) ? value : -1;
 
 	return (
 		<div>
@@ -416,6 +438,58 @@ export default function ModeSettings() {
 				</Row>
 			</Card.Body>
 		</Card>
+			<Card className="mt-3">
+				<Card.Header>{t('SettingsPage:hml-quick-mode-title')}</Card.Header>
+				<Card.Body>
+					<Row className="mb-2">
+						<Col sm={12}>
+							<div>{t('SettingsPage:hml-quick-mode-line-firmware')}</div>
+							<div>{t('SettingsPage:hml-quick-mode-line-webconfig')}</div>
+							<div>{t('SettingsPage:hml-quick-mode-line-inputmode')}</div>
+						</Col>
+					</Row>
+					<Row className="mb-3">
+						{QUICK_MODE_SWITCH_FIELDS.map((field) => (
+							<Col sm={6} key={field.key} className="mb-3">
+								<Form.Label>{t(`SettingsPage:${field.labelKey}`)}</Form.Label>
+								<Form.Select
+									name={field.key}
+									className="form-select-sm"
+									value={getQuickModeValue(currentValues[field.key])}
+									onChange={handleQuickModeHotkeyChange}
+								>
+									<option value={-1}>
+										{t('SettingsPage:hml-quick-mode-disabled')}
+									</option>
+									{translatedInputModes.map((mode, i) => (
+										<option key={`hml-quick-${field.key}-${i}`} value={mode.value}>
+											{mode.label}
+										</option>
+									))}
+								</Form.Select>
+							</Col>
+						))}
+					</Row>
+					<Row className="mb-3">
+						<Col sm={4}>
+							<Button variant="primary" onClick={handleSave}>
+								{t('Common:button-save-label')}
+							</Button>
+							{saveMessage && (
+								<span
+									className={`ms-3 ${
+										saveMessage === t('SettingsPage:hml-save-success')
+											? 'text-success'
+											: 'text-danger'
+									}`}
+								>
+									{saveMessage}
+								</span>
+							)}
+						</Col>
+					</Row>
+				</Card.Body>
+			</Card>
 		</div>
 	);
 }

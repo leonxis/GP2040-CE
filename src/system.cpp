@@ -15,6 +15,11 @@ extern char __bss_end__;
 extern char __StackLimit;
 extern char __StackTop;
 
+static constexpr uint8_t BOOT_MODE_SCRATCH_INDEX = 5;
+static constexpr uint8_t PENDING_INPUT_MODE_SCRATCH_INDEX = 6;
+static constexpr uint8_t PENDING_INPUT_MODE_MAGIC_SCRATCH_INDEX = 7;
+static constexpr uint32_t PENDING_INPUT_MODE_MAGIC = 0x494D4F44; // "IMOD"
+
 uint32_t System::getTotalFlash() {
 #if defined(PICO_FLASH_SIZE_BYTES)
     return PICO_FLASH_SIZE_BYTES;
@@ -66,7 +71,7 @@ void System::reboot(BootMode bootMode) {
     // We do not want it to be talking to devices (e.g. OLED display) while we reboot
 	multicore_lockout_start_timeout_us(0xfffffffffffffff);
 
-	watchdog_hw->scratch[5] = static_cast<uint32_t>(bootMode);
+	watchdog_hw->scratch[BOOT_MODE_SCRATCH_INDEX] = static_cast<uint32_t>(bootMode);
 
     // This is based on MicroPythons machine.reset()
 	watchdog_reboot(0, 0, 0);
@@ -81,14 +86,34 @@ System::BootMode System::takeBootMode() {
         return BootMode::DEFAULT;
     }
 
-    BootMode bootMode = static_cast<BootMode>(watchdog_hw->scratch[5]);
+    BootMode bootMode = static_cast<BootMode>(watchdog_hw->scratch[BOOT_MODE_SCRATCH_INDEX]);
     if (bootMode != BootMode::GAMEPAD && bootMode != BootMode::WEBCONFIG && bootMode != BootMode::USB) {
         bootMode = BootMode::DEFAULT;
     }
 
     // Reset the scratch register
     // Subsequent reboots should revert to BootMode::DEFAULT
-    watchdog_hw->scratch[5] = static_cast<uint32_t>(BootMode::DEFAULT);
+    watchdog_hw->scratch[BOOT_MODE_SCRATCH_INDEX] = static_cast<uint32_t>(BootMode::DEFAULT);
 
     return bootMode;
+}
+
+void System::setPendingInputMode(int32_t inputMode) {
+    watchdog_hw->scratch[PENDING_INPUT_MODE_SCRATCH_INDEX] = static_cast<uint32_t>(inputMode);
+    watchdog_hw->scratch[PENDING_INPUT_MODE_MAGIC_SCRATCH_INDEX] = PENDING_INPUT_MODE_MAGIC;
+}
+
+int32_t System::takePendingInputMode() {
+    if (!watchdog_caused_reboot()) {
+        return -1;
+    }
+
+    int32_t inputMode = -1;
+    if (watchdog_hw->scratch[PENDING_INPUT_MODE_MAGIC_SCRATCH_INDEX] == PENDING_INPUT_MODE_MAGIC) {
+        inputMode = static_cast<int32_t>(watchdog_hw->scratch[PENDING_INPUT_MODE_SCRATCH_INDEX]);
+    }
+
+    watchdog_hw->scratch[PENDING_INPUT_MODE_SCRATCH_INDEX] = 0;
+    watchdog_hw->scratch[PENDING_INPUT_MODE_MAGIC_SCRATCH_INDEX] = 0;
+    return inputMode;
 }

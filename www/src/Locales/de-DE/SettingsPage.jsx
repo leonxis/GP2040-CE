@@ -11,7 +11,6 @@ export default {
 		keyboard: 'Tastatur',
 		ps4: 'PS4',
 	},
-	'boot-input-mode-label': 'Eingabemodi beim Start',
 	'ps4-mode-options': {
 		controller: 'Controller',
 		arcadestick: 'Arcade Stick',
@@ -83,16 +82,6 @@ export default {
 		'right-stick-press-preset-3': 'Right stick press preset 3',
 		'right-stick-press-preset-clear': 'Clear right stick press preset',
 	},
-	'forced-setup-mode-label': 'Erzwungener Einrichtungsmodus',
-	'forced-setup-mode-options': {
-		off: 'Aus',
-		'disable-input-mode': 'Inputmodus Deaktivieren',
-		'disable-web-config': 'Web Konfig Deaktivieren',
-		'disable-both': 'Beides Deaktivieren',
-	},
-	'forced-setup-mode-modal-title': 'Erzwungener Einrichtungsmodus Warnung',
-	'forced-setup-mode-modal-body':
-		'Wenn Sie nach dem Speichern in den Controller-Modus neu starten, haben Sie keinen Zugriff mehr auf den Web-Konfigurator. Bitte geben Sie unten "<strong>{{warningCheckText}}</strong>" ein, um die Schaltfläche "Speichern" zu entsperren, wenn Sie dies vollständig verstehen und beabsichtigen. Durch Klicken auf "Abbrechen" wird diese Einstellung rückgängig gemacht und muss dann gespeichert werden.',
 	'4-way-joystick-mode-label': '4-Wege-Joystick-Modus',
 	'lock-hotkeys-label': 'Hotkeys sperren',
 	'keyboard-mapping-header-text': 'Tastatur Zuweisung',

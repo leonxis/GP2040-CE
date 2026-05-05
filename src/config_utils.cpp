@@ -84,38 +84,23 @@
 #ifndef DEFAULT_INPUT_MODE
     #define DEFAULT_INPUT_MODE INPUT_MODE_XINPUT
 #endif
-#ifndef DEFAULT_INPUT_MODE_B1
-    #define DEFAULT_INPUT_MODE_B1 INPUT_MODE_SWITCH
+#ifndef DEFAULT_RUNTIME_MODE_HOTKEY_X
+    #define DEFAULT_RUNTIME_MODE_HOTKEY_X -1
 #endif
-#ifndef DEFAULT_INPUT_MODE_B2
-    #define DEFAULT_INPUT_MODE_B2 INPUT_MODE_XINPUT
+#ifndef DEFAULT_RUNTIME_MODE_HOTKEY_O
+    #define DEFAULT_RUNTIME_MODE_HOTKEY_O -1
 #endif
-#ifndef DEFAULT_INPUT_MODE_B3
-    #define DEFAULT_INPUT_MODE_B3 INPUT_MODE_PS3
+#ifndef DEFAULT_RUNTIME_MODE_HOTKEY_SQUARE
+    #define DEFAULT_RUNTIME_MODE_HOTKEY_SQUARE -1
 #endif
-#ifndef DEFAULT_INPUT_MODE_B4
-    #define DEFAULT_INPUT_MODE_B4 INPUT_MODE_PS4
-#endif
-#ifndef DEFAULT_INPUT_MODE_L1
-    #define DEFAULT_INPUT_MODE_L1 -1
-#endif
-#ifndef DEFAULT_INPUT_MODE_L2
-    #define DEFAULT_INPUT_MODE_L2 -1
-#endif
-#ifndef DEFAULT_INPUT_MODE_R1
-    #define DEFAULT_INPUT_MODE_R1 -1
-#endif
-#ifndef DEFAULT_INPUT_MODE_R2
-    #define DEFAULT_INPUT_MODE_R2 INPUT_MODE_KEYBOARD
+#ifndef DEFAULT_RUNTIME_MODE_HOTKEY_TRIANGLE
+    #define DEFAULT_RUNTIME_MODE_HOTKEY_TRIANGLE -1
 #endif
 #ifndef DEFAULT_DPAD_MODE
     #define DEFAULT_DPAD_MODE DPAD_MODE_DIGITAL
 #endif
 #ifndef DEFAULT_SOCD_MODE
     #define DEFAULT_SOCD_MODE SOCD_MODE_NEUTRAL
-#endif
-#ifndef DEFAULT_FORCED_SETUP_MODE
-    #define DEFAULT_FORCED_SETUP_MODE FORCED_SETUP_MODE_OFF
 #endif
 #ifndef DEFAULT_LOCK_HOTKEYS
     #define DEFAULT_LOCK_HOTKEYS false
@@ -339,14 +324,10 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.gamepadOptions, profileNumber, 1);
     INIT_UNSET_PROPERTY(config.gamepadOptions, ps4ControllerType, DEFAULT_PS4CONTROLLER_TYPE);
     INIT_UNSET_PROPERTY(config.gamepadOptions, debounceDelay, DEFAULT_DEBOUNCE_DELAY);
-    INIT_UNSET_PROPERTY(config.gamepadOptions, inputModeB1, DEFAULT_INPUT_MODE_B1);
-    INIT_UNSET_PROPERTY(config.gamepadOptions, inputModeB2, DEFAULT_INPUT_MODE_B2);
-    INIT_UNSET_PROPERTY(config.gamepadOptions, inputModeB3, DEFAULT_INPUT_MODE_B3);
-    INIT_UNSET_PROPERTY(config.gamepadOptions, inputModeB4, DEFAULT_INPUT_MODE_B4);
-    INIT_UNSET_PROPERTY(config.gamepadOptions, inputModeL1, DEFAULT_INPUT_MODE_L1);
-    INIT_UNSET_PROPERTY(config.gamepadOptions, inputModeL2, DEFAULT_INPUT_MODE_L2);
-    INIT_UNSET_PROPERTY(config.gamepadOptions, inputModeR1, DEFAULT_INPUT_MODE_R1);
-    INIT_UNSET_PROPERTY(config.gamepadOptions, inputModeR2, DEFAULT_INPUT_MODE_R2);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, runtimeModeHotkeyX, DEFAULT_RUNTIME_MODE_HOTKEY_X);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, runtimeModeHotkeyO, DEFAULT_RUNTIME_MODE_HOTKEY_O);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, runtimeModeHotkeySquare, DEFAULT_RUNTIME_MODE_HOTKEY_SQUARE);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, runtimeModeHotkeyTriangle, DEFAULT_RUNTIME_MODE_HOTKEY_TRIANGLE);
     INIT_UNSET_PROPERTY(config.gamepadOptions, ps4AuthType, DEFAULT_PS4AUTHENTICATION_TYPE);
     INIT_UNSET_PROPERTY(config.gamepadOptions, ps5AuthType, DEFAULT_PS5AUTHENTICATION_TYPE);
     INIT_UNSET_PROPERTY(config.gamepadOptions, xinputAuthType, DEFAULT_XINPUTAUTHENTICATION_TYPE);
@@ -428,9 +409,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(hotkeyOptions.hotkey16, buttonsMask, HOTKEY_16_BUTTONS_MASK);
     INIT_UNSET_PROPERTY(hotkeyOptions.hotkey16, dpadMask, HOTKEY_16_DPAD_MASK);
     INIT_UNSET_PROPERTY(hotkeyOptions.hotkey16, action, GamepadHotkey(HOTKEY_16_ACTION));
-
-    // forcedSetupMode
-    INIT_UNSET_PROPERTY(config.forcedSetupOptions, mode, DEFAULT_FORCED_SETUP_MODE);
 
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.keyboardMapping, keyDpadUp, KEY_DPAD_UP);
@@ -1837,16 +1815,6 @@ void migrateAuthenticationMethods(Config& config) {
         // If current mode is PS4, update to PS5
         if ( gamepadOptions.inputMode == INPUT_MODE_PS4 ) {
             gamepadOptions.inputMode = INPUT_MODE_PS5;
-        }
-        // Also update our boot mode from PS4 to PS5 if set
-        int32_t * bootModes[8] = { &config.gamepadOptions.inputModeB1, &config.gamepadOptions.inputModeB2,
-            &config.gamepadOptions.inputModeB3, &config.gamepadOptions.inputModeB4,
-            &config.gamepadOptions.inputModeL1, &config.gamepadOptions.inputModeL2,
-            &config.gamepadOptions.inputModeR1, &config.gamepadOptions.inputModeR2};
-        for(int32_t i = 0; i < 8; i++ ) {
-            if ( *bootModes[i] == INPUT_MODE_PS4 ) {
-                *bootModes[i] = INPUT_MODE_PS5; // modify ps4 -> ps5
-            }
         }
         psPassthroughOptions.enabled = false; // disable PS-Passthrough add-on permanently
     }
