@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Row, Col, Nav } from 'react-bootstrap';
 import ModeSettings from './HMLSettings/components/ModeSettings';
 import BackButtonMapping from './HMLSettings/components/BackButtonMapping';
@@ -11,9 +12,24 @@ import BackupReset from './HMLSettings/components/BackupReset';
 import MacroSettings from './HMLSettings/components/MacroSettings';
 import { TABS } from './HMLSettings/constants/hmlInputModes';
 
+const VALID_PANEL_KEYS = new Set(
+	TABS.filter((tab) => !('navigate' in tab)).map((tab) => tab.key),
+);
+
+function normalizeActiveKey(key) {
+	return typeof key === 'string' && VALID_PANEL_KEYS.has(key) ? key : 'mode';
+}
+
 export default function HMLSettingsPage() {
 	const { t } = useTranslation('SettingsPage');
-	const [activeKey, setActiveKey] = useState('mode');
+	const location = useLocation();
+	const [activeKey, setActiveKey] = useState(() =>
+		normalizeActiveKey(location.state?.activeKey),
+	);
+
+	useEffect(() => {
+		setActiveKey(normalizeActiveKey(location.state?.activeKey));
+	}, [location.key]);
 
 	const renderContent = () => {
 		switch (activeKey) {
@@ -52,7 +68,17 @@ export default function HMLSettingsPage() {
 					>
 						{TABS.map((tab) => (
 							<Nav.Item key={tab.key}>
-								<Nav.Link eventKey={tab.key}>{t(tab.labelKey)}</Nav.Link>
+								{'navigate' in tab ? (
+									<Nav.Link
+										as={NavLink}
+										to={tab.navigate.to}
+										state={tab.navigate.state}
+									>
+										{t(tab.labelKey)}
+									</Nav.Link>
+								) : (
+									<Nav.Link eventKey={tab.key}>{t(tab.labelKey)}</Nav.Link>
+								)}
 							</Nav.Item>
 						))}
 					</Nav>

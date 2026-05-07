@@ -1,7 +1,7 @@
 export default {
 	'auth-settings-label': '认证设置',
 	'no-mode-settings-text': '{{mode}} 没有输入模式设置。',
-	'settings-header-text': '模式设置',
+	'settings-header-text': '更多模式',
 	'gamepad-settings-header-text': '手柄设置',
 	'input-mode-label': '输入模式',
 	'current-input-mode-label': '当前输入模式',
@@ -77,6 +77,7 @@ export default {
 	'p5general-mode-text': '<span>信息：</span>PS5General 模式需要 USB 主机连接和 <span>P5General</span> 才能正确验证。',
 	'xinput-mode-text': '<span>信息:</span> XInput 模式可在零售版 Xbox 360 主机上无需适配器运行。仅当您希望使用外部适配器进行认证时才选择 USB。',
 	'hotkey-settings-label': '热键设置',
+	'return-to-gns-label': '返回GNS',
 	'hotkey-settings-sub-header': '<strong>Fn</strong> 滑块在<link_pinmap>引脚映射</link_pinmap>页面提供了一个可映射的功能按钮。选择 <strong>Fn</strong> 滑块选项后，必须按住功能按钮以及选定的热键设置。<br /> 此外，从下拉菜单中选择 <strong>无</strong> 可取消分配任何按钮。',
 	'hotkey-settings-warning': '功能按钮未映射。Fn 滑块将被禁用。',
 	'hotkey-actions': {
@@ -174,6 +175,7 @@ export default {
 	'hml-tab-calibration': '摇杆设置',
 	'hml-tab-motion': '体感设置',
 	'hml-tab-macros': '宏键功能',
+	'hml-tab-hotkeys': '热键功能',
 	'hml-tab-function-buttons': '其他功能',
 	'hml-tab-hardware': '硬件配置',
 	'hml-tab-backup-reset': '备份重置',

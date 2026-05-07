@@ -65,14 +65,27 @@ export const PS4_ID_MODES = [
 	{ labelKey: 'ps4-id-mode-options.emulation', value: 1 },
 ];
 
-export const TABS = [
+export type HmlSettingsTabItem =
+	| { key: string; labelKey: string }
+	| {
+			key: string;
+			labelKey: string;
+			navigate: { to: string; state?: { activeTab?: string } };
+		};
+
+export const TABS: readonly HmlSettingsTabItem[] = [
 	{ key: 'mode', labelKey: 'hml-tab-mode' },
 	{ key: 'back-buttons', labelKey: 'hml-tab-back-buttons' },
 	{ key: 'calibration', labelKey: 'hml-tab-calibration' },
 	{ key: 'motion', labelKey: 'hml-tab-motion' },
 	{ key: 'macros', labelKey: 'hml-tab-macros' },
+	{
+		key: 'hotkeys',
+		labelKey: 'hml-tab-hotkeys',
+		navigate: { to: '/settings', state: { activeTab: 'hotkey' } },
+	},
 	{ key: 'function-buttons', labelKey: 'hml-tab-function-buttons' },
 	{ key: 'hardware', labelKey: 'hml-tab-hardware' },
 	{ key: 'backup-reset', labelKey: 'hml-tab-backup-reset' },
-] as const;
+];
 

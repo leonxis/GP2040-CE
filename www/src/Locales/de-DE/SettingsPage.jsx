@@ -34,6 +34,7 @@ export default {
 	'profile-label': 'Profil',
 	'debounce-delay-label': 'Entprellverzögerung in Millisekunden',
 	'hotkey-settings-label': 'Hotkey Einstellungen',
+	'return-to-gns-label': 'Zurück zu GNS',
 	'hotkey-settings-sub-header':
 		'Der Schieberegler <strong>Fn</strong> bietet eine zuweisbare Funktionstaste auf der <link_pinmap>Pin-Zuweisungen</link_pinmap>-Seite. Durch Auswahl der <strong>Fn</strong>-Schieberegleroption muss die Funktionstaste zusammen mit den ausgewählten Hotkey-Einstellungen gehalten werden.<br />Wählen Sie außerdem <strong>None</strong> aus dem Dropdown-Menü, um einer Taste keine Zuordnung zuzuweisen.',
 	'hotkey-settings-warning':
@@ -93,6 +94,7 @@ export default {
 	'hml-tab-calibration': 'Calibration',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
+	'hml-tab-hotkeys': 'Hotkey features',
 	'hml-tab-function-buttons': 'Other features',
 	'hml-tab-hardware': 'Hardware',
 	'hml-tab-backup-reset': 'Backup & reset',

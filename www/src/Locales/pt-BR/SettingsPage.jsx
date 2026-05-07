@@ -33,6 +33,7 @@ export default {
 	},
 	'profile-label': 'Perfil',
 	'hotkey-settings-label': 'Configurações de Teclas de Atalho',
+	'return-to-gns-label': 'Voltar ao GNS',
 	'hotkey-settings-sub-header':
 		'O controle deslizante <strong>Fn</strong> fornece um botão de função mapeável na página de <link_pinmap>Mapeamento de Pinos</link_pinmap>. Ao selecionar a opção de controle deslizante <strong>Fn</strong>, o botão de função deve ser mantido junto com as configurações de teclas de atalho selecionadas.<br />Além disso, selecione <strong>Nenhum</strong> no menu suspenso para desatribuir qualquer botão.',
 	'hotkey-settings-warning':
@@ -92,6 +93,7 @@ export default {
 	'hml-tab-calibration': 'Calibration',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
+	'hml-tab-hotkeys': 'Hotkey features',
 	'hml-tab-function-buttons': 'Other features',
 	'hml-tab-hardware': 'Hardware',
 	'hml-tab-backup-reset': 'Backup & reset',

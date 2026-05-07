@@ -83,6 +83,7 @@ export default {
 	'xinput-mode-text':
 		'<span>정보:</span> Xinput은 동글 없이 Xbox360에서 사용가능합니다. 외부 동글을 이용해 인증하려는 경우에만 USB인증을 선택해주세요.',
 	'hotkey-settings-label': '핫키 설정',
+	'return-to-gns-label': 'GNS로 돌아가기',
 	'hotkey-settings-sub-header':
 		'<strong>Fn</strong> 슬라이더는 <link_pinmap>핀 매핑</link_pinmap> 페이지에서 설정 가능한 펑션 버튼(FN)을 활성화합니다. <strong>Fn</strong> 버튼을 활성화 하면 선택한 핫키 설정과 펑션 버튼을 함께 눌러야 합니다.<br />버튼 할당을 해제하려면 드롭다운 메뉴에서 <strong>없음</strong>을 선택하십시오.',
 	'hotkey-settings-warning':
@@ -174,6 +175,7 @@ export default {
 	'hml-tab-calibration': 'Calibration',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
+	'hml-tab-hotkeys': 'Hotkey features',
 	'hml-tab-function-buttons': 'Other features',
 	'hml-tab-hardware': 'Hardware',
 	'hml-tab-backup-reset': 'Backup & reset',

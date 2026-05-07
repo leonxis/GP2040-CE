@@ -82,6 +82,7 @@ export default {
 	'xinput-mode-text':
 		'<span>INFO:</span> Xinput funcionará en una PC sin autenticación. Si desea usarlo en una Xbox 360, elija autenticación USB y conecte un dongle apropiado.',
 	'hotkey-settings-label': 'Configuración de Teclas Rápidas',
+	'return-to-gns-label': 'Volver a GNS',
 	'hotkey-settings-sub-header':
 		'El control deslizante <strong>Fn</strong> proporciona un botón de Función mapeable en la página <link_pinmap>Mapeo de Pines</link_pinmap>. Al seleccionar la opción de control deslizante <strong>Fn</strong>, el botón de Función debe mantenerse presionado junto con la configuración de tecla rápida seleccionada. <br /> Además, seleccione <strong>Ninguno</strong> del menú desplegable para desasignar cualquier botón.',
 	'hotkey-settings-warning':
@@ -167,6 +168,7 @@ export default {
 	'hml-tab-calibration': 'Calibration',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
+	'hml-tab-hotkeys': 'Hotkey features',
 	'hml-tab-function-buttons': 'Other features',
 	'hml-tab-hardware': 'Hardware',
 	'hml-tab-backup-reset': 'Backup & reset',

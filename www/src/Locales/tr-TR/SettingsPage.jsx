@@ -83,6 +83,7 @@ export default {
 	'xinput-mode-text':
 		'<span>BİLGİ:</span> XInput modu, dongle olmayan perakende Xbox 360 konsolunda çalışır. Kimlik doğrulama için harici bir dongle kullanmak istiyorsanız yalnızca USByi seçin.',
 	'hotkey-settings-label': 'Kısayol Tuşu Ayarları',
+	'return-to-gns-label': "GNS'e dön",
 	'hotkey-settings-sub-header':
 		'<strong>Fn</strong> kaydırıcısı, <link_pinmap>Pin Eşleme</link_pinmap> sayfasında eşlenebilir bir İşlev düğmesi sağlar. <strong>Fn</strong> kaydırıcısı seçeneği belirlendiğinde, İşlev düğmesi seçili kısayol tuşu ayarlarıyla birlikte basılı tutulmalıdır. <br /> Ayrıca, herhangi bir düğmenin atamasını kaldırmak için açılır menüden <strong>Hiçbiri</strong>ni seçin.',
 	'hotkey-settings-warning':
@@ -174,6 +175,7 @@ export default {
 	'hml-tab-calibration': 'Calibration',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
+	'hml-tab-hotkeys': 'Hotkey features',
 	'hml-tab-function-buttons': 'Other features',
 	'hml-tab-hardware': 'Hardware',
 	'hml-tab-backup-reset': 'Backup & reset',

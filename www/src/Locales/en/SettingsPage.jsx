@@ -88,6 +88,7 @@ export default {
 	'xinput-mode-text':
 		'<span>INFO:</span> XInput mode will work on a retail Xbox 360 console without a dongle. Only select USB if you would like to use an external dongle for authentication.',
 	'hotkey-settings-label': 'Hotkey Settings',
+	'return-to-gns-label': 'Return to GNS',
 	'hotkey-settings-sub-header':
 		'The <strong>Fn</strong> slider provides a mappable Function button in the <link_pinmap>Pin Mapping</link_pinmap> page. By selecting the <strong>Fn</strong> slider option, the Function button must be held along with the selected hotkey settings. <br /> Additionally, select <strong>None</strong> from the dropdown to unassign any button.',
 	'hotkey-settings-warning':
@@ -190,6 +191,7 @@ export default {
 	'hml-tab-calibration': 'Calibration',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
+	'hml-tab-hotkeys': 'Hotkey features',
 	'hml-tab-function-buttons': 'Other features',
 	'hml-tab-hardware': 'Hardware',
 	'hml-tab-backup-reset': 'Backup & reset',

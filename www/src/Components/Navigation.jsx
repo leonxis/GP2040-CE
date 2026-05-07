@@ -66,9 +66,6 @@ const Navigation = () => {
 					<Nav.Link as={NavLink} to="/hml-settings" eventKey={eventKey++}>
 						{t('Navigation:hml-settings-label')}
 					</Nav.Link>
-					<Nav.Link as={NavLink} to="/settings" eventKey={eventKey++}>
-						{t('Navigation:settings-label')}
-					</Nav.Link>
 					<NavDropdown title={t('Navigation:config-label')}>
 						<NavDropdown.Item
 							as={NavLink}

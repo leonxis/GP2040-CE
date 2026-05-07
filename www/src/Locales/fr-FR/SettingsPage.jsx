@@ -83,6 +83,7 @@ export default {
 	'xinput-mode-text':
 		'<span>INFO:</span> Le mode XInput fonctionnera sur une console Xbox 360 du commerce sans dongle. Sélectionnez USB uniquement si vous souhaitez utiliser un dongle externe pour l\’authentification.',
 	'hotkey-settings-label': 'Paramètres des raccourcis',
+	'return-to-gns-label': 'Retour au GNS',
 	'hotkey-settings-sub-header':
 		'Le curseur <strong>Fn</strong> fournit un bouton Fonction mappable dans la page <link_pinmap>Mappage des broches</link_pinmap>. En sélectionnant l\'option curseur <strong>Fn</strong>, le bouton Fonction doit être maintenu enfoncé tout en utilisant le raccourci sélectionné. <br /> De plus, sélectionnez <strong>Aucun</strong> dans le menu déroulant pour désassocier un bouton.',
 	'hotkey-settings-warning':
@@ -174,6 +175,7 @@ export default {
 	'hml-tab-calibration': 'Calibration',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
+	'hml-tab-hotkeys': 'Hotkey features',
 	'hml-tab-function-buttons': 'Other features',
 	'hml-tab-hardware': 'Hardware',
 	'hml-tab-backup-reset': 'Backup & reset',

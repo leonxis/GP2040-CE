@@ -100,7 +100,7 @@ const SHA256 = (ascii) => {
 								(rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) + // s0
 								w[i - 7] +
 								(rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) | // s1
-						  0);
+								0);
 			// This is only used once, so *could* be moved below, but it only saves 4 bytes and makes things unreadble
 			const temp2 =
 				(rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) + // S0
@@ -243,11 +243,6 @@ const SOCD_MODES = [
 	{ labelKey: 'socd-cleaning-mode-options.last-win', value: 2 },
 	{ labelKey: 'socd-cleaning-mode-options.first-win', value: 3 },
 	{ labelKey: 'socd-cleaning-mode-options.off', value: 4 },
-];
-
-const PS4_MODES = [
-	{ labelKey: 'ps4-mode-options.controller', value: 0 },
-	{ labelKey: 'ps4-mode-options.arcadestick', value: 7 },
 ];
 
 const PS4_ID_MODES = [
@@ -494,7 +489,7 @@ const FormContext = ({ setButtonLabels, setKeyMappings }) => {
 export default function SettingsPage() {
 	const location = useLocation();
 	const defaultTab = location.state?.activeTab || 'inputmode';
-	
+
 	const {
 		buttonLabels,
 		setButtonLabels,
@@ -1422,6 +1417,20 @@ export default function SettingsPage() {
 									>
 										<Nav variant="pills" className="flex-column">
 											<Nav.Item>
+												<Nav.Link
+													as={NavLink}
+													to="/hml-settings"
+													state={{ activeKey: 'mode' }}
+												>
+													{t('SettingsPage:return-to-gns-label')}
+												</Nav.Link>
+											</Nav.Item>
+											<Nav.Item>
+												<Nav.Link eventKey="hotkey">
+													{t('SettingsPage:hotkey-settings-label')}
+												</Nav.Link>
+											</Nav.Item>
+											<Nav.Item>
 												<Nav.Link eventKey="inputmode">
 													{t('SettingsPage:settings-header-text')}
 												</Nav.Link>
@@ -1429,11 +1438,6 @@ export default function SettingsPage() {
 											<Nav.Item>
 												<Nav.Link eventKey="gamepad">
 													{t('SettingsPage:gamepad-settings-header-text')}
-												</Nav.Link>
-											</Nav.Item>
-											<Nav.Item>
-												<Nav.Link eventKey="hotkey">
-													{t('SettingsPage:hotkey-settings-label')}
 												</Nav.Link>
 											</Nav.Item>
 										</Nav>

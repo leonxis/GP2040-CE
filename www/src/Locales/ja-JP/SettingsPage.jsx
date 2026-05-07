@@ -77,6 +77,7 @@ export default {
 	'xinput-mode-text':
 		'<span>補足:</span> XInput モードはドングル無しでXbox 360で利用可能です。外部の認証ドングルを利用したい場合のみUSBを選択してください。',
 	'hotkey-settings-label': 'ホットキー設定',
+	'return-to-gns-label': 'GNSに戻る',
 	'hotkey-settings-sub-header':
 		'<strong>Fn</strong>スライダーは<link_pinmap>端子割り当て設定</link_pinmap>ページで割り当て可能なファンクションボタン機能を有効化します。<strong>Fn</strong>スライダーを有効化することで、選択されたホットキーと同時にファンクションボタンを押す様に設定できます。<br />また、<strong>None</strong>を選択することでボタンの割り当てを解除できます。',
 	'hotkey-settings-warning':
@@ -168,6 +169,7 @@ export default {
 	'hml-tab-calibration': 'キャリブレーション',
 	'hml-tab-motion': 'モーション',
 	'hml-tab-macros': 'マクロ',
+	'hml-tab-hotkeys': 'ホットキー機能',
 	'hml-tab-function-buttons': 'その他の機能',
 	'hml-tab-hardware': 'ハードウェア',
 	'hml-tab-backup-reset': 'バックアップとリセット',
