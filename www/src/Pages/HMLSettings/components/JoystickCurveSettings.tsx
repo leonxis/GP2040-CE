@@ -19,6 +19,8 @@ const CIRCULARITY_DATA_SIZE = 48;
 const CURVE_PRESET_COUNT = 2;
 /** Intermediate control points between inner dead zone and (1,1); not counting endpoints appended in firmware. */
 const CURVE_POINT_COUNT = 6;
+/** Matches `CurvePreset.name` max_length in config.proto (bytes; ASCII subset ⇒ same char limit). */
+const CURVE_PRESET_NAME_MAX_LEN = 64;
 
 const PRESET_ROW_LABELS = Array.from({ length: CURVE_POINT_COUNT }, (_, i) => `P${i + 1}`);
 
@@ -35,6 +37,89 @@ function sortCurvePointsByX(pts: CurvePoint[]): CurvePoint[] {
 
 function emptyPresetPointSlots(): CurvePointInput[] {
 	return Array.from({ length: CURVE_POINT_COUNT }, () => ({ x: '0', y: '0' }));
+}
+
+/** Preset display/storage name: English ASCII subset only; collapse spaces; max 64 chars (device limit). */
+function sanitizePresetNameForPreset(raw: unknown): string {
+	const filtered = String(raw ?? '').replace(/[^A-Za-z0-9 ]/g, '');
+	const collapsed = filtered.replace(/\s+/g, ' ').trim();
+	return collapsed.slice(0, CURVE_PRESET_NAME_MAX_LEN);
+}
+
+function enforceImportedPresetPoints(points: CurvePointInput[]): void {
+	const epsilon = 0.01;
+	let prevX = 0;
+	let prevY = 0;
+	for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
+		const inputValueX = parseFloat(points[pointIndex].x) || 0;
+		const inputValueY = parseFloat(points[pointIndex].y) || 0;
+		if (inputValueX === 0 && inputValueY === 0) {
+			continue;
+		}
+		let correctedX = inputValueX;
+		let correctedY = inputValueY;
+		if (prevX > 0 && correctedX < prevX) {
+			correctedX = Math.min(1, prevX + epsilon);
+		}
+		if (prevY > 0 && correctedY < prevY) {
+			correctedY = Math.min(1, prevY + epsilon);
+		}
+		correctedX = Math.max(0, Math.min(1, correctedX));
+		correctedY = Math.max(0, Math.min(1, correctedY));
+		points[pointIndex] = {
+			x: parseFloat(correctedX.toFixed(4)).toString(),
+			y: parseFloat(correctedY.toFixed(4)).toString(),
+		};
+		prevX = correctedX;
+		prevY = correctedY;
+	}
+}
+
+/**
+ * Parse ControllerMeta / 「动感指尖」curve JSON. Returns null if invalid (caller shows unified alert).
+ */
+function parseCurvePresetImportJSON(text: string): { name: string; points: CurvePointInput[] } | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return null;
+	}
+	if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		return null;
+	}
+	const o = parsed as Record<string, unknown>;
+	if (!Object.prototype.hasOwnProperty.call(o, 'name') || !Object.prototype.hasOwnProperty.call(o, 'data')) {
+		return null;
+	}
+	if (o.name === undefined || o.name === null || typeof o.name !== 'string') {
+		return null;
+	}
+	if (o.data === undefined || o.data === null || !Array.isArray(o.data) || o.data.length !== 16) {
+		return null;
+	}
+	const nums = o.data.map((v) => Number(v));
+	if (!nums.every((n) => Number.isFinite(n))) {
+		return null;
+	}
+	const sanitizedName = sanitizePresetNameForPreset(o.name);
+	if (sanitizedName === '') {
+		return null;
+	}
+	const slice = nums.slice(2, 14);
+	const points: CurvePointInput[] = [];
+	for (let i = 0; i < CURVE_POINT_COUNT; i++) {
+		const xPct = slice[i * 2];
+		const yPct = slice[i * 2 + 1];
+		const xf = Math.max(0, Math.min(1, xPct / 100));
+		const yf = Math.max(0, Math.min(1, yPct / 100));
+		points.push({
+			x: parseFloat(xf.toFixed(4)).toString(),
+			y: parseFloat(yf.toFixed(4)).toString(),
+		});
+	}
+	enforceImportedPresetPoints(points);
+	return { name: sanitizedName, points };
 }
 
 /** Formik/firmware preset slot (profile 1..2). Always length CURVE_PRESET_COUNT so UI index matches API index. */
@@ -63,7 +148,7 @@ function joystickCurvePresetsSlotsForFormik(
 			}
 		}
 		out.push({
-			name: (currentPreset?.name ?? '').trim(),
+			name: sanitizePresetNameForPreset(currentPreset?.name ?? ''),
 			points: sortCurvePointsByX(currentPoints),
 			activationButtonMask: currentPreset?.activationButtonMask ?? 0,
 		});
@@ -1363,7 +1448,7 @@ const JoystickCurveSettings = ({
 		const loadPreset = (presetIndex: number) => {
 			if (presetIndex < presets.length) {
 				const preset = presets[presetIndex];
-				const name = preset.name || '';
+				const name = sanitizePresetNameForPreset(preset.name || '');
 				const points = preset.points || [];
 				const activationButtonMask = preset.activationButtonMask ?? 0;
 				
@@ -1390,9 +1475,9 @@ const JoystickCurveSettings = ({
 	// Handle preset name change
 	const handlePresetNameChange = (presetIndex: number, value: string) => {
 		const newPresets = [...presetInputs];
-		newPresets[presetIndex].name = value;
+		newPresets[presetIndex].name = sanitizePresetNameForPreset(value);
 		setPresetInputs(newPresets);
-		
+
 		setFieldValue('joystickCurvePresets', joystickCurvePresetsSlotsForFormik(newPresets));
 	};
 	
@@ -1487,6 +1572,47 @@ const JoystickCurveSettings = ({
 	// Helper function to save preset to formik
 	const savePresetToFormik = (presetInputsToSave: PresetInput[]) => {
 		setFieldValue('joystickCurvePresets', joystickCurvePresetsSlotsForFormik(presetInputsToSave));
+	};
+
+	const presetImportFileRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+	const showPresetImportFormatError = () => {
+		alert(t('CalibrationSettings:hml-preset-import-invalid-format'));
+	};
+
+	const handlePresetImportClick = (presetIndex: number) => {
+		presetImportFileRefs.current[presetIndex]?.click();
+	};
+
+	const handlePresetImportFileChange = (presetIndex: number, e: ChangeEvent<HTMLInputElement>) => {
+		const inputEl = e.target;
+		const file = inputEl.files?.[0];
+		inputEl.value = '';
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = () => {
+			const text = typeof reader.result === 'string' ? reader.result : '';
+			const parsed = parseCurvePresetImportJSON(text);
+			if (!parsed) {
+				showPresetImportFormatError();
+				return;
+			}
+			setPresetInputs((prev) => {
+				const newPresets = [...prev];
+				newPresets[presetIndex] = {
+					...newPresets[presetIndex],
+					name: parsed.name,
+					points: parsed.points,
+				};
+				setFieldValue('joystickCurvePresets', joystickCurvePresetsSlotsForFormik(newPresets));
+				return newPresets;
+			});
+		};
+		reader.onerror = () => {
+			showPresetImportFormatError();
+		};
+		reader.readAsText(file);
 	};
 
 	const handlePresetActivationSelectChange = (presetIndex: number, e: ChangeEvent<HTMLSelectElement>) => {
@@ -1740,11 +1866,12 @@ const JoystickCurveSettings = ({
 							borderRadius: '4px',
 						}}
 					>
-						{/* Row 1: name, apply left/right, import (placeholder) */}
+						{/* Row 1: name, apply left/right, import JSON */}
 						<div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
 							<Form.Control
 								type="text"
 								size="sm"
+								maxLength={CURVE_PRESET_NAME_MAX_LEN}
 								placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
 								value={presetInputs[presetIndex].name}
 								onChange={(e) => handlePresetNameChange(presetIndex, e.target.value)}
@@ -1766,11 +1893,21 @@ const JoystickCurveSettings = ({
 							>
 								{t('CalibrationSettings:hml-apply-right')}
 							</Button>
+							<input
+								ref={(el) => {
+									presetImportFileRefs.current[presetIndex] = el;
+								}}
+								type="file"
+								accept=".json,application/json"
+								style={{ display: 'none' }}
+								aria-hidden
+								onChange={(e) => handlePresetImportFileChange(presetIndex, e)}
+							/>
 							<Button
 								type="button"
 								variant="outline-secondary"
 								size="sm"
-								disabled
+								onClick={() => handlePresetImportClick(presetIndex)}
 								title={t('CalibrationSettings:hml-preset-import-settings')}
 								aria-label={t('CalibrationSettings:hml-preset-import-settings')}
 								style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}

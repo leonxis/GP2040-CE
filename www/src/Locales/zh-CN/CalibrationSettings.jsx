@@ -87,6 +87,7 @@ export default {
 	'hml-reset': '重置',
 	'hml-preset-name-placeholder': '预设名称',
 	'hml-preset-import-settings': '导入设置',
+	'hml-preset-import-invalid-format': '请用ControllerMeta导出曲线为动感指尖格式！',
 	'hml-apply-left': '应用到左摇杆',
 	'hml-apply-right': '应用到右摇杆',
 	'hml-right-stick-quick-switch': '右摇杆快速热切换键：',

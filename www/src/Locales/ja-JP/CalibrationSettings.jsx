@@ -89,6 +89,8 @@ export default {
 	'hml-reset': 'リセット',
 	'hml-preset-name-placeholder': 'プリセット名',
 	'hml-preset-import-settings': '設定をインポート',
+	'hml-preset-import-invalid-format':
+		'ControllerMetaでカーブを「动感指尖」形式でエクスポートしてください。',
 	'hml-apply-left': '左スティックに適用',
 	'hml-apply-right': '右スティックに適用',
 	'hml-right-stick-quick-switch': '右スティック高速ホット切替キー:',

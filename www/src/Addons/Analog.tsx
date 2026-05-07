@@ -145,7 +145,7 @@ export const analogScheme = {
 	joystickCurvePresets: yup
 		.array()
 		.of(yup.object().shape({
-			name: yup.string().label('Preset Name'),
+			name: yup.string().max(64).label('Preset Name'),
 			points: yup
 				.array()
 				.of(yup.object().shape({

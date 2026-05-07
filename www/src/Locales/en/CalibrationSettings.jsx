@@ -89,6 +89,8 @@ export default {
 	'hml-reset': 'Reset',
 	'hml-preset-name-placeholder': 'Preset name',
 	'hml-preset-import-settings': 'Import settings',
+	'hml-preset-import-invalid-format':
+		'Please export the curve from ControllerMeta in Donggan Zhijian format!',
 	'hml-apply-left': 'Apply to left stick',
 	'hml-apply-right': 'Apply to right stick',
 	'hml-right-stick-quick-switch': 'Right stick quick hot switch:',
