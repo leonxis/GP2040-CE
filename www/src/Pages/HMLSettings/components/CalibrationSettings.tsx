@@ -326,8 +326,6 @@ export default function CalibrationSettings() {
 
 					<JoystickCurveSettings
 						values={values}
-						errors={errors}
-						handleChange={handleChange}
 						setFieldValue={setFieldValue}
 						saveMessage={saveMessageCurve}
 						onSaveClick={() => {

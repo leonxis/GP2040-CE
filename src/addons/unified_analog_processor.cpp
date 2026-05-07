@@ -22,7 +22,7 @@
 
 namespace {
 static void convertCurvePoints(const CurvePoint* protobuf_points, int count, UnifiedAnalogCurvePoint* output) {
-    for (int i = 0; i < count && i < 3; i++) {
+    for (int i = 0; i < count && i < 6; i++) {
         output[i].x = protobuf_points[i].x;
         output[i].y = protobuf_points[i].y;
     }
@@ -120,7 +120,7 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     if (curveEnabled) {
         const int curveCount = isFirst ? options.joystick_curve_points_1_count : options.joystick_curve_points_2_count;
         if (curveCount > 0) {
-            UnifiedAnalogCurvePoint converted[3];
+            UnifiedAnalogCurvePoint converted[6];
             if (isFirst) {
                 convertCurvePoints(options.joystick_curve_points_1, curveCount, converted);
             } else {
@@ -167,7 +167,7 @@ void UnifiedAnalogProcessorAddon::process() {
         int stickNum = 1;
         bool foundPressed = false;
         int pressedPresetIdx = -1;
-        for (int presetIdx = 0; presetIdx < 4 && presetIdx < analogOptions.joystick_curve_presets_count; presetIdx++) {
+        for (int presetIdx = 0; presetIdx < analogOptions.joystick_curve_presets_count; presetIdx++) {
             const CurvePreset& preset = analogOptions.joystick_curve_presets[presetIdx];
             if (preset.activationButtonMask == 0) {
                 continue;
@@ -434,7 +434,7 @@ void UnifiedAnalogProcessorAddon::saveCurrentCurveData(int stickNum) {
     temp_curve_storage_[stickNum].saved_points_count = 0;
     if (sticks_[stickNum].curve_points_sorted_count > 2) {
         for (int i = 1; i < sticks_[stickNum].curve_points_sorted_count - 1; i++) {
-            if (temp_curve_storage_[stickNum].saved_points_count < 3) {
+            if (temp_curve_storage_[stickNum].saved_points_count < 6) {
                 temp_curve_storage_[stickNum].saved_points[temp_curve_storage_[stickNum].saved_points_count] = {
                     sticks_[stickNum].curve_points_sorted[i].x,
                     sticks_[stickNum].curve_points_sorted[i].y,
@@ -461,7 +461,7 @@ void UnifiedAnalogProcessorAddon::restoreCurveData(int stickNum) {
 }
 
 void UnifiedAnalogProcessorAddon::applyPresetCurve(int stickNum, int presetIndex) {
-    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= 4) return;
+    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= 2) return;
 
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     if (presetIndex >= analogOptions.joystick_curve_presets_count ||
@@ -471,8 +471,8 @@ void UnifiedAnalogProcessorAddon::applyPresetCurve(int stickNum, int presetIndex
 
     const CurvePreset& preset = analogOptions.joystick_curve_presets[presetIndex];
 
-    UnifiedAnalogCurvePoint converted[3];
-    for (int i = 0; i < preset.points_count && i < 3; i++) {
+    UnifiedAnalogCurvePoint converted[6];
+    for (int i = 0; i < preset.points_count && i < 6; i++) {
         converted[i].x = preset.points[i].x;
         converted[i].y = preset.points[i].y;
     }

@@ -50,20 +50,20 @@ private:
         struct {
             float x;
             float y;
-        } curve_points_sorted[5];
+        } curve_points_sorted[8];
         uint8_t curve_points_sorted_count;
         struct {
             float slope;
             float intercept;
             float x_start;
             float x_end;
-        } curve_segments[4];
+        } curve_segments[7];
         uint8_t curve_segments_count;
     };
 
     struct TempCurveStorage {
         bool is_saved;
-        UnifiedAnalogCurvePoint saved_points[3];
+        UnifiedAnalogCurvePoint saved_points[6];
         uint8_t saved_points_count;
     };
 

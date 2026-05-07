@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useFormikContext } from 'formik';
@@ -15,13 +15,35 @@ type CurvePointInput = { x: string; y: string };
 const DEFAULT_ADC_MAX = 4095;
 const CIRCULARITY_DATA_SIZE = 48;
 
+/** Custom stick curve presets in Web config / firmware (indexed 0..1 → profile 1..2). */
+const CURVE_PRESET_COUNT = 2;
+/** Intermediate control points between inner dead zone and (1,1); not counting endpoints appended in firmware. */
+const CURVE_POINT_COUNT = 6;
+
+const PRESET_ROW_LABELS = Array.from({ length: CURVE_POINT_COUNT }, (_, i) => `P${i + 1}`);
+
+/** Pairs for two-points-per-row preset layout */
+const PRESET_POINT_ROW_PAIRS: ReadonlyArray<readonly [number, number]> = [
+	[0, 1],
+	[2, 3],
+	[4, 5],
+];
+
+function sortCurvePointsByX(pts: CurvePoint[]): CurvePoint[] {
+	return [...pts].sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
+}
+
+function emptyPresetPointSlots(): CurvePointInput[] {
+	return Array.from({ length: CURVE_POINT_COUNT }, () => ({ x: '0', y: '0' }));
+}
+
 type QuickSwitchHeadingProps = { t: (key: string) => string; tooltipIdSuffix: string };
 
 const RightStickQuickSwitchHeading = ({ t, tooltipIdSuffix }: QuickSwitchHeadingProps) => {
 	const tip = t('CalibrationSettings:hml-right-stick-quick-switch-tooltip');
 	return (
 		<>
-			<span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
+			<span style={{ fontSize: '0.875rem', lineHeight: 1.25 }}>{t('CalibrationSettings:hml-right-stick-quick-switch')}</span>
 			<OverlayTrigger placement="top" overlay={<Tooltip id={`right-stick-quick-switch-tip-${tooltipIdSuffix}`}>{tip}</Tooltip>}>
 				<span style={{ display: 'inline-flex', cursor: 'help', alignItems: 'center' }} aria-label={tip}>
 					<InfoCircle />
@@ -111,7 +133,7 @@ const applyResponseCurve = (value: number, points: CurvePoint[]): number => {
 		return value;
 	}
 	
-	const sortedPoints = [...points].sort((a, b) => a.x - b.x);
+	const sortedPoints = sortCurvePointsByX(points);
 	const fullPoints: CurvePoint[] = [
 		{x: 0, y: 0},
 		...sortedPoints,
@@ -324,7 +346,7 @@ const drawCurveEditor = (
 	// Step 4: Draw black curve from start point - control points (if any) - (1,1)
 	// All coordinates relative to origin
 	// Cache sorted points to avoid repeated sorting
-	const sortedPoints = [...points].sort((a, b) => a.x - b.x);
+	const sortedPoints = sortCurvePointsByX(points);
 	const curvePoints: CurvePoint[] = [];
 	
 	// Add start point
@@ -515,12 +537,7 @@ const validatePointMonotonicity = (
  * X values must be at least 1% apart, Y values must be strictly increasing
  */
 const validateAllPointsMonotonicity = (points: CurvePoint[]): CurvePoint[] => {
-	const sorted = [...points].sort((a, b) => {
-		if (a.x === b.x) {
-			return a.y - b.y;
-		}
-		return a.x - b.x;
-	});
+	const sorted = sortCurvePointsByX(points);
 	
 	const validated: CurvePoint[] = [];
 	const xEpsilon = 0.01; // 1% minimum gap for X values
@@ -577,8 +594,6 @@ const mouseToCurvePoint = (
 
 interface JoystickCurveSettingsProps {
 	values: AddonPropTypes['values'];
-	errors?: AddonPropTypes['errors'];
-	handleChange?: AddonPropTypes['handleChange'];
 	setFieldValue: AddonPropTypes['setFieldValue'];
 	saveMessage?: string;
 	onSaveClick?: () => void;
@@ -702,16 +717,27 @@ const JoystickCurveSettings = ({
 		}
 	}, [values?.joystickCurvePoints2]);
 
-	// Keep Formik values in sync with current editor points.
+	// Keep Formik values in sync with current editor points (x ascending for persistence).
 	useEffect(() => {
 		if (!leftCurveDirtyRef.current) {
+			return;
+		}
+		const sorted = sortCurvePointsByX(leftCurvePoints);
+		if (!areCurvePointsEqual(sorted, leftCurvePoints)) {
+			setLeftCurvePoints(sorted);
+			setLeftCurveInputValues(
+				sorted.map((p) => ({
+					x: parseFloat(p.x.toFixed(4)).toString(),
+					y: parseFloat(p.y.toFixed(4)).toString(),
+				})),
+			);
 			return;
 		}
 		const formikPoints = Array.isArray(values?.joystickCurvePoints1)
 			? (values.joystickCurvePoints1 as CurvePoint[])
 			: [];
-		if (!areCurvePointsEqual(leftCurvePoints, formikPoints)) {
-			setFieldValue('joystickCurvePoints1', leftCurvePoints);
+		if (!areCurvePointsEqual(sorted, formikPoints)) {
+			setFieldValue('joystickCurvePoints1', sorted);
 		} else {
 			leftCurveDirtyRef.current = false;
 		}
@@ -721,11 +747,22 @@ const JoystickCurveSettings = ({
 		if (!rightCurveDirtyRef.current) {
 			return;
 		}
+		const sorted = sortCurvePointsByX(rightCurvePoints);
+		if (!areCurvePointsEqual(sorted, rightCurvePoints)) {
+			setRightCurvePoints(sorted);
+			setRightCurveInputValues(
+				sorted.map((p) => ({
+					x: parseFloat(p.x.toFixed(4)).toString(),
+					y: parseFloat(p.y.toFixed(4)).toString(),
+				})),
+			);
+			return;
+		}
 		const formikPoints = Array.isArray(values?.joystickCurvePoints2)
 			? (values.joystickCurvePoints2 as CurvePoint[])
 			: [];
-		if (!areCurvePointsEqual(rightCurvePoints, formikPoints)) {
-			setFieldValue('joystickCurvePoints2', rightCurvePoints);
+		if (!areCurvePointsEqual(sorted, formikPoints)) {
+			setFieldValue('joystickCurvePoints2', sorted);
 		} else {
 			rightCurveDirtyRef.current = false;
 		}
@@ -1056,8 +1093,8 @@ const JoystickCurveSettings = ({
 			}
 		}
 		
-		// Add new point if less than 3 points
-		if (leftCurvePoints.length < 3) {
+		// Add new point up to CURVE_POINT_COUNT intermediate points
+		if (leftCurvePoints.length < CURVE_POINT_COUNT) {
 			const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
 			const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
 			const startPoint = innerDeadzone > 0 || antiDeadzone > 0 ? { x: innerDeadzone, y: antiDeadzone } : { x: 0, y: 0 };
@@ -1132,7 +1169,7 @@ const JoystickCurveSettings = ({
 			}
 		}
 		
-		if (rightCurvePoints.length < 3) {
+		if (rightCurvePoints.length < CURVE_POINT_COUNT) {
 			const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
 			const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
 			const startPoint = innerDeadzone > 0 || antiDeadzone > 0 ? { x: innerDeadzone, y: antiDeadzone } : { x: 0, y: 0 };
@@ -1276,10 +1313,8 @@ const JoystickCurveSettings = ({
 	};
 	
 	const [presetInputs, setPresetInputs] = useState<PresetInput[]>([
-		{ name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 },
-		{ name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 },
-		{ name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 },
-		{ name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 },
+		{ name: '', points: emptyPresetPointSlots(), activationButtonMask: 0 },
+		{ name: '', points: emptyPresetPointSlots(), activationButtonMask: 0 },
 	]);
 	
 	// Load presets from values on mount and when values change
@@ -1298,14 +1333,9 @@ const JoystickCurveSettings = ({
 				const points = preset.points || [];
 				const activationButtonMask = preset.activationButtonMask ?? 0;
 				
-				const presetPoints: Array<{ x: string; y: string }> = [
-					{ x: '0', y: '0' },
-					{ x: '0', y: '0' },
-					{ x: '0', y: '0' },
-				];
+				const presetPoints = emptyPresetPointSlots();
 				
-				// Fill in existing points, pad with zeros if less than 3
-				for (let i = 0; i < 3; i++) {
+				for (let i = 0; i < CURVE_POINT_COUNT; i++) {
 					if (i < points.length) {
 						presetPoints[i] = {
 							x: parseFloat(points[i].x.toFixed(4)).toString(),
@@ -1317,16 +1347,10 @@ const JoystickCurveSettings = ({
 				return { name, points: presetPoints, activationButtonMask };
 			}
 			
-			// Default empty preset
-			return { name: '', points: [{ x: '0', y: '0' }, { x: '0', y: '0' }, { x: '0', y: '0' }], activationButtonMask: 0 };
+			return { name: '', points: emptyPresetPointSlots(), activationButtonMask: 0 };
 		};
 		
-		setPresetInputs([
-			loadPreset(0),
-			loadPreset(1),
-			loadPreset(2),
-			loadPreset(3),
-		]);
+		setPresetInputs([loadPreset(0), loadPreset(1)]);
 	}, [values?.joystickCurvePresets]);
 	
 	// Handle preset name change
@@ -1335,32 +1359,29 @@ const JoystickCurveSettings = ({
 		newPresets[presetIndex].name = value;
 		setPresetInputs(newPresets);
 		
-		// Update formik with new preset array format
 		const allPresets: Array<{ name: string; points: CurvePoint[]; activationButtonMask?: number }> = [];
-		for (let i = 0; i < 4; i++) {
-			const currentPreset = i === presetIndex 
-				? { name: value, points: newPresets[presetIndex].points, activationButtonMask: newPresets[presetIndex].activationButtonMask }
-				: presetInputs[i];
+		for (let i = 0; i < CURVE_PRESET_COUNT; i++) {
+			const currentPreset = newPresets[i];
 			
-			// Convert current preset to points array
 			const currentPoints: CurvePoint[] = [];
 			for (let j = 0; j < currentPreset.points.length; j++) {
 				const x = parseFloat(String(currentPreset.points[j].x)) || 0;
 				const y = parseFloat(String(currentPreset.points[j].y)) || 0;
 				if (x > 0 || y > 0) {
-					currentPoints.push({ 
-						x: Math.max(0, Math.min(1, x)), 
+					currentPoints.push({
+						x: Math.max(0, Math.min(1, x)),
 						y: Math.max(0, Math.min(1, y)),
 					});
 				}
 			}
 			
-			// Only include preset if it has name or points
-			if (currentPreset.name.trim() || currentPoints.length > 0) {
+			const sortedPresetPoints = sortCurvePointsByX(currentPoints);
+			
+			if (currentPreset.name.trim() || sortedPresetPoints.length > 0) {
 				allPresets.push({
 					name: currentPreset.name.trim(),
-					points: currentPoints,
-					activationButtonMask: currentPreset.activationButtonMask ?? 0
+					points: sortedPresetPoints,
+					activationButtonMask: currentPreset.activationButtonMask ?? 0,
 				});
 			}
 		}
@@ -1387,7 +1408,7 @@ const JoystickCurveSettings = ({
 		// If input is 0, it means no control point, so skip validation
 		if (inputValue === 0) {
 			// Just save to formik without validation
-			savePresetToFormik(presetIndex, newPresetInputs);
+			savePresetToFormik(newPresetInputs);
 			return;
 		}
 		
@@ -1433,7 +1454,7 @@ const JoystickCurveSettings = ({
 		setPresetInputs(newPresetInputs);
 		
 		// Save to formik
-		savePresetToFormik(presetIndex, newPresetInputs);
+		savePresetToFormik(newPresetInputs);
 	};
 	
 	// Helper function to check if activation button mask is already used by another preset
@@ -1457,36 +1478,53 @@ const JoystickCurveSettings = ({
 	};
 	
 	// Helper function to save preset to formik
-	const savePresetToFormik = (presetIndex: number, presetInputsToSave: PresetInput[]) => {
-		// Build presets array from all presetInputs, only include presets with name or points
+	const savePresetToFormik = (presetInputsToSave: PresetInput[]) => {
 		const allPresets: Array<{ name: string; points: CurvePoint[]; activationButtonMask?: number }> = [];
-		for (let i = 0; i < 4; i++) {
+		for (let i = 0; i < CURVE_PRESET_COUNT; i++) {
 			const currentPreset = presetInputsToSave[i];
 			
-			// Convert current preset to points array
 			const currentPoints: CurvePoint[] = [];
-				for (let j = 0; j < currentPreset.points.length; j++) {
-					const x = parseFloat(String(currentPreset.points[j].x)) || 0;
-					const y = parseFloat(String(currentPreset.points[j].y)) || 0;
-					if (x > 0 || y > 0) {
-					currentPoints.push({ 
-						x: Math.max(0, Math.min(1, x)), 
+			for (let j = 0; j < currentPreset.points.length; j++) {
+				const x = parseFloat(String(currentPreset.points[j].x)) || 0;
+				const y = parseFloat(String(currentPreset.points[j].y)) || 0;
+				if (x > 0 || y > 0) {
+					currentPoints.push({
+						x: Math.max(0, Math.min(1, x)),
 						y: Math.max(0, Math.min(1, y)),
 					});
 				}
 			}
 			
-			// Only include preset if it has name or points
-			if (currentPreset.name.trim() || currentPoints.length > 0) {
+			const sortedPresetPoints = sortCurvePointsByX(currentPoints);
+			
+			if (currentPreset.name.trim() || sortedPresetPoints.length > 0) {
 				allPresets.push({
 					name: currentPreset.name.trim(),
-					points: currentPoints,
-					activationButtonMask: currentPreset.activationButtonMask ?? 0
+					points: sortedPresetPoints,
+					activationButtonMask: currentPreset.activationButtonMask ?? 0,
 				});
 			}
 		}
 		
 		setFieldValue('joystickCurvePresets', allPresets);
+	};
+
+	const handlePresetActivationSelectChange = (presetIndex: number, e: ChangeEvent<HTMLSelectElement>) => {
+		const newPresets = [...presetInputs];
+		const buttonMask = parseInt(e.target.value, 10);
+		const finalButtonMask = Number.isNaN(buttonMask) ? 0 : buttonMask;
+
+		const tempPresets = [...newPresets];
+		tempPresets[presetIndex].activationButtonMask = finalButtonMask;
+
+		if (isActivationButtonMaskUsed(presetIndex, finalButtonMask, tempPresets)) {
+			alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
+			return;
+		}
+
+		newPresets[presetIndex].activationButtonMask = finalButtonMask;
+		setPresetInputs(newPresets);
+		savePresetToFormik(newPresets);
 	};
 	
 	// Handle apply preset to left stick
@@ -1505,8 +1543,7 @@ const JoystickCurveSettings = ({
 			}
 		}
 		
-		// Sort by X value and validate
-		const sorted = [...points].sort((a, b) => a.x - b.x);
+		const sorted = sortCurvePointsByX(points);
 		const validated = validateAllPointsMonotonicity(sorted);
 		setLeftCurvePointsLocal(validated);
 		setLeftCurveInputValues(validated.map(p => ({ 
@@ -1531,8 +1568,7 @@ const JoystickCurveSettings = ({
 			}
 		}
 		
-		// Sort by X value and validate
-		const sorted = [...points].sort((a, b) => a.x - b.x);
+		const sorted = sortCurvePointsByX(points);
 		const validated = validateAllPointsMonotonicity(sorted);
 		setRightCurvePointsLocal(validated);
 		setRightCurveInputValues(validated.map(p => ({ 
@@ -1543,8 +1579,9 @@ const JoystickCurveSettings = ({
 	
 	return (
 		<Section title={t('CalibrationSettings:hml-stick-curve-title')}>
-			{isExpanded && (
-			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gridTemplateRows: 'auto auto', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
+		{isExpanded && (
+			<>
+			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
 				{/* Row 1, Column 1: Left stick curve canvas */}
 				<div className="text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', width: '260px' }}>
 					<div style={{ position: 'relative', width: '260px', height: '260px' }}>
@@ -1706,396 +1743,138 @@ const JoystickCurveSettings = ({
 						/>
 					</div>
 				</div>
-
-				{/* Row 2, Column 1: Preset 1 */}
-				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '1', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
-					{/* Row 1: Name input with apply buttons */}
-					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<Form.Control
-							type="text"
-							size="sm"
-							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
-							value={presetInputs[0].name}
-							onChange={(e) => handlePresetNameChange(0, e.target.value)}
-							style={{ flex: 1, fontSize: '0.875rem' }}
-						/>
-						<Button
-							variant="outline-primary"
-							size="sm"
-							onClick={() => handleApplyPresetToLeft(0)}
-							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
-						>
-							{t('CalibrationSettings:hml-apply-left')}
-						</Button>
-						<Button
-							variant="outline-primary"
-							size="sm"
-							onClick={() => handleApplyPresetToRight(0)}
-							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
-						>
-							{t('CalibrationSettings:hml-apply-right')}
-						</Button>
-					</div>
-					{/* Row 2: Activation button with label */}
-					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<RightStickQuickSwitchHeading t={t} tooltipIdSuffix="0" />
-						<Form.Select
-							size="sm"
-							value={presetInputs[0].activationButtonMask ?? 0}
-							onChange={(e) => {
-								const newPresets = [...presetInputs];
-								const buttonMask = parseInt(e.target.value);
-								const finalButtonMask = isNaN(buttonMask) ? 0 : buttonMask;
-								
-								// Temporarily update the current preset to check for duplicates
-								const tempPresets = [...newPresets];
-								tempPresets[0].activationButtonMask = finalButtonMask;
-								
-								// Check if activation button is already used by another preset
-								if (isActivationButtonMaskUsed(0, finalButtonMask, tempPresets)) {
-									// Button mask is already used, keep current value
-									alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
-									return;
-								}
-								
-								newPresets[0].activationButtonMask = finalButtonMask;
-								setPresetInputs(newPresets);
-								savePresetToFormik(0, newPresets);
-							}}
-							style={{ flex: 1, fontSize: '0.75rem', padding: '2px 6px' }}
-						>
-							{BUTTON_MASKS_OPTIONS.map((o) => (
-								<option key={o.value} value={o.value}>
-									{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-								</option>
-							))}
-						</Form.Select>
-					</div>
-					{/* Row 2-4: Control points */}
-					{['P1', 'P2', 'P3'].map((label, idx) => (
-						<div key={idx} style={{ marginBottom: '4px' }}>
-							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem', marginBottom: '2px' }}>
-							<span style={{ minWidth: '24px' }}>{label}:</span>
-							<Form.Control
-								type="number"
-								size="sm"
-								min={0}
-								max={1}
-								step={0.001}
-								placeholder="X"
-								value={presetInputs[0].points[idx].x}
-								onChange={(e) => handlePresetPointChange(0, idx, 'x', e.target.value)}
-									onBlur={() => handlePresetPointBlur(0, idx, 'x')}
-									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
-							/>
-							<Form.Control
-								type="number"
-								size="sm"
-								min={0}
-								max={1}
-								step={0.001}
-								placeholder="Y"
-								value={presetInputs[0].points[idx].y}
-								onChange={(e) => handlePresetPointChange(0, idx, 'y', e.target.value)}
-									onBlur={() => handlePresetPointBlur(0, idx, 'y')}
-									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
-							/>
-						</div>
-						</div>
-					))}
-				</div>
-
-				{/* Row 2, Column 2: Preset 2 */}
-				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '2', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
-					{/* Row 1: Name input with apply buttons */}
-					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<Form.Control
-							type="text"
-							size="sm"
-							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
-							value={presetInputs[1].name}
-							onChange={(e) => handlePresetNameChange(1, e.target.value)}
-							style={{ flex: 1, fontSize: '0.875rem' }}
-						/>
-						<Button
-							variant="outline-primary"
-							size="sm"
-							onClick={() => handleApplyPresetToLeft(1)}
-							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
-						>
-							{t('CalibrationSettings:hml-apply-left')}
-						</Button>
-						<Button
-							variant="outline-primary"
-							size="sm"
-							onClick={() => handleApplyPresetToRight(1)}
-							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
-						>
-							{t('CalibrationSettings:hml-apply-right')}
-						</Button>
-					</div>
-					{/* Row 2: Activation button with label */}
-					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<RightStickQuickSwitchHeading t={t} tooltipIdSuffix="1" />
-						<Form.Select
-							size="sm"
-							value={presetInputs[1].activationButtonMask ?? 0}
-							onChange={(e) => {
-								const newPresets = [...presetInputs];
-								const buttonMask = parseInt(e.target.value);
-								const finalButtonMask = isNaN(buttonMask) ? 0 : buttonMask;
-								
-								// Temporarily update the current preset to check for duplicates
-								const tempPresets = [...newPresets];
-								tempPresets[1].activationButtonMask = finalButtonMask;
-								
-								// Check if activation button is already used by another preset
-								if (isActivationButtonMaskUsed(1, finalButtonMask, tempPresets)) {
-									// Button mask is already used, keep current value
-									alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
-									return;
-								}
-								
-								newPresets[1].activationButtonMask = finalButtonMask;
-								setPresetInputs(newPresets);
-								savePresetToFormik(1, newPresets);
-							}}
-							style={{ flex: 1, fontSize: '0.75rem', padding: '2px 6px' }}
-						>
-							{BUTTON_MASKS_OPTIONS.map((o) => (
-								<option key={o.value} value={o.value}>
-									{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-								</option>
-							))}
-						</Form.Select>
-					</div>
-					{['P1', 'P2', 'P3'].map((label, idx) => (
-						<div key={idx} style={{ marginBottom: '4px' }}>
-							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem', marginBottom: '2px' }}>
-							<span style={{ minWidth: '24px' }}>{label}:</span>
-							<Form.Control
-								type="number"
-								size="sm"
-								min={0}
-								max={1}
-								step={0.001}
-								placeholder="X"
-								value={presetInputs[1].points[idx].x}
-								onChange={(e) => handlePresetPointChange(1, idx, 'x', e.target.value)}
-									onBlur={() => handlePresetPointBlur(1, idx, 'x')}
-									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
-							/>
-							<Form.Control
-								type="number"
-								size="sm"
-								min={0}
-								max={1}
-								step={0.001}
-								placeholder="Y"
-								value={presetInputs[1].points[idx].y}
-								onChange={(e) => handlePresetPointChange(1, idx, 'y', e.target.value)}
-									onBlur={() => handlePresetPointBlur(1, idx, 'y')}
-									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
-							/>
-						</div>
-						</div>
-					))}
-				</div>
-
-				{/* Row 2, Column 3: Preset 3 */}
-				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '3', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
-					{/* Row 1: Name input with apply buttons */}
-					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<Form.Control
-							type="text"
-							size="sm"
-							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
-							value={presetInputs[2].name}
-							onChange={(e) => handlePresetNameChange(2, e.target.value)}
-							style={{ flex: 1, fontSize: '0.875rem' }}
-						/>
-						<Button
-							variant="outline-primary"
-							size="sm"
-							onClick={() => handleApplyPresetToLeft(2)}
-							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
-						>
-							{t('CalibrationSettings:hml-apply-left')}
-						</Button>
-						<Button
-							variant="outline-primary"
-							size="sm"
-							onClick={() => handleApplyPresetToRight(2)}
-							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
-						>
-							{t('CalibrationSettings:hml-apply-right')}
-						</Button>
-					</div>
-					{/* Row 2: Activation button with label */}
-					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<RightStickQuickSwitchHeading t={t} tooltipIdSuffix="2" />
-						<Form.Select
-							size="sm"
-							value={presetInputs[2].activationButtonMask ?? 0}
-							onChange={(e) => {
-								const newPresets = [...presetInputs];
-								const buttonMask = parseInt(e.target.value);
-								const finalButtonMask = isNaN(buttonMask) ? 0 : buttonMask;
-								
-								// Temporarily update the current preset to check for duplicates
-								const tempPresets = [...newPresets];
-								tempPresets[2].activationButtonMask = finalButtonMask;
-								
-								// Check if activation button is already used by another preset
-								if (isActivationButtonMaskUsed(2, finalButtonMask, tempPresets)) {
-									// Button mask is already used, keep current value
-									alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
-									return;
-								}
-								
-								newPresets[2].activationButtonMask = finalButtonMask;
-								setPresetInputs(newPresets);
-								savePresetToFormik(2, newPresets);
-							}}
-							style={{ flex: 1, fontSize: '0.75rem', padding: '2px 6px' }}
-						>
-							{BUTTON_MASKS_OPTIONS.map((o) => (
-								<option key={o.value} value={o.value}>
-									{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-								</option>
-							))}
-						</Form.Select>
-					</div>
-					{['P1', 'P2', 'P3'].map((label, idx) => (
-						<div key={idx} style={{ marginBottom: '4px' }}>
-							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem', marginBottom: '2px' }}>
-							<span style={{ minWidth: '24px' }}>{label}:</span>
-							<Form.Control
-								type="number"
-								size="sm"
-								min={0}
-								max={1}
-								step={0.001}
-								placeholder="X"
-								value={presetInputs[2].points[idx].x}
-								onChange={(e) => handlePresetPointChange(2, idx, 'x', e.target.value)}
-									onBlur={() => handlePresetPointBlur(2, idx, 'x')}
-									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
-							/>
-							<Form.Control
-								type="number"
-								size="sm"
-								min={0}
-								max={1}
-								step={0.001}
-								placeholder="Y"
-								value={presetInputs[2].points[idx].y}
-								onChange={(e) => handlePresetPointChange(2, idx, 'y', e.target.value)}
-									onBlur={() => handlePresetPointBlur(2, idx, 'y')}
-									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
-							/>
-						</div>
-						</div>
-					))}
-				</div>
-
-				{/* Row 2, Column 4: Preset 4 */}
-				<div style={{ display: 'flex', flexDirection: 'column', width: '260px', gridColumn: '4', gap: '8px', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
-					{/* Row 1: Name input with apply buttons */}
-					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<Form.Control
-							type="text"
-							size="sm"
-							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
-							value={presetInputs[3].name}
-							onChange={(e) => handlePresetNameChange(3, e.target.value)}
-							style={{ flex: 1, fontSize: '0.875rem' }}
-						/>
-						<Button
-							variant="outline-primary"
-							size="sm"
-							onClick={() => handleApplyPresetToLeft(3)}
-							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
-						>
-							{t('CalibrationSettings:hml-apply-left')}
-						</Button>
-						<Button
-							variant="outline-primary"
-							size="sm"
-							onClick={() => handleApplyPresetToRight(3)}
-							style={{ fontSize: '0.75rem', padding: '2px 8px' }}
-						>
-							{t('CalibrationSettings:hml-apply-right')}
-						</Button>
-					</div>
-					{/* Row 2: Activation button with label */}
-					<div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-						<RightStickQuickSwitchHeading t={t} tooltipIdSuffix="3" />
-						<Form.Select
-							size="sm"
-							value={presetInputs[3].activationButtonMask ?? 0}
-							onChange={(e) => {
-								const newPresets = [...presetInputs];
-								const buttonMask = parseInt(e.target.value);
-								const finalButtonMask = isNaN(buttonMask) ? 0 : buttonMask;
-								
-								// Temporarily update the current preset to check for duplicates
-								const tempPresets = [...newPresets];
-								tempPresets[3].activationButtonMask = finalButtonMask;
-								
-								// Check if activation button is already used by another preset
-								if (isActivationButtonMaskUsed(3, finalButtonMask, tempPresets)) {
-									// Button mask is already used, keep current value
-									alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
-									return;
-								}
-								
-								newPresets[3].activationButtonMask = finalButtonMask;
-								setPresetInputs(newPresets);
-								savePresetToFormik(3, newPresets);
-							}}
-							style={{ flex: 1, fontSize: '0.75rem', padding: '2px 6px' }}
-						>
-							{BUTTON_MASKS_OPTIONS.map((o) => (
-								<option key={o.value} value={o.value}>
-									{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
-								</option>
-							))}
-						</Form.Select>
-					</div>
-					{['P1', 'P2', 'P3'].map((label, idx) => (
-						<div key={idx} style={{ marginBottom: '4px' }}>
-							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '0.875rem', marginBottom: '2px' }}>
-							<span style={{ minWidth: '24px' }}>{label}:</span>
-							<Form.Control
-								type="number"
-								size="sm"
-								min={0}
-								max={1}
-								step={0.001}
-								placeholder="X"
-								value={presetInputs[3].points[idx].x}
-								onChange={(e) => handlePresetPointChange(3, idx, 'x', e.target.value)}
-									onBlur={() => handlePresetPointBlur(3, idx, 'x')}
-									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
-							/>
-							<Form.Control
-								type="number"
-								size="sm"
-								min={0}
-								max={1}
-								step={0.001}
-								placeholder="Y"
-								value={presetInputs[3].points[idx].y}
-								onChange={(e) => handlePresetPointChange(3, idx, 'y', e.target.value)}
-									onBlur={() => handlePresetPointBlur(3, idx, 'y')}
-									style={{ width: '88px', fontSize: '0.8rem', padding: '2px 6px' }}
-							/>
-						</div>
-						</div>
-					))}
-				</div>
 			</div>
+
+			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'start', width: '100%', marginTop: '16px', paddingBottom: '8px', minWidth: 0 }}>
+				{[0, 1].map((presetIndex) => (
+					<div
+						key={presetIndex}
+						style={{
+							display: 'flex',
+							flexDirection: 'column',
+							width: '100%',
+							minWidth: 0,
+							gap: '8px',
+							padding: '8px',
+							border: '1px solid #ddd',
+							borderRadius: '4px',
+						}}
+					>
+						{/* Row 1: name, apply left/right, import (placeholder) */}
+						<div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+							<Form.Control
+								type="text"
+								size="sm"
+								placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
+								value={presetInputs[presetIndex].name}
+								onChange={(e) => handlePresetNameChange(presetIndex, e.target.value)}
+								style={{ flex: '1 1 120px', minWidth: '100px', fontSize: '0.875rem' }}
+							/>
+							<Button
+								variant="outline-primary"
+								size="sm"
+								onClick={() => handleApplyPresetToLeft(presetIndex)}
+								style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
+							>
+								{t('CalibrationSettings:hml-apply-left')}
+							</Button>
+							<Button
+								variant="outline-primary"
+								size="sm"
+								onClick={() => handleApplyPresetToRight(presetIndex)}
+								style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
+							>
+								{t('CalibrationSettings:hml-apply-right')}
+							</Button>
+							<Button
+								type="button"
+								variant="outline-secondary"
+								size="sm"
+								disabled
+								title={t('CalibrationSettings:hml-preset-import-settings')}
+								aria-label={t('CalibrationSettings:hml-preset-import-settings')}
+								style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
+							>
+								{t('CalibrationSettings:hml-preset-import-settings')}
+							</Button>
+						</div>
+						{/* Row 2: right stick quick hot-switch key */}
+						<div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', marginBottom: '4px', width: '100%', minWidth: 0 }}>
+							<div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', flex: '0 1 auto', minWidth: 0 }}>
+								<RightStickQuickSwitchHeading t={t} tooltipIdSuffix={String(presetIndex)} />
+							</div>
+							<Form.Select
+								size="sm"
+								value={presetInputs[presetIndex].activationButtonMask ?? 0}
+								onChange={(e) => handlePresetActivationSelectChange(presetIndex, e)}
+								style={{ flex: '1 1 140px', minWidth: 0, fontSize: '0.75rem', padding: '2px 6px' }}
+							>
+								{BUTTON_MASKS_OPTIONS.map((o) => (
+									<option key={o.value} value={o.value}>
+										{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
+									</option>
+								))}
+							</Form.Select>
+						</div>
+						{/* Rows 3–5: paired curve control points (stored x-sorted when saving) */}
+						{PRESET_POINT_ROW_PAIRS.map(([a, b], pairRowIdx) => (
+							<div
+								key={pairRowIdx}
+								style={{
+									display: 'flex',
+									gap: '8px',
+									alignItems: 'flex-start',
+									marginBottom: '4px',
+									width: '100%',
+									minWidth: 0,
+								}}
+							>
+								{[a, b].map((pointIdx) => (
+									<div
+										key={pointIdx}
+										style={{
+											flex: 1,
+											minWidth: 0,
+											display: 'flex',
+											flexWrap: 'wrap',
+											gap: '4px',
+											alignItems: 'center',
+											fontSize: '0.875rem',
+										}}
+									>
+										<span style={{ flexShrink: 0 }}>{PRESET_ROW_LABELS[pointIdx]}:</span>
+										<Form.Control
+											type="number"
+											size="sm"
+											min={0}
+											max={1}
+											step={0.001}
+											placeholder="X"
+											value={presetInputs[presetIndex].points[pointIdx].x}
+											onChange={(e) => handlePresetPointChange(presetIndex, pointIdx, 'x', e.target.value)}
+											onBlur={() => handlePresetPointBlur(presetIndex, pointIdx, 'x')}
+											style={{ flex: '1 1 56px', minWidth: '48px', fontSize: '0.8rem', padding: '2px 6px' }}
+										/>
+										<Form.Control
+											type="number"
+											size="sm"
+											min={0}
+											max={1}
+											step={0.001}
+											placeholder="Y"
+											value={presetInputs[presetIndex].points[pointIdx].y}
+											onChange={(e) => handlePresetPointChange(presetIndex, pointIdx, 'y', e.target.value)}
+											onBlur={() => handlePresetPointBlur(presetIndex, pointIdx, 'y')}
+											style={{ flex: '1 1 56px', minWidth: '48px', fontSize: '0.8rem', padding: '2px 6px' }}
+										/>
+									</div>
+								))}
+							</div>
+						))}
+					</div>
+				))}
+			</div>
+			</>
 			)}
 			
 			{/* Bottom section: Save button (left) and Toggle switch (right) */}

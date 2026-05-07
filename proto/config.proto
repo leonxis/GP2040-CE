@@ -396,7 +396,7 @@ message CurvePoint
 message CurvePreset
 {
     optional string name = 1 [(nanopb).max_length = 64];
-    repeated CurvePoint points = 2 [(nanopb).max_count = 3];
+    repeated CurvePoint points = 2 [(nanopb).max_count = 6];
     optional uint32 activationButtonMask = 3 [default = 0];  // Button mask to activate this preset (0 = NONE, disabled)
 }
 
@@ -448,16 +448,16 @@ message AnalogOptions
     optional float joystick_finetune_shape_amplify_2 = 57 [default = 0];
     optional uint32 joystick_jitter_filter_1 = 58 [default = 0];
     optional uint32 joystick_jitter_filter_2 = 59 [default = 0];
-    // Response curve control points (max 3 points per stick)
-    repeated CurvePoint joystick_curve_points_1 = 60 [(nanopb).max_count = 3];
-    repeated CurvePoint joystick_curve_points_2 = 61 [(nanopb).max_count = 3];
+    // Response curve control points (max 6 points per stick)
+    repeated CurvePoint joystick_curve_points_1 = 60 [(nanopb).max_count = 6];
+    repeated CurvePoint joystick_curve_points_2 = 61 [(nanopb).max_count = 6];
     optional bool joystick_curve_enabled = 62 [default = false];
     // Fixed anti-deadzone mode (true = fixed, false = linear)
     optional bool fixed_anti_deadzone = 63 [default = false];
     optional bool fixed_anti_deadzone2 = 64 [default = false];
-    // Curve preset schemes (frontend-only, max 4 presets)
-    repeated CurvePreset joystick_curve_presets = 65 [(nanopb).max_count = 4];
-    // Current curve profile in use (0 = custom/no preset, 1-4 = preset 1-4)
+    // Curve preset schemes (max 2 presets)
+    repeated CurvePreset joystick_curve_presets = 65 [(nanopb).max_count = 2];
+    // Current curve profile in use (0 = custom/no preset, 1-2 = preset 1-2)
     // Used to detect hotkey preset switching for efficient reinitialization
     optional uint32 curve_profile_1 = 66 [default = 0];  // Left stick (stick 1)
     optional uint32 curve_profile_2 = 67 [default = 0];  // Right stick (stick 2)

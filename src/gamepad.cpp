@@ -864,10 +864,6 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 		case HOTKEY_APPLY_CURVE_PRESET_1_RIGHT:
 		case HOTKEY_APPLY_CURVE_PRESET_2_LEFT:
 		case HOTKEY_APPLY_CURVE_PRESET_2_RIGHT:
-		case HOTKEY_APPLY_CURVE_PRESET_3_LEFT:
-		case HOTKEY_APPLY_CURVE_PRESET_3_RIGHT:
-		case HOTKEY_APPLY_CURVE_PRESET_4_LEFT:
-		case HOTKEY_APPLY_CURVE_PRESET_4_RIGHT:
 			if (action != lastAction) {
 				AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
 				
@@ -879,10 +875,6 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 				else if (action == HOTKEY_APPLY_CURVE_PRESET_1_RIGHT) { presetIndex = 0; stickNum = 1; }
 				else if (action == HOTKEY_APPLY_CURVE_PRESET_2_LEFT) { presetIndex = 1; stickNum = 0; }
 				else if (action == HOTKEY_APPLY_CURVE_PRESET_2_RIGHT) { presetIndex = 1; stickNum = 1; }
-				else if (action == HOTKEY_APPLY_CURVE_PRESET_3_LEFT) { presetIndex = 2; stickNum = 0; }
-				else if (action == HOTKEY_APPLY_CURVE_PRESET_3_RIGHT) { presetIndex = 2; stickNum = 1; }
-				else if (action == HOTKEY_APPLY_CURVE_PRESET_4_LEFT) { presetIndex = 3; stickNum = 0; }
-				else if (action == HOTKEY_APPLY_CURVE_PRESET_4_RIGHT) { presetIndex = 3; stickNum = 1; }
 				
 				// Check if preset exists and has points
 				if (presetIndex < analogOptions.joystick_curve_presets_count &&
@@ -893,7 +885,7 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 					if (stickNum == 0) {
 						// Left stick (stick 1)
 						analogOptions.joystick_curve_points_1_count = 0;
-						for (pb_size_t i = 0; i < preset.points_count && i < 3; i++) {
+						for (pb_size_t i = 0; i < preset.points_count && i < 6; i++) {
 							analogOptions.joystick_curve_points_1[i].x = preset.points[i].x;
 							analogOptions.joystick_curve_points_1[i].y = preset.points[i].y;
 							analogOptions.joystick_curve_points_1[i].has_x = true;
@@ -903,7 +895,7 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 					} else {
 						// Right stick (stick 2)
 						analogOptions.joystick_curve_points_2_count = 0;
-						for (pb_size_t i = 0; i < preset.points_count && i < 3; i++) {
+						for (pb_size_t i = 0; i < preset.points_count && i < 6; i++) {
 							analogOptions.joystick_curve_points_2[i].x = preset.points[i].x;
 							analogOptions.joystick_curve_points_2[i].y = preset.points[i].y;
 							analogOptions.joystick_curve_points_2[i].has_x = true;
@@ -912,15 +904,13 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 						}
 					}
 					
-					// Update curve profile to indicate which preset is now in use (1-4, or 0 for custom)
-					// This allows process() to efficiently detect preset switching by comparing profile values
-					// Default value is 0, so no need to set has_curve_profile
+					// Update curve profile (1-2 for preset slots, or 0 for custom)
 					if (stickNum == 0) {
 						// Left stick (stick 1)
-						analogOptions.curve_profile_1 = presetIndex + 1;  // presetIndex is 0-3, profile is 1-4
+						analogOptions.curve_profile_1 = presetIndex + 1;  // presetIndex is 0-1, profile is 1-2
 					} else {
 						// Right stick (stick 2)
-						analogOptions.curve_profile_2 = presetIndex + 1;  // presetIndex is 0-3, profile is 1-4
+						analogOptions.curve_profile_2 = presetIndex + 1;
 					}
 					
 					// Note: Do not modify joystick_curve_enabled state - keep it as user configured

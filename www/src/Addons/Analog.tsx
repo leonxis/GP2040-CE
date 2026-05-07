@@ -130,6 +130,7 @@ export const analogScheme = {
 			x: yup.number().min(0).max(1),
 			y: yup.number().min(0).max(1)
 		}))
+		.max(6)
 		.label('Joystick Curve Points 1'),
 	joystickCurvePoints2: yup
 		.array()
@@ -137,9 +138,10 @@ export const analogScheme = {
 			x: yup.number().min(0).max(1),
 			y: yup.number().min(0).max(1)
 		}))
+		.max(6)
 		.label('Joystick Curve Points 2'),
 	joystickCurveEnabled: yup.boolean().label('Joystick Curve Enabled'),
-	// Curve point presets (array of presets, max 4 presets, each with name and up to 3 points)
+	// Curve point presets (max 2 presets, each with up to 6 points)
 	joystickCurvePresets: yup
 		.array()
 		.of(yup.object().shape({
@@ -150,10 +152,10 @@ export const analogScheme = {
 					x: yup.number().min(0).max(1),
 					y: yup.number().min(0).max(1)
 				}))
-				.max(3)
+				.max(6)
 				.label('Preset Points')
 		}))
-		.max(4)
+		.max(2)
 		.label('Joystick Curve Presets'),
 	joystickTravelButtonAction: yup.number().label('Joystick Travel Button Action'),
 	joystickTravelButtonCustomDpadMask: yup.number().min(0).label('Joystick Travel Button Custom Dpad Mask'),

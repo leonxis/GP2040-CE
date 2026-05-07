@@ -2099,11 +2099,11 @@ std::string setAddonOptions()
     docToValue(analogOptions.joystick_finetune_shape_amplify_2, doc, "joystickFinetuneShapeAmplify2");
     docToValue(analogOptions.joystick_jitter_filter_1, doc, "joystickJitterFilter1");
     docToValue(analogOptions.joystick_jitter_filter_2, doc, "joystickJitterFilter2");
-    // Read curve points (stored as JSON array of {x, y} objects, max 3 points)
+    // Read curve points (stored as JSON array of {x, y} objects, max 6 points)
     if (doc.containsKey("joystickCurvePoints1") && doc["joystickCurvePoints1"].is<JsonArray>()) {
         JsonArray curvePoints1 = doc["joystickCurvePoints1"];
         analogOptions.joystick_curve_points_1_count = 0;
-        for (size_t i = 0; i < curvePoints1.size() && i < 3; i++) {
+        for (size_t i = 0; i < curvePoints1.size() && i < 6; i++) {
             if (curvePoints1[i].is<JsonObject>()) {
                 JsonObject point = curvePoints1[i];
                 if (point.containsKey("x") && point.containsKey("y")) {
@@ -2117,7 +2117,7 @@ std::string setAddonOptions()
     if (doc.containsKey("joystickCurvePoints2") && doc["joystickCurvePoints2"].is<JsonArray>()) {
         JsonArray curvePoints2 = doc["joystickCurvePoints2"];
         analogOptions.joystick_curve_points_2_count = 0;
-        for (size_t i = 0; i < curvePoints2.size() && i < 3; i++) {
+        for (size_t i = 0; i < curvePoints2.size() && i < 6; i++) {
             if (curvePoints2[i].is<JsonObject>()) {
                 JsonObject point = curvePoints2[i];
                 if (point.containsKey("x") && point.containsKey("y")) {
@@ -2129,11 +2129,11 @@ std::string setAddonOptions()
         }
     }
     readDoc(analogOptions.joystick_curve_enabled, doc, "joystickCurveEnabled");
-    // Read preset schemes (stored in protobuf, max 4 presets)
+    // Read preset schemes (stored in protobuf, max 2 presets)
     if (doc.containsKey("joystickCurvePresets") && doc["joystickCurvePresets"].is<JsonArray>()) {
         JsonArray presets = doc["joystickCurvePresets"];
         analogOptions.joystick_curve_presets_count = 0;
-        for (size_t i = 0; i < presets.size() && i < 4; i++) {
+        for (size_t i = 0; i < presets.size() && i < 2; i++) {
             if (presets[i].is<JsonObject>()) {
                 JsonObject preset = presets[i];
                 CurvePreset& curvePreset = analogOptions.joystick_curve_presets[i];
@@ -2153,7 +2153,7 @@ std::string setAddonOptions()
                 if (preset.containsKey("points") && preset["points"].is<JsonArray>()) {
                     JsonArray points = preset["points"];
                     curvePreset.points_count = 0;
-                    for (size_t j = 0; j < points.size() && j < 3; j++) {
+                    for (size_t j = 0; j < points.size() && j < 6; j++) {
                         if (points[j].is<JsonObject>()) {
                             JsonObject point = points[j];
                             if (point.containsKey("x") && point.containsKey("y")) {
@@ -2770,21 +2770,21 @@ std::string getAddonOptions()
     writeDoc(doc, "joystickJitterFilter2", analogOptions.joystick_jitter_filter_2);
     // Write curve points
     JsonArray curvePoints1 = doc.createNestedArray("joystickCurvePoints1");
-    for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_1_count && i < 3; i++) {
+    for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_1_count && i < 6; i++) {
         JsonObject point = curvePoints1.createNestedObject();
         point["x"] = analogOptions.joystick_curve_points_1[i].x;
         point["y"] = analogOptions.joystick_curve_points_1[i].y;
     }
     JsonArray curvePoints2 = doc.createNestedArray("joystickCurvePoints2");
-    for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_2_count && i < 3; i++) {
+    for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_2_count && i < 6; i++) {
         JsonObject point = curvePoints2.createNestedObject();
         point["x"] = analogOptions.joystick_curve_points_2[i].x;
         point["y"] = analogOptions.joystick_curve_points_2[i].y;
     }
     writeDoc(doc, "joystickCurveEnabled", analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : false);
-    // Write preset schemes (stored in protobuf, max 4 presets)
+    // Write preset schemes (stored in protobuf, max 2 presets)
     JsonArray presets = doc.createNestedArray("joystickCurvePresets");
-    for (pb_size_t i = 0; i < analogOptions.joystick_curve_presets_count && i < 4; i++) {
+    for (pb_size_t i = 0; i < analogOptions.joystick_curve_presets_count && i < 2; i++) {
         const CurvePreset& curvePreset = analogOptions.joystick_curve_presets[i];
         JsonObject preset = presets.createNestedObject();
         
@@ -2797,7 +2797,7 @@ std::string getAddonOptions()
         
         // Write preset points
         JsonArray points = preset.createNestedArray("points");
-        for (pb_size_t j = 0; j < curvePreset.points_count && j < 3; j++) {
+        for (pb_size_t j = 0; j < curvePreset.points_count && j < 6; j++) {
             JsonObject point = points.createNestedObject();
             point["x"] = curvePreset.points[j].x;
             point["y"] = curvePreset.points[j].y;

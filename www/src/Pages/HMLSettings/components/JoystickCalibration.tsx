@@ -666,7 +666,7 @@ const JoystickCalibration = ({
 	const [leftFinetuneCenterActive, setLeftFinetuneCenterActive] = useState(false);
 	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
 	// Curve control points: array of {x, y} where x and y are in [0, 1] range
-	// Maximum 3 points (plus start (0,0) and end (1,1)) = 4 segments
+	// Maximum 6 intermediate points (plus start (0,0) and end (1,1)) = up to 7 segments
 	// Load from config if available - these are used for curve application in stick position canvas
 	
 	// Jitter filter state for stick 1 (slider = bits 4–16)
