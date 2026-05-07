@@ -49,7 +49,7 @@
 
 extern struct fsdata_file file__index_html[];
 
-const static char* spaPaths[] = { "/backup", "/display-config", "/led-config", "/pin-mapping", "/settings", "/reset-settings", "/add-ons", "/custom-theme", "/macro", "/peripheral-mapping", "/hml-settings" };
+const static char* spaPaths[] = { "/backup", "/display-config", "/led-config", "/pin-mapping", "/settings", "/reset-settings", "/add-ons", "/custom-theme", "/peripheral-mapping", "/hml-settings" };
 const static char* excludePaths[] = { "/css", "/images", "/js", "/static" };
 const static uint32_t rebootDelayMs = 500;
 static string http_post_uri;
@@ -566,7 +566,7 @@ std::string setTwoKeyTouchpadOptions() {
     Pin_t pin12 = TWO_KEY_TOUCHPAD_ENABLE_GPIO;
 
     if (opts.enabled && !oldEnabled) {
-        // 开启时：把当前有效 GPIO12 映射复制到使能键映射，再把 GPIO12 标记为 ASSIGNED_TO_ADDON
+        // 开启时：把当前有效 GPIO12 映射复制到使能键映射；随后在下方先将 GPIO12 置为 NONE 再标为 ASSIGNED_TO_ADDON
         GpioMappingInfo captured = gpioMappings[pin12];
         if (captured.action == GpioAction::ASSIGNED_TO_ADDON || captured.action == GpioAction::RESERVED) {
             if (opts.enableKeyMapping.action != GpioAction::ASSIGNED_TO_ADDON &&
@@ -583,13 +583,15 @@ std::string setTwoKeyTouchpadOptions() {
     }
 
     if (opts.enabled) {
-        gpioMappings[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
+        gpioMappings[pin12].action = GpioAction::NONE;
         gpioMappings[pin12].customButtonMask = 0;
         gpioMappings[pin12].customDpadMask = 0;
+        gpioMappings[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
         for (int i = 0; i < 3; i++) {
-            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
+            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::NONE;
             profiles.gpioMappingsSets[i].pins[pin12].customButtonMask = 0;
             profiles.gpioMappingsSets[i].pins[pin12].customDpadMask = 0;
+            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
         }
     } else {
         // 关闭时：取消 GPIO12 的 addon 占用并恢复到保存的使能键映射

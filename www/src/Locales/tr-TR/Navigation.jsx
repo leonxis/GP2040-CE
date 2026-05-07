@@ -10,7 +10,6 @@ export default {
 	'hml-settings-label': 'GNS settings',
 	'led-config-label': 'LED Yapılandırması',
 	'links-label': 'Linkler',
-	'macro-label': 'Makro Yapılandırması',
 	'pin-mapping-label': 'GPIO Pin Atamaları',
 	'multi-mapping-label': 'Çoklu Atamalar',
 	'peripheral-mapping-label': 'Çevresel Atamalar',

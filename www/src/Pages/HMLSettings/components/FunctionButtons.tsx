@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import { Button, Form, Row, Col } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useMemo } from 'react';
@@ -34,7 +33,6 @@ const INVERT_MODES = [
 ];
 
 export default function FunctionButtons() {
-	const navigate = useNavigate();
 	const { t } = useTranslation();
 	const { values, setValues, isLoading } = useGamepadOptions();
 	const [saveMessage, setSaveMessage] = useState('');
@@ -100,16 +98,6 @@ export default function FunctionButtons() {
 		[t],
 	);
 
-	const handleHotkeySettings = () => {
-		// Navigate to settings page with hotkey tab
-		navigate('/settings', { state: { activeTab: 'hotkey' } });
-	};
-
-	const handleMacroSettings = () => {
-		// Navigate to macro configuration page
-		navigate('/macro');
-	};
-
 	const handleDpadModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
 		const newValue = parseInt(e.target.value);
 		setValues((prev) => ({ ...prev, dpadMode: newValue }));
@@ -167,7 +155,7 @@ export default function FunctionButtons() {
 	if (isLoading) {
 		return (
 			<div>
-				<Section title={t('SettingsPage:hml-section-function-buttons')}>
+				<Section title={t('SettingsPage:hml-section-stick-config')}>
 					<p className="text-muted">{t('SettingsPage:hml-loading')}</p>
 				</Section>
 			</div>
@@ -176,30 +164,6 @@ export default function FunctionButtons() {
 
 	return (
 		<div>
-			<Section title={t('SettingsPage:hml-section-function-buttons')}>
-				<div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-start' }}>
-					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-						<Button
-							variant="primary"
-							onClick={handleHotkeySettings}
-							style={{ minWidth: '120px' }}
-						>
-							{t('SettingsPage:hml-hotkey-settings-button')}
-						</Button>
-						<span className="text-muted">
-							{t('SettingsPage:hml-hotkey-settings-hint')}
-						</span>
-					</div>
-					<Button
-						variant="primary"
-						onClick={handleMacroSettings}
-						style={{ minWidth: '120px' }}
-					>
-						{t('SettingsPage:hml-macro-settings-button')}
-					</Button>
-				</div>
-			</Section>
-
 			<Section title={t('SettingsPage:hml-section-stick-config')}>
 				<Form.Group className="mb-3">
 					<Row>

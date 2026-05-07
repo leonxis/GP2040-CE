@@ -70,6 +70,7 @@ export const TABS = [
 	{ key: 'back-buttons', labelKey: 'hml-tab-back-buttons' },
 	{ key: 'calibration', labelKey: 'hml-tab-calibration' },
 	{ key: 'motion', labelKey: 'hml-tab-motion' },
+	{ key: 'macros', labelKey: 'hml-tab-macros' },
 	{ key: 'function-buttons', labelKey: 'hml-tab-function-buttons' },
 	{ key: 'hardware', labelKey: 'hml-tab-hardware' },
 	{ key: 'backup-reset', labelKey: 'hml-tab-backup-reset' },

@@ -1408,13 +1408,18 @@ export default function SettingsPage() {
 
 	return (
 		<Formik validationSchema={schema} onSubmit={onSubmit} initialValues={{}}>
-			{({ handleSubmit, handleChange, values, errors, setFieldValue }) =>
-				console.log('errors', errors) || (
-					<div>
+			{({ handleSubmit, handleChange, values, errors, setFieldValue }) => (
+					<div className="settings-page mt-4">
 						<Form noValidate onSubmit={handleSubmit}>
 							<Tab.Container defaultActiveKey={defaultTab}>
-								<Row>
-									<Col md={3}>
+								<Row style={{ flexWrap: 'nowrap' }}>
+									<Col
+										style={{
+											width: '150px',
+											flex: '0 0 150px',
+											maxWidth: '150px',
+										}}
+									>
 										<Nav variant="pills" className="flex-column">
 											<Nav.Item>
 												<Nav.Link eventKey="inputmode">
@@ -1433,7 +1438,7 @@ export default function SettingsPage() {
 											</Nav.Item>
 										</Nav>
 									</Col>
-									<Col md={9}>
+									<Col style={{ minWidth: 0, flex: '1 1 0' }}>
 										<Tab.Content>
 											<Tab.Pane eventKey="inputmode">
 												<Section title={t('SettingsPage:settings-header-text')}>

@@ -10,7 +10,6 @@ export default {
 	'hml-settings-label': 'GNS設定',
 	'led-config-label': 'LED 設定',
 	'links-label': 'リンク',
-	'macro-label': 'マクロ設定',
 	'pin-mapping-label': 'GPIO 端子割り当て設定',
 	'multi-mapping-label': 'マルチマッピング',
 	'peripheral-mapping-label': '周辺機器設定',

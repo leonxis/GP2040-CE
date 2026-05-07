@@ -127,6 +127,55 @@ button {
 	}
 }
 
+/* HML 宏键：顶部 Tab 与卡片同宽、均分；未选 #e5e5e5，选中 #353535 + 白字；整体圆角 */
+.hml-settings-page .macro-settings-top-tabs.nav-tabs {
+	display: flex;
+	flex-wrap: nowrap;
+	width: 100%;
+	border-bottom: none;
+	gap: 0;
+	border-radius: 12px;
+	overflow: hidden;
+
+	.nav-item {
+		flex: 1 1 0;
+		min-width: 0;
+	}
+
+	.nav-link {
+		width: 100%;
+		box-sizing: border-box;
+		text-align: center;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		margin-right: 0;
+		margin-bottom: 0;
+		border-radius: 0;
+		background-color: #e5e5e5;
+		color: #212529;
+		border: 1px solid #c8c8c8;
+
+		&:focus-visible {
+			outline: 2px solid #353535;
+			outline-offset: -2px;
+		}
+
+		&:hover:not(.active) {
+			background-color: #dcdcdc;
+			color: #212529;
+		}
+
+		&.active,
+		&.active:focus,
+		&.active:hover {
+			background-color: #ffcc00 !important;
+			color: #fff !important;
+			border-color: #ffcc00 !important;
+		}
+	}
+}
+
 [data-bs-theme="eva"] {
 	body {
 		background-color: #ab000a; //主题背景填充区域颜色
@@ -173,7 +222,10 @@ button {
 			position: relative;
 			z-index: 1;
 		}
+	}
 
+	.hml-settings-page,
+	.settings-page {
 		.nav.flex-column {
 			background-color: #e5e5e5;
 			border-radius: 12px;

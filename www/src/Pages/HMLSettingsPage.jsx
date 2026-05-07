@@ -8,6 +8,7 @@ import CalibrationSettings from './HMLSettings/components/CalibrationSettings';
 import MotionSettings from './HMLSettings/components/MotionSettings';
 import HardwareConfig from './HMLSettings/components/HardwareConfig';
 import BackupReset from './HMLSettings/components/BackupReset';
+import MacroSettings from './HMLSettings/components/MacroSettings';
 import { TABS } from './HMLSettings/constants/hmlInputModes';
 
 export default function HMLSettingsPage() {
@@ -26,6 +27,8 @@ export default function HMLSettingsPage() {
 				return <CalibrationSettings />;
 			case 'motion':
 				return <MotionSettings />;
+			case 'macros':
+				return <MacroSettings />;
 			case 'hardware':
 				return <HardwareConfig />;
 			case 'backup-reset':

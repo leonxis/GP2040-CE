@@ -10,7 +10,6 @@ export default {
 	'hml-settings-label': 'GNS设置',
 	'led-config-label': 'LED 配置',
 	'links-label': '链接',
-	'macro-label': '宏配置',
 	'pin-mapping-label': 'GPIO 引脚映射',
 	'multi-mapping-label': '多重映射',
 	'peripheral-mapping-label': '外设映射',

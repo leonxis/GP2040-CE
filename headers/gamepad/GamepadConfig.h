@@ -10,91 +10,91 @@
 #define HOTKEY_01_AUX_MASK 0
 #endif
 #ifndef HOTKEY_01_BUTTONS_MASK
-#define HOTKEY_01_BUTTONS_MASK 768	// S1 | S2
+#define HOTKEY_01_BUTTONS_MASK 0
 #endif
 #ifndef HOTKEY_01_DPAD_MASK
-#define HOTKEY_01_DPAD_MASK 1		// Up
+#define HOTKEY_01_DPAD_MASK 0
 #endif
 #ifndef HOTKEY_01_ACTION
-#define HOTKEY_01_ACTION 4		// Home button
+#define HOTKEY_01_ACTION 0
 #endif
 
 #ifndef HOTKEY_02_AUX_MASK
 #define HOTKEY_02_AUX_MASK 0
 #endif
 #ifndef HOTKEY_02_BUTTONS_MASK
-#define HOTKEY_02_BUTTONS_MASK 768	// S1 | S2
+#define HOTKEY_02_BUTTONS_MASK 0
 #endif
 #ifndef HOTKEY_02_DPAD_MASK
-#define HOTKEY_02_DPAD_MASK 2		// Down
+#define HOTKEY_02_DPAD_MASK 0
 #endif
 #ifndef HOTKEY_02_ACTION
-#define HOTKEY_02_ACTION 1		// dpad = DP mode
+#define HOTKEY_02_ACTION 0
 #endif
 
 #ifndef HOTKEY_03_AUX_MASK
 #define HOTKEY_03_AUX_MASK 0
 #endif
 #ifndef HOTKEY_03_BUTTONS_MASK
-#define HOTKEY_03_BUTTONS_MASK 768	// S1 | S2
+#define HOTKEY_03_BUTTONS_MASK 0
 #endif
 #ifndef HOTKEY_03_DPAD_MASK
-#define HOTKEY_03_DPAD_MASK 4		// Left
+#define HOTKEY_03_DPAD_MASK 0
 #endif
 #ifndef HOTKEY_03_ACTION
-#define HOTKEY_03_ACTION 2		// dpad = LS mode
+#define HOTKEY_03_ACTION 0
 #endif
 
 #ifndef HOTKEY_04_AUX_MASK
 #define HOTKEY_04_AUX_MASK 0
 #endif
 #ifndef HOTKEY_04_BUTTONS_MASK
-#define HOTKEY_04_BUTTONS_MASK 768	// S1 | S2
+#define HOTKEY_04_BUTTONS_MASK 0
 #endif
 #ifndef HOTKEY_04_DPAD_MASK
-#define HOTKEY_04_DPAD_MASK 8		// Right
+#define HOTKEY_04_DPAD_MASK 0
 #endif
 #ifndef HOTKEY_04_ACTION
-#define HOTKEY_04_ACTION 3		// dpad = RS mode
+#define HOTKEY_04_ACTION 0
 #endif
 
 #ifndef HOTKEY_05_AUX_MASK
 #define HOTKEY_05_AUX_MASK 0
 #endif
 #ifndef HOTKEY_05_BUTTONS_MASK
-#define HOTKEY_05_BUTTONS_MASK 4608	// S2 | A1
+#define HOTKEY_05_BUTTONS_MASK 0
 #endif
 #ifndef HOTKEY_05_DPAD_MASK
-#define HOTKEY_05_DPAD_MASK 1		// Up
+#define HOTKEY_05_DPAD_MASK 0
 #endif
 #ifndef HOTKEY_05_ACTION
-#define HOTKEY_05_ACTION 6		// SOCD = up priority
+#define HOTKEY_05_ACTION 0
 #endif
 
 #ifndef HOTKEY_06_AUX_MASK
 #define HOTKEY_06_AUX_MASK 0
 #endif
 #ifndef HOTKEY_06_BUTTONS_MASK
-#define HOTKEY_06_BUTTONS_MASK 4608	// S2 | A1
+#define HOTKEY_06_BUTTONS_MASK 0
 #endif
 #ifndef HOTKEY_06_DPAD_MASK
-#define HOTKEY_06_DPAD_MASK 2		// Down
+#define HOTKEY_06_DPAD_MASK 0
 #endif
 #ifndef HOTKEY_06_ACTION
-#define HOTKEY_06_ACTION 7		// SOCD = neutral
+#define HOTKEY_06_ACTION 0
 #endif
 
 #ifndef HOTKEY_07_AUX_MASK
 #define HOTKEY_07_AUX_MASK 0
 #endif
 #ifndef HOTKEY_07_BUTTONS_MASK
-#define HOTKEY_07_BUTTONS_MASK 4608	// S2 | A1
+#define HOTKEY_07_BUTTONS_MASK 0
 #endif
 #ifndef HOTKEY_07_DPAD_MASK
-#define HOTKEY_07_DPAD_MASK 4		// Left
+#define HOTKEY_07_DPAD_MASK 0
 #endif
 #ifndef HOTKEY_07_ACTION
-#define HOTKEY_07_ACTION 8		// SOCD = last input wins
+#define HOTKEY_07_ACTION 0
 #endif
 
 #ifndef HOTKEY_08_AUX_MASK

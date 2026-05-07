@@ -10,7 +10,6 @@ export default {
 	'hml-settings-label': 'GNS settings',
 	'led-config-label': 'LED 구성',
 	'links-label': '링크',
-	'macro-label': '매크로',
 	'pin-mapping-label': 'GPIO 핀 매핑',
 	'multi-mapping-label': '멀티 매핑',
 	'peripheral-mapping-label': '주변 기기 매핑',

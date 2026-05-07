@@ -16,17 +16,15 @@ import {
 import { Formik, useFormikContext } from 'formik';
 import * as yup from 'yup';
 import { Trans, useTranslation } from 'react-i18next';
-import omit from 'lodash/omit';
 
-import { AppContext } from '../Contexts/AppContext';
-import Section from '../Components/Section';
-import WebApi from '../Services/WebApi';
+import { AppContext } from '../../../Contexts/AppContext';
+import Section from '../../../Components/Section';
+import WebApi from '../../../Services/WebApi';
 import {
-	getButtonLabels,
 	BUTTONS,
 	BUTTON_MASKS_OPTIONS,
-} from '../Data/Buttons';
-import { BUTTON_ACTIONS } from '../Data/Pins';
+} from '../../../Data/Buttons';
+import { BUTTON_ACTIONS } from '../../../Data/Pins';
 
 const MACRO_TYPES = [
 	{ label: 'InputMacroAddon:input-macro-type.press', value: 1 },
@@ -88,18 +86,20 @@ const defaultMacroInput = {
 	stickDirection: 0, // 临时字段，仅用于前端UI，0表示未选择
 };
 
+const createDefaultMacroItem = () => ({
+	macroType: 1,
+	macroLabel: '',
+	enabled: 0,
+	exclusive: 1,
+	interruptible: 1,
+	showFrames: 1,
+	useMacroTriggerButton: 0,
+	macroTriggerButton: 0,
+	macroInputs: [{ ...defaultMacroInput }],
+});
+
 const defaultValues = {
-	macroList: Array(MACRO_LIMIT).fill({
-		macroType: 1,
-		macroLabel: '',
-		enabled: 0,
-		exclusive: 1,
-		interruptible: 1,
-		showFrames: 1,
-		useMacroTriggerButton: 0,
-		macroTriggerButton: 0,
-		macroInputs: [defaultMacroInput],
-	}),
+	macroList: Array.from({ length: MACRO_LIMIT }, createDefaultMacroItem),
 	macroBoardLedEnabled: 0,
 };
 
@@ -112,19 +112,27 @@ const FormContext = () => {
 	useEffect(() => {
 		async function fetchData() {
 			const options = await WebApi.getMacroAddonOptions(setLoading);
-			// 为每个macroInput添加stickDirection字段（从后端加载，默认0）
-			if (options && options.macroList) {
-				options.macroList = options.macroList.map((macro) => ({
-					...macro,
-					macroInputs: macro.macroInputs
-						? macro.macroInputs.map((input) => ({
-								...input,
-								stickDirection: input.stickDirection || 0,
-							}))
-						: [],
-				}));
+			if (options == null || typeof options !== 'object') {
+				return;
 			}
-			setValues(options);
+			const macroListSrc = options.macroList;
+			const next = {
+				...options,
+				macroList: Array.isArray(macroListSrc)
+					? macroListSrc.map((macro) => ({
+							...macro,
+							macroLabel:
+								macro.macroLabel == null ? '' : String(macro.macroLabel),
+							macroInputs: macro.macroInputs
+								? macro.macroInputs.map((input) => ({
+										...input,
+										stickDirection: input.stickDirection || 0,
+									}))
+								: [],
+						}))
+					: defaultValues.macroList,
+			};
+			setValues(next);
 		}
 		fetchData();
 	}, [setValues]);
@@ -160,7 +168,7 @@ const ButtonMasksComponent = (props) => {
 
 const MacroInputComponent = (props) => {
 	const {
-		value: { duration, buttonMask, waitDuration, stickDirection = 0 },
+		value,
 		buttonLabelType,
 		showFrames,
 		errors,
@@ -169,6 +177,11 @@ const MacroInputComponent = (props) => {
 		deleteMacroInput,
 		setFieldValue,
 	} = props;
+	const input = value ?? {};
+	const duration = input.duration ?? 16666;
+	const buttonMask = input.buttonMask ?? 0;
+	const waitDuration = input.waitDuration ?? 0;
+	const stickDirection = input.stickDirection ?? 0;
 
 	return (
 		<Row className="align-content-start align-items-center row-gap-2 gx-2 pb-2">
@@ -212,7 +225,6 @@ const MacroInputComponent = (props) => {
 								);
 							}}
 							isInvalid={errors?.buttonMask}
-							translation={t}
 							buttonLabelType={buttonLabelType}
 							buttonMasks={BUTTON_MASKS_OPTIONS}
 						/>
@@ -222,13 +234,11 @@ const MacroInputComponent = (props) => {
 			<Col xs="auto">
 				<ButtonMasksComponent
 					id={`${key}.buttonMaskPlaceholder`}
-					className="col-sm-auto"
 					value={0}
 					onChange={(e) => {
 						setFieldValue(`${key}.buttonMask`, buttonMask | e.target.value);
 					}}
 					isInvalid={errors?.buttonMask}
-					translation={t}
 					buttonLabelType={buttonLabelType}
 					buttonMasks={BUTTON_MASKS_OPTIONS}
 				/>
@@ -299,19 +309,8 @@ const MacroInputComponent = (props) => {
 
 const MacroComponent = (props) => {
 	const {
-		value: {
-			macroLabel,
-			macroType,
-			macroInputs,
-			enabled,
-			exclusive,
-			interruptible,
-			showFrames,
-			useMacroTriggerButton,
-			macroTriggerButton,
-		},
+		value: macroValue,
 		errors,
-		handleChange,
 		id: key,
 		translation: t,
 		index,
@@ -320,6 +319,22 @@ const MacroComponent = (props) => {
 		setFieldValue,
 		macroList,
 	} = props;
+
+	if (macroValue == null || typeof macroValue !== 'object') {
+		return null;
+	}
+
+	const {
+		macroLabel = '',
+		macroType,
+		macroInputs = [],
+		enabled,
+		exclusive,
+		interruptible,
+		showFrames,
+		useMacroTriggerButton,
+		macroTriggerButton,
+	} = macroValue;
 
 	return (
 		<div key={key}>
@@ -330,7 +345,7 @@ const MacroComponent = (props) => {
 						label={t('InputMacroAddon:input-macro-macro-enabled')}
 						type="switch"
 						className="form-select-sm"
-						checked={enabled}
+						checked={Boolean(enabled)}
 						onChange={(e) => {
 							setFieldValue(`${key}.enabled`, e.target.checked ? 1 : 0);
 						}}
@@ -348,13 +363,14 @@ const MacroComponent = (props) => {
 						name={`${key}.macroLabel`}
 						value={macroLabel}
 						isInvalid={errors?.macroLabel}
-						onChange={handleChange}
+						onChange={(e) =>
+							setFieldValue(`${key}.macroLabel`, e.target.value)}
 						maxLength={256}
 					/>
 				</Col>
 			</Row>
 			<Row className="my-2">
-				<Col sm={'auto'} mb={2}>
+				<Col sm="auto" className="mb-2">
 					{t('InputMacroAddon:macro-activation-type')}:
 				</Col>
 				<Col sm={'auto'}>
@@ -384,7 +400,7 @@ const MacroComponent = (props) => {
 						label={t('InputMacroAddon:input-macro-macro-interruptible')}
 						type="switch"
 						className="form-select-sm"
-						checked={interruptible}
+						checked={Boolean(interruptible)}
 						onChange={(e) => {
 							setFieldValue(`${key}.interruptible`, e.target.checked ? 1 : 0);
 						}}
@@ -399,8 +415,8 @@ const MacroComponent = (props) => {
 						label={t('InputMacroAddon:input-macro-macro-exclusive')}
 						type="switch"
 						className="form-select-sm"
-						disabled={interruptible}
-						checked={exclusive}
+						disabled={Boolean(interruptible)}
+						checked={Boolean(exclusive)}
 						onChange={(e) => {
 							setFieldValue(`${key}.exclusive`, e.target.checked ? 1 : 0);
 						}}
@@ -408,14 +424,14 @@ const MacroComponent = (props) => {
 					/>
 				</Col>
 			</Row>
-			<Row mt={2} className="align-items-center">
+			<Row className="mt-2 align-items-center">
 				<Col sm={'auto'}>
 					<Form.Check
 						name={`${key}.useMacroTriggerButton`}
 						label={t('InputMacroAddon:input-macro-macro-uses-buttons')}
 						type="switch"
 						className="form-select-sm"
-						checked={useMacroTriggerButton}
+						checked={Boolean(useMacroTriggerButton)}
 						onChange={(e) => {
 							setFieldValue(
 								`${key}.useMacroTriggerButton`,
@@ -426,34 +442,35 @@ const MacroComponent = (props) => {
 					/>
 				</Col>
 				{useMacroTriggerButton == true && (
-					<Row>
-						<Col sm={'auto'}>
-							{t('InputMacroAddon:input-macro-macro-button-pin-plus')}
-						</Col>
-						<Col sm={'auto'}>
-							<ButtonMasksComponent
-								className="col-sm-auto"
-								value={macroTriggerButton}
-								onChange={(e) => {
-									setFieldValue(
-										`${key}.macroTriggerButton`,
-										parseInt(e.target.value),
-									);
-								}}
-								buttonLabelType={buttonLabelType}
-								translation={t}
-								buttonMasks={BUTTON_MASKS_OPTIONS.filter(
-									(b) =>
-										macroList.find(
-											(m, macroIdx) =>
-												index != macroIdx &&
-												m.useMacroTriggerButton &&
-												m.macroTriggerButton === b.value,
-										) === undefined,
-								)}
-							/>
-						</Col>
-					</Row>
+					<Col sm="auto">
+						<Row className="g-2 align-items-center">
+							<Col sm={'auto'}>
+								{t('InputMacroAddon:input-macro-macro-button-pin-plus')}
+							</Col>
+							<Col sm={'auto'}>
+								<ButtonMasksComponent
+									id={`${key}.macroTriggerButton`}
+									value={macroTriggerButton}
+									onChange={(e) => {
+										setFieldValue(
+											`${key}.macroTriggerButton`,
+											parseInt(e.target.value),
+										);
+									}}
+									buttonLabelType={buttonLabelType}
+									buttonMasks={BUTTON_MASKS_OPTIONS.filter(
+										(b) =>
+											macroList.find(
+												(m, macroIdx) =>
+													index != macroIdx &&
+													m.useMacroTriggerButton &&
+													m.macroTriggerButton === b.value,
+											) === undefined,
+									)}
+								/>
+							</Col>
+						</Row>
+					</Col>
 				)}
 			</Row>
 			<Tabs defaultActiveKey="editor" className="mt-3 mb-3 pb-0" fill>
@@ -468,7 +485,7 @@ const MacroComponent = (props) => {
 								label={t('InputMacroAddon:input-macro-macro-show-frames')}
 								type="switch"
 								className="form-select-sm"
-								checked={showFrames}
+								checked={Boolean(showFrames)}
 								onChange={(e) => {
 									setFieldValue(`${key}.showFrames`, e.target.checked ? 1 : 0);
 								}}
@@ -486,7 +503,6 @@ const MacroComponent = (props) => {
 							translation={t}
 							buttonLabelType={buttonLabelType}
 							deleteMacroInput={() => deleteMacroInput(a)}
-							handleChange={handleChange}
 							setFieldValue={setFieldValue}
 						/>
 					))}
@@ -534,6 +550,10 @@ const MacroComponent = (props) => {
 							}
 							try {
 								const parsed = JSON.parse(e.target.value);
+								if (!Array.isArray(parsed)) {
+									console.error('macroInputs JSON must be an array');
+									return;
+								}
 								setFieldValue(`${key}.macroInputs`, parsed);
 							} catch (error) {
 								console.error('Invalid JSON', error);
@@ -547,9 +567,11 @@ const MacroComponent = (props) => {
 	);
 };
 
-export default function MacrosPage() {
-	const { buttonLabels, usedPins } = useContext(AppContext);
+export default function MacroSettings() {
+	const { buttonLabels } = useContext(AppContext);
 	const [saveMessage, setSaveMessage] = useState('');
+	const { buttonLabelType } = buttonLabels;
+	const { t } = useTranslation('');
 
 	const saveSettings = async (values) => {
 		// stickDirection现在保存到后端，不需要localStorage了
@@ -558,7 +580,7 @@ export default function MacrosPage() {
 			...values,
 			macroList: values.macroList.map((macro) => ({
 				...macro,
-				macroInputs: macro.macroInputs.map((input) => ({
+				macroInputs: (macro.macroInputs ?? []).map((input) => ({
 					...input,
 					stickDirection: input.stickDirection || 0,
 				})),
@@ -574,16 +596,6 @@ export default function MacrosPage() {
 
 	const onSuccess = async (values) => await saveSettings(values);
 
-	const { buttonLabelType, swapTpShareLabels } = buttonLabels;
-	const CURRENT_BUTTONS = getButtonLabels(buttonLabelType, swapTpShareLabels);
-	const buttonNames = omit(CURRENT_BUTTONS, ['label', 'value']);
-
-	const { t } = useTranslation('');
-
-	const handleCheckbox = async (name, values) => {
-		values[name] = values[name] === 1 ? 0 : 1;
-	};
-
 	return (
 		<Formik
 			validationSchema={schema}
@@ -592,40 +604,37 @@ export default function MacrosPage() {
 		>
 			{({
 				handleSubmit,
-				handleChange,
 				values,
 				errors,
 				setFieldValue,
-				setValues,
 			}) => (
 				<div>
 					<Form noValidate onSubmit={handleSubmit}>
 						<Tab.Container defaultActiveKey="settings">
-							<Row>
-								<Col md={3}>
-									<Nav variant="pills" className="flex-column text-nowrap">
-										<Nav.Item key="pills-header">
-											<Nav.Link eventKey="settings">
-												{t('InputMacroAddon:input-macro-header-text')}
-											</Nav.Link>
-										</Nav.Item>
-										{values.macroList.map((macro, i) => (
-											<Nav.Item key={`pills-item-${i}`}>
-												<Nav.Link eventKey={`macro-${i}`}>
-													{macro.macroLabel.length == 0
-														? t('InputMacroAddon:input-macro-macro-list-txt', {
-																macroNumber: i + 1,
-															})
-														: macro.macroLabel.length > 24
-															? macro.macroLabel.substr(0, 24) + '...'
-															: macro.macroLabel}
-												</Nav.Link>
-											</Nav.Item>
-										))}
-									</Nav>
-								</Col>
-								<Col md={9}>
-									<Tab.Content>
+							<Nav variant="tabs" className="macro-settings-top-tabs mb-3 w-100">
+								<Nav.Item key="tabs-header-overview">
+									<Nav.Link eventKey="settings">
+										{t('InputMacroAddon:input-macro-header-text')}
+									</Nav.Link>
+								</Nav.Item>
+								{values.macroList.map((macro, i) => (
+									<Nav.Item key={`tabs-item-macro-${i}`}>
+										<Nav.Link eventKey={`macro-${i}`}>
+											{(() => {
+												const label = macro.macroLabel ?? '';
+												return label.length === 0
+													? t('InputMacroAddon:input-macro-macro-list-txt', {
+															macroNumber: i + 1,
+														})
+													: label.length > 24
+														? `${label.slice(0, 24)}...`
+														: label;
+											})()}
+										</Nav.Link>
+									</Nav.Item>
+								))}
+							</Nav>
+							<Tab.Content>
 										<Tab.Pane eventKey="settings">
 											<Section
 												title={t('InputMacroAddon:input-macro-header-text')}
@@ -668,19 +677,30 @@ export default function MacrosPage() {
 																	<tr key={`macro-list-item-${i}`}>
 																		<td>{i + 1}</td>
 																		<td>
-																			{macro.macroLabel.length == 0 && (
-																				<em>None</em>
-																			)}
-																			{macro.macroLabel.length > 0 &&
-																				macro.macroLabel.slice(0, 32)}
-																			{macro.macroLabel.length > 32 && '...'}
+																			{(() => {
+																				const label = macro.macroLabel ?? '';
+																				return (
+																					<>
+																						{label.length === 0 && (
+																							<em>None</em>
+																						)}
+																						{label.length > 0 &&
+																							label.slice(0, 32)}
+																						{label.length > 32 && '...'}
+																					</>
+																				);
+																			})()}
 																		</td>
 																		<td>
-																			{t(
-																				MACRO_TYPES.find(
-																					(m) => m.value === macro.macroType,
-																				).label,
-																			)}
+																			{(() => {
+																				const entry = MACRO_TYPES.find(
+																					(m) =>
+																						m.value === macro.macroType,
+																				);
+																				return entry
+																					? t(entry.label)
+																					: `(${macro.macroType})`;
+																			})()}
 																		</td>
 																		<td>
 																			{macro.useMacroTriggerButton == 1
@@ -696,16 +716,26 @@ export default function MacrosPage() {
 																				<em>---</em>
 																			</td>
 																		) : (
-																			<td>{`${
-																				BUTTON_MASKS_OPTIONS.find(
-																					(b) =>
-																						b.value == macro.macroTriggerButton,
-																				).label
-																			}`}</td>
+																			<td>
+																				{(() => {
+																					const opt =
+																						BUTTON_MASKS_OPTIONS.find(
+																							(b) =>
+																								b.value ==
+																								macro.macroTriggerButton,
+																						);
+																					return opt
+																						? opt.label
+																						: `(${macro.macroTriggerButton})`;
+																				})()}
+																			</td>
 																		)}
-																		<td>{macro.macroInputs.length}</td>
 																		<td>
-																			{macro.enabled == true ? (
+																			{(macro.macroInputs ?? []).length}
+																		</td>
+																		<td>
+																			{macro.enabled === 1 ||
+																			macro.enabled === true ? (
 																				<Badge bg="success">
 																					{t(
 																						'InputMacroAddon:input-macro-macro-enabled-badge',
@@ -746,8 +776,10 @@ export default function MacrosPage() {
 															isInvalid={false}
 															checked={Boolean(values.macroBoardLedEnabled)}
 															onChange={(e) => {
-																handleCheckbox('macroBoardLedEnabled', values);
-																handleChange(e);
+																setFieldValue(
+																	'macroBoardLedEnabled',
+																	e.target.checked ? 1 : 0,
+																);
 															}}
 														/>
 													</Col>
@@ -783,14 +815,16 @@ export default function MacrosPage() {
 														errors={errors?.macroList?.at(i)}
 														translation={t}
 														buttonLabelType={buttonLabelType}
-														handleChange={handleChange}
 														index={i}
 														setFieldValue={setFieldValue}
-														deleteMacroInput={(i) => {
-															macro.macroInputs.splice(i, 1);
-															setValues(values);
+														deleteMacroInput={(inputIdx) => {
+															const inputs =
+																values.macroList[i].macroInputs ?? [];
+															setFieldValue(
+																`macroList[${i}].macroInputs`,
+																inputs.filter((_, idx) => idx !== inputIdx),
+															);
 														}}
-														buttonNames={buttonNames}
 														macroList={values.macroList}
 													/>
 													<hr className="mt-3" />
@@ -803,9 +837,7 @@ export default function MacrosPage() {
 												</Section>
 											</Tab.Pane>
 										))}
-									</Tab.Content>
-								</Col>
-							</Row>
+							</Tab.Content>
 						</Tab.Container>
 						<FormContext />
 					</Form>

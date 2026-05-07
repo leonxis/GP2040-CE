@@ -11,7 +11,6 @@ export default {
 	'keyboard-mapping-label': 'Tastatur Zuweisung',
 	'led-config-label': 'LED Konfiguration',
 	'links-label': 'Hyperlinks',
-	'macro-label': 'Makro',
 	'pin-mapping-label': 'Pin Zuweisung',
 	'peripheral-mapping-label': 'Peripherie Zuordnung',
 	'profile-settings-label': 'Profil Einstellungen',
