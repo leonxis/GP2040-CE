@@ -37,6 +37,40 @@ function emptyPresetPointSlots(): CurvePointInput[] {
 	return Array.from({ length: CURVE_POINT_COUNT }, () => ({ x: '0', y: '0' }));
 }
 
+/** Formik/firmware preset slot (profile 1..2). Always length CURVE_PRESET_COUNT so UI index matches API index. */
+type PresetSlotSerialize = {
+	name: string;
+	points: Array<{ x: string; y: string }>;
+	activationButtonMask?: number;
+};
+
+function joystickCurvePresetsSlotsForFormik(
+	presetSlots: PresetSlotSerialize[],
+): Array<{ name: string; points: CurvePoint[]; activationButtonMask: number }> {
+	const out: Array<{ name: string; points: CurvePoint[]; activationButtonMask: number }> = [];
+	for (let i = 0; i < CURVE_PRESET_COUNT; i++) {
+		const currentPreset = presetSlots[i];
+		const currentPoints: CurvePoint[] = [];
+		const pts = currentPreset?.points ?? [];
+		for (let j = 0; j < pts.length; j++) {
+			const x = parseFloat(String(pts[j].x)) || 0;
+			const y = parseFloat(String(pts[j].y)) || 0;
+			if (x > 0 || y > 0) {
+				currentPoints.push({
+					x: Math.max(0, Math.min(1, x)),
+					y: Math.max(0, Math.min(1, y)),
+				});
+			}
+		}
+		out.push({
+			name: (currentPreset?.name ?? '').trim(),
+			points: sortCurvePointsByX(currentPoints),
+			activationButtonMask: currentPreset?.activationButtonMask ?? 0,
+		});
+	}
+	return out;
+}
+
 type QuickSwitchHeadingProps = { t: (key: string) => string; tooltipIdSuffix: string };
 
 const RightStickQuickSwitchHeading = ({ t, tooltipIdSuffix }: QuickSwitchHeadingProps) => {
@@ -1359,34 +1393,7 @@ const JoystickCurveSettings = ({
 		newPresets[presetIndex].name = value;
 		setPresetInputs(newPresets);
 		
-		const allPresets: Array<{ name: string; points: CurvePoint[]; activationButtonMask?: number }> = [];
-		for (let i = 0; i < CURVE_PRESET_COUNT; i++) {
-			const currentPreset = newPresets[i];
-			
-			const currentPoints: CurvePoint[] = [];
-			for (let j = 0; j < currentPreset.points.length; j++) {
-				const x = parseFloat(String(currentPreset.points[j].x)) || 0;
-				const y = parseFloat(String(currentPreset.points[j].y)) || 0;
-				if (x > 0 || y > 0) {
-					currentPoints.push({
-						x: Math.max(0, Math.min(1, x)),
-						y: Math.max(0, Math.min(1, y)),
-					});
-				}
-			}
-			
-			const sortedPresetPoints = sortCurvePointsByX(currentPoints);
-			
-			if (currentPreset.name.trim() || sortedPresetPoints.length > 0) {
-				allPresets.push({
-					name: currentPreset.name.trim(),
-					points: sortedPresetPoints,
-					activationButtonMask: currentPreset.activationButtonMask ?? 0,
-				});
-			}
-		}
-		
-		setFieldValue('joystickCurvePresets', allPresets);
+		setFieldValue('joystickCurvePresets', joystickCurvePresetsSlotsForFormik(newPresets));
 	};
 	
 	// Handle preset point change
@@ -1479,34 +1486,7 @@ const JoystickCurveSettings = ({
 	
 	// Helper function to save preset to formik
 	const savePresetToFormik = (presetInputsToSave: PresetInput[]) => {
-		const allPresets: Array<{ name: string; points: CurvePoint[]; activationButtonMask?: number }> = [];
-		for (let i = 0; i < CURVE_PRESET_COUNT; i++) {
-			const currentPreset = presetInputsToSave[i];
-			
-			const currentPoints: CurvePoint[] = [];
-			for (let j = 0; j < currentPreset.points.length; j++) {
-				const x = parseFloat(String(currentPreset.points[j].x)) || 0;
-				const y = parseFloat(String(currentPreset.points[j].y)) || 0;
-				if (x > 0 || y > 0) {
-					currentPoints.push({
-						x: Math.max(0, Math.min(1, x)),
-						y: Math.max(0, Math.min(1, y)),
-					});
-				}
-			}
-			
-			const sortedPresetPoints = sortCurvePointsByX(currentPoints);
-			
-			if (currentPreset.name.trim() || sortedPresetPoints.length > 0) {
-				allPresets.push({
-					name: currentPreset.name.trim(),
-					points: sortedPresetPoints,
-					activationButtonMask: currentPreset.activationButtonMask ?? 0,
-				});
-			}
-		}
-		
-		setFieldValue('joystickCurvePresets', allPresets);
+		setFieldValue('joystickCurvePresets', joystickCurvePresetsSlotsForFormik(presetInputsToSave));
 	};
 
 	const handlePresetActivationSelectChange = (presetIndex: number, e: ChangeEvent<HTMLSelectElement>) => {
