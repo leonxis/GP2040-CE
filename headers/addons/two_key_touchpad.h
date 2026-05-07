@@ -6,14 +6,19 @@
 #include "config.pb.h"
 #include "addons/action_mapping_common.h"
 
+#include <cstdint>
+
 #define TWO_KEY_TOUCHPAD_ADDON_NAME "2键触摸板"
 
 // 2键触摸板：I2C1 SDA = 左触摸键引脚，I2C1 SCL = 右触摸键引脚（开关接地，低有效）
 // GPIO12 = 使能键（低有效）
-// 逻辑：
-//   GPIO12 按下 + 左/右引脚低 → 输出左/右触摸键映射，抑制 GPIO12 原映射
-//   GPIO12 按下 + 两引脚均高 → 仅输出 GPIO12 原映射（直通）
-//   GPIO12 松开 → 全部清除
+// 逻辑（双计数器门控，每帧更新；左右触摸合并为一个触摸计数 markertouch_）：
+//   标记1（marker1_）：使能未按下置 -1；按下则每帧 +1（自 -1 递增，带饱和）。仅当标记1 > 6 时本插件才可能输出。
+//   标记2：任一侧触摸 raw 低则每帧 +1，否则置 -1（合并计数，带饱和）。
+//   标记1 > 6 且标记2 > 3：按左/右 raw 输出触摸映射，并抑制使能映射。
+//   标记1 > 6 且标记2 == -1 且两路 raw 均为高：输出使能键映射（双 raw 高防止触点毛刺误出使能）。
+//   标记2 ∈ {0,1,2,3}：死区，本帧无输出。
+//   使能未按下时仍每帧更新标记2并 begin/endFrame，但不 apply；标记1 置 -1。
 class TwoKeyTouchpadAddon : public GPAddon {
 public:
     virtual bool available();
@@ -31,9 +36,8 @@ private:
     ActionMappingCommon::ActionMappingTable mapTable_;
     ActionMappingCommon::ActionOutputScope outputScope_;
 
-    // 触摸键防抖：连续若干帧稳定再更新状态（GPIO12 仍保持无防抖，避免引入新的延迟）
-    ActionMappingCommon::DebounceBoolState leftDebounce_;
-    ActionMappingCommon::DebounceBoolState rightDebounce_;
+    int8_t marker1_     = -1;   // 使能键标记：未按下时固定 -1，按下时每帧 +1（饱和）
+    int8_t markertouch_ = -1;   // 触摸合并标记：无触摸时固定 -1，任一侧按下时每帧 +1（饱和）
 };
 
 #endif

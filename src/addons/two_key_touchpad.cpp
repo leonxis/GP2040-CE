@@ -6,14 +6,25 @@
 #include "helper.h"
 
 #define TOUCHPAD_ENABLE_PIN_2KEY 12
-// 连续多少帧一致才更新触摸键状态
-static constexpr uint8_t TWO_KEY_TOUCH_DEBOUNCE_FRAMES = 3;
+
+// 阈值与主循环帧率相关；标记自 -1 起每帧递增（按住时）。
+// marker1_ > OUTPUT_MIN：使能连续按住约从 -1→7 共 8 帧后才可能输出。
+// markertouch_ > TOUCH_MIN：单侧或合并触摸连续低约从 -1→4 共 5 帧后才可能出触摸。
+static constexpr int8_t TWO_KEY_MARKER_INITIAL = -1;
+static constexpr int8_t TWO_KEY_MARKER1_OUTPUT_MIN = 6;    // 需 marker1_ > 本值
+static constexpr int8_t TWO_KEY_MARKERTOUCH_TOUCH_MIN = 3; // 需 markertouch_ > 本值
+static constexpr int8_t TWO_KEY_MARKER_SAT_MAX = 127;
 
 enum TwoKeyMapIndex : uint8_t {
     LEFT_TOUCH = 0,
     RIGHT_TOUCH = 1,
     ENABLE_KEY = 2,
 };
+
+static int8_t bumpMarker(int8_t current) {
+    return (current >= TWO_KEY_MARKER_SAT_MAX) ? TWO_KEY_MARKER_SAT_MAX
+                                                : static_cast<int8_t>(current + 1);
+}
 
 bool TwoKeyTouchpadAddon::available() {
     const TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
@@ -59,15 +70,15 @@ void TwoKeyTouchpadAddon::setup() {
 
     buildMappings();
     outputScope_.reset();
-    ActionMappingCommon::resetDebounceBool(leftDebounce_, false);
-    ActionMappingCommon::resetDebounceBool(rightDebounce_, false);
+    marker1_ = TWO_KEY_MARKER_INITIAL;
+    markertouch_ = TWO_KEY_MARKER_INITIAL;
 }
 
 void TwoKeyTouchpadAddon::reinit() {
     buildMappings();
     outputScope_.reset();
-    ActionMappingCommon::resetDebounceBool(leftDebounce_, false);
-    ActionMappingCommon::resetDebounceBool(rightDebounce_, false);
+    marker1_ = TWO_KEY_MARKER_INITIAL;
+    markertouch_ = TWO_KEY_MARKER_INITIAL;
 }
 
 void TwoKeyTouchpadAddon::preprocess() {
@@ -80,44 +91,39 @@ void TwoKeyTouchpadAddon::preprocess() {
 
     outputScope_.beginFrame(gamepad);
 
-    // ② 使能键（GPIO12）低有效，无防抖：未按下时本插件不输出触摸/直通逻辑。
-    // 正常配置下 GPIO12 已被标记为 ASSIGNED_TO_ADDON，不会由 gamepad->read() 直接产生命令。
     const bool enablePressed = !gpio_get(TOUCHPAD_ENABLE_PIN_2KEY);
-    if (!enablePressed) {
+    const bool leftRaw  = !gpio_get((uint)pin_left);
+    const bool rightRaw = !gpio_get((uint)pin_right);
+
+    marker1_ = enablePressed ? bumpMarker(marker1_) : TWO_KEY_MARKER_INITIAL;
+    const bool anyTouchRaw = leftRaw || rightRaw;
+    markertouch_ = anyTouchRaw ? bumpMarker(markertouch_) : TWO_KEY_MARKER_INITIAL;
+
+    if (marker1_ <= TWO_KEY_MARKER1_OUTPUT_MIN) {
         outputScope_.endFrame();
         return;
     }
 
-    const bool leftRaw  = !gpio_get((uint)pin_left);
-    const bool rightRaw = !gpio_get((uint)pin_right);
-    ActionMappingCommon::updateDebounceBool(leftRaw, leftDebounce_, TWO_KEY_TOUCH_DEBOUNCE_FRAMES);
-    ActionMappingCommon::updateDebounceBool(rightRaw, rightDebounce_, TWO_KEY_TOUCH_DEBOUNCE_FRAMES);
-
-    const bool leftPressed = leftDebounce_.stable;
-    const bool rightPressed = rightDebounce_.stable;
     const ActionMappingCommon::ActionMappingEntry* enableEntry = mapTable_.at(ENABLE_KEY);
 
-    if (leftPressed || rightPressed) {
-        // 触摸键模式：优先输出左/右触摸映射。
-        // 这里保留对 enableEntry 的清理作为兼容性兜底（异常配置/历史配置未标记 ASSIGNED_TO_ADDON 时避免残留）。
+    if (markertouch_ > TWO_KEY_MARKERTOUCH_TOUCH_MIN) {
         if (enableEntry != nullptr) {
             ActionMappingCommon::clearActionMappingEntry(gamepad, *enableEntry);
         }
-        if (leftPressed) {
+        if (leftRaw) {
             const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_TOUCH);
             if (entry != nullptr) {
                 outputScope_.apply(gamepad, *entry);
             }
         }
-        if (rightPressed) {
+        if (rightRaw) {
             const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_TOUCH);
             if (entry != nullptr) {
                 outputScope_.apply(gamepad, *entry);
             }
         }
-    } else if (enableEntry != nullptr && !leftRaw && !rightRaw) {
-        // 无触摸（含原始电平）：输出使能键映射。
-        // 若任一触摸键 raw 已按下但防抖尚未稳定，暂不直通 enable，避免“使能键闪现”。
+    } else if (markertouch_ == TWO_KEY_MARKER_INITIAL && !leftRaw && !rightRaw
+               && enableEntry != nullptr) {
         outputScope_.apply(gamepad, *enableEntry);
     }
 
