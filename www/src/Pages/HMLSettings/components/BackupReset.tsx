@@ -65,6 +65,56 @@ function deepClone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value));
 }
 
+/** Split server text on `;` / `；` so changelog-style entries can be shown on separate lines. */
+function splitSemicolonLines(text: string): string[] {
+	const parts = text
+		.split(/[;；]+/)
+		.map((part) => part.trim())
+		.filter((part) => part.length > 0);
+	if (parts.length > 0) {
+		return parts;
+	}
+	const trimmed = text.trim();
+	return trimmed ? [trimmed] : [];
+}
+
+function LabelledSemicolonText({
+	label,
+	text,
+}: {
+	label: string;
+	text: string;
+}) {
+	const lines = splitSemicolonLines(text);
+	if (lines.length === 0) {
+		return (
+			<div>
+				<strong>{label}:</strong>
+			</div>
+		);
+	}
+	if (lines.length === 1) {
+		return (
+			<div>
+				<strong>{label}:</strong>{' '}
+				<span className="text-break">{lines[0]}</span>
+			</div>
+		);
+	}
+	return (
+		<div>
+			<strong>{label}:</strong>
+			<div className="ps-3 mt-1 d-flex flex-column gap-1">
+				{lines.map((line, idx) => (
+					<div key={idx} className="text-break">
+						{line}
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
 function mergeDeep(target: AnyRecord, source: AnyRecord): AnyRecord {
 	const output: AnyRecord = { ...target };
 	for (const key of Object.keys(source)) {
@@ -487,12 +537,14 @@ export default function BackupReset() {
 			</Modal.Header>
 			<Modal.Body>
 				<div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-					<div>
-						<strong>{t('SettingsPage:hml-upgrade-version-info-label')}:</strong> {versionInfo}
-					</div>
-					<div>
-						<strong>{t('SettingsPage:hml-upgrade-release-note-label')}:</strong> {versionUpdate}
-					</div>
+					<LabelledSemicolonText
+						label={t('SettingsPage:hml-upgrade-version-info-label')}
+						text={versionInfo}
+					/>
+					<LabelledSemicolonText
+						label={t('SettingsPage:hml-upgrade-release-note-label')}
+						text={versionUpdate}
+					/>
 					<div className="text-muted">
 						<div>{t('SettingsPage:hml-upgrade-instruction-1')}</div>
 						<div>{t('SettingsPage:hml-upgrade-instruction-2')}</div>
