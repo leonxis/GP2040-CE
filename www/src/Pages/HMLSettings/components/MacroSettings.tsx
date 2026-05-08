@@ -76,7 +76,6 @@ const schema = yup.object().shape({
 				),
 		}),
 	),
-	macroBoardLedEnabled: yup.number(),
 });
 
 const defaultMacroInput = {
@@ -100,7 +99,6 @@ const createDefaultMacroItem = () => ({
 
 const defaultValues = {
 	macroList: Array.from({ length: MACRO_LIMIT }, createDefaultMacroItem),
-	macroBoardLedEnabled: 0,
 };
 
 const ONE_FRAME_US = 16666;
@@ -763,25 +761,6 @@ export default function MacroSettings() {
 																{t('InputMacroAddon:input-macro-sub-header')}
 															</em>
 														</Form.Label>
-													</Col>
-												</Row>
-												<Row>
-													<Col sm={10}>
-														<Form.Check
-															label={t(
-																'InputMacroAddon:input-macro-board-led-enabled',
-															)}
-															type="switch"
-															id="InputMacroAddonBoardLed"
-															isInvalid={false}
-															checked={Boolean(values.macroBoardLedEnabled)}
-															onChange={(e) => {
-																setFieldValue(
-																	'macroBoardLedEnabled',
-																	e.target.checked ? 1 : 0,
-																);
-															}}
-														/>
 													</Col>
 												</Row>
 												<hr className="mt-3" />

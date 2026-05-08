@@ -278,7 +278,6 @@ src/addons/action_mapping_common.cpp
 src/addons/unified_voltage_switch.cpp
 src/addons/unified_joystick_travel_key.cpp
 src/addons/analog_utils.cpp
-src/addons/board_led.cpp
 src/addons/bootsel_button.cpp
 src/addons/focus_mode.cpp
 src/addons/he_trigger.cpp

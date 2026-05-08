@@ -6,12 +6,6 @@ export default {
 	'bootsel-sub-header-text':
 		'Remarque : L\'écran OLED peut devenir non réactif si le bouton est activé, désactivez-le pour le restaurer.',
 	'bootsel-button-pin-label': 'Bouton BOOT',
-	'on-board-led-configuration-label': 'Configuration de la LED intégrée',
-	'on-board-led-mode-label': 'Mode LED',
-	'on-board-led-mode-option-0': 'Éteint',
-	'on-board-led-mode-option-1': 'Indicateur de mode',
-	'on-board-led-mode-option-2': 'Test d\'entrée',
-	'on-board-led-mode-option-3': 'Authentification PS4/5',
 	'analog-header-text': 'Sticks Analogiques',
 	'analog-warning':
 		'Remarque : Les sticks analogiques remplaceront les entrées Stick Gauche et Stick Droit de la manette de jeu lorsqu\'ils seront activés',

@@ -380,12 +380,6 @@ message BootselButtonOptions
     optional uint32 buttonMap = 2;
 }
 
-message OnBoardLedOptions
-{
-    optional OnBoardLedMode mode = 1;
-    optional bool enabled = 2;
-}
-
 message CurvePoint
 {
     optional float x = 1;
@@ -848,7 +842,6 @@ message MacroOptions
     optional bool enabled = 1;
     optional int32 deprecatedPin = 2 [deprecated = true];
     repeated Macro macroList = 3 [(nanopb).max_count = 6];
-    optional bool macroBoardLedEnabled = 4;
 }
 
 message InputHistoryOptions
@@ -953,7 +946,6 @@ message LinearTriggerOptions
 message AddonOptions
 {
     optional BootselButtonOptions bootselButtonOptions = 1;
-    optional OnBoardLedOptions onBoardLedOptions = 2;
     optional AnalogOptions analogOptions = 3;
     optional TurboOptions turboOptions = 4;
     optional SliderOptions deprecatedSliderOptions = 5 [deprecated = true];

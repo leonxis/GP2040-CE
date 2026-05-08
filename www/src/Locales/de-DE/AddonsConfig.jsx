@@ -6,8 +6,6 @@ export default {
 	'bootsel-sub-header-text':
 		'Hinweis: OLED könnte nicht reagieren, falls die Taste eingestellt ist. Setzen Sie sie zurück, um die Funktion wiederherzustellen.',
 	'bootsel-button-pin-label': 'BOOTSEL Taste',
-	'on-board-led-configuration-label': 'On-Board LED Konfiguration',
-	'on-board-led-mode-label': 'LED Modus',
 	'analog-header-text': 'Analog',
 	'analog-warning':
 		'Hinweis: Analoge Sticks überschreiben den Rechten-Stick und Linken-Stick des Gamepads, wenn sie aktiviert sind.',

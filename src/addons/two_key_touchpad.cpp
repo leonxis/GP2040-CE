@@ -11,7 +11,7 @@
 // marker1_ > OUTPUT_MIN：使能连续按住约从 -1→7 共 8 帧后才可能输出。
 // markertouch_ > TOUCH_MIN：单侧或合并触摸连续低约从 -1→4 共 5 帧后才可能出触摸。
 static constexpr int8_t TWO_KEY_MARKER_INITIAL = -1;
-static constexpr int8_t TWO_KEY_MARKER1_OUTPUT_MIN = 6;    // 需 marker1_ > 本值
+static constexpr int8_t TWO_KEY_MARKER1_OUTPUT_MIN = 35;    // 需 marker1_ > 本值
 static constexpr int8_t TWO_KEY_MARKERTOUCH_TOUCH_MIN = 3; // 需 markertouch_ > 本值
 static constexpr int8_t TWO_KEY_MARKER_SAT_MAX = 127;
 

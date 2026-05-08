@@ -4,8 +4,6 @@
 #include "enums.pb.h"
 #include "drivermanager.h"
 
-#include "hardware/gpio.h"
-
 bool InputMacro::available() {
     // Macro Button initialized by void Gamepad::setup()
     GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
@@ -61,14 +59,6 @@ void InputMacro::setup() {
     }
 
     inputMacroOptions = &Storage::getInstance().getAddonOptions().macroOptions;
-    if (inputMacroOptions->macroBoardLedEnabled && isValidPin(BOARD_LED_PIN)) {
-        gpio_init(BOARD_LED_PIN);
-        gpio_set_dir(BOARD_LED_PIN, GPIO_OUT);
-        boardLedEnabled = true;
-    } else {
-        boardLedEnabled = false;
-    }
-    boardLedEnabled = false;
     prevMacroInputPressed = false;
     reset();
 }
@@ -82,9 +72,6 @@ void InputMacro::reset() {
     macroInputPosition = 0;
     isMacroTriggerHeld = false;
     macroInputHoldTime = INPUT_HOLD_US;
-    if (boardLedEnabled) {
-        gpio_put(BOARD_LED_PIN, 0);
-    }
 }
 
 void InputMacro::restart(Macro& macro) {
@@ -287,13 +274,6 @@ void InputMacro::runCurrentMacro() {
                         break;
                 }
             }
-        }
-
-        // Macro LED is on if we're currently running and inputs are doing something (wait-timers turn it off)
-        if (boardLedEnabled) {
-            gpio_put(BOARD_LED_PIN, (gamepad->state.dpad || gamepad->state.buttons || 
-                    gamepad->state.lx != GAMEPAD_JOYSTICK_MID || gamepad->state.ly != GAMEPAD_JOYSTICK_MID ||
-                    gamepad->state.rx != GAMEPAD_JOYSTICK_MID || gamepad->state.ry != GAMEPAD_JOYSTICK_MID) ? 1 : 0);
         }
     }
 }

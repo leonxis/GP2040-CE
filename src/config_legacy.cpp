@@ -20,11 +20,8 @@ const size_t SPLASH_IMAGE_STORAGE_INDEX = 6144; // 1032 bytes for Display Config
 const uint32_t CHECKSUM_MAGIC   = 0;
 const uint32_t NOCHECKSUM_MAGIC = 0xDEADBEEF;   // No checksum CRC;
 
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// Do not change the structs or enums in the ConfigLegacy namespace!
-// They represent the structure of our legacy configuration storage, and any
-// change will break the migration process.
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// Legacy configuration storage layout (EEPROM). This project does not maintain
+// binary compatibility with previous firmware; the struct layout may change.
 
 namespace ConfigLegacy
 {
@@ -78,13 +75,6 @@ namespace ConfigLegacy
         HOTKEY_INVERT_Y_AXIS,
         HOTKEY_SOCD_FIRST_INPUT,
         HOTKEY_SOCD_BYPASS,
-    };
-
-    enum OnBoardLedMode
-    {
-        BOARD_LED_OFF,
-        MODE_INDICATOR,
-        INPUT_TEST,
     };
 
     enum PLEDType
@@ -257,7 +247,6 @@ namespace ConfigLegacy
         uint8_t pinDualDirRight;
         DpadMode dualDirDpadMode;    // LS/DP/RS
         uint8_t dualDirCombineMode; // Mix/Gamepad/Dual/None
-        OnBoardLedMode onBoardLedMode;
         uint8_t analogAdcPinX;
         uint8_t analogAdcPinY;
         uint16_t bootselButtonMap;
@@ -288,7 +277,6 @@ namespace ConfigLegacy
         int wiiExtensionBlock;
         uint32_t wiiExtensionSpeed;
         uint8_t AnalogInputEnabled;
-        uint8_t BoardLedAddonEnabled;
         uint8_t BootselButtonAddonEnabled;
         uint8_t BuzzerSpeakerAddonEnabled;
         uint8_t DualDirectionalInputEnabled;
@@ -620,18 +608,6 @@ static bool isValidPLEDType(PLEDType pledType)
         case PLED_TYPE_NONE:
         case PLED_TYPE_PWM:
         case PLED_TYPE_RGB:
-            return true;
-    }
-    return false;
-}
-
-static bool isValidOnBoardLedMode(ConfigLegacy::OnBoardLedMode onBoardLedMode)
-{
-    switch (onBoardLedMode)
-    {
-        case ConfigLegacy::BOARD_LED_OFF:
-        case ConfigLegacy::MODE_INDICATOR:
-        case ConfigLegacy::INPUT_TEST:
             return true;
     }
     return false;
@@ -1024,14 +1000,6 @@ bool ConfigUtils::fromLegacyStorage(Config& config)
         if (isValidSOCDMode(legacyAddonOptions.sliderSOCDModeTwo))
         {
             SET_PROPERTY(socdSliderOptions, deprecatedModeTwo, static_cast<SOCDMode>(legacyAddonOptions.sliderSOCDModeTwo));
-        }
-
-        OnBoardLedOptions& onBoardLedOptions = config.addonOptions.onBoardLedOptions;
-        config.addonOptions.has_onBoardLedOptions = true;
-        SET_PROPERTY(onBoardLedOptions, enabled, legacyAddonOptions.BoardLedAddonEnabled);
-        if (isValidOnBoardLedMode(legacyAddonOptions.onBoardLedMode))
-        {
-            SET_PROPERTY(onBoardLedOptions, mode, static_cast<OnBoardLedMode>(legacyAddonOptions.onBoardLedMode));
         }
 
         TurboOptions& turboOptions = config.addonOptions.turboOptions;

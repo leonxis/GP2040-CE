@@ -1,7 +1,6 @@
 export default {
 	'input-macro-editor-tab': 'Düzenleyici',
 	'input-macro-advanced-tab': 'Gelişmiş',
-	'input-macro-board-led-enabled': 'Makro Durumunu Görüntülemek İçin Kart Ledi Kullanın',
 	'input-macro-macro-enabled': 'Etkin',
 	'input-macro-macro-enabled-badge': 'Etkin',
 	'input-macro-macro-disabled-badge': 'Devre dışı',

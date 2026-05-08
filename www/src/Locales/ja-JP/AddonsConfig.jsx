@@ -6,12 +6,6 @@ export default {
 	'bootsel-sub-header-text':
 		'注：ボタンが割り当てられている場合OLEDの反応が悪くなる可能性があります。元に戻す場合は解除してください。',
 	'bootsel-button-pin-label': 'BOOTSEL ボタン',
-	'on-board-led-configuration-label': 'オンボードLED設定',
-	'on-board-led-mode-label': 'LED モード',
-	'on-board-led-mode-option-0': 'オフ',
-	'on-board-led-mode-option-1': 'モードインジケータ',
-	'on-board-led-mode-option-2': '入力テスト',
-	'on-board-led-mode-option-3': 'PS4/5 認証',
 	'analog-header-text': 'アナログ',
 	'analog-warning':
 		'注：アナログスティック設定はゲームパッドの左スティックと右スティックの入力をオーバーライドします。',

@@ -420,7 +420,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		reverseActionDown: 1,
 		reverseActionLeft: 1,
 		reverseActionRight: 1,
-		onBoardLedMode: 0,
 		dualDirDpadMode: 0,
 		dualDirCombineMode: 0,
 		dualDirFourWayMode: 0,
@@ -509,7 +508,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		keyboardHostMouseSensitivity: 50,
 		keyboardHostMouseMovement: 0,
 		AnalogInputEnabled: 1,
-		BoardLedAddonEnabled: 1,
 		FocusModeAddonEnabled: 1,
 		focusModeMacroLockEnabled: 0,
 		BuzzerSpeakerAddonEnabled: 1,
@@ -703,7 +701,6 @@ app.get('/api/getMacroAddonOptions', (req, res) => {
 				macroInputs: [],
 			},
 		],
-		macroBoardLedEnabled: 1,
 	});
 });
 

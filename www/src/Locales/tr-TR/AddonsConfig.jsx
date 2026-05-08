@@ -6,12 +6,6 @@ export default {
 	'bootsel-sub-header-text':
 		'Not: Geri yüklemeye ayarlı değil ise OLED tepkisiz hale gelebilir',
 	'bootsel-button-pin-label': 'BOOTSEL Tuşu',
-	'on-board-led-configuration-label': 'Dahili Led Ayarları',
-	'on-board-led-mode-label': 'LED Modu',
-	'on-board-led-mode-option-0': 'Kapalı',
-	'on-board-led-mode-option-1': 'Mod Göstergesi',
-	'on-board-led-mode-option-2': 'Giriş Testi',
-	'on-board-led-mode-option-3': 'PS4/5 Doğrulaması',
 	'analog-header-text': 'Analog',
 	'analog-warning':
 		'Not: Analog çubuklar etkinleştirildiğinde oyun kumandasının Sol Çubuk ve Sağ Çubuk girişlerini geçersiz kılar',

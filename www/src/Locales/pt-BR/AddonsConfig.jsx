@@ -6,8 +6,6 @@ export default {
 	'bootsel-sub-header-text':
 		'Observação: a tela OLED pode ficar sem resposta se o botão estiver definido; desative para restaurar.',
 	'bootsel-button-pin-label': 'Botão BOOTSEL',
-	'on-board-led-configuration-label': 'Configuração do LED On-Board',
-	'on-board-led-mode-label': 'Modo LED',
 	'analog-header-text': 'Analógico',
 	'analog-warning':
 		'Observação: os analógicos substituirão as entradas do gamepad Left-Stick e Right-Stick quando ativados',

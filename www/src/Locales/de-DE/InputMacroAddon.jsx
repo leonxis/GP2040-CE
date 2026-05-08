@@ -1,5 +1,4 @@
 export default {
-	'input-macro-board-led-enabled': 'Board LED Aktivieren',
 	'input-macro-macro-exclusive': 'Exklusiv',
 	'input-macro-macro-interruptible': 'Unterbrechbar',
 	'input-macro-macro-show-frames': 'Frames anzeigen',

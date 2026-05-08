@@ -1,7 +1,6 @@
 export default {
 	'input-macro-editor-tab': 'Editor',
 	'input-macro-advanced-tab': 'Avanzado',
-	'input-macro-board-led-enabled': 'Usar LED de la Placa para Mostrar Estado de Macro',
 	'input-macro-macro-enabled': 'Habilitado',
 	'input-macro-macro-enabled-badge': 'Habilitado',
 	'input-macro-macro-disabled-badge': 'Deshabilitado',

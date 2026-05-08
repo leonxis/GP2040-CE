@@ -11,7 +11,6 @@
 #include "GamepadConfig.h"
 #include "version.h"
 #include "addons/analog.h"
-#include "addons/board_led.h"
 #include "addons/bootsel_button.h"
 #include "addons/buzzerspeaker.h"
 #include "addons/dualdirectional.h"
@@ -612,10 +611,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     // addonOptions.bootselButtonOptions
     INIT_UNSET_PROPERTY(config.addonOptions.bootselButtonOptions, enabled, !!BOOTSEL_BUTTON_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.bootselButtonOptions, buttonMap, BOOTSEL_BUTTON_MASK);
-
-    // addonOptions.onBoardLedOptions
-    INIT_UNSET_PROPERTY(config.addonOptions.onBoardLedOptions, enabled, !!BOARD_LED_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.onBoardLedOptions, mode, BOARD_LED_TYPE);
 
     // addonOptions.analogOptions
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, enabled, !!ANALOG_INPUT_ENABLED);
@@ -1220,7 +1215,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 
     // Macro options (always on)
     INIT_UNSET_PROPERTY(config.addonOptions.macroOptions, enabled, true);
-    INIT_UNSET_PROPERTY(config.addonOptions.macroOptions, macroBoardLedEnabled, INPUT_MACRO_BOARD_LED_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.macroOptions, deprecatedPin, -1);
 
     // Set all macros

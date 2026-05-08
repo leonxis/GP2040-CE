@@ -6,12 +6,6 @@ export default {
 	'bootsel-sub-header-text':
 		'Nota: La pantalla OLED podría dejar de responder si se configura este botón, desactívelo para restaurar.',
 	'bootsel-button-pin-label': 'Botón BOOTSEL',
-	'on-board-led-configuration-label': 'Configuración del LED Integrado',
-	'on-board-led-mode-label': 'Modo LED',
-	'on-board-led-mode-option-0': 'Apagado',
-	'on-board-led-mode-option-1': 'Indicador de Modo',
-	'on-board-led-mode-option-2': 'Prueba de Entrada',
-	'on-board-led-mode-option-3': 'Autenticación PS4/5',
 	'analog-header-text': 'Analógico',
 	'analog-warning':
 		'Nota: Los sticks analógicos anularán las entradas del control para Stick Izquierdo y Stick Derecho cuando estén habilitados',

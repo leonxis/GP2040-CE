@@ -1,7 +1,6 @@
 export default {
 	'input-macro-editor-tab': '편집기',
 	'input-macro-advanced-tab': '고급',
-	'input-macro-board-led-enabled': '매크로 상태 표시에 보드 LED 사용',
 	'input-macro-macro-enabled': '활성',
 	'input-macro-macro-enabled-badge': '활성',
 	'input-macro-macro-disabled-badge': '비활성',

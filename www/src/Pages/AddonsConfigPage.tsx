@@ -21,10 +21,6 @@ import DualDirection, {
 	dualDirectionScheme,
 	dualDirectionState,
 } from '../Addons/DualDirection';
-import OnBoardLed, {
-	onBoardLedScheme,
-	onBoardLedState,
-} from '../Addons/OnBoardLed';
 import Reverse, { reverseScheme, reverseState } from '../Addons/Reverse';
 import SOCD, { socdScheme, socdState } from '../Addons/SOCD';
 import Tilt, { tiltScheme, tiltState } from '../Addons/Tilt';
@@ -69,7 +65,6 @@ const schema = yup.object().shape({
 	...ads8332Scheme,
 	...lsm6dsrScheme,
 	...bootselScheme,
-	...onBoardLedScheme,
 	...turboScheme,
 	...reverseScheme,
 	...dualDirectionScheme,
@@ -108,7 +103,6 @@ export const DEFAULT_VALUES = {
 	...ads8332State,
 	...lsm6dsrState,
 	...bootselState,
-	...onBoardLedState,
 	...turboState,
 	...reverseState,
 	...dualDirectionState,
@@ -130,7 +124,6 @@ export const DEFAULT_VALUES = {
 
 const ADDONS = [
 	Bootsel,
-	OnBoardLed,
 	Analog,
 	Turbo,
 	Reverse,

@@ -57,7 +57,7 @@
 GP2040-CE 的插件（addon）分为在 **Core0 主循环**加载的输入/逻辑类，与在 **Core1** 加载的显示/LED/震动等。STM32 单核且取消 Core1，要求如下：
 
 - **不移植、不参与 STM32 编译的插件**
-  - **Core1 用**：Display、NeoPico（neopicoleds）、PlayerLED、BoardLed、Buzzer、DRV8833Rumble、ReactiveLED；对应库 NeoPico 不链接。
+  - **Core1 用**：Display、NeoPico（neopicoleds）、PlayerLED、Buzzer、DRV8833Rumble、ReactiveLED；对应库 NeoPico 不链接。
   - **与 Host/启动相关**：BootselButton、KeyboardHost、GamepadUSBHost（及 GamepadUSBHostListener）。认证仍通过 USB Host + Auth listener 完成，但不保留「键盘 Host」「第三方手柄 Host」插件。
   - **约定不移植的 Core0 插件**：HETriggerAddon、FocusModeAddon、I2CAnalog1219Input、SPIAnalog1256Input、PCF8575Addon、DualDirectionalInput、RotaryEncoderInput。
 - **需移植或条件编译保留的插件（原 Core0 addon）**
@@ -432,7 +432,7 @@ GP2040-CE 的插件（addon）分为在 **Core0 主循环**加载的输入/逻�
 
 ### 12.3 不参与 STM32 编译的模块（示例）
 
-- **插件与库**：详见 **1.6**。不移植的 addon 及库包括：`lib/NeoPico`、`src/addons/neopicoleds.cpp`、`bootsel_button.cpp`、`display.cpp`、`board_led.cpp`、`buzzerspeaker.cpp`、`drv8833_rumble.cpp`、`reactiveleds.cpp`、`playerleds.cpp`、`keyboard_host*.cpp`、`gamepad_usb_host*.cpp`；以及 `he_trigger.cpp`、`focus_mode.cpp`、`i2canalog1219.cpp`、`spi_analog_ads1256.cpp`、`i2c_gpio_pcf8575.cpp`、`dualdirectional.cpp`、`rotaryencoder.cpp`。
+- **插件与库**：详见 **1.6**。不移植的 addon 及库包括：`lib/NeoPico`、`src/addons/neopicoleds.cpp`、`bootsel_button.cpp`、`display.cpp`、`buzzerspeaker.cpp`、`drv8833_rumble.cpp`、`reactiveleds.cpp`、`playerleds.cpp`、`keyboard_host*.cpp`、`gamepad_usb_host*.cpp`；以及 `he_trigger.cpp`、`focus_mode.cpp`、`i2canalog1219.cpp`、`spi_analog_ads1256.cpp`、`i2c_gpio_pcf8575.cpp`、`dualdirectional.cpp`、`rotaryencoder.cpp`。
 - **其他**：`lib/pico_pio_usb`、`lib/rndis`、`lib/lwip-port`、`lib/httpd`、`www/` 与 RNDIS/NetDriver 相关源。
 
 ---

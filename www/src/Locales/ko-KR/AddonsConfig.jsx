@@ -6,12 +6,6 @@ export default {
 	'bootsel-sub-header-text':
 		'참고: 버튼을 설정하면 OLED가 응답하지 않을 수 있습니다. 복구하려면 설정을 해제하십시오.',
 	'bootsel-button-pin-label': 'BOOTSEL 버튼',
-	'on-board-led-configuration-label': '온 보드 LED 설정',
-	'on-board-led-mode-label': 'LED 모드',
-	'on-board-led-mode-option-0': '끔',
-	'on-board-led-mode-option-1': '모드 표시기',
-	'on-board-led-mode-option-2': '입력 테스트',
-	'on-board-led-mode-option-3': 'PS4/5 인증',
 	'analog-header-text': '아날로그',
 	'analog-warning':
 		'참고: 설정시 아날로그 스틱이 게임패드의 좌/우 스틱 입력보다 우선하게 됩니다',

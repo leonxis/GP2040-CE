@@ -2246,10 +2246,6 @@ std::string setAddonOptions()
     docToValue(socdSliderOptions.enabled, doc, "SliderSOCDInputEnabled");
     docToValue(socdSliderOptions.modeDefault, doc, "sliderSOCDModeDefault");
 
-    OnBoardLedOptions& onBoardLedOptions = Storage::getInstance().getAddonOptions().onBoardLedOptions;
-    docToValue(onBoardLedOptions.mode, doc, "onBoardLedMode");
-    docToValue(onBoardLedOptions.enabled, doc, "BoardLedAddonEnabled");
-
     TurboOptions& turboOptions = Storage::getInstance().getAddonOptions().turboOptions;
     docToPin(turboOptions.ledPin, doc, "turboPinLED");
     docToValue(turboOptions.shotCount, doc, "turboShotCount");
@@ -2893,10 +2889,6 @@ std::string getAddonOptions()
     writeDoc(doc, "sliderSOCDModeDefault", socdSliderOptions.modeDefault);
     writeDoc(doc, "SliderSOCDInputEnabled", socdSliderOptions.enabled);
 
-    const OnBoardLedOptions& onBoardLedOptions = Storage::getInstance().getAddonOptions().onBoardLedOptions;
-    writeDoc(doc, "onBoardLedMode", onBoardLedOptions.mode);
-    writeDoc(doc, "BoardLedAddonEnabled", onBoardLedOptions.enabled);
-
     const TurboOptions& turboOptions = Storage::getInstance().getAddonOptions().turboOptions;
     writeDoc(doc, "turboPinLED", cleanPin(turboOptions.ledPin));
     writeDoc(doc, "turboShotCount", turboOptions.shotCount);
@@ -3056,7 +3048,6 @@ std::string setMacroAddonOptions()
     DynamicJsonDocument doc = get_post_data();
 
     MacroOptions& macroOptions = Storage::getInstance().getAddonOptions().macroOptions;
-    docToValue(macroOptions.macroBoardLedEnabled, doc, "macroBoardLedEnabled");
 
     JsonObject options = doc.as<JsonObject>();
     JsonArray macros = options["macroList"];
@@ -3105,8 +3096,6 @@ std::string getMacroAddonOptions()
 
     MacroOptions& macroOptions = Storage::getInstance().getAddonOptions().macroOptions;
     JsonArray macroList = doc.createNestedArray("macroList");
-
-    writeDoc(doc, "macroBoardLedEnabled", macroOptions.macroBoardLedEnabled);
 
     for (int i = 0; i < MAX_MACRO_LIMIT; i++) {
         JsonObject macro = macroList.createNestedObject();
