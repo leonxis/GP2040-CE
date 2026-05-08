@@ -220,6 +220,11 @@ export default {
 		'3. In flashing mode, click Firmware Upgrade to automatically download firmware, then manually copy it to the RPI-RP2 drive.',
 	'hml-upgrade-manual-copy-hint':
 		'Firmware download started. Please manually copy GNS.uf2 to the root directory of the RPI-RP2 drive.',
+	'hml-upgrade-manual-modal-title': '펌웨어 복사 안내',
+	'hml-upgrade-manual-modal-step1':
+		'1. 브라우저가 업그레이드용 펌웨어를 다운로드합니다.',
+	'hml-upgrade-manual-modal-step2':
+		'2. 다운로드한 {{uf2File}} 파일을 컴퓨터의 RPI-RP2 드라이브에 수동으로 복사하여 업그레이드를 완료하세요.',
 	'hml-upgrade-cancel-button': 'Cancel',
 	'hml-upgrade-check-button': 'Check update',
 	'hml-upgrade-mode-button': 'Upgrade mode',

@@ -219,6 +219,10 @@ export default {
 	'hml-upgrade-instruction-2': '2、固件信息显示有效后点击升级模式按键进入刷机模式。',
 	'hml-upgrade-instruction-3': '3、刷机模式下点击固件升级按钮自动下载固件并手动复制到RPI-RP2磁盘。',
 	'hml-upgrade-manual-copy-hint': '固件下载已触发，请将 GNS.uf2 手动复制到 RPI-RP2 磁盘根目录。',
+	'hml-upgrade-manual-modal-title': '固件操作提示',
+	'hml-upgrade-manual-modal-step1': '1、浏览器将自动下载升级固件。',
+	'hml-upgrade-manual-modal-step2':
+		'2、请手动将下载的固件 {{uf2File}} 复制到电脑中 RPI-RP2 磁盘中完成升级。',
 	'hml-upgrade-cancel-button': '取消',
 	'hml-upgrade-check-button': '检查更新',
 	'hml-upgrade-mode-button': '升级模式',

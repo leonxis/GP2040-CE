@@ -8,7 +8,7 @@ import FirmwareUpgradeService from '../../../Services/FirmwareUpgrade';
 
 const FILE_EXTENSION = '.gp2040';
 const FILENAME = 'gp2040ce_backup_{DATE}' + FILE_EXTENSION;
-type AnyRecord = Record<string, any>;
+type AnyRecord = Record<string, unknown>;
 
 async function saveBlobWithUserPicker(blob: Blob, fileName: string): Promise<boolean> {
 	const pickerWindow = window as unknown as Window & {
@@ -610,11 +610,17 @@ export default function BackupReset() {
 			centered
 		>
 			<Modal.Header closeButton>
-				<Modal.Title>固件操作提示</Modal.Title>
+				<Modal.Title>
+					{t('SettingsPage:hml-upgrade-manual-modal-title')}
+				</Modal.Title>
 			</Modal.Header>
 			<Modal.Body>
-				<div>1、浏览器将自动下载升级固件。</div>
-				<div>2、请手动将下载的固件 GNS.uf2 复制到电脑中 RPI-RP2 磁盘中完成升级。</div>
+				<div>{t('SettingsPage:hml-upgrade-manual-modal-step1')}</div>
+				<div>
+					{t('SettingsPage:hml-upgrade-manual-modal-step2', {
+						uf2File: FirmwareUpgradeService.TARGET_UF2_FILENAME,
+					})}
+				</div>
 			</Modal.Body>
 			<Modal.Footer>
 				<Button variant="secondary" onClick={() => setShowManualCopyModal(false)}>
