@@ -2,8 +2,7 @@ import * as React from 'react';
 import { Row, Col, Card, Form, Button } from 'react-bootstrap';
 import { Trans, useTranslation } from 'react-i18next';
 import KeyboardMapper from '../../../Components/KeyboardMapper';
-import ContextualHelpOverlay from '../../../Components/ContextualHelpOverlay';
-import { HML_INPUT_MODES, AUTHENTICATION_TYPES, PS4_ID_MODES } from '../constants/hmlInputModes';
+import { HML_INPUT_MODES, AUTHENTICATION_TYPES } from '../constants/hmlInputModes';
 import { useGamepadOptions } from '../hooks/useGamepadOptions';
 import { useKeyMappings } from '../hooks/useKeyMappings';
 import { AppContext } from '../../../Contexts/AppContext';
@@ -207,49 +206,10 @@ export default function ModeSettings() {
 					</Col>
 				</Row>
 				<Row className="mb-3">
-					<Col sm={3}>
-						<Form.Label>
-							{t('SettingsPage:ps4-id-mode-label')}
-							<ContextualHelpOverlay
-								title={t('SettingsPage:ps4-id-mode-label')}
-								body={
-									<Trans
-										ns="SettingsPage"
-										i18nKey="ps4-id-mode-explanation-text"
-										components={{ ul: <ul />, li: <li /> }}
-									/>
-								}
-							/>
-						</Form.Label>
-						<Form.Select
-							name="ps4ControllerIDMode"
-							className="form-select-sm"
-							value={modeValues.ps4ControllerIDMode || 0}
-							onChange={(e) => {
-								const newIDMode = parseInt(e.target.value);
-								setValues((prev) => ({
-									...prev,
-									ps4ControllerIDMode: newIDMode,
-									// 当识别模式为控制台（0）时，自动设置认证类型为使用密钥（1）
-									ps4AuthType: newIDMode === 0 ? 1 : prev.ps4AuthType,
-								}));
-							}}
-						>
-							{PS4_ID_MODES.map((o) => (
-								<option key={`hml-ps4-id-option-${o.value}`} value={o.value}>
-									{t('SettingsPage:' + o.labelKey)}
-								</option>
-							))}
-						</Form.Select>
+					<Col sm={10}>
+						<span className="text-info">{t('SettingsPage:hml-ps4-auto-console-auth-hint')}</span>
 					</Col>
 				</Row>
-				{modeValues.ps4ControllerIDMode === 0 && (
-					<Row className="mb-3">
-						<Col sm={10}>
-							<span className="text-info">{t('SettingsPage:hml-ps4-auto-console-auth-hint')}</span>
-						</Col>
-					</Row>
-				)}
 			</div>
 		);
 	};
@@ -361,9 +321,10 @@ export default function ModeSettings() {
 		setSaveMessage('');
 		const data: ModeValues = { ...values, inputMode };
 		
-		// 当PS4模式且识别模式为控制台时，确保认证类型为使用密钥
-		if (inputMode === 4 && data.ps4ControllerIDMode === 0) {
-			data.ps4AuthType = 1; // 使用密钥
+		// PS4 主机模式固定为控制台识别模式（PS 主机），并使用密钥认证
+		if (inputMode === 4) {
+			data.ps4ControllerIDMode = 0;
+			data.ps4AuthType = 1;
 		}
 		// XINPUT电脑模式固定无认证
 		if (inputMode === 18) {
@@ -406,6 +367,9 @@ export default function ModeSettings() {
 									...prev,
 									inputMode: newInputMode,
 									xinputAuthType: newInputMode === 18 ? 0 : prev.xinputAuthType,
+									...(newInputMode === 4
+										? { ps4ControllerIDMode: 0, ps4AuthType: 1 }
+										: {}),
 								}));
 							}}
 						>
