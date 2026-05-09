@@ -561,13 +561,13 @@ void GP2040::run() {
 		// Pre-Process add-ons for MPGS
 		addons.PreprocessAddons();
 
-		gamepad->hotkey(); 	// check for MPGS hotkeys
-		rebootHotkeys.process(configMode);
-
 		gamepad->process(); // process through MPGS
 
 		// (Post) Process for add-ons
 		addons.ProcessAddons();
+
+		gamepad->hotkey(); 	// check for MPGS hotkeys
+		rebootHotkeys.process(configMode);
 
 		// Perform bidirectional swap for analog modes (after addons process)
 		// This ensures we use physical joystick values updated by the unified analog processor.
