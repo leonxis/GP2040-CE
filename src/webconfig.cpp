@@ -1,5 +1,6 @@
 #include "config.pb.h"
 #include "base64.h"
+// adc_gpio_init / adc_read (HE calibration, linear triggers)
 #include "hardware/adc.h"
 #include "helper.h"
 
@@ -16,16 +17,12 @@
 #include "enums.pb.h"
 
 #include <cstring>
-#include <cmath>
 #include <string>
 #include <vector>
 #include <memory>
 #include <set>
 
 #include <pico/types.h>
-
-// for hall-effect calibration
-#include "hardware/adc.h"
 
 // HTTPD Includes
 #include <ArduinoJson.h>
@@ -35,13 +32,11 @@
 #include "fsdata.h"
 #include "lwip/apps/httpd.h"
 #include "lwip/def.h"
-#include "lwip/mem.h"
 #include "addons/input_macro.h"
 #include "addons/analog_utils.h"
 #include "addons/linear_trigger.h"
 #include "addons/lsm6dsr_imu.h"
 #include "hardware/gpio.h"
-#include "pico/time.h"
 
 #define PATH_CGI_ACTION "/cgi/action"
 
@@ -243,7 +238,7 @@ struct DataAndStatusCode
 // **** WEB SERVER Overrides and Special Functionality ****
 int set_file_data(fs_file* file, const DataAndStatusCode& dataAndStatusCode)
 {
-    static string returnData;
+    std::string* returnData = new std::string();
 
     const char* statusCodeStr = "";
     switch (dataAndStatusCode.statusCode)
@@ -253,25 +248,27 @@ int set_file_data(fs_file* file, const DataAndStatusCode& dataAndStatusCode)
         case HttpStatusCode::_500: statusCodeStr = "500 Internal Server Error"; break;
     }
 
-    returnData.clear();
-    returnData.append("HTTP/1.0 ");
-    returnData.append(statusCodeStr);
-    returnData.append("\r\n");
-    returnData.append(
+    returnData->clear();
+    returnData->append("HTTP/1.0 ");
+    returnData->append(statusCodeStr);
+    returnData->append("\r\n");
+    returnData->append(
         "Server: GP2040-CE " GP2040VERSION "\r\n"
         "Content-Type: application/json\r\n"
         "Access-Control-Allow-Origin: *\r\n"
         "Content-Length: "
     );
-    returnData.append(std::to_string(dataAndStatusCode.data.length()));
-    returnData.append("\r\n\r\n");
-    returnData.append(dataAndStatusCode.data);
 
-    file->data = returnData.c_str();
-    file->len = returnData.size();
+    returnData->append(std::to_string(dataAndStatusCode.data.length()));
+    returnData->append("\r\n\r\n");
+    returnData->append(dataAndStatusCode.data);
+
+    file->data = returnData->c_str();
+    file->len = returnData->size();
     file->index = file->len;
-    file->http_header_included = file->http_header_included;
-    file->pextension = NULL;
+    file->http_header_included = true;
+    file->pextension = returnData;
+    file->is_custom_file = 1;
 
     return 1;
 }
@@ -3450,7 +3447,7 @@ void fs_close_custom(struct fs_file *file)
 {
     if (file && file->is_custom_file && file->pextension)
     {
-        mem_free(file->pextension);
+        delete static_cast<std::string*>(file->pextension);
         file->pextension = NULL;
     }
 }
