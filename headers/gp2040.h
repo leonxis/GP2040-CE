@@ -7,7 +7,7 @@
 #define GP2040_H_
 
 #ifndef WEB_CONFIG_HOSTNAME
-#define WEB_CONFIG_HOSTNAME "gp2040-ce"
+#define WEB_CONFIG_HOSTNAME "gns"
 #endif
 
 // GP2040 Classes
