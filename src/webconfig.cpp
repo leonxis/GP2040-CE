@@ -1166,6 +1166,7 @@ std::string setLedOptions()
     readDoc(ledOptions.caseRGBIndex, doc, "caseRGBIndex");
     readDoc(ledOptions.caseRGBCount, doc, "caseRGBCount");
 
+    Storage::getInstance().dismissAmbientWebConfigOverride();
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -1235,6 +1236,13 @@ std::string setAmbientOptions()
     AnimationOptions& options = Storage::getInstance().getAnimationOptions();
 
     docToValue(options.ambientLightEffectsCountIndex, doc, "ambientLightEffectsCountIndex");
+    if (doc["ambientLightEffectsCountIndex"] != nullptr) {
+        options.has_ambientLightEffectsCountIndex = true;
+        // Clamp illegal / reserved values (> static theme or future enum values) to default product mode.
+        if (options.ambientLightEffectsCountIndex > AL_CUSTOM_EFFECT_STATIC_THEME) {
+            options.ambientLightEffectsCountIndex = AL_CUSTOM_EFFECT_STATIC_THEME;
+        }
+    }
     docToValue(options.ambientLightGradientSpeed, doc, "ambientLightGradientSpeed");
     docToValue(options.ambientLightChaseSpeed, doc, "ambientLightChaseSpeed");
     docToValue(options.ambientLightBreathSpeed, doc, "ambientLightBreathSpeed");
@@ -1246,18 +1254,24 @@ std::string setAmbientOptions()
         readDoc(options.alCustomStaticColorIndex, doc, "ambientColor");
     }
 
+    if (doc["webConfigAmbientHintEnabled"] != nullptr) {
+        options.has_webConfigAmbientHintEnabled = true;
+        readDoc(options.webConfigAmbientHintEnabled, doc, "webConfigAmbientHintEnabled");
+    }
+
     // Default to orange when no color has been configured.
     if (options.alCustomStaticColorIndex == 0) {
         options.alCustomStaticColorIndex = RGB(255, 165, 0).value(LED_FORMAT_RGB);
     }
 
+    Storage::getInstance().dismissAmbientWebConfigOverride();
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
 
 std::string getAmbientOptions()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(32);
+    const size_t capacity = JSON_OBJECT_SIZE(40);
     DynamicJsonDocument doc(capacity);
     const AnimationOptions& options = Storage::getInstance().getAnimationOptions();
 
@@ -1266,7 +1280,13 @@ std::string getAmbientOptions()
         ambientColor = RGB(255, 165, 0).value(LED_FORMAT_RGB);
     }
 
-    writeDoc(doc, "ambientLightEffectsCountIndex", options.ambientLightEffectsCountIndex);
+    uint32_t ambientIndexOut = options.has_ambientLightEffectsCountIndex
+                                   ? options.ambientLightEffectsCountIndex
+                                   : AL_CUSTOM_EFFECT_STATIC_THEME;
+    if (ambientIndexOut > AL_CUSTOM_EFFECT_STATIC_THEME) {
+        ambientIndexOut = AL_CUSTOM_EFFECT_STATIC_THEME;
+    }
+    writeDoc(doc, "ambientLightEffectsCountIndex", ambientIndexOut);
     writeDoc(doc, "ambientLightGradientSpeed", options.ambientLightGradientSpeed);
     writeDoc(doc, "ambientLightChaseSpeed", options.ambientLightChaseSpeed);
     writeDoc(doc, "ambientLightBreathSpeed", options.ambientLightBreathSpeed);
@@ -1274,6 +1294,9 @@ std::string getAmbientOptions()
     writeDoc(doc, "alChaseBrightnessCustomX", options.alChaseBrightnessCustomX);
     writeDoc(doc, "alStaticBrightnessCustomThemeX", options.alStaticBrightnessCustomThemeX);
     writeDoc(doc, "ambientColor", ((RGB)ambientColor).value(LED_FORMAT_RGB));
+
+    writeDoc(doc, "webConfigAmbientHintEnabled",
+             options.has_webConfigAmbientHintEnabled && options.webConfigAmbientHintEnabled);
 
     return serialize_json(doc);
 }

@@ -15,6 +15,8 @@
 #include "usbdriver.h"
 #include "enums.h"
 #include "helper.h"
+#include "drivermanager.h"
+#include "pico/time.h"
 
 #define FRAME_MAX 100
 #define CHASE_LIGHTS_TURN_ON 4
@@ -300,6 +302,10 @@ void NeoPicoLEDAddon::setup() {
 	remainderOfButtonLedsCount = (ledOptions.caseRGBCount) % (buttonLedCount);
 
     alLinkageStartIndex = ledOptions.caseRGBIndex;
+
+	webConfigHintPhase_ = 0;
+	webConfigOverridePrev_ = false;
+	webConfigHintNextPhaseAt_ = delayed_by_ms(get_absolute_time(), 100);
 }
 
 void NeoPicoLEDAddon::ambientLightCustom() {
@@ -311,8 +317,18 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	if ( maxFrame > FRAME_MAX - alStartIndex )
 		maxFrame = FRAME_MAX - alStartIndex; // make sure we don't go over 100 and overflow frame[]
 
+	uint32_t effectIdx = options.ambientLightEffectsCountIndex;
+	// Never treat reserved internal modes (e.g. web-config hint) as normal saved effect if flash predates clamp.
+	if (effectIdx > AL_CUSTOM_EFFECT_STATIC_THEME) {
+		effectIdx = AL_CUSTOM_EFFECT_STATIC_THEME;
+	}
+	if (DriverManager::getInstance().isConfigMode() &&
+	    Storage::getInstance().isAmbientWebConfigOverrideActive()) {
+		effectIdx = AL_CUSTOM_EFFECT_WEB_CONFIG_HINT;
+	}
+
 	// Start-up Animations in Haute were here
-	switch(options.ambientLightEffectsCountIndex) {
+	switch (effectIdx) {
 		case AL_CUSTOM_EFFECT_GRADIENT: {
 			alFrameToRGB = 255 - static_cast<int>(alCurrentFrame); // From 0 -> 255 to 255 -> 0
 			if(alFrameToRGB < 85) { // Less than 85, transitions from red to yellow. The red component starts at 255 and gradually decreases, the green component always reaches 0, and the blue component starts at 0 and increases gradually.
@@ -438,6 +454,44 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 			RGB ambientStaticColor(static_cast<uint32_t>(configuredColor));
 			for(int i = 0; i < maxFrame; i++) {
 				frame[alStartIndex + i] = ambientStaticColor.value(Animation::format, options.alStaticBrightnessCustomThemeX);
+			}
+			break;
+		}
+		case AL_CUSTOM_EFFECT_WEB_CONFIG_HINT: {
+			static const uint32_t kWebHintPhaseMs[] = {100, 100, 100, 100, 100, 500};
+			constexpr size_t kWebHintPhaseCount = sizeof(kWebHintPhaseMs) / sizeof(kWebHintPhaseMs[0]);
+
+			const bool overrideNow =
+			    DriverManager::getInstance().isConfigMode() &&
+			    Storage::getInstance().isAmbientWebConfigOverrideActive();
+			if (overrideNow && !webConfigOverridePrev_) {
+				webConfigHintPhase_ = 0;
+				webConfigHintNextPhaseAt_ =
+				    delayed_by_ms(get_absolute_time(), kWebHintPhaseMs[0]);
+			}
+			webConfigOverridePrev_ = overrideNow;
+
+			while (time_reached(webConfigHintNextPhaseAt_)) {
+				webConfigHintPhase_ =
+				    static_cast<uint8_t>((webConfigHintPhase_ + 1) % kWebHintPhaseCount);
+				webConfigHintNextPhaseAt_ = delayed_by_ms(
+				    get_absolute_time(), kWebHintPhaseMs[webConfigHintPhase_]);
+			}
+			const bool on =
+			    (webConfigHintPhase_ == 0 || webConfigHintPhase_ == 2 || webConfigHintPhase_ == 4);
+			const uint32_t configuredColor = options.alCustomStaticColorIndex == 0
+				? AMBIENT_DEFAULT_COLOR.value(LED_FORMAT_RGB)
+				: options.alCustomStaticColorIndex;
+			RGB amb(static_cast<uint32_t>(configuredColor));
+			if (on) {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] =
+					    amb.value(Animation::format, options.alStaticBrightnessCustomThemeX);
+				}
+			} else {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] = 0;
+				}
 			}
 			break;
 		}

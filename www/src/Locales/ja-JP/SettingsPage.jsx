@@ -242,8 +242,9 @@ export default {
 	'hml-save-failed': '保存に失敗しました。',
 	'hml-section-led-config': 'LED設定',
 	'hml-led-strip-label': 'LEDストリップ',
-	'hml-led-strip-off': 'LEDストリップはオフです',
-	'hml-led-data-pin': 'LEDデータピン: GPIO{{pin}}',
+	'hml-config-mode-led-effect-label': 'Web設定時の筐体LEDヒント',
+	'hml-config-mode-led-effect-hint':
+		'オンにすると、Web設定を開いたときに筐体LEDが点滅します（LEDストリップ利用時）。',
 	'hml-color-label': '色:',
 	'hml-brightness-label': '明るさ:',
 	'hml-speed-label': '速度',

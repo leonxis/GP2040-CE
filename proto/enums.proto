@@ -557,6 +557,7 @@ enum AmbientEffectType
     AL_CUSTOM_EFFECT_CHASE = 2;		    // Chase
     AL_CUSTOM_EFFECT_BREATH = 3;		// Breathing
     AL_CUSTOM_EFFECT_STATIC_THEME = 4;	// Custom Static
+    AL_CUSTOM_EFFECT_WEB_CONFIG_HINT = 5;	// Web-config session hint (not persisted as user mode)
 };
 
 enum AnimationColor // Sync with Animation.h

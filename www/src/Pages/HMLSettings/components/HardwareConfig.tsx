@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Form } from 'react-bootstrap';
+import { Button, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 
+import InfoCircle from '../../../Icons/InfoCircle';
 import Section from '../../../Components/Section';
 import ColorPicker from '../../../Components/ColorPicker';
 import WebApi from '../../../Services/WebApi';
+import { hexToInt } from '../../../Services/Utilities';
 
 const AMBIENT_EFFECTS = {
 	GRADIENT: 1,
@@ -48,6 +50,7 @@ export default function HardwareConfig() {
 	const [ambientOptions, setAmbientOptions] = useState({
 		ambientLightEffectsCountIndex: AMBIENT_EFFECTS.STATIC_RGB,
 		ambientColor: '#ffa500',
+		webConfigAmbientHintEnabled: true,
 		alStaticBrightnessCustomThemeX: 1,
 		ambientLightGradientSpeed: 0.2,
 		alGradientBrightnessCustomX: 1,
@@ -113,6 +116,7 @@ export default function HardwareConfig() {
 						ambient?.ambientLightEffectsCountIndex ??
 						AMBIENT_EFFECTS.STATIC_RGB,
 					ambientColor: ambient?.ambientColor || '#ffa500',
+					webConfigAmbientHintEnabled: Boolean(ambient?.webConfigAmbientHintEnabled),
 					alStaticBrightnessCustomThemeX:
 						ambient?.alStaticBrightnessCustomThemeX ?? 1,
 					ambientLightGradientSpeed: Math.max(
@@ -182,15 +186,28 @@ export default function HardwareConfig() {
 	const handleLedSave = async () => {
 		try {
 			// Get current LED options to preserve other settings
-			const currentLedOptions = await WebApi.getLedOptions();
-			
-			// Prepare data to save, preserving existing settings
+			const currentLedOptions = (await WebApi.getLedOptions()) ?? {};
+			const pledSrc = currentLedOptions.pledColor as string | number | undefined;
+			let pledColor =
+				typeof pledSrc === 'number' && Number.isFinite(pledSrc)
+					? pledSrc >>> 0
+					: hexToInt(
+							String(pledSrc ?? '#ffffff')
+								.replace(/^#/, '')
+								.replace(/^0x/i, '') || 'ffffff',
+						);
+			if (!Number.isFinite(pledColor)) {
+				pledColor = hexToInt('ffffff');
+			}
+
+			// Prepare data to save, preserving existing settings (pledColor must be uint32 for API)
 			const dataToSave = {
 				...currentLedOptions,
 				dataPin: ledOptions.dataPin,
 				ledFormat: ledOptions.ledFormat,
 				ledLayout: ledOptions.ledLayout,
 				ledsPerButton: ledOptions.ledsPerButton,
+				pledColor,
 			};
 			
 			const ambientToSave = {
@@ -385,11 +402,36 @@ export default function HardwareConfig() {
 									}));
 								}}
 							/>
-							<span className="text-muted">
-								{ledOptions.dataPin === -1 
-									? t('SettingsPage:hml-led-strip-off') 
-									: t('SettingsPage:hml-led-data-pin', { pin: ledOptions.dataPin })}
-							</span>
+						</div>
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Check
+								type="switch"
+								id="web-config-ambient-hint"
+								label={t('SettingsPage:hml-config-mode-led-effect-label')}
+								checked={Boolean(ambientOptions.webConfigAmbientHintEnabled)}
+								onChange={(e) =>
+									setAmbientOptions((prev) => ({
+										...prev,
+										webConfigAmbientHintEnabled: e.target.checked,
+									}))
+								}
+							/>
+							<OverlayTrigger
+								placement="top"
+								overlay={
+									<Tooltip id="web-config-ambient-hint-tooltip">
+										{t('SettingsPage:hml-config-mode-led-effect-hint')}
+									</Tooltip>
+								}
+							>
+								<span
+									className="text-muted d-inline-flex align-items-center"
+									style={{ cursor: 'help' }}
+									role="presentation"
+								>
+									<InfoCircle />
+								</span>
+							</OverlayTrigger>
 						</div>
 
 						{/* 环境光模式选择 */}

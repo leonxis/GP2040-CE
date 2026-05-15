@@ -399,9 +399,21 @@ async function getAmbientOptions(setLoading) {
 }
 
 async function setAmbientOptions(options) {
+	const rawColor = options?.ambientColor;
+	let ambientColorInt;
+	if (typeof rawColor === 'number' && Number.isFinite(rawColor)) {
+		ambientColorInt = rawColor >>> 0;
+	} else {
+		const s = String(rawColor ?? '#ffa500').replace(/^#/, '');
+		ambientColorInt = hexToInt(s || 'ffa500');
+	}
+	if (!Number.isFinite(ambientColorInt)) {
+		ambientColorInt = hexToInt('ffa500');
+	}
+
 	const data = sanitizeRequest({
 		...options,
-		ambientColor: hexToInt((options.ambientColor || '#ffa500').replace('#', '')),
+		ambientColor: ambientColorInt,
 	});
 
 	return Http.post(`${baseUrl}/api/setAmbientOptions`, data)

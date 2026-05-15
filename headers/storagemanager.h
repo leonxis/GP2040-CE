@@ -65,6 +65,11 @@ public:
 
 	uint32_t GetFlashSize() { return systemFlashSize; }
 
+	/** Web-config session: arm RAM-only ambient override (blink hint) on Core0; read from Core1 NeoPico. */
+	void prepareAmbientWebConfigOverride();
+	void dismissAmbientWebConfigOverride();
+	bool isAmbientWebConfigOverrideActive() const;
+
 private:
 	Storage() {}
 	bool CONFIG_MODE = false; 			// Config mode (boot)
@@ -74,6 +79,8 @@ private:
 	Config config;
 	GpioMappingInfo functionalPinMappings[NUM_BANK0_GPIOS];
 	uint32_t systemFlashSize;
+
+	std::atomic<bool> ambientWebConfigOverrideActive { false };
 };
 
 #endif

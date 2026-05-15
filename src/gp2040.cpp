@@ -399,6 +399,13 @@ void GP2040::setup() {
 
 	// Setup USB Driver
 	DriverManager::getInstance().setup(inputMode);
+	if (inputMode == INPUT_MODE_CONFIG) {
+		const AnimationOptions& animationOptions = Storage::getInstance().getAnimationOptions();
+		if (animationOptions.has_webConfigAmbientHintEnabled &&
+				animationOptions.webConfigAmbientHintEnabled) {
+			Storage::getInstance().prepareAmbientWebConfigOverride();
+		}
+	}
 	main_loop_gate_enabled = shouldUseMainLoopGate();
 	composite_hid_enabled = (inputMode == INPUT_MODE_XINPUTB || inputMode == INPUT_MODE_PS4B);
 	if (DriverManager::getInstance().getDriver() != nullptr) {

@@ -248,8 +248,9 @@ export default {
 	'hml-save-failed': '保存失败',
 	'hml-section-led-config': '灯光配置',
 	'hml-led-strip-label': 'LED灯条',
-	'hml-led-strip-off': 'LED灯条已关闭',
-	'hml-led-data-pin': 'LED数据引脚: GPIO{{pin}}',
+	'hml-config-mode-led-effect-label': '配置模式灯效',
+	'hml-config-mode-led-effect-hint':
+		'开启后，进入网页配置时壳体环境灯会闪烁提示（需灯条启用并有壳体灯）。',
 	'hml-color-label': '颜色：',
 	'hml-brightness-label': '亮度：',
 	'hml-speed-label': '速度',

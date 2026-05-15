@@ -157,3 +157,18 @@ Gamepad * Storage::GetProcessedGamepad()
 {
 	return processedGamepad;
 }
+
+void Storage::prepareAmbientWebConfigOverride()
+{
+	ambientWebConfigOverrideActive.store(true, std::memory_order_release);
+}
+
+void Storage::dismissAmbientWebConfigOverride()
+{
+	ambientWebConfigOverrideActive.store(false, std::memory_order_release);
+}
+
+bool Storage::isAmbientWebConfigOverrideActive() const
+{
+	return ambientWebConfigOverrideActive.load(std::memory_order_acquire);
+}

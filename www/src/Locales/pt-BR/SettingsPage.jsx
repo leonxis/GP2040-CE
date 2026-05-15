@@ -168,8 +168,9 @@ export default {
 	'hml-save-failed': 'Save failed.',
 	'hml-section-led-config': 'LED configuration',
 	'hml-led-strip-label': 'LED strip',
-	'hml-led-strip-off': 'LED strip is off',
-	'hml-led-data-pin': 'LED data pin: GPIO{{pin}}',
+	'hml-config-mode-led-effect-label': 'Web config ambient hint',
+	'hml-config-mode-led-effect-hint':
+		'Blink case LEDs when opening web config (LED strip must be enabled).',
 	'hml-color-label': 'Color:',
 	'hml-brightness-label': 'Brightness:',
 	'hml-speed-label': 'Speed',
