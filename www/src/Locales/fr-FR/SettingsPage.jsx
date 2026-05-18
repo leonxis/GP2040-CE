@@ -48,7 +48,7 @@ export default {
 	},
 	'socd-cleaning-mode-label': 'Mode de nettoyage SOCD',
 	'socd-cleaning-mode-note':
-		'Remarque : Les modes PS4, PS3, Nintendo Switch et les séries mini ne supportent pas l\’option “SOCD désactivé” et utilisent donc par défaut le mode de nettoyage SOCD Neutre.',
+		'Remarque : Les modes PS4, PS3, Nintendo Switch et les séries mini ne supportent pas l’option “SOCD désactivé” et utilisent donc par défaut le mode de nettoyage SOCD Neutre.',
 	'socd-cleaning-mode-options': {
 		'up-priority': 'Priorité Haut',
 		neutral: 'Neutre',
@@ -81,7 +81,7 @@ export default {
 	'xbone-mode-text':
 		'<span>INFO:</span> Xbox One nécessite une connexion hôte USB et un dongle USB pour s\'authentifier correctement en mode Xbox One.',
 	'xinput-mode-text':
-		'<span>INFO:</span> Le mode XInput fonctionnera sur une console Xbox 360 du commerce sans dongle. Sélectionnez USB uniquement si vous souhaitez utiliser un dongle externe pour l\’authentification.',
+		'<span>INFO:</span> Le mode XInput fonctionnera sur une console Xbox 360 du commerce sans dongle. Sélectionnez USB uniquement si vous souhaitez utiliser un dongle externe pour l’authentification.',
 	'hotkey-settings-label': 'Paramètres des raccourcis',
 	'return-to-gns-label': 'Retour au GNS',
 	'hotkey-settings-sub-header':
