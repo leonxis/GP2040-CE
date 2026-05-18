@@ -65,27 +65,34 @@ export const PS4_ID_MODES = [
 	{ labelKey: 'ps4-id-mode-options.emulation', value: 1 },
 ];
 
-export type HmlSettingsTabItem =
-	| { key: string; labelKey: string }
-	| {
-			key: string;
-			labelKey: string;
-			navigate: { to: string; state?: { activeTab?: string } };
-		};
+/** 侧栏 + Hub 可达的全部内容面板 key（含非侧栏项）。 */
+const HML_PANEL_KEYS = [
+	'mode',
+	'button-settings',
+	'calibration',
+	'motion',
+	'function-buttons',
+	'hardware',
+	'backup-reset',
+	'macros',
+	'key-swap',
+	'back-button-settings',
+] as const;
 
+export const HML_PANEL_KEY_SET = new Set<string>(HML_PANEL_KEYS);
+
+type HmlSettingsTabItem = {
+	key: string;
+	labelKey: string;
+};
+
+/** 仅左侧导航渲染项（按键设置 Hub、不含背键/热键/宏侧栏入口）。 */
 export const TABS: readonly HmlSettingsTabItem[] = [
 	{ key: 'mode', labelKey: 'hml-tab-mode' },
-	{ key: 'back-buttons', labelKey: 'hml-tab-back-buttons' },
 	{ key: 'calibration', labelKey: 'hml-tab-calibration' },
+	{ key: 'button-settings', labelKey: 'hml-tab-button-settings' },
 	{ key: 'motion', labelKey: 'hml-tab-motion' },
-	{ key: 'macros', labelKey: 'hml-tab-macros' },
-	{
-		key: 'hotkeys',
-		labelKey: 'hml-tab-hotkeys',
-		navigate: { to: '/settings', state: { activeTab: 'hotkey' } },
-	},
 	{ key: 'function-buttons', labelKey: 'hml-tab-function-buttons' },
 	{ key: 'hardware', labelKey: 'hml-tab-hardware' },
 	{ key: 'backup-reset', labelKey: 'hml-tab-backup-reset' },
 ];
-

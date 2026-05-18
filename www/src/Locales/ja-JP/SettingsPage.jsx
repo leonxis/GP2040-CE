@@ -167,6 +167,18 @@ export default {
 	'hml-tab-mode': 'モード設定',
 	'hml-tab-back-buttons': 'パドル割り当て',
 	'hml-tab-calibration': 'キャリブレーション',
+	'hml-tab-button-settings': 'ボタン設定',
+	'hml-button-settings-row-key-settings': 'ボタン設定',
+	'hml-button-settings-row-back-settings': '背面ボタン',
+	'hml-button-settings-row-hotkey-settings': 'ホットキー',
+	'hml-button-settings-row-macro-settings': 'マクロ',
+	'hml-button-settings-hub-desc-key-swap':
+		'本体ボタンのマッピング調整。コンボ・マクロ対応。6プリセット、ホットスワップ可。',
+	'hml-button-settings-hub-desc-back-paddle':
+		'その他ボタンのマッピング調整。コンボ・マクロ対応。3プリセット、ホットスワップ可。',
+	'hml-button-settings-hub-desc-hotkey': 'ホットキーの組み合わせと機能設定。',
+	'hml-button-settings-hub-desc-macro': 'マクロ作成。全ボタンとスティック方向に対応。',
+	'hml-mapping-preset-tab-placeholder': 'プリセット 1',
 	'hml-tab-motion': 'モーション',
 	'hml-tab-macros': 'マクロ',
 	'hml-tab-hotkeys': 'ホットキー機能',

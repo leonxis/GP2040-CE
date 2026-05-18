@@ -173,6 +173,18 @@ export default {
 	'hml-tab-mode': 'Mode',
 	'hml-tab-back-buttons': 'Paddle mapping',
 	'hml-tab-calibration': 'Calibration',
+	'hml-tab-button-settings': '버튼 설정',
+	'hml-button-settings-row-key-settings': '버튼 설정',
+	'hml-button-settings-row-back-settings': '백 버튼',
+	'hml-button-settings-row-hotkey-settings': '단축키',
+	'hml-button-settings-row-macro-settings': '매크로',
+	'hml-button-settings-hub-desc-key-swap':
+		'본체 버튼 매핑 조정. 콤보·매크로 지원. 6개 프리셋, 핫 스왑.',
+	'hml-button-settings-hub-desc-back-paddle':
+		'기타 버튼 매핑 조정. 콤보·매크로 지원. 3개 프리셋, 핫 스왑.',
+	'hml-button-settings-hub-desc-hotkey': '핫키 조합 및 기능 설정.',
+	'hml-button-settings-hub-desc-macro': '매크로 작성. 모든 버튼 및 스틱 방향 지원.',
+	'hml-mapping-preset-tab-placeholder': '프리셋 1',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
 	'hml-tab-hotkeys': 'Hotkey features',

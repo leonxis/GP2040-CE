@@ -1,23 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Row, Col, Nav } from 'react-bootstrap';
 import ModeSettings from './HMLSettings/components/ModeSettings';
-import BackButtonMapping from './HMLSettings/components/BackButtonMapping';
+import BackPaddleSettings from './HMLSettings/components/BackPaddleSettings';
+import KeySwapSettings from './HMLSettings/components/KeySwapSettings';
+import ButtonSettingsHub from './HMLSettings/components/ButtonSettingsHub';
 import FunctionButtons from './HMLSettings/components/FunctionButtons';
 import CalibrationSettings from './HMLSettings/components/CalibrationSettings';
 import MotionSettings from './HMLSettings/components/MotionSettings';
 import HardwareConfig from './HMLSettings/components/HardwareConfig';
 import BackupReset from './HMLSettings/components/BackupReset';
 import MacroSettings from './HMLSettings/components/MacroSettings';
-import { TABS } from './HMLSettings/constants/hmlInputModes';
-
-const VALID_PANEL_KEYS = new Set(
-	TABS.filter((tab) => !('navigate' in tab)).map((tab) => tab.key),
-);
+import { TABS, HML_PANEL_KEY_SET } from './HMLSettings/constants/hmlInputModes';
 
 function normalizeActiveKey(key) {
-	return typeof key === 'string' && VALID_PANEL_KEYS.has(key) ? key : 'mode';
+	return typeof key === 'string' && HML_PANEL_KEY_SET.has(key) ? key : 'mode';
+}
+
+/** 侧栏 pill 高亮：Hub 子页与宏页统一落在「按键设置」。 */
+function navHighlightKeyForContent(contentKey) {
+	if (contentKey === 'key-swap' || contentKey === 'back-button-settings' || contentKey === 'macros') {
+		return 'button-settings';
+	}
+	return contentKey;
 }
 
 export default function HMLSettingsPage() {
@@ -35,8 +41,12 @@ export default function HMLSettingsPage() {
 		switch (activeKey) {
 			case 'mode':
 				return <ModeSettings />;
-			case 'back-buttons':
-				return <BackButtonMapping />;
+			case 'button-settings':
+				return <ButtonSettingsHub />;
+			case 'key-swap':
+				return <KeySwapSettings />;
+			case 'back-button-settings':
+				return <BackPaddleSettings />;
 			case 'function-buttons':
 				return <FunctionButtons />;
 			case 'calibration':
@@ -61,24 +71,15 @@ export default function HMLSettingsPage() {
 					<Nav
 						variant="pills"
 						className="flex-column"
-						activeKey={activeKey}
+						activeKey={navHighlightKeyForContent(activeKey)}
 						onSelect={(k) => {
-							if (k) setActiveKey(k);
+							if (!k) return;
+							setActiveKey(k);
 						}}
 					>
 						{TABS.map((tab) => (
 							<Nav.Item key={tab.key}>
-								{'navigate' in tab ? (
-									<Nav.Link
-										as={NavLink}
-										to={tab.navigate.to}
-										state={tab.navigate.state}
-									>
-										{t(tab.labelKey)}
-									</Nav.Link>
-								) : (
-									<Nav.Link eventKey={tab.key}>{t(tab.labelKey)}</Nav.Link>
-								)}
+								<Nav.Link eventKey={tab.key}>{t(tab.labelKey)}</Nav.Link>
 							</Nav.Item>
 						))}
 					</Nav>

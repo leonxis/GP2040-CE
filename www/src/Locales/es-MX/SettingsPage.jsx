@@ -166,6 +166,18 @@ export default {
 	'hml-tab-mode': 'Mode',
 	'hml-tab-back-buttons': 'Paddle mapping',
 	'hml-tab-calibration': 'Calibration',
+	'hml-tab-button-settings': 'Button settings',
+	'hml-button-settings-row-key-settings': 'Button settings',
+	'hml-button-settings-row-back-settings': 'Back buttons',
+	'hml-button-settings-row-hotkey-settings': 'Hotkeys',
+	'hml-button-settings-row-macro-settings': 'Macros',
+	'hml-button-settings-hub-desc-key-swap':
+		'Maps native face buttons; combos and macros; 6 preset schemes with hot-swap.',
+	'hml-button-settings-hub-desc-back-paddle':
+		'Maps additional buttons; combos and macros; 3 preset schemes with hot-swap.',
+	'hml-button-settings-hub-desc-hotkey': 'Hotkey combos and related options.',
+	'hml-button-settings-hub-desc-macro': 'Macro editor; all buttons and analog stick directions.',
+	'hml-mapping-preset-tab-placeholder': 'Preset 1',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
 	'hml-tab-hotkeys': 'Hotkey features',
