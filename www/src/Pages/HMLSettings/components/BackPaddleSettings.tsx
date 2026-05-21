@@ -1,12 +1,11 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Card, Row, Col, Button } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
-import { useShallow } from 'zustand/react/shallow';
 import { omit } from 'lodash';
 import { MultiValue, SingleValue } from 'react-select';
 
 import { AppContext } from '../../../Contexts/AppContext';
-import useProfilesStore, { MaskPayload } from '../../../Store/useProfilesStore';
+import { MaskPayload } from '../../../Store/useProfilesStore';
 import CustomSelect from '../../../Components/CustomSelect';
 import { getButtonLabels } from '../../../Data/Buttons';
 import { BUTTON_ACTIONS, PinActionValues } from '../../../Data/Pins';
@@ -24,7 +23,6 @@ import {
 	defaultPinData,
 	getMultiValue,
 	getPayloadFromSelected,
-	getPinKey,
 	toMaskPayload,
 } from './backMappingShared';
 
@@ -36,8 +34,6 @@ type AppContextShape = {
 function BackPaddleSettingsBody() {
 	const { t } = useTranslation();
 	const appContext = useContext(AppContext);
-	const setProfilePin = useProfilesStore((state) => state.setProfilePin);
-	const saveProfiles = useProfilesStore((state) => state.saveProfiles);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
 	const [twoKeyTouchpadEnabled, setTwoKeyTouchpadEnabled] = useState(false);
@@ -59,17 +55,13 @@ function BackPaddleSettingsBody() {
 	const [fnSaving, setFnSaving] = useState(false);
 
 	const [backAddonOptions, setBackAddonOptions] = useState<Record<string, MaskPayload>>({
+		leftEl: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
+		rightEr: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 		leftBack1: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 		rightBack1: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 		leftBack2: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 		rightBack2: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
 	});
-
-	const pins = useProfilesStore(
-		useShallow((state) =>
-			omit(state.profiles[0] || {}, ['profileLabel', 'enabled']) as Record<string, MaskPayload>,
-		),
-	);
 
 	const buttonNames = useMemo(() => {
 		const defaultButtons = getButtonLabels('gp2040', false);
@@ -84,14 +76,6 @@ function BackPaddleSettingsBody() {
 		const currentButtons = getButtonLabels(buttonLabelType, swapTpShareLabels);
 		return omit(currentButtons, ['label', 'value']);
 	}, [appContext]);
-
-	const onChange = useCallback(
-		(pin: string) =>
-			(selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
-				setProfilePin(0, pin, getPayloadFromSelected(selected));
-			},
-		[setProfilePin],
-	);
 
 	const onTwoKeyChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
 		setTwoKeyOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
@@ -125,7 +109,6 @@ function BackPaddleSettingsBody() {
 	);
 
 	useEffect(() => {
-		useProfilesStore.getState().fetchProfiles();
 		Promise.all([WebApi.getTwoKeyTouchpadOptions(), WebApi.getFnKeyMappingOptions(), WebApi.getBackButtonAddonOptions()]).then(
 			([twoKey, fn, backAddon]) => {
 				if (twoKey) {
@@ -151,6 +134,8 @@ function BackPaddleSettingsBody() {
 				}
 				if (backAddon) {
 					setBackAddonOptions({
+						leftEl: toMaskPayload(backAddon.leftEl),
+						rightEr: toMaskPayload(backAddon.rightEr),
 						leftBack1: toMaskPayload(backAddon.leftBack1),
 						rightBack1: toMaskPayload(backAddon.rightBack1),
 						leftBack2: toMaskPayload(backAddon.leftBack2),
@@ -206,8 +191,9 @@ function BackPaddleSettingsBody() {
 		setSaveMessage('');
 		setIsLoading(true);
 		try {
-			await saveProfiles();
 			await WebApi.setBackButtonAddonOptions({
+				leftEl: backAddonOptions.leftEl,
+				rightEr: backAddonOptions.rightEr,
 				leftBack1: backAddonOptions.leftBack1,
 				rightBack1: backAddonOptions.rightBack1,
 				leftBack2: backAddonOptions.leftBack2,
@@ -237,58 +223,24 @@ function BackPaddleSettingsBody() {
 		} finally {
 			setIsLoading(false);
 		}
-	}, [saveProfiles, appContext, t, backAddonOptions, fnOptions]);
+	}, [appContext, t, backAddonOptions, fnOptions]);
 
-	const gpioPins = [25, 24];
-	const backGpioLabelKey: Record<number, string> = {
-		25: 'hml-paddle-left-el',
-		24: 'hml-paddle-right-er',
-	};
+	const backMappingRows = [
+		{ key: 'leftEl', labelKey: 'hml-paddle-left-el' },
+		{ key: 'rightEr', labelKey: 'hml-paddle-right-er' },
+		{ key: 'leftBack1', labelKey: 'hml-paddle-left-1' },
+		{ key: 'rightBack1', labelKey: 'hml-paddle-right-1' },
+		{ key: 'leftBack2', labelKey: 'hml-paddle-left-2' },
+		{ key: 'rightBack2', labelKey: 'hml-paddle-right-2' },
+	];
 
 	return (
 		<div>
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>{t('SettingsPage:hml-tab-back-buttons')}</Card.Header>
 				<Card.Body>
-					<Row className="g-3 mb-3">
-						{gpioPins.map((pin) => {
-							const pinKey = getPinKey(pin);
-							const pinData = pins[pinKey] || defaultPinData;
-							const label = backGpioLabelKey[pin]
-								? t(`CalibrationSettings:${backGpioLabelKey[pin]}`)
-								: `GPIO${pin}`;
-							return (
-								<Col sm={6} md={6} key={`gpio-${pin}`}>
-									<div className="d-flex align-items-center">
-										<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
-											<label>{label}</label>
-										</div>
-										<CustomSelect
-											isClearable
-											isMulti={
-												!isDisabled(pinData.action) &&
-												!keyboardKeyOptions.some((opt) => opt.value === pinData.action) &&
-												!mouseKeyOptions.some((opt) => opt.value === pinData.action) &&
-												!mappingOptions.some((opt) => opt.value === pinData.action && opt.type === 'action')
-											}
-											options={groupedMappingOptions}
-											isDisabled={isDisabled(pinData.action)}
-											getOptionLabel={getOptionLabel}
-											onChange={onChange(pinKey)}
-											value={getMultiValue(pinData)}
-										/>
-									</div>
-								</Col>
-							);
-						})}
-					</Row>
 					<Row className="g-3">
-						{[
-							{ key: 'leftBack1', labelKey: 'hml-paddle-left-1' },
-							{ key: 'rightBack1', labelKey: 'hml-paddle-right-1' },
-							{ key: 'leftBack2', labelKey: 'hml-paddle-left-2' },
-							{ key: 'rightBack2', labelKey: 'hml-paddle-right-2' },
-						].map(({ key, labelKey }) => {
+						{backMappingRows.map(({ key, labelKey }) => {
 							const label = t(`CalibrationSettings:${labelKey}`);
 							const mappingData = backAddonOptions[key] || defaultPinData;
 							return (

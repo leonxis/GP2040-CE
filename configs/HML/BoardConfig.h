@@ -28,8 +28,6 @@
 #define GPIO_PIN_18 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
 #define GPIO_PIN_19 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
 #define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
-#define GPIO_PIN_24 GpioAction::BUTTON_PRESS_B1     // bkey1
-#define GPIO_PIN_25 GpioAction::BUTTON_PRESS_B2     // bkey2
 
 // Keyboard Mapping Configuration
 //                                            // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
@@ -65,6 +63,8 @@
 #define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON //SDA
 #define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON //SCL
 #define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON //LED
+#define GPIO_PIN_24 GpioAction::ASSIGNED_TO_ADDON // 右背键 ER
+#define GPIO_PIN_25 GpioAction::ASSIGNED_TO_ADDON // 左背键 EL
 
 // SPI0: 开启，RX=GPIO0, CS=GPIO1, SCK=GPIO2, TX=GPIO3
 #ifdef SPI0_ENABLED
@@ -112,6 +112,8 @@
 #define HML_BACK_R1_ACTION GpioAction::BUTTON_PRESS_B2  // 右背键1
 #define HML_BACK_L2_ACTION GpioAction::BUTTON_PRESS_B3 // 左背键2
 #define HML_BACK_R2_ACTION GpioAction::BUTTON_PRESS_B4  // 右背键2
+#define HML_BACK_EL_ACTION GpioAction::BUTTON_PRESS_B1  // 左背键 EL (GPIO25)
+#define HML_BACK_ER_ACTION GpioAction::BUTTON_PRESS_B2  // 右背键 ER (GPIO24)
 
 // 摇杆叠加 RC 增益：首次写入存储时的默认值（RC 抖动强度 / 抖动幅度 / 衰减范围，单位 %）
 #define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT 100.0f

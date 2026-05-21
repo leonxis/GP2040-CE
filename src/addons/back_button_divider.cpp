@@ -2,6 +2,7 @@
 
 #include "storagemanager.h"
 #include "gamepad.h"
+#include "hardware/gpio.h"
 #include "hardware/adc.h"
 
 // RP2040: ADC0 = GPIO26, ADC1 = GPIO27
@@ -23,12 +24,15 @@ static constexpr uint16_t THRESH_LOW  = static_cast<uint16_t>((V_LOW  / VREF) * 
 
 // 防抖帧数：候选档位连续 N 帧一致才更新稳定档位
 static constexpr uint8_t BACK_DIVIDER_DEBOUNCE_FRAMES = 3;
+static constexpr uint8_t BACK_GPIO_DEBOUNCE_FRAMES = 3;
 
 enum BackMapIndex : uint8_t {
     LEFT_BACK1 = 0,
     LEFT_BACK2 = 1,
     RIGHT_BACK1 = 2,
     RIGHT_BACK2 = 3,
+    LEFT_EL = 4,
+    RIGHT_ER = 5,
 };
 
 bool BackButtonDividerAddon::available() {
@@ -38,7 +42,7 @@ bool BackButtonDividerAddon::available() {
 
 void BackButtonDividerAddon::buildMappings() {
     const BackButtonAddonOptions& opts = Storage::getInstance().getAddonOptions().backButtonAddonOptions;
-    mapTable_.setCount(4);
+    mapTable_.setCount(6);
     if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_BACK1)) {
         ActionMappingCommon::parseActionMapping(opts.leftBack1Mapping, *entry);
     }
@@ -51,6 +55,19 @@ void BackButtonDividerAddon::buildMappings() {
     if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_BACK2)) {
         ActionMappingCommon::parseActionMapping(opts.rightBack2Mapping, *entry);
     }
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_EL)) {
+        ActionMappingCommon::parseActionMapping(opts.leftElMapping, *entry);
+    }
+    if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_ER)) {
+        ActionMappingCommon::parseActionMapping(opts.rightErMapping, *entry);
+    }
+}
+
+void BackButtonDividerAddon::applySlotIfEnabled(Gamepad* gamepad, uint8_t index) {
+    const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(index);
+    if (entry != nullptr) {
+        outputScope_.apply(gamepad, *entry);
+    }
 }
 
 void BackButtonDividerAddon::setup() {
@@ -61,10 +78,21 @@ void BackButtonDividerAddon::setup() {
         adc_gpio_init(27);
         adcInitialized = true;
     }
+
+    gpio_init(GPIO_PIN_LEFT_EL);
+    gpio_set_dir(GPIO_PIN_LEFT_EL, GPIO_IN);
+    gpio_pull_up(GPIO_PIN_LEFT_EL);
+
+    gpio_init(GPIO_PIN_RIGHT_ER);
+    gpio_set_dir(GPIO_PIN_RIGHT_ER, GPIO_IN);
+    gpio_pull_up(GPIO_PIN_RIGHT_ER);
+
     buildMappings();
     outputScope_.reset();
     ActionMappingCommon::resetDebounceLevel(leftDebounce_, -1);
     ActionMappingCommon::resetDebounceLevel(rightDebounce_, -1);
+    ActionMappingCommon::resetDebounceBool(leftElDebounce_, false);
+    ActionMappingCommon::resetDebounceBool(rightErDebounce_, false);
 }
 
 void BackButtonDividerAddon::reinit() {
@@ -72,6 +100,8 @@ void BackButtonDividerAddon::reinit() {
     outputScope_.reset();
     ActionMappingCommon::resetDebounceLevel(leftDebounce_, -1);
     ActionMappingCommon::resetDebounceLevel(rightDebounce_, -1);
+    ActionMappingCommon::resetDebounceBool(leftElDebounce_, false);
+    ActionMappingCommon::resetDebounceBool(rightErDebounce_, false);
 }
 
 void BackButtonDividerAddon::preprocess() {
@@ -110,31 +140,32 @@ void BackButtonDividerAddon::preprocess() {
             return;
         }
         if (level == 0) {
-            const auto* m2 = mapTable_.at(idx2);
-            if (m2 != nullptr) {
-                outputScope_.apply(gamepad, *m2);
-            }
+            applySlotIfEnabled(gamepad, idx2);
             return;
         }
         if (level == 1) {
-            const auto* m1 = mapTable_.at(idx1);
-            if (m1 != nullptr) {
-                outputScope_.apply(gamepad, *m1);
-            }
+            applySlotIfEnabled(gamepad, idx1);
             return;
         }
-        const auto* m1 = mapTable_.at(idx1);
-        const auto* m2 = mapTable_.at(idx2);
-        if (m1 != nullptr) {
-            outputScope_.apply(gamepad, *m1);
-        }
-        if (m2 != nullptr) {
-            outputScope_.apply(gamepad, *m2);
-        }
+        applySlotIfEnabled(gamepad, idx1);
+        applySlotIfEnabled(gamepad, idx2);
     };
 
     applyByStableLevel(leftDebounce_.stable, LEFT_BACK1, LEFT_BACK2);
     applyByStableLevel(rightDebounce_.stable, RIGHT_BACK1, RIGHT_BACK2);
+
+    const bool leftElPressed = !gpio_get(GPIO_PIN_LEFT_EL);
+    const bool rightErPressed = !gpio_get(GPIO_PIN_RIGHT_ER);
+    ActionMappingCommon::updateDebounceBool(leftElPressed, leftElDebounce_, BACK_GPIO_DEBOUNCE_FRAMES);
+    ActionMappingCommon::updateDebounceBool(rightErPressed, rightErDebounce_, BACK_GPIO_DEBOUNCE_FRAMES);
+
+    if (leftElDebounce_.stable) {
+        applySlotIfEnabled(gamepad, LEFT_EL);
+    }
+    if (rightErDebounce_.stable) {
+        applySlotIfEnabled(gamepad, RIGHT_ER);
+    }
+
     outputScope_.endFrame();
 }
 

@@ -1049,6 +1049,8 @@ message BackButtonAddonOptions
     optional GpioMappingInfo rightBack1Mapping = 2;
     optional GpioMappingInfo leftBack2Mapping = 3;
     optional GpioMappingInfo rightBack2Mapping = 4;
+    optional GpioMappingInfo leftElMapping = 5;   // GPIO25 左背键 EL
+    optional GpioMappingInfo rightErMapping = 6;  // GPIO24 右背键 ER
 }
 
 message MigrationHistory

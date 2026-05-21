@@ -45,12 +45,10 @@ static void copyMappingOrZero(GpioMappingInfo* dst, bool has, const GpioMappingI
 }
 
 void BackStickMappingScreen::loadPendingFromStorage() {
-    GpioMappings& gm = Storage::getInstance().getGpioMappings();
-    copyMappingOrZero(&pendingBySlot_[SLOT_GPIO25_EL], true, gm.pins[25]);
-    copyMappingOrZero(&pendingBySlot_[SLOT_GPIO24_ER], true, gm.pins[24]);
-
     AddonOptions& ao = Storage::getInstance().getAddonOptions();
     const BackButtonAddonOptions& bb = ao.backButtonAddonOptions;
+    copyMappingOrZero(&pendingBySlot_[SLOT_GPIO25_EL], bb.has_leftElMapping, bb.leftElMapping);
+    copyMappingOrZero(&pendingBySlot_[SLOT_GPIO24_ER], bb.has_rightErMapping, bb.rightErMapping);
     copyMappingOrZero(&pendingBySlot_[SLOT_LEFT_BACK1], bb.has_leftBack1Mapping, bb.leftBack1Mapping);
     copyMappingOrZero(&pendingBySlot_[SLOT_RIGHT_BACK1], bb.has_rightBack1Mapping, bb.rightBack1Mapping);
     copyMappingOrZero(&pendingBySlot_[SLOT_LEFT_BACK2], bb.has_leftBack2Mapping, bb.leftBack2Mapping);
@@ -373,12 +371,16 @@ void BackStickMappingScreen::saveOptions() {
     }
 
     GpioMappings& gm = Storage::getInstance().getGpioMappings();
-    gm.pins[25] = pendingBySlot_[SLOT_GPIO25_EL];
-    gm.pins[24] = pendingBySlot_[SLOT_GPIO24_ER];
+    applySimpleAction(&gm.pins[25], GpioAction::ASSIGNED_TO_ADDON);
+    applySimpleAction(&gm.pins[24], GpioAction::ASSIGNED_TO_ADDON);
 
     AddonOptions& ao = Storage::getInstance().getAddonOptions();
     ao.has_backButtonAddonOptions = true;
     BackButtonAddonOptions& bb = ao.backButtonAddonOptions;
+    bb.leftElMapping = pendingBySlot_[SLOT_GPIO25_EL];
+    bb.has_leftElMapping = true;
+    bb.rightErMapping = pendingBySlot_[SLOT_GPIO24_ER];
+    bb.has_rightErMapping = true;
     bb.leftBack1Mapping = pendingBySlot_[SLOT_LEFT_BACK1];
     bb.has_leftBack1Mapping = true;
     bb.rightBack1Mapping = pendingBySlot_[SLOT_RIGHT_BACK1];

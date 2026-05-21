@@ -1144,7 +1144,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     }
 #endif
 
-#if defined(HML_BACK_L1_ACTION) || defined(HML_BACK_R1_ACTION) || defined(HML_BACK_L2_ACTION) || defined(HML_BACK_R2_ACTION)
+#if defined(HML_BACK_L1_ACTION) || defined(HML_BACK_R1_ACTION) || defined(HML_BACK_L2_ACTION) || defined(HML_BACK_R2_ACTION) || defined(HML_BACK_EL_ACTION) || defined(HML_BACK_ER_ACTION)
     // 背键设置插件：逻辑背键映射（与 GPIO 解耦），仅当未设置时写入（可分别配置每一项）
 #if defined(HML_BACK_L1_ACTION)
     if (!config.addonOptions.backButtonAddonOptions.has_leftBack1Mapping) {
@@ -1172,6 +1172,20 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
         config.addonOptions.backButtonAddonOptions.rightBack2Mapping.action = HML_BACK_R2_ACTION;
         config.addonOptions.backButtonAddonOptions.rightBack2Mapping.has_action = true;
         config.addonOptions.backButtonAddonOptions.has_rightBack2Mapping = true;
+    }
+#endif
+#if defined(HML_BACK_EL_ACTION)
+    if (!config.addonOptions.backButtonAddonOptions.has_leftElMapping) {
+        config.addonOptions.backButtonAddonOptions.leftElMapping.action = HML_BACK_EL_ACTION;
+        config.addonOptions.backButtonAddonOptions.leftElMapping.has_action = true;
+        config.addonOptions.backButtonAddonOptions.has_leftElMapping = true;
+    }
+#endif
+#if defined(HML_BACK_ER_ACTION)
+    if (!config.addonOptions.backButtonAddonOptions.has_rightErMapping) {
+        config.addonOptions.backButtonAddonOptions.rightErMapping.action = HML_BACK_ER_ACTION;
+        config.addonOptions.backButtonAddonOptions.rightErMapping.has_action = true;
+        config.addonOptions.backButtonAddonOptions.has_rightErMapping = true;
     }
 #endif
 #endif

@@ -610,16 +610,16 @@ std::string setTwoKeyTouchpadOptions() {
 }
 
 std::string getBackButtonAddonOptions() {
-    // We store 4 mappings. Each mapping is an object with 3 fields:
-    // { action, customButtonMask, customDpadMask }.
-    // Capacity must account for both the root keys and nested objects.
-    const size_t capacity = JSON_OBJECT_SIZE(24);
+    // 6 mappings: { action, customButtonMask, customDpadMask } each.
+    const size_t capacity = JSON_OBJECT_SIZE(36);
     DynamicJsonDocument doc(capacity);
     const BackButtonAddonOptions& opts = Storage::getInstance().getAddonOptions().backButtonAddonOptions;
     writeMapping(doc, "leftBack1", opts.leftBack1Mapping);
     writeMapping(doc, "rightBack1", opts.rightBack1Mapping);
     writeMapping(doc, "leftBack2", opts.leftBack2Mapping);
     writeMapping(doc, "rightBack2", opts.rightBack2Mapping);
+    writeMapping(doc, "leftEl", opts.leftElMapping);
+    writeMapping(doc, "rightEr", opts.rightErMapping);
     return serialize_json(doc);
 }
 
@@ -630,13 +630,18 @@ std::string setBackButtonAddonOptions() {
     readMapping(opts.rightBack1Mapping, doc, "rightBack1");
     readMapping(opts.leftBack2Mapping, doc, "leftBack2");
     readMapping(opts.rightBack2Mapping, doc, "rightBack2");
+    readMapping(opts.leftElMapping, doc, "leftEl");
+    readMapping(opts.rightErMapping, doc, "rightEr");
     // nanopb: optional `action` is only persisted if `has_action` is set.
     opts.leftBack1Mapping.has_action = true;
     opts.rightBack1Mapping.has_action = true;
     opts.leftBack2Mapping.has_action = true;
     opts.rightBack2Mapping.has_action = true;
+    opts.leftElMapping.has_action = true;
+    opts.rightErMapping.has_action = true;
     opts.has_leftBack1Mapping = opts.has_rightBack1Mapping = true;
     opts.has_leftBack2Mapping = opts.has_rightBack2Mapping = true;
+    opts.has_leftElMapping = opts.has_rightErMapping = true;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -1078,6 +1083,8 @@ std::string getGamepadOptions()
             hasFnAction(addonOptions.backButtonAddonOptions.rightBack1Mapping) ||
             hasFnAction(addonOptions.backButtonAddonOptions.leftBack2Mapping) ||
             hasFnAction(addonOptions.backButtonAddonOptions.rightBack2Mapping) ||
+            hasFnAction(addonOptions.backButtonAddonOptions.leftElMapping) ||
+            hasFnAction(addonOptions.backButtonAddonOptions.rightErMapping) ||
             hasFnAction(addonOptions.twoKeyTouchpadOptions.leftKeyMapping) ||
             hasFnAction(addonOptions.twoKeyTouchpadOptions.rightKeyMapping) ||
             hasFnAction(addonOptions.fnKeyMappingOptions.leftFnMapping) ||

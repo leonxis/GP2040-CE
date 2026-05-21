@@ -19,6 +19,7 @@ public:
     virtual void reinit();
 private:
     void buildMappings();
+    void applySlotIfEnabled(Gamepad* gamepad, uint8_t index);
     ActionMappingCommon::ActionMappingTable mapTable_;
     ActionMappingCommon::ActionOutputScope outputScope_;
 
@@ -26,7 +27,11 @@ private:
     // 简单档位防抖：-1=无输出, 0=背键2, 1=背键1, 2=背键1+2
     ActionMappingCommon::DebounceLevelState leftDebounce_;
     ActionMappingCommon::DebounceLevelState rightDebounce_;
+
+    static constexpr uint8_t GPIO_PIN_LEFT_EL = 25;
+    static constexpr uint8_t GPIO_PIN_RIGHT_ER = 24;
+    ActionMappingCommon::DebounceBoolState leftElDebounce_;
+    ActionMappingCommon::DebounceBoolState rightErDebounce_;
 };
 
 #endif
-

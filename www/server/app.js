@@ -921,6 +921,8 @@ app.get('/api/getBackButtonAddonOptions', (req, res) => {
 		rightBack1: { action: 0, customButtonMask: 0, customDpadMask: 0 },
 		leftBack2:  { action: 0, customButtonMask: 0, customDpadMask: 0 },
 		rightBack2: { action: 0, customButtonMask: 0, customDpadMask: 0 },
+		leftEl:     { action: 0, customButtonMask: 0, customDpadMask: 0 },
+		rightEr:    { action: 0, customButtonMask: 0, customDpadMask: 0 },
 	});
 });
 
