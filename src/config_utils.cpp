@@ -1084,106 +1084,13 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     {
         HmlBackMappingPresetOptions& presetOpts = getHmlBackMappingPresetOptions(config.addonOptions);
         if (presetOpts.presets_count == 0) {
-            presetOpts.presets_count = 3;
             INIT_UNSET_PROPERTY(presetOpts, activePreset, 0u);
-            for (pb_size_t i = 0; i < 3; i++) {
-                initHmlBackMappingPresetNone(presetOpts.presets[i]);
-            }
-
-            HmlBackMappingPreset& scheme1 = presetOpts.presets[0];
-#if defined(HML_LEFT_FN_ACTION)
-            if (!scheme1.fnKey.has_leftFnMapping) {
-                scheme1.fnKey.leftFnMapping.action = HML_LEFT_FN_ACTION;
-                scheme1.fnKey.leftFnMapping.has_action = true;
-                scheme1.fnKey.has_leftFnMapping = true;
-            }
-            if (!scheme1.fnKey.has_rightFnMapping) {
-                scheme1.fnKey.rightFnMapping.action = HML_RIGHT_FN_ACTION;
-                scheme1.fnKey.rightFnMapping.has_action = true;
-                scheme1.fnKey.has_rightFnMapping = true;
-            }
-            if (!scheme1.fnKey.has_leftMtMapping) {
-                scheme1.fnKey.leftMtMapping.action = HML_LEFT_MT_ACTION;
-                scheme1.fnKey.leftMtMapping.has_action = true;
-                scheme1.fnKey.has_leftMtMapping = true;
-            }
-            if (!scheme1.fnKey.has_rightMtMapping) {
-                scheme1.fnKey.rightMtMapping.action = HML_RIGHT_MT_ACTION;
-                scheme1.fnKey.rightMtMapping.has_action = true;
-                scheme1.fnKey.has_rightMtMapping = true;
-            }
-#endif
-#if defined(HML_EXT_LEFT_ACTION)
-            if (!scheme1.fnKey.has_leftExtTriggerMapping) {
-                scheme1.fnKey.leftExtTriggerMapping.action = HML_EXT_LEFT_ACTION;
-                scheme1.fnKey.leftExtTriggerMapping.has_action = true;
-                scheme1.fnKey.has_leftExtTriggerMapping = true;
-            }
-#endif
-#if defined(HML_EXT_RIGHT_ACTION)
-            if (!scheme1.fnKey.has_rightExtTriggerMapping) {
-                scheme1.fnKey.rightExtTriggerMapping.action = HML_EXT_RIGHT_ACTION;
-                scheme1.fnKey.rightExtTriggerMapping.has_action = true;
-                scheme1.fnKey.has_rightExtTriggerMapping = true;
-            }
-#endif
-#if defined(HML_TWOKEY_LEFT_ACTION)
-            if (!scheme1.has_leftKeyMapping) {
-                scheme1.leftKeyMapping.action = HML_TWOKEY_LEFT_ACTION;
-                scheme1.leftKeyMapping.has_action = true;
-                scheme1.has_leftKeyMapping = true;
-            }
-#endif
-#if defined(HML_TWOKEY_RIGHT_ACTION)
-            if (!scheme1.has_rightKeyMapping) {
-                scheme1.rightKeyMapping.action = HML_TWOKEY_RIGHT_ACTION;
-                scheme1.rightKeyMapping.has_action = true;
-                scheme1.has_rightKeyMapping = true;
-            }
-#endif
-            BackButtonAddonOptions& bb1 = scheme1.backButton;
-#if defined(HML_BACK_L1_ACTION)
-            if (!bb1.has_leftBack1Mapping) {
-                bb1.leftBack1Mapping.action = HML_BACK_L1_ACTION;
-                bb1.leftBack1Mapping.has_action = true;
-                bb1.has_leftBack1Mapping = true;
-            }
-#endif
-#if defined(HML_BACK_R1_ACTION)
-            if (!bb1.has_rightBack1Mapping) {
-                bb1.rightBack1Mapping.action = HML_BACK_R1_ACTION;
-                bb1.rightBack1Mapping.has_action = true;
-                bb1.has_rightBack1Mapping = true;
-            }
-#endif
-#if defined(HML_BACK_L2_ACTION)
-            if (!bb1.has_leftBack2Mapping) {
-                bb1.leftBack2Mapping.action = HML_BACK_L2_ACTION;
-                bb1.leftBack2Mapping.has_action = true;
-                bb1.has_leftBack2Mapping = true;
-            }
-#endif
-#if defined(HML_BACK_R2_ACTION)
-            if (!bb1.has_rightBack2Mapping) {
-                bb1.rightBack2Mapping.action = HML_BACK_R2_ACTION;
-                bb1.rightBack2Mapping.has_action = true;
-                bb1.has_rightBack2Mapping = true;
-            }
-#endif
-#if defined(HML_BACK_EL_ACTION)
-            if (!bb1.has_leftElMapping) {
-                bb1.leftElMapping.action = HML_BACK_EL_ACTION;
-                bb1.leftElMapping.has_action = true;
-                bb1.has_leftElMapping = true;
-            }
-#endif
-#if defined(HML_BACK_ER_ACTION)
-            if (!bb1.has_rightErMapping) {
-                bb1.rightErMapping.action = HML_BACK_ER_ACTION;
-                bb1.rightErMapping.has_action = true;
-                bb1.has_rightErMapping = true;
-            }
-#endif
+            initHmlBackMappingPresetScheme1FromBoardConfig(presetOpts.presets[0]);
+            initHmlBackMappingPresetNone(presetOpts.presets[1]);
+            initHmlBackMappingPresetNone(presetOpts.presets[2]);
+            presetOpts.presets_count = 3;
+        } else {
+            ensureHmlBackMappingPresetSlots(presetOpts, 3);
         }
     }
 

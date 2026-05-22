@@ -955,6 +955,7 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 				const uint32_t presetIndex = static_cast<uint32_t>(action - HOTKEY_HML_BACK_MAPPING_SCHEME_1);
 				HmlBackMappingPresetOptions& presetOpts =
 					getHmlBackMappingPresetOptions(Storage::getInstance().getAddonOptions());
+				ensureHmlBackMappingPresetSlots(presetOpts, 3);
 				presetOpts.activePreset = presetIndex;
 				presetOpts.has_activePreset = true;
 				reqSave = true;

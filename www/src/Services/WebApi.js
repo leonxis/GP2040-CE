@@ -219,8 +219,8 @@ async function getTwoKeyTouchpadOptions(presetIndex) {
 	try {
 		const url =
 			presetIndex === undefined || presetIndex === null
-				? `${baseUrl}/api/getTwoKeyTouchpadOptions`
-				: `${baseUrl}/api/getTwoKeyTouchpadOptions?presetIndex=${presetIndex}`;
+				? `${baseUrl}/api/getTwoKeyTouchpadGlobalOptions`
+				: `${baseUrl}/api/getTwoKeyTouchpadOptions/${presetIndex}`;
 		const response = await Http.get(url);
 		return response.data;
 	} catch (error) {
@@ -230,17 +230,24 @@ async function getTwoKeyTouchpadOptions(presetIndex) {
 
 async function setTwoKeyTouchpadOptions(options) {
 	try {
-		await Http.post(`${baseUrl}/api/setTwoKeyTouchpadOptions`, options);
-		return true;
+		const isPreset =
+			options?.presetIndex !== undefined &&
+			options?.presetIndex !== null &&
+			options?.section === 'twoKey';
+		const url = isPreset
+			? `${baseUrl}/api/setTwoKeyTouchpadOptions`
+			: `${baseUrl}/api/setTwoKeyTouchpadGlobalOptions`;
+		const response = await Http.post(url, options);
+		return response.data;
 	} catch (error) {
 		console.error(error);
-		return false;
+		return null;
 	}
 }
 
 async function getBackButtonAddonOptions(presetIndex) {
 	try {
-		const url = `${baseUrl}/api/getBackButtonAddonOptions?presetIndex=${presetIndex ?? 0}`;
+		const url = `${baseUrl}/api/getBackButtonAddonOptions/${presetIndex ?? 0}`;
 		const response = await Http.get(url);
 		return response.data;
 	} catch (error) {
@@ -260,7 +267,7 @@ async function setBackButtonAddonOptions(options) {
 
 async function getFnKeyMappingOptions(presetIndex) {
 	try {
-		const url = `${baseUrl}/api/getFnKeyMappingOptions?presetIndex=${presetIndex ?? 0}`;
+		const url = `${baseUrl}/api/getFnKeyMappingOptions/${presetIndex ?? 0}`;
 		const response = await Http.get(url);
 		return response.data;
 	} catch (error) {

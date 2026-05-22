@@ -973,8 +973,13 @@ const hmlTwoKeyPresetStubs = [
 ];
 
 let hmlActivePreset = 0;
+let hmlTwoKeyGlobalEnabled = 0;
 
 function parsePresetIndex(req) {
+	const pathMatch = req.path.match(/\/([0-2])$/);
+	if (pathMatch) {
+		return Number(pathMatch[1]);
+	}
 	const raw = req.query.presetIndex;
 	if (raw === undefined || raw === null || raw === '') return null;
 	const index = Number(raw);
@@ -982,14 +987,19 @@ function parsePresetIndex(req) {
 	return index;
 }
 
+const sendGlobalTwoKey = (res) =>
+	res.send({
+		enabled: hmlTwoKeyGlobalEnabled,
+		enableKey: emptyMapping,
+		activePreset: hmlActivePreset,
+	});
+
+app.get('/api/getTwoKeyTouchpadGlobalOptions', (req, res) => sendGlobalTwoKey(res));
+
 app.get('/api/getTwoKeyTouchpadOptions', (req, res) => {
 	const presetIndex = parsePresetIndex(req);
 	if (presetIndex === null) {
-		return res.send({
-			enabled: 0,
-			enableKey: emptyMapping,
-			activePreset: hmlActivePreset,
-		});
+		return sendGlobalTwoKey(res);
 	}
 	return res.send({
 		leftKey: hmlTwoKeyPresetStubs[presetIndex].leftKey,
@@ -998,8 +1008,37 @@ app.get('/api/getTwoKeyTouchpadOptions', (req, res) => {
 	});
 });
 
+app.get('/api/getTwoKeyTouchpadOptions/:presetIndex', (req, res) => {
+	const presetIndex = Number(req.params.presetIndex);
+	if (!Number.isInteger(presetIndex) || presetIndex < 0 || presetIndex > 2) {
+		return res.status(400).send({ error: 'invalid presetIndex' });
+	}
+	return res.send({
+		leftKey: hmlTwoKeyPresetStubs[presetIndex].leftKey,
+		rightKey: hmlTwoKeyPresetStubs[presetIndex].rightKey,
+		activePreset: hmlActivePreset,
+	});
+});
+
+app.post('/api/setTwoKeyTouchpadGlobalOptions', (req, res) => {
+	const body = req.body || {};
+	hmlTwoKeyGlobalEnabled = body.enabled ? 1 : 0;
+	return sendGlobalTwoKey(res);
+});
+
 app.get('/api/getBackButtonAddonOptions', (req, res) => {
 	const presetIndex = parsePresetIndex(req) ?? 0;
+	return res.send({
+		...hmlBackPresetStubs[presetIndex],
+		activePreset: hmlActivePreset,
+	});
+});
+
+app.get('/api/getBackButtonAddonOptions/:presetIndex', (req, res) => {
+	const presetIndex = Number(req.params.presetIndex);
+	if (!Number.isInteger(presetIndex) || presetIndex < 0 || presetIndex > 2) {
+		return res.status(400).send({ error: 'invalid presetIndex' });
+	}
 	return res.send({
 		...hmlBackPresetStubs[presetIndex],
 		activePreset: hmlActivePreset,
@@ -1014,9 +1053,87 @@ app.get('/api/getFnKeyMappingOptions', (req, res) => {
 	});
 });
 
+app.get('/api/getFnKeyMappingOptions/:presetIndex', (req, res) => {
+	const presetIndex = Number(req.params.presetIndex);
+	if (!Number.isInteger(presetIndex) || presetIndex < 0 || presetIndex > 2) {
+		return res.status(400).send({ error: 'invalid presetIndex' });
+	}
+	return res.send({
+		...hmlFnPresetStubs[presetIndex],
+		activePreset: hmlActivePreset,
+	});
+});
+
+app.post('/api/setTwoKeyTouchpadOptions', (req, res) => {
+	const body = req.body || {};
+	if (body.presetIndex === undefined && body.section === undefined) {
+		hmlTwoKeyGlobalEnabled = body.enabled ? 1 : 0;
+	}
+	if (body.presetIndex !== undefined && body.section === 'twoKey') {
+		const index = Number(body.presetIndex);
+		if (Number.isInteger(index) && index >= 0 && index <= 2) {
+			hmlTwoKeyPresetStubs[index] = {
+				leftKey: body.leftKey || emptyMapping,
+				rightKey: body.rightKey || emptyMapping,
+			};
+		}
+	}
+	if (body.presetIndex !== undefined && body.setActive !== false) {
+		const index = Number(body.presetIndex);
+		if (Number.isInteger(index) && index >= 0 && index <= 2) {
+			hmlActivePreset = index;
+		}
+	}
+	if (
+		body.presetIndex === undefined &&
+		body.section === undefined
+	) {
+		return sendGlobalTwoKey(res);
+	}
+	return res.send(body);
+});
+
+app.post('/api/setBackButtonAddonOptions', (req, res) => {
+	const body = req.body || {};
+	const index = Number(body.presetIndex);
+	if (Number.isInteger(index) && index >= 0 && index <= 2) {
+		hmlBackPresetStubs[index] = {
+			leftBack1: body.leftBack1 || emptyMapping,
+			rightBack1: body.rightBack1 || emptyMapping,
+			leftBack2: body.leftBack2 || emptyMapping,
+			rightBack2: body.rightBack2 || emptyMapping,
+			leftEl: body.leftEl || emptyMapping,
+			rightEr: body.rightEr || emptyMapping,
+		};
+		if (body.setActive !== false) {
+			hmlActivePreset = index;
+		}
+	}
+	return res.send(body);
+});
+
+app.post('/api/setFnKeyMappingOptions', (req, res) => {
+	const body = req.body || {};
+	const index = Number(body.presetIndex);
+	if (Number.isInteger(index) && index >= 0 && index <= 2) {
+		hmlFnPresetStubs[index] = {
+			leftFn: body.leftFn || emptyMapping,
+			rightFn: body.rightFn || emptyMapping,
+			leftMt: body.leftMt || emptyMapping,
+			rightMt: body.rightMt || emptyMapping,
+			extLeftTrigger: body.extLeftTrigger || emptyMapping,
+			extRightTrigger: body.extRightTrigger || emptyMapping,
+		};
+		if (body.setActive !== false) {
+			hmlActivePreset = index;
+		}
+	}
+	return res.send(body);
+});
+
 app.post('/api/*', (req, res) => {
 	const body = req.body || {};
-	if (body.presetIndex !== undefined) {
+	if (body.presetIndex !== undefined && body.setActive !== false) {
 		const index = Number(body.presetIndex);
 		if (Number.isInteger(index) && index >= 0 && index <= 2) {
 			hmlActivePreset = index;

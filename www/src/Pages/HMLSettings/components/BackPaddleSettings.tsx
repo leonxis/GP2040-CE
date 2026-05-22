@@ -154,6 +154,7 @@ function BackPaddleSettingsBody({
 		try {
 			await WebApi.setBackButtonAddonOptions({
 				presetIndex,
+				setActive: true,
 				leftEl: backAddonOptions.leftEl,
 				rightEr: backAddonOptions.rightEr,
 				leftBack1: backAddonOptions.leftBack1,
@@ -183,6 +184,7 @@ function BackPaddleSettingsBody({
 		try {
 			await WebApi.setFnKeyMappingOptions({
 				presetIndex,
+				setActive: true,
 				leftFn: fnOptions.leftFn,
 				rightFn: fnOptions.rightFn,
 				leftMt: fnOptions.leftMt,
@@ -207,6 +209,7 @@ function BackPaddleSettingsBody({
 		try {
 			await WebApi.setTwoKeyTouchpadOptions({
 				presetIndex,
+				setActive: true,
 				section: 'twoKey',
 				leftKey: twoKeyOptions.leftKey,
 				rightKey: twoKeyOptions.rightKey,

@@ -16,5 +16,7 @@ HmlBackMappingPreset& getHmlBackPresetAt(AddonOptions& addonOptions, uint32_t pr
 const HmlBackMappingPreset& getHmlBackPresetAt(const AddonOptions& addonOptions, uint32_t presetIndex);
 
 void initHmlBackMappingPresetNone(HmlBackMappingPreset& preset);
+void initHmlBackMappingPresetScheme1FromBoardConfig(HmlBackMappingPreset& preset);
+void ensureHmlBackMappingPresetSlots(HmlBackMappingPresetOptions& opts, pb_size_t requiredCount);
 
 #endif

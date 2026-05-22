@@ -68,22 +68,25 @@ export default function HardwareConfig() {
 	useEffect(() => {
 		async function fetchData() {
 			try {
-				const [peripheral, display, twoKeyTouchpad, led, ambient, addons] = await Promise.all([
-					WebApi.getPeripheralOptions(),
-					WebApi.getDisplayOptions(),
-					WebApi.getTwoKeyTouchpadOptions(),
-					WebApi.getLedOptions(),
-					WebApi.getAmbientOptions(),
-					WebApi.getAddonsOptions(),
-				]);
+				const [peripheral, display, twoKeyTouchpad, led, ambient, addons] =
+					await Promise.all([
+						WebApi.getPeripheralOptions(),
+						WebApi.getDisplayOptions(),
+						WebApi.getTwoKeyTouchpadOptions(),
+						WebApi.getLedOptions(),
+						WebApi.getAmbientOptions(),
+						WebApi.getAddonsOptions(),
+					]);
 				setPeripheralOptions(peripheral);
 				setDisplayOptions(display);
-				setTwoKeyTouchpadOptions(
-					twoKeyTouchpad || {
-						enabled: 0,
-						enableKey: { action: -10, customButtonMask: 0, customDpadMask: 0 },
+				setTwoKeyTouchpadOptions({
+					enabled: Number(twoKeyTouchpad?.enabled) ? 1 : 0,
+					enableKey: twoKeyTouchpad?.enableKey ?? {
+						action: -10,
+						customButtonMask: 0,
+						customDpadMask: 0,
 					},
-				);
+				});
 				setReportRate(
 					[250, 500, 1000, 2000, 4000, 8000].includes(Number(addons?.reportRate))
 						? Number(addons.reportRate)
@@ -168,12 +171,14 @@ export default function HardwareConfig() {
 				},
 			};
 			
-			await Promise.all([
-				WebApi.setPeripheralOptions(dataToSave),
-				WebApi.setDisplayOptions(displayOptions),
-				WebApi.setTwoKeyTouchpadOptions(twoKeyTouchpadOptions),
-				WebApi.setAddonsOptions({ reportRate }),
-			]);
+			// 设备 HTTP POST 共用单缓冲区，须顺序提交
+			await WebApi.setPeripheralOptions(dataToSave);
+			await WebApi.setDisplayOptions(displayOptions);
+			await WebApi.setTwoKeyTouchpadOptions({
+				enabled: twoKeyTouchpadOptions.enabled ? 1 : 0,
+				enableKey: twoKeyTouchpadOptions.enableKey,
+			});
+			await WebApi.setAddonsOptions({ reportRate });
 			setHostSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setHostSaveMessage(''), 5000);
 		} catch (error) {
