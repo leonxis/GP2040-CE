@@ -907,28 +907,123 @@ app.get('/api/calibrateLSM6DSRAccel', (req, res) => {
 	return res.send({ ok: false, offsetAccelX: 0, offsetAccelY: 0, offsetAccelZ: 0 });
 });
 
+const emptyMapping = { action: 0, customButtonMask: 0, customDpadMask: 0 };
+
+const hmlBackPresetStubs = [
+	{
+		leftBack1: emptyMapping,
+		rightBack1: emptyMapping,
+		leftBack2: emptyMapping,
+		rightBack2: emptyMapping,
+		leftEl: emptyMapping,
+		rightEr: emptyMapping,
+	},
+	{
+		leftBack1: { action: 23, customButtonMask: 0, customDpadMask: 0 },
+		rightBack1: emptyMapping,
+		leftBack2: emptyMapping,
+		rightBack2: emptyMapping,
+		leftEl: emptyMapping,
+		rightEr: emptyMapping,
+	},
+	{
+		leftBack1: emptyMapping,
+		rightBack1: emptyMapping,
+		leftBack2: emptyMapping,
+		rightBack2: emptyMapping,
+		leftEl: emptyMapping,
+		rightEr: emptyMapping,
+	},
+];
+
+const hmlFnPresetStubs = [
+	{
+		leftFn: emptyMapping,
+		rightFn: emptyMapping,
+		leftMt: emptyMapping,
+		rightMt: emptyMapping,
+		extLeftTrigger: emptyMapping,
+		extRightTrigger: emptyMapping,
+	},
+	{
+		leftFn: { action: 27, customButtonMask: 0, customDpadMask: 0 },
+		rightFn: emptyMapping,
+		leftMt: emptyMapping,
+		rightMt: emptyMapping,
+		extLeftTrigger: emptyMapping,
+		extRightTrigger: emptyMapping,
+	},
+	{
+		leftFn: emptyMapping,
+		rightFn: emptyMapping,
+		leftMt: emptyMapping,
+		rightMt: emptyMapping,
+		extLeftTrigger: emptyMapping,
+		extRightTrigger: emptyMapping,
+	},
+];
+
+const hmlTwoKeyPresetStubs = [
+	{ leftKey: emptyMapping, rightKey: emptyMapping },
+	{
+		leftKey: { action: 38, customButtonMask: 0, customDpadMask: 0 },
+		rightKey: { action: 39, customButtonMask: 0, customDpadMask: 0 },
+	},
+	{ leftKey: emptyMapping, rightKey: emptyMapping },
+];
+
+let hmlActivePreset = 0;
+
+function parsePresetIndex(req) {
+	const raw = req.query.presetIndex;
+	if (raw === undefined || raw === null || raw === '') return null;
+	const index = Number(raw);
+	if (!Number.isInteger(index) || index < 0 || index > 2) return null;
+	return index;
+}
+
 app.get('/api/getTwoKeyTouchpadOptions', (req, res) => {
+	const presetIndex = parsePresetIndex(req);
+	if (presetIndex === null) {
+		return res.send({
+			enabled: 0,
+			enableKey: emptyMapping,
+			activePreset: hmlActivePreset,
+		});
+	}
 	return res.send({
-		enabled: 0,
-		leftKey:  { action: 0, customButtonMask: 0, customDpadMask: 0 },
-		rightKey: { action: 0, customButtonMask: 0, customDpadMask: 0 },
+		leftKey: hmlTwoKeyPresetStubs[presetIndex].leftKey,
+		rightKey: hmlTwoKeyPresetStubs[presetIndex].rightKey,
+		activePreset: hmlActivePreset,
 	});
 });
 
 app.get('/api/getBackButtonAddonOptions', (req, res) => {
+	const presetIndex = parsePresetIndex(req) ?? 0;
 	return res.send({
-		leftBack1:  { action: 0, customButtonMask: 0, customDpadMask: 0 },
-		rightBack1: { action: 0, customButtonMask: 0, customDpadMask: 0 },
-		leftBack2:  { action: 0, customButtonMask: 0, customDpadMask: 0 },
-		rightBack2: { action: 0, customButtonMask: 0, customDpadMask: 0 },
-		leftEl:     { action: 0, customButtonMask: 0, customDpadMask: 0 },
-		rightEr:    { action: 0, customButtonMask: 0, customDpadMask: 0 },
+		...hmlBackPresetStubs[presetIndex],
+		activePreset: hmlActivePreset,
+	});
+});
+
+app.get('/api/getFnKeyMappingOptions', (req, res) => {
+	const presetIndex = parsePresetIndex(req) ?? 0;
+	return res.send({
+		...hmlFnPresetStubs[presetIndex],
+		activePreset: hmlActivePreset,
 	});
 });
 
 app.post('/api/*', (req, res) => {
-	console.log(req.body);
-	return res.send(req.body);
+	const body = req.body || {};
+	if (body.presetIndex !== undefined) {
+		const index = Number(body.presetIndex);
+		if (Number.isInteger(index) && index >= 0 && index <= 2) {
+			hmlActivePreset = index;
+		}
+	}
+	console.log(body);
+	return res.send(body);
 });
 
 app.listen(port, () => {

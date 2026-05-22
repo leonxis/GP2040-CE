@@ -1,5 +1,6 @@
 #include "addons/unified_voltage_switch.h"
 
+#include "hml_back_mapping_preset.h"
 #include "addons/ads8332_adc.h"
 #include "config.pb.h"
 #include "gamepad.h"
@@ -42,7 +43,7 @@ uint16_t UnifiedVoltageSwitchAddon::scaledThreshold(float ratio, uint16_t adcMax
 }
 
 void UnifiedVoltageSwitchAddon::buildMaps() {
-    const FnKeyMappingOptions& fn = Storage::getInstance().getAddonOptions().fnKeyMappingOptions;
+    const FnKeyMappingOptions& fn = getActiveFnKeyMappingOptions(Storage::getInstance().getAddonOptions());
     left_map_.setCount(4);
     right_map_.setCount(4);
 

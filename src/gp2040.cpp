@@ -7,6 +7,7 @@
 #include "build_info.h"
 #include "peripheralmanager.h"
 #include "storagemanager.h"
+#include "hml_back_mapping_preset.h"
 #include "addonmanager.h"
 #include "config.pb.h"
 #include "types.h"
@@ -287,6 +288,7 @@ void GP2040::setup() {
 
 	// Initialize last reinit profile to current so we don't reinit on first loop
 	gamepad->lastReinitProfileNumber = Storage::getInstance().getGamepadOptions().profileNumber;
+	gamepad->lastReinitHmlBackPreset = getHmlBackMappingActivePresetIndex(Storage::getInstance().getAddonOptions());
 
 	// now we can load the latest configured profile, which will map the
 	// new set of GPIOs to use...
@@ -681,6 +683,12 @@ void GP2040::getReinitGamepad(Gamepad * gamepad) {
 
 		// Trigger the profile change event now that reinit is complete
 		EventManager::getInstance().triggerEvent(new GPProfileChangeEvent(previousProfile, currentProfile));
+	}
+
+	const uint32_t activeHmlBackPreset = getHmlBackMappingActivePresetIndex(Storage::getInstance().getAddonOptions());
+	if (gamepad->lastReinitHmlBackPreset != activeHmlBackPreset) {
+		addons.ReinitializeAddons();
+		gamepad->lastReinitHmlBackPreset = activeHmlBackPreset;
 	}
 }
 

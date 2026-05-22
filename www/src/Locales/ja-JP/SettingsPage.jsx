@@ -165,6 +165,9 @@ export default {
 	'input-mode-device-type-label': '入力モードコントローラ種別',
 
 	'hml-tab-mode': 'モード設定',
+	'hml-back-scheme-tab-1': 'バックキー方案1',
+	'hml-back-scheme-tab-2': 'バックキー方案2',
+	'hml-back-scheme-tab-3': 'バックキー方案3',
 	'hml-tab-back-buttons': 'パドル割り当て',
 	'hml-tab-calibration': 'キャリブレーション',
 	'hml-tab-button-settings': 'ボタン設定',
@@ -178,7 +181,6 @@ export default {
 		'その他ボタンのマッピング調整。コンボ・マクロ対応。3プリセット、ホットスワップ可。',
 	'hml-button-settings-hub-desc-hotkey': 'ホットキーの組み合わせと機能設定。',
 	'hml-button-settings-hub-desc-macro': 'マクロ作成。全ボタンとスティック方向に対応。',
-	'hml-mapping-preset-tab-placeholder': 'プリセット 1',
 	'hml-tab-motion': 'モーション',
 	'hml-tab-macros': 'マクロ',
 	'hml-tab-hotkeys': 'ホットキー機能',

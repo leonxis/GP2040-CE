@@ -94,12 +94,13 @@
 // LSM6 插件默认：关闭（SPI0/CS 在 lsm6dsr_imu 中硬编码）
 #define LSM6DSR_DEFAULT_ENABLED 0
 
-// 2键触摸板开关：0=关闭
+// 背键/FN/触摸左右键：仅用于首次初始化「背键方案1」(hmlBackMappingPresetOptions.presets[0])；方案2/3 出厂为 NONE
+// 2键触摸板硬件开关（全局，与方案无关）：0=关闭
 #define HML_TWOKEY_TOUCHPAD_ENABLED 0
 #define HML_TWOKEY_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
 #define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
-// FN/MT 键映射（config_utils 在未设置时依此写入）
+// FN/MT 键映射（config_utils 在未设置时写入背键方案1）
 #define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_L1
 #define HML_RIGHT_FN_ACTION GpioAction::BUTTON_PRESS_R1
 #define HML_LEFT_MT_ACTION  GpioAction::BUTTON_PRESS_FN
@@ -107,7 +108,7 @@
 #define HML_EXT_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
 #define HML_EXT_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
-// 背键设置插件：逻辑背键映射默认值（与 GPIO 解耦，config_utils 在未设置时依此写入）
+// 背键设置插件：逻辑背键映射默认值（仅背键方案1，与 GPIO 解耦）
 #define HML_BACK_L1_ACTION GpioAction::BUTTON_PRESS_B1  // 左背键1
 #define HML_BACK_R1_ACTION GpioAction::BUTTON_PRESS_B2  // 右背键1
 #define HML_BACK_L2_ACTION GpioAction::BUTTON_PRESS_B3 // 左背键2

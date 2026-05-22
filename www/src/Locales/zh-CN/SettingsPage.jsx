@@ -167,6 +167,9 @@ export default {
 	'input-mode-device-type-label': '输入模式控制器类型',
 
 	'hml-tab-mode': '模式设置',
+	'hml-back-scheme-tab-1': '背键方案1',
+	'hml-back-scheme-tab-2': '背键方案2',
+	'hml-back-scheme-tab-3': '背键方案3',
 	'hml-tab-back-buttons': '背键映射',
 	'hml-tab-calibration': '摇杆设置',
 	'hml-tab-button-settings': '按键设置',
@@ -178,7 +181,6 @@ export default {
 	'hml-button-settings-hub-desc-back-paddle': '手柄其他按键映射调整，支持组合、宏，支持3套方案，可热切换。',
 	'hml-button-settings-hub-desc-hotkey': '热切换按键组合及功能设置。',
 	'hml-button-settings-hub-desc-macro': '编写宏功能，支持所有按键及摇杆方向',
-	'hml-mapping-preset-tab-placeholder': '方案 1',
 	'hml-tab-motion': '体感设置',
 	'hml-tab-macros': '宏键功能',
 	'hml-tab-hotkeys': '热键功能',

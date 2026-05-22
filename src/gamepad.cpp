@@ -5,6 +5,7 @@
 
 // GP2040 Libraries
 #include "gamepad.h"
+#include "hml_back_mapping_preset.h"
 #include "enums.pb.h"
 #include "storagemanager.h"
 #include "types.h"
@@ -944,6 +945,18 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 		case HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_CLEAR:
 			if (action != lastAction) {
 				Storage::getInstance().getAddonOptions().axisTiltOverlayOptions.rightYActivePreset = 0;
+				reqSave = true;
+			}
+			break;
+		case HOTKEY_HML_BACK_MAPPING_SCHEME_1:
+		case HOTKEY_HML_BACK_MAPPING_SCHEME_2:
+		case HOTKEY_HML_BACK_MAPPING_SCHEME_3:
+			if (action != lastAction) {
+				const uint32_t presetIndex = static_cast<uint32_t>(action - HOTKEY_HML_BACK_MAPPING_SCHEME_1);
+				HmlBackMappingPresetOptions& presetOpts =
+					getHmlBackMappingPresetOptions(Storage::getInstance().getAddonOptions());
+				presetOpts.activePreset = presetIndex;
+				presetOpts.has_activePreset = true;
 				reqSave = true;
 			}
 			break;

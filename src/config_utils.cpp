@@ -28,6 +28,7 @@
 #include "addons/wiiext.h"
 #include "addons/snes_input.h"
 #include "addons/input_macro.h"
+#include "hml_back_mapping_preset.h"
 #include "addons/rotaryencoder.h"
 #include "addons/i2c_gpio_pcf8575.h"
 #include "addons/drv8833_rumble.h"
@@ -1079,46 +1080,112 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseDeadzone, 12);
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
 
+    // HML 背键/FN/触摸三套方案（所有 BoardConfig 构建均编译）
+    {
+        HmlBackMappingPresetOptions& presetOpts = getHmlBackMappingPresetOptions(config.addonOptions);
+        if (presetOpts.presets_count == 0) {
+            presetOpts.presets_count = 3;
+            INIT_UNSET_PROPERTY(presetOpts, activePreset, 0u);
+            for (pb_size_t i = 0; i < 3; i++) {
+                initHmlBackMappingPresetNone(presetOpts.presets[i]);
+            }
+
+            HmlBackMappingPreset& scheme1 = presetOpts.presets[0];
 #if defined(HML_LEFT_FN_ACTION)
-    // FN/MT 键映射：依 boardconfig（左FN=L1, 右FN=R1, 左MT=L2, 右MT=R2），仅当未设置时写入
-    if (!config.addonOptions.fnKeyMappingOptions.has_leftFnMapping) {
-        config.addonOptions.fnKeyMappingOptions.leftFnMapping.action = HML_LEFT_FN_ACTION;
-        config.addonOptions.fnKeyMappingOptions.leftFnMapping.has_action = true;
-        config.addonOptions.fnKeyMappingOptions.has_leftFnMapping = true;
-    }
-    if (!config.addonOptions.fnKeyMappingOptions.has_rightFnMapping) {
-        config.addonOptions.fnKeyMappingOptions.rightFnMapping.action = HML_RIGHT_FN_ACTION;
-        config.addonOptions.fnKeyMappingOptions.rightFnMapping.has_action = true;
-        config.addonOptions.fnKeyMappingOptions.has_rightFnMapping = true;
-    }
-    if (!config.addonOptions.fnKeyMappingOptions.has_leftMtMapping) {
-        config.addonOptions.fnKeyMappingOptions.leftMtMapping.action = HML_LEFT_MT_ACTION;
-        config.addonOptions.fnKeyMappingOptions.leftMtMapping.has_action = true;
-        config.addonOptions.fnKeyMappingOptions.has_leftMtMapping = true;
-    }
-    if (!config.addonOptions.fnKeyMappingOptions.has_rightMtMapping) {
-        config.addonOptions.fnKeyMappingOptions.rightMtMapping.action = HML_RIGHT_MT_ACTION;
-        config.addonOptions.fnKeyMappingOptions.rightMtMapping.has_action = true;
-        config.addonOptions.fnKeyMappingOptions.has_rightMtMapping = true;
-    }
+            if (!scheme1.fnKey.has_leftFnMapping) {
+                scheme1.fnKey.leftFnMapping.action = HML_LEFT_FN_ACTION;
+                scheme1.fnKey.leftFnMapping.has_action = true;
+                scheme1.fnKey.has_leftFnMapping = true;
+            }
+            if (!scheme1.fnKey.has_rightFnMapping) {
+                scheme1.fnKey.rightFnMapping.action = HML_RIGHT_FN_ACTION;
+                scheme1.fnKey.rightFnMapping.has_action = true;
+                scheme1.fnKey.has_rightFnMapping = true;
+            }
+            if (!scheme1.fnKey.has_leftMtMapping) {
+                scheme1.fnKey.leftMtMapping.action = HML_LEFT_MT_ACTION;
+                scheme1.fnKey.leftMtMapping.has_action = true;
+                scheme1.fnKey.has_leftMtMapping = true;
+            }
+            if (!scheme1.fnKey.has_rightMtMapping) {
+                scheme1.fnKey.rightMtMapping.action = HML_RIGHT_MT_ACTION;
+                scheme1.fnKey.rightMtMapping.has_action = true;
+                scheme1.fnKey.has_rightMtMapping = true;
+            }
 #endif
-#if defined(HML_EXT_LEFT_ACTION) || defined(HML_EXT_RIGHT_ACTION)
-    // Ext 左/右扳机映射：由 boardconfig 配置，仅当未设置时写入（可单独配置左/右）
 #if defined(HML_EXT_LEFT_ACTION)
-    if (!config.addonOptions.fnKeyMappingOptions.has_leftExtTriggerMapping) {
-        config.addonOptions.fnKeyMappingOptions.leftExtTriggerMapping.action = HML_EXT_LEFT_ACTION;
-        config.addonOptions.fnKeyMappingOptions.leftExtTriggerMapping.has_action = true;
-        config.addonOptions.fnKeyMappingOptions.has_leftExtTriggerMapping = true;
-    }
+            if (!scheme1.fnKey.has_leftExtTriggerMapping) {
+                scheme1.fnKey.leftExtTriggerMapping.action = HML_EXT_LEFT_ACTION;
+                scheme1.fnKey.leftExtTriggerMapping.has_action = true;
+                scheme1.fnKey.has_leftExtTriggerMapping = true;
+            }
 #endif
 #if defined(HML_EXT_RIGHT_ACTION)
-    if (!config.addonOptions.fnKeyMappingOptions.has_rightExtTriggerMapping) {
-        config.addonOptions.fnKeyMappingOptions.rightExtTriggerMapping.action = HML_EXT_RIGHT_ACTION;
-        config.addonOptions.fnKeyMappingOptions.rightExtTriggerMapping.has_action = true;
-        config.addonOptions.fnKeyMappingOptions.has_rightExtTriggerMapping = true;
+            if (!scheme1.fnKey.has_rightExtTriggerMapping) {
+                scheme1.fnKey.rightExtTriggerMapping.action = HML_EXT_RIGHT_ACTION;
+                scheme1.fnKey.rightExtTriggerMapping.has_action = true;
+                scheme1.fnKey.has_rightExtTriggerMapping = true;
+            }
+#endif
+#if defined(HML_TWOKEY_LEFT_ACTION)
+            if (!scheme1.has_leftKeyMapping) {
+                scheme1.leftKeyMapping.action = HML_TWOKEY_LEFT_ACTION;
+                scheme1.leftKeyMapping.has_action = true;
+                scheme1.has_leftKeyMapping = true;
+            }
+#endif
+#if defined(HML_TWOKEY_RIGHT_ACTION)
+            if (!scheme1.has_rightKeyMapping) {
+                scheme1.rightKeyMapping.action = HML_TWOKEY_RIGHT_ACTION;
+                scheme1.rightKeyMapping.has_action = true;
+                scheme1.has_rightKeyMapping = true;
+            }
+#endif
+            BackButtonAddonOptions& bb1 = scheme1.backButton;
+#if defined(HML_BACK_L1_ACTION)
+            if (!bb1.has_leftBack1Mapping) {
+                bb1.leftBack1Mapping.action = HML_BACK_L1_ACTION;
+                bb1.leftBack1Mapping.has_action = true;
+                bb1.has_leftBack1Mapping = true;
+            }
+#endif
+#if defined(HML_BACK_R1_ACTION)
+            if (!bb1.has_rightBack1Mapping) {
+                bb1.rightBack1Mapping.action = HML_BACK_R1_ACTION;
+                bb1.rightBack1Mapping.has_action = true;
+                bb1.has_rightBack1Mapping = true;
+            }
+#endif
+#if defined(HML_BACK_L2_ACTION)
+            if (!bb1.has_leftBack2Mapping) {
+                bb1.leftBack2Mapping.action = HML_BACK_L2_ACTION;
+                bb1.leftBack2Mapping.has_action = true;
+                bb1.has_leftBack2Mapping = true;
+            }
+#endif
+#if defined(HML_BACK_R2_ACTION)
+            if (!bb1.has_rightBack2Mapping) {
+                bb1.rightBack2Mapping.action = HML_BACK_R2_ACTION;
+                bb1.rightBack2Mapping.has_action = true;
+                bb1.has_rightBack2Mapping = true;
+            }
+#endif
+#if defined(HML_BACK_EL_ACTION)
+            if (!bb1.has_leftElMapping) {
+                bb1.leftElMapping.action = HML_BACK_EL_ACTION;
+                bb1.leftElMapping.has_action = true;
+                bb1.has_leftElMapping = true;
+            }
+#endif
+#if defined(HML_BACK_ER_ACTION)
+            if (!bb1.has_rightErMapping) {
+                bb1.rightErMapping.action = HML_BACK_ER_ACTION;
+                bb1.rightErMapping.has_action = true;
+                bb1.has_rightErMapping = true;
+            }
+#endif
+        }
     }
-#endif
-#endif
 
 #if defined(HML_TWOKEY_TOUCHPAD_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, HML_TWOKEY_TOUCHPAD_ENABLED);
@@ -1126,69 +1193,10 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, 0);
 #endif
     if (!config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping) {
-        // 首次迁移时记录 GPIO12 的当前映射作为 2 键触摸板使能键映射
         config.addonOptions.twoKeyTouchpadOptions.enableKeyMapping = config.gpioMappings.pins[12];
         config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping = true;
     }
-#if defined(HML_TWOKEY_LEFT_ACTION)
-    // 2键触摸板映射：左触摸键/右触摸键，由 boardconfig 配置，仅当未设置时写入
-    if (!config.addonOptions.twoKeyTouchpadOptions.has_leftKeyMapping) {
-        config.addonOptions.twoKeyTouchpadOptions.leftKeyMapping.action = HML_TWOKEY_LEFT_ACTION;
-        config.addonOptions.twoKeyTouchpadOptions.leftKeyMapping.has_action = true;
-        config.addonOptions.twoKeyTouchpadOptions.has_leftKeyMapping = true;
-    }
-    if (!config.addonOptions.twoKeyTouchpadOptions.has_rightKeyMapping) {
-        config.addonOptions.twoKeyTouchpadOptions.rightKeyMapping.action = HML_TWOKEY_RIGHT_ACTION;
-        config.addonOptions.twoKeyTouchpadOptions.rightKeyMapping.has_action = true;
-        config.addonOptions.twoKeyTouchpadOptions.has_rightKeyMapping = true;
-    }
-#endif
-
-#if defined(HML_BACK_L1_ACTION) || defined(HML_BACK_R1_ACTION) || defined(HML_BACK_L2_ACTION) || defined(HML_BACK_R2_ACTION) || defined(HML_BACK_EL_ACTION) || defined(HML_BACK_ER_ACTION)
-    // 背键设置插件：逻辑背键映射（与 GPIO 解耦），仅当未设置时写入（可分别配置每一项）
-#if defined(HML_BACK_L1_ACTION)
-    if (!config.addonOptions.backButtonAddonOptions.has_leftBack1Mapping) {
-        config.addonOptions.backButtonAddonOptions.leftBack1Mapping.action = HML_BACK_L1_ACTION;
-        config.addonOptions.backButtonAddonOptions.leftBack1Mapping.has_action = true;
-        config.addonOptions.backButtonAddonOptions.has_leftBack1Mapping = true;
-    }
-#endif
-#if defined(HML_BACK_R1_ACTION)
-    if (!config.addonOptions.backButtonAddonOptions.has_rightBack1Mapping) {
-        config.addonOptions.backButtonAddonOptions.rightBack1Mapping.action = HML_BACK_R1_ACTION;
-        config.addonOptions.backButtonAddonOptions.rightBack1Mapping.has_action = true;
-        config.addonOptions.backButtonAddonOptions.has_rightBack1Mapping = true;
-    }
-#endif
-#if defined(HML_BACK_L2_ACTION)
-    if (!config.addonOptions.backButtonAddonOptions.has_leftBack2Mapping) {
-        config.addonOptions.backButtonAddonOptions.leftBack2Mapping.action = HML_BACK_L2_ACTION;
-        config.addonOptions.backButtonAddonOptions.leftBack2Mapping.has_action = true;
-        config.addonOptions.backButtonAddonOptions.has_leftBack2Mapping = true;
-    }
-#endif
-#if defined(HML_BACK_R2_ACTION)
-    if (!config.addonOptions.backButtonAddonOptions.has_rightBack2Mapping) {
-        config.addonOptions.backButtonAddonOptions.rightBack2Mapping.action = HML_BACK_R2_ACTION;
-        config.addonOptions.backButtonAddonOptions.rightBack2Mapping.has_action = true;
-        config.addonOptions.backButtonAddonOptions.has_rightBack2Mapping = true;
-    }
-#endif
-#if defined(HML_BACK_EL_ACTION)
-    if (!config.addonOptions.backButtonAddonOptions.has_leftElMapping) {
-        config.addonOptions.backButtonAddonOptions.leftElMapping.action = HML_BACK_EL_ACTION;
-        config.addonOptions.backButtonAddonOptions.leftElMapping.has_action = true;
-        config.addonOptions.backButtonAddonOptions.has_leftElMapping = true;
-    }
-#endif
-#if defined(HML_BACK_ER_ACTION)
-    if (!config.addonOptions.backButtonAddonOptions.has_rightErMapping) {
-        config.addonOptions.backButtonAddonOptions.rightErMapping.action = HML_BACK_ER_ACTION;
-        config.addonOptions.backButtonAddonOptions.rightErMapping.has_action = true;
-        config.addonOptions.backButtonAddonOptions.has_rightErMapping = true;
-    }
-#endif
-#endif
+    config.addonOptions.has_twoKeyTouchpadOptions = true;
 
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, enabled, KEYBOARD_HOST_ENABLED);

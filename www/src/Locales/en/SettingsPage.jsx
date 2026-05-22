@@ -183,6 +183,9 @@ export default {
 
 	// HML settings (home page tabs & mode/hardware/function/backup)
 	'hml-tab-mode': 'Mode',
+	'hml-back-scheme-tab-1': 'Back scheme 1',
+	'hml-back-scheme-tab-2': 'Back scheme 2',
+	'hml-back-scheme-tab-3': 'Back scheme 3',
 	'hml-tab-back-buttons': 'Paddle mapping',
 	'hml-tab-calibration': 'Calibration',
 	'hml-tab-button-settings': 'Button settings',
@@ -196,7 +199,6 @@ export default {
 		'Maps additional buttons; combos and macros; 3 preset schemes with hot-swap.',
 	'hml-button-settings-hub-desc-hotkey': 'Hotkey combos and related options.',
 	'hml-button-settings-hub-desc-macro': 'Macro editor; all buttons and analog stick directions.',
-	'hml-mapping-preset-tab-placeholder': 'Preset 1',
 	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
 	'hml-tab-hotkeys': 'Hotkey features',

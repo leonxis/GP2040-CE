@@ -290,6 +290,7 @@ public:
 	uint8_t addonMouseButtonMask = 0;
 
 	uint32_t lastReinitProfileNumber = 0;
+	uint32_t lastReinitHmlBackPreset = 0;
 
 	// These are special to SOCD
 	inline static const SOCDMode resolveSOCDMode(const GamepadOptions& options) {

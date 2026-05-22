@@ -17,7 +17,6 @@ import {
 	mouseKeyOptions,
 	keyboardKeyOptions,
 } from './ActionMappingOptions';
-import MappingPresetShell from './MappingPresetShell';
 import {
 	defaultPinData,
 	getMultiValue,
@@ -190,9 +189,5 @@ function KeySwapSettingsBody() {
 }
 
 export default function KeySwapSettings() {
-	return (
-		<MappingPresetShell>
-			<KeySwapSettingsBody />
-		</MappingPresetShell>
-	);
+	return <KeySwapSettingsBody />;
 }

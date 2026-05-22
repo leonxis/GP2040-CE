@@ -1,5 +1,6 @@
 #include "addons/back_button_divider.h"
 
+#include "hml_back_mapping_preset.h"
 #include "storagemanager.h"
 #include "gamepad.h"
 #include "hardware/gpio.h"
@@ -41,7 +42,7 @@ bool BackButtonDividerAddon::available() {
 }
 
 void BackButtonDividerAddon::buildMappings() {
-    const BackButtonAddonOptions& opts = Storage::getInstance().getAddonOptions().backButtonAddonOptions;
+    const BackButtonAddonOptions& opts = getActiveBackButtonOptions(Storage::getInstance().getAddonOptions());
     mapTable_.setCount(6);
     if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_BACK1)) {
         ActionMappingCommon::parseActionMapping(opts.leftBack1Mapping, *entry);

@@ -46,6 +46,7 @@ class BackStickMappingScreen : public GPScreen {
         MappingState currentState = STATE_SELECT_SLOT;
         uint16_t prevButtonState = 0;
         uint8_t prevDpadState = 0;
+        uint32_t lastSyncedActivePreset_ = 0;
 
         std::vector<MenuEntry> stickSelectionMenu;
         std::vector<MenuEntry> valueMappingMenu;

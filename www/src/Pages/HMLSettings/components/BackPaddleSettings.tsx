@@ -1,8 +1,8 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, Row, Col, Button } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { omit } from 'lodash';
-import { MultiValue, SingleValue } from 'react-select';
+import { MultiValue } from 'react-select';
 
 import { AppContext } from '../../../Contexts/AppContext';
 import { MaskPayload } from '../../../Store/useProfilesStore';
@@ -18,7 +18,7 @@ import {
 	mouseKeyOptions,
 	keyboardKeyOptions,
 } from './ActionMappingOptions';
-import MappingPresetShell from './MappingPresetShell';
+import MappingPresetShell, { PRESET_TAB_KEYS, PresetTabKey } from './MappingPresetShell';
 import {
 	defaultPinData,
 	getMultiValue,
@@ -31,152 +31,166 @@ type AppContextShape = {
 	buttonLabels?: { buttonLabelType?: string; swapTpShareLabels?: boolean };
 };
 
-function BackPaddleSettingsBody() {
+type PresetBundle = {
+	back: Record<string, MaskPayload>;
+	fn: Record<string, MaskPayload>;
+	twoKey: Record<string, MaskPayload>;
+};
+
+const emptyBack = (): Record<string, MaskPayload> => ({
+	leftEl: { ...defaultPinData },
+	rightEr: { ...defaultPinData },
+	leftBack1: { ...defaultPinData },
+	rightBack1: { ...defaultPinData },
+	leftBack2: { ...defaultPinData },
+	rightBack2: { ...defaultPinData },
+});
+
+const emptyFn = (): Record<string, MaskPayload> => ({
+	leftFn: { ...defaultPinData },
+	rightFn: { ...defaultPinData },
+	leftMt: { ...defaultPinData },
+	rightMt: { ...defaultPinData },
+	extLeftTrigger: { ...defaultPinData },
+	extRightTrigger: { ...defaultPinData },
+});
+
+const emptyTwoKey = (): Record<string, MaskPayload> => ({
+	leftKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+	rightKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+});
+
+const cloneBundle = (b: PresetBundle): PresetBundle => ({
+	back: Object.fromEntries(Object.entries(b.back).map(([k, v]) => [k, { ...v }])),
+	fn: Object.fromEntries(Object.entries(b.fn).map(([k, v]) => [k, { ...v }])),
+	twoKey: Object.fromEntries(Object.entries(b.twoKey).map(([k, v]) => [k, { ...v }])),
+});
+
+const parseBack = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
+	leftEl: toMaskPayload(data.leftEl),
+	rightEr: toMaskPayload(data.rightEr),
+	leftBack1: toMaskPayload(data.leftBack1),
+	rightBack1: toMaskPayload(data.rightBack1),
+	leftBack2: toMaskPayload(data.leftBack2),
+	rightBack2: toMaskPayload(data.rightBack2),
+});
+
+const parseFn = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
+	leftFn: toMaskPayload(data.leftFn),
+	rightFn: toMaskPayload(data.rightFn),
+	leftMt: toMaskPayload(data.leftMt),
+	rightMt: toMaskPayload(data.rightMt),
+	extLeftTrigger: toMaskPayload(data.extLeftTrigger),
+	extRightTrigger: toMaskPayload(data.extRightTrigger),
+});
+
+const parseTwoKey = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
+	leftKey: data.leftKey
+		? toMaskPayload(data.leftKey)
+		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+	rightKey: data.rightKey
+		? toMaskPayload(data.rightKey)
+		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+});
+
+function BackPaddleSettingsBody({
+	presetIndex,
+	twoKeyTouchpadEnabled,
+	bundle,
+	onBundleChange,
+	onSaved,
+}: {
+	presetIndex: number;
+	twoKeyTouchpadEnabled: boolean;
+	bundle: PresetBundle;
+	onBundleChange: (next: PresetBundle) => void;
+	onSaved: () => void;
+}) {
 	const { t } = useTranslation();
 	const appContext = useContext(AppContext);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
-	const [twoKeyTouchpadEnabled, setTwoKeyTouchpadEnabled] = useState(false);
-	const [twoKeyOptions, setTwoKeyOptions] = useState<Record<string, MaskPayload>>({
-		leftKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
-		rightKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
-	});
 	const [twoKeySaveMsg, setTwoKeySaveMsg] = useState('');
 	const [twoKeySaving, setTwoKeySaving] = useState(false);
-	const [fnOptions, setFnOptions] = useState<Record<string, MaskPayload>>({
-		leftFn: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		rightFn: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		leftMt: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		rightMt: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		extLeftTrigger: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		extRightTrigger: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-	});
 	const [fnSaveMsg, setFnSaveMsg] = useState('');
 	const [fnSaving, setFnSaving] = useState(false);
 
-	const [backAddonOptions, setBackAddonOptions] = useState<Record<string, MaskPayload>>({
-		leftEl: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		rightEr: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		leftBack1: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		rightBack1: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		leftBack2: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-		rightBack2: { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 },
-	});
+	const backAddonOptions = bundle.back;
+	const fnOptions = bundle.fn;
+	const twoKeyOptions = bundle.twoKey;
 
 	const buttonNames = useMemo(() => {
 		const defaultButtons = getButtonLabels('gp2040', false);
-		if (!appContext) {
-			return omit(defaultButtons, ['label', 'value']);
-		}
+		if (!appContext) return omit(defaultButtons, ['label', 'value']);
 		const { buttonLabels } = appContext as AppContextShape;
-		if (!buttonLabels) {
-			return omit(defaultButtons, ['label', 'value']);
-		}
-		const { buttonLabelType, swapTpShareLabels } = buttonLabels;
-		const currentButtons = getButtonLabels(buttonLabelType, swapTpShareLabels);
-		return omit(currentButtons, ['label', 'value']);
+		if (!buttonLabels) return omit(defaultButtons, ['label', 'value']);
+		return omit(getButtonLabels(buttonLabels.buttonLabelType, buttonLabels.swapTpShareLabels), ['label', 'value']);
 	}, [appContext]);
-
-	const onTwoKeyChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
-		setTwoKeyOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
-	}, []);
-	const onFnChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
-		setFnOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
-	}, []);
-	const onBackAddonChange = useCallback((key: string) => (selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
-		setBackAddonOptions((prev) => ({ ...prev, [key]: getPayloadFromSelected(selected) }));
-	}, []);
 
 	const getOptionLabel = useCallback(
 		(option: OptionType) => {
 			if (option.type === 'keyboard') {
 				const keyName = option.label?.replace('KEYBOARD_KEY_', '');
-				if (keyName === 'ALT_F4') {
-					return 'KB: Alt+F4';
-				}
+				if (keyName === 'ALT_F4') return 'KB: Alt+F4';
 				return `KB: ${keyName || option.label}`;
 			}
-			if (option.type === 'mouse') {
-				return t(`Proto:GpioAction.${option.label}`);
-			}
+			if (option.type === 'mouse') return t(`Proto:GpioAction.${option.label}`);
 			const labelKey = option.label?.split('BUTTON_PRESS_')?.pop();
-			return (
-				(labelKey && buttonNames[labelKey]) ||
-				t(`Proto:GpioAction.${option.label}`)
-			);
+			return (labelKey && buttonNames[labelKey]) || t(`Proto:GpioAction.${option.label}`);
 		},
 		[buttonNames, t],
 	);
 
-	useEffect(() => {
-		Promise.all([WebApi.getTwoKeyTouchpadOptions(), WebApi.getFnKeyMappingOptions(), WebApi.getBackButtonAddonOptions()]).then(
-			([twoKey, fn, backAddon]) => {
-				if (twoKey) {
-					setTwoKeyTouchpadEnabled(Boolean(twoKey.enabled));
-					setTwoKeyOptions({
-						leftKey: twoKey.leftKey
-							? toMaskPayload(twoKey.leftKey)
-							: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
-						rightKey: twoKey.rightKey
-							? toMaskPayload(twoKey.rightKey)
-							: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
-					});
-				}
-				if (fn) {
-					setFnOptions({
-						leftFn: toMaskPayload(fn.leftFn),
-						rightFn: toMaskPayload(fn.rightFn),
-						leftMt: toMaskPayload(fn.leftMt),
-						rightMt: toMaskPayload(fn.rightMt),
-						extLeftTrigger: toMaskPayload(fn.extLeftTrigger),
-						extRightTrigger: toMaskPayload(fn.extRightTrigger),
-					});
-				}
-				if (backAddon) {
-					setBackAddonOptions({
-						leftEl: toMaskPayload(backAddon.leftEl),
-						rightEr: toMaskPayload(backAddon.rightEr),
-						leftBack1: toMaskPayload(backAddon.leftBack1),
-						rightBack1: toMaskPayload(backAddon.rightBack1),
-						leftBack2: toMaskPayload(backAddon.leftBack2),
-						rightBack2: toMaskPayload(backAddon.rightBack2),
-					});
-				}
-			},
-		);
-	}, []);
+	const patchBack = (key: string, payload: MaskPayload) =>
+		onBundleChange({ ...bundle, back: { ...bundle.back, [key]: payload } });
+	const patchFn = (key: string, payload: MaskPayload) =>
+		onBundleChange({ ...bundle, fn: { ...bundle.fn, [key]: payload } });
+	const patchTwoKey = (key: string, payload: MaskPayload) =>
+		onBundleChange({ ...bundle, twoKey: { ...bundle.twoKey, [key]: payload } });
 
-	const handleSaveTwoKey = useCallback(async () => {
-		setTwoKeySaveMsg('');
-		setTwoKeySaving(true);
+	const handleSaveBackCard = useCallback(async () => {
+		setSaveMessage('');
+		setIsLoading(true);
 		try {
-			await WebApi.setTwoKeyTouchpadOptions({
-				leftKey: twoKeyOptions.leftKey,
-				rightKey: twoKeyOptions.rightKey,
+			await WebApi.setBackButtonAddonOptions({
+				presetIndex,
+				leftEl: backAddonOptions.leftEl,
+				rightEr: backAddonOptions.rightEr,
+				leftBack1: backAddonOptions.leftBack1,
+				rightBack1: backAddonOptions.rightBack1,
+				leftBack2: backAddonOptions.leftBack2,
+				rightBack2: backAddonOptions.rightBack2,
 			});
-			setTwoKeySaveMsg(t('Common:saved-success-message'));
-			setTimeout(() => setTwoKeySaveMsg(''), 3000);
-		} catch {
-			setTwoKeySaveMsg(t('Common:saved-error-message'));
-			setTimeout(() => setTwoKeySaveMsg(''), 3000);
+			if (appContext) {
+				const { updateUsedPins } = appContext as AppContextShape;
+				if (updateUsedPins) updateUsedPins();
+			}
+			onSaved();
+			setSaveMessage(t('Common:saved-success-message'));
+			setTimeout(() => setSaveMessage(''), 3000);
+		} catch (error) {
+			console.error('保存背键映射失败:', error);
+			setSaveMessage(t('Common:saved-error-message'));
+			setTimeout(() => setSaveMessage(''), 3000);
 		} finally {
-			setTwoKeySaving(false);
+			setIsLoading(false);
 		}
-	}, [twoKeyOptions, t]);
+	}, [appContext, backAddonOptions, presetIndex, onSaved, t]);
 
 	const handleSaveFn = useCallback(async () => {
 		setFnSaveMsg('');
 		setFnSaving(true);
 		try {
-			const payload = {
+			await WebApi.setFnKeyMappingOptions({
+				presetIndex,
 				leftFn: fnOptions.leftFn,
 				rightFn: fnOptions.rightFn,
 				leftMt: fnOptions.leftMt,
 				rightMt: fnOptions.rightMt,
 				extLeftTrigger: fnOptions.extLeftTrigger,
 				extRightTrigger: fnOptions.extRightTrigger,
-			};
-			await WebApi.setFnKeyMappingOptions(payload);
+			});
+			onSaved();
 			setFnSaveMsg(t('Common:saved-success-message'));
 			setTimeout(() => setFnSaveMsg(''), 3000);
 		} catch {
@@ -185,45 +199,28 @@ function BackPaddleSettingsBody() {
 		} finally {
 			setFnSaving(false);
 		}
-	}, [fnOptions, t]);
+	}, [fnOptions, presetIndex, onSaved, t]);
 
-	const handleSaveBackCard = useCallback(async () => {
-		setSaveMessage('');
-		setIsLoading(true);
+	const handleSaveTwoKey = useCallback(async () => {
+		setTwoKeySaveMsg('');
+		setTwoKeySaving(true);
 		try {
-			await WebApi.setBackButtonAddonOptions({
-				leftEl: backAddonOptions.leftEl,
-				rightEr: backAddonOptions.rightEr,
-				leftBack1: backAddonOptions.leftBack1,
-				rightBack1: backAddonOptions.rightBack1,
-				leftBack2: backAddonOptions.leftBack2,
-				rightBack2: backAddonOptions.rightBack2,
+			await WebApi.setTwoKeyTouchpadOptions({
+				presetIndex,
+				section: 'twoKey',
+				leftKey: twoKeyOptions.leftKey,
+				rightKey: twoKeyOptions.rightKey,
 			});
-			await WebApi.setFnKeyMappingOptions({
-				leftFn: fnOptions.leftFn,
-				rightFn: fnOptions.rightFn,
-				leftMt: fnOptions.leftMt,
-				rightMt: fnOptions.rightMt,
-				extLeftTrigger: fnOptions.extLeftTrigger,
-				extRightTrigger: fnOptions.extRightTrigger,
-			});
-
-			if (appContext) {
-				const { updateUsedPins } = appContext as AppContextShape;
-				if (updateUsedPins) {
-					updateUsedPins();
-				}
-			}
-			setSaveMessage(t('Common:saved-success-message'));
-			setTimeout(() => setSaveMessage(''), 3000);
-		} catch (error) {
-			console.error('保存背键/FN 映射失败:', error);
-			setSaveMessage(t('Common:saved-error-message'));
-			setTimeout(() => setSaveMessage(''), 3000);
+			onSaved();
+			setTwoKeySaveMsg(t('Common:saved-success-message'));
+			setTimeout(() => setTwoKeySaveMsg(''), 3000);
+		} catch {
+			setTwoKeySaveMsg(t('Common:saved-error-message'));
+			setTimeout(() => setTwoKeySaveMsg(''), 3000);
 		} finally {
-			setIsLoading(false);
+			setTwoKeySaving(false);
 		}
-	}, [appContext, t, backAddonOptions, fnOptions]);
+	}, [twoKeyOptions, presetIndex, onSaved, t]);
 
 	const backMappingRows = [
 		{ key: 'leftEl', labelKey: 'hml-paddle-left-el' },
@@ -234,39 +231,45 @@ function BackPaddleSettingsBody() {
 		{ key: 'rightBack2', labelKey: 'hml-paddle-right-2' },
 	];
 
+	const selectRow = (
+		key: string,
+		labelKey: string,
+		data: MaskPayload,
+		onChange: (p: MaskPayload) => void,
+		id: string,
+	) => (
+		<Col sm={6} md={6} key={id}>
+			<div className="d-flex align-items-center">
+				<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
+					<label>{t(`CalibrationSettings:${labelKey}`)}</label>
+				</div>
+				<CustomSelect
+					isClearable
+					isMulti={
+						!isDisabled(data.action) &&
+						!keyboardKeyOptions.some((opt) => opt.value === data.action) &&
+						!mouseKeyOptions.some((opt) => opt.value === data.action) &&
+						!mappingOptions.some((opt) => opt.value === data.action && opt.type === 'action')
+					}
+					options={groupedMappingOptions}
+					isDisabled={isDisabled(data.action)}
+					getOptionLabel={getOptionLabel}
+					onChange={(sel) => onChange(getPayloadFromSelected(sel))}
+					value={getMultiValue(data)}
+				/>
+			</div>
+		</Col>
+	);
+
 	return (
 		<div>
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>{t('SettingsPage:hml-tab-back-buttons')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{backMappingRows.map(({ key, labelKey }) => {
-							const label = t(`CalibrationSettings:${labelKey}`);
-							const mappingData = backAddonOptions[key] || defaultPinData;
-							return (
-								<Col sm={6} md={6} key={`back-addon-${key}`}>
-									<div className="d-flex align-items-center">
-										<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
-											<label>{label}</label>
-										</div>
-										<CustomSelect
-											isClearable
-											isMulti={
-												!isDisabled(mappingData.action) &&
-												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
-												!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
-												!mappingOptions.some((opt) => opt.value === mappingData.action && opt.type === 'action')
-											}
-											options={groupedMappingOptions}
-											isDisabled={isDisabled(mappingData.action)}
-											getOptionLabel={getOptionLabel}
-											onChange={onBackAddonChange(key)}
-											value={getMultiValue(mappingData)}
-										/>
-									</div>
-								</Col>
-							);
-						})}
+						{backMappingRows.map(({ key, labelKey }) =>
+							selectRow(key, labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`),
+						)}
 					</Row>
 					<Row className="mt-3">
 						<Col sm={4} className="mb-2">
@@ -275,9 +278,7 @@ function BackPaddleSettingsBody() {
 							</Button>
 							{saveMessage && (
 								<span
-									className={`me-3 ${
-										saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'
-									}`}
+									className={`me-3 ${saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}
 								>
 									{saveMessage}
 								</span>
@@ -290,38 +291,11 @@ function BackPaddleSettingsBody() {
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
 				<Card.Body>
-					{twoKeyTouchpadEnabled && (
+					{twoKeyTouchpadEnabled ? (
 						<>
 							<Row className="g-3">
-								{[
-									{ key: 'leftKey', labelKey: 'hml-touch-left' },
-									{ key: 'rightKey', labelKey: 'hml-touch-right' },
-								].map(({ key, labelKey }) => {
-									const mappingData = twoKeyOptions[key] || defaultPinData;
-									return (
-										<Col sm={6} md={6} key={`twokey-${key}`}>
-											<div className="d-flex align-items-center">
-												<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
-													<label>{t(`CalibrationSettings:${labelKey}`)}</label>
-												</div>
-												<CustomSelect
-													isClearable
-													isMulti={
-														!isDisabled(mappingData.action) &&
-														!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
-														!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
-														!mappingOptions.some((opt) => opt.value === mappingData.action && opt.type === 'action')
-													}
-													options={groupedMappingOptions}
-													isDisabled={isDisabled(mappingData.action)}
-													getOptionLabel={getOptionLabel}
-													onChange={onTwoKeyChange(key)}
-													value={getMultiValue(mappingData)}
-												/>
-											</div>
-										</Col>
-									);
-								})}
+								{selectRow('leftKey', 'hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
+								{selectRow('rightKey', 'hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
 							</Row>
 							<Row className="mt-3">
 								<Col sm={4}>
@@ -338,49 +312,22 @@ function BackPaddleSettingsBody() {
 								</Col>
 							</Row>
 						</>
-					)}
-					{!twoKeyTouchpadEnabled && (
+					) : (
 						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
 					)}
 				</Card.Body>
 			</Card>
+
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{[
-							{ key: 'leftFn', labelKey: 'hml-fn-left' },
-							{ key: 'rightFn', labelKey: 'hml-fn-right' },
-							{ key: 'leftMt', labelKey: 'hml-mt-left' },
-							{ key: 'rightMt', labelKey: 'hml-mt-right' },
-							{ key: 'extLeftTrigger', labelKey: 'hml-ext-l2' },
-							{ key: 'extRightTrigger', labelKey: 'hml-ext-r2' },
-						].map(({ key, labelKey }) => {
-							const mappingData = fnOptions[key] || defaultPinData;
-							return (
-								<Col sm={6} md={6} key={`fn-${key}`}>
-									<div className="d-flex align-items-center">
-										<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
-											<label>{t(`CalibrationSettings:${labelKey}`)}</label>
-										</div>
-										<CustomSelect
-											isClearable
-											isMulti={
-												!isDisabled(mappingData.action) &&
-												!keyboardKeyOptions.some((opt) => opt.value === mappingData.action) &&
-												!mouseKeyOptions.some((opt) => opt.value === mappingData.action) &&
-												!mappingOptions.some((opt) => opt.value === mappingData.action && opt.type === 'action')
-											}
-											options={groupedMappingOptions}
-											isDisabled={isDisabled(mappingData.action)}
-											getOptionLabel={getOptionLabel}
-											onChange={onFnChange(key)}
-											value={getMultiValue(mappingData)}
-										/>
-									</div>
-								</Col>
-							);
-						})}
+						{selectRow('leftFn', 'hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l')}
+						{selectRow('rightFn', 'hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r')}
+						{selectRow('leftMt', 'hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l')}
+						{selectRow('rightMt', 'hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r')}
+						{selectRow('extLeftTrigger', 'hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l')}
+						{selectRow('extRightTrigger', 'hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r')}
 					</Row>
 					<Row className="mt-3">
 						<Col sm={4}>
@@ -401,9 +348,88 @@ function BackPaddleSettingsBody() {
 }
 
 export default function BackPaddleSettings() {
+	const [selectedTab, setSelectedTab] = useState<PresetTabKey>('preset-0');
+	const [twoKeyTouchpadEnabled, setTwoKeyTouchpadEnabled] = useState(false);
+	const [presets, setPresets] = useState<PresetBundle[]>([
+		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+	]);
+	const snapshotRef = useRef<PresetBundle[]>([
+		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+	]);
+
+	useEffect(() => {
+		(async () => {
+			const global = await WebApi.getTwoKeyTouchpadOptions();
+			if (global) {
+				setTwoKeyTouchpadEnabled(Boolean(global.enabled));
+				const ap = Number(global.activePreset ?? 0);
+				setSelectedTab(PRESET_TAB_KEYS[ap] ?? 'preset-0');
+			}
+			const loaded: PresetBundle[] = [];
+			for (let i = 0; i < 3; i++) {
+				const [back, fn, twoKey] = await Promise.all([
+					WebApi.getBackButtonAddonOptions(i),
+					WebApi.getFnKeyMappingOptions(i),
+					WebApi.getTwoKeyTouchpadOptions(i),
+				]);
+				loaded.push({
+					back: back ? parseBack(back as Parameters<typeof parseBack>[0]) : emptyBack(),
+					fn: fn ? parseFn(fn as Parameters<typeof parseFn>[0]) : emptyFn(),
+					twoKey: twoKey ? parseTwoKey(twoKey as Parameters<typeof parseTwoKey>[0]) : emptyTwoKey(),
+				});
+			}
+			setPresets(loaded);
+			snapshotRef.current = loaded.map(cloneBundle);
+		})();
+	}, []);
+
+	const handleSelectPreset = useCallback(
+		(key: PresetTabKey) => {
+			const prevIndex = PRESET_TAB_KEYS.indexOf(selectedTab);
+			const nextIndex = PRESET_TAB_KEYS.indexOf(key);
+			if (prevIndex >= 0 && prevIndex !== nextIndex) {
+				setPresets((prev) => {
+					const next = [...prev];
+					next[prevIndex] = cloneBundle(snapshotRef.current[prevIndex]);
+					return next;
+				});
+			}
+			setSelectedTab(key);
+		},
+		[selectedTab],
+	);
+
+	const commitSnapshot = useCallback((index: number) => {
+		setPresets((prev) => {
+			snapshotRef.current[index] = cloneBundle(prev[index]);
+			return prev;
+		});
+	}, []);
+
 	return (
-		<MappingPresetShell>
-			<BackPaddleSettingsBody />
+		<MappingPresetShell activeKey={selectedTab} onSelectPreset={handleSelectPreset}>
+			{(index) => (
+				<BackPaddleSettingsBody
+					presetIndex={index}
+					twoKeyTouchpadEnabled={twoKeyTouchpadEnabled}
+					bundle={presets[index]}
+					onBundleChange={(next) =>
+						setPresets((prev) => {
+							const copy = [...prev];
+							copy[index] = next;
+							return copy;
+						})
+					}
+					onSaved={() => {
+						commitSnapshot(index);
+						setSelectedTab(PRESET_TAB_KEYS[index] ?? 'preset-0');
+					}}
+				/>
+			)}
 		</MappingPresetShell>
 	);
 }

@@ -1,5 +1,6 @@
 #include "addons/two_key_touchpad.h"
 
+#include "hml_back_mapping_preset.h"
 #include "storagemanager.h"
 #include "gamepad.h"
 #include "hardware/gpio.h"
@@ -34,16 +35,18 @@ bool TwoKeyTouchpadAddon::available() {
 }
 
 void TwoKeyTouchpadAddon::buildMappings() {
-    const TwoKeyTouchpadOptions& opts = Storage::getInstance().getAddonOptions().twoKeyTouchpadOptions;
+    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    const TwoKeyTouchpadOptions& globalOpts = addonOptions.twoKeyTouchpadOptions;
+    const HmlBackMappingPreset& activePreset = getActiveHmlBackPreset(addonOptions);
     mapTable_.setCount(3);
     if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_TOUCH)) {
-        ActionMappingCommon::parseActionMapping(opts.leftKeyMapping, *entry);
+        ActionMappingCommon::parseActionMapping(activePreset.leftKeyMapping, *entry);
     }
     if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_TOUCH)) {
-        ActionMappingCommon::parseActionMapping(opts.rightKeyMapping, *entry);
+        ActionMappingCommon::parseActionMapping(activePreset.rightKeyMapping, *entry);
     }
     if (ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(ENABLE_KEY)) {
-        ActionMappingCommon::parseActionMapping(opts.enableKeyMapping, *entry);
+        ActionMappingCommon::parseActionMapping(globalOpts.enableKeyMapping, *entry);
     }
 }
 

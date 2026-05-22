@@ -2,28 +2,40 @@ import type { ReactNode } from 'react';
 import { Nav, Tab } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 
-const PRESET_TAB_KEY = 'preset-0';
+const PRESET_TAB_KEYS = ['preset-0', 'preset-1', 'preset-2'] as const;
+
+export type PresetTabKey = (typeof PRESET_TAB_KEYS)[number];
+
+type MappingPresetShellProps = {
+	children: (activePresetIndex: number) => ReactNode;
+	activeKey: PresetTabKey;
+	onSelectPreset: (key: PresetTabKey) => void;
+};
 
 /**
- * 映射预设横向 TAB 占位（单 Tab），样式与宏页一致；后续多预设时扩展 Shell state。
+ * 背键映射三套方案横向 TAB；切换 Tab 不保存，由父组件丢弃未保存编辑。
  */
-export default function MappingPresetShell({ children }: { children: ReactNode }) {
+export default function MappingPresetShell({ children, activeKey, onSelectPreset }: MappingPresetShellProps) {
 	const { t } = useTranslation('SettingsPage');
 
 	return (
-		<Tab.Container defaultActiveKey={PRESET_TAB_KEY}>
+		<Tab.Container activeKey={activeKey} onSelect={(key) => key && onSelectPreset(key as PresetTabKey)}>
 			<Nav variant="tabs" className="macro-settings-top-tabs mb-3 w-100">
-				<Nav.Item>
-					<Nav.Link eventKey={PRESET_TAB_KEY}>
-						{t('hml-mapping-preset-tab-placeholder')}
-					</Nav.Link>
-				</Nav.Item>
+				{PRESET_TAB_KEYS.map((tabKey, index) => (
+					<Nav.Item key={tabKey}>
+						<Nav.Link eventKey={tabKey}>{t(`hml-back-scheme-tab-${index + 1}`)}</Nav.Link>
+					</Nav.Item>
+				))}
 			</Nav>
 			<Tab.Content>
-				<Tab.Pane eventKey={PRESET_TAB_KEY} className="pt-0">
-					{children}
-				</Tab.Pane>
+				{PRESET_TAB_KEYS.map((tabKey, index) => (
+					<Tab.Pane key={tabKey} eventKey={tabKey} className="pt-0">
+						{activeKey === tabKey ? children(index) : null}
+					</Tab.Pane>
+				))}
 			</Tab.Content>
 		</Tab.Container>
 	);
 }
+
+export { PRESET_TAB_KEYS };

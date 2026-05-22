@@ -271,6 +271,7 @@ src/usbdriver.cpp
 src/usbhostmanager.cpp
 src/config_legacy.cpp
 src/config_utils.cpp
+src/hml_back_mapping_preset.cpp
 src/webconfig.cpp
 src/addons/analog.cpp
 src/addons/unified_analog_processor.cpp

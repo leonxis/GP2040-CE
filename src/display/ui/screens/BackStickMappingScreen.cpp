@@ -3,6 +3,7 @@
 #include "GPGFX_core.h"
 #include "eventmanager.h"
 #include "storagemanager.h"
+#include "hml_back_mapping_preset.h"
 #include "system.h"
 #include "gamepad.h"
 #include "MainMenuScreen.h"
@@ -46,7 +47,10 @@ static void copyMappingOrZero(GpioMappingInfo* dst, bool has, const GpioMappingI
 
 void BackStickMappingScreen::loadPendingFromStorage() {
     AddonOptions& ao = Storage::getInstance().getAddonOptions();
-    const BackButtonAddonOptions& bb = ao.backButtonAddonOptions;
+    const HmlBackMappingPreset& preset = getActiveHmlBackPreset(ao);
+    lastSyncedActivePreset_ = getHmlBackMappingActivePresetIndex(ao);
+
+    const BackButtonAddonOptions& bb = preset.backButton;
     copyMappingOrZero(&pendingBySlot_[SLOT_GPIO25_EL], bb.has_leftElMapping, bb.leftElMapping);
     copyMappingOrZero(&pendingBySlot_[SLOT_GPIO24_ER], bb.has_rightErMapping, bb.rightErMapping);
     copyMappingOrZero(&pendingBySlot_[SLOT_LEFT_BACK1], bb.has_leftBack1Mapping, bb.leftBack1Mapping);
@@ -54,28 +58,16 @@ void BackStickMappingScreen::loadPendingFromStorage() {
     copyMappingOrZero(&pendingBySlot_[SLOT_LEFT_BACK2], bb.has_leftBack2Mapping, bb.leftBack2Mapping);
     copyMappingOrZero(&pendingBySlot_[SLOT_RIGHT_BACK2], bb.has_rightBack2Mapping, bb.rightBack2Mapping);
 
-    if (ao.has_twoKeyTouchpadOptions) {
-        const TwoKeyTouchpadOptions& tk = ao.twoKeyTouchpadOptions;
-        copyMappingOrZero(&pendingBySlot_[SLOT_TWOKEY_LEFT], tk.has_leftKeyMapping, tk.leftKeyMapping);
-        copyMappingOrZero(&pendingBySlot_[SLOT_TWOKEY_RIGHT], tk.has_rightKeyMapping, tk.rightKeyMapping);
-    } else {
-        pendingBySlot_[SLOT_TWOKEY_LEFT] = GpioMappingInfo_init_zero;
-        pendingBySlot_[SLOT_TWOKEY_RIGHT] = GpioMappingInfo_init_zero;
-    }
+    copyMappingOrZero(&pendingBySlot_[SLOT_TWOKEY_LEFT], preset.has_leftKeyMapping, preset.leftKeyMapping);
+    copyMappingOrZero(&pendingBySlot_[SLOT_TWOKEY_RIGHT], preset.has_rightKeyMapping, preset.rightKeyMapping);
 
-    if (ao.has_fnKeyMappingOptions) {
-        const FnKeyMappingOptions& fn = ao.fnKeyMappingOptions;
-        copyMappingOrZero(&pendingBySlot_[SLOT_FN_LEFT], fn.has_leftFnMapping, fn.leftFnMapping);
-        copyMappingOrZero(&pendingBySlot_[SLOT_FN_RIGHT], fn.has_rightFnMapping, fn.rightFnMapping);
-        copyMappingOrZero(&pendingBySlot_[SLOT_MT_LEFT], fn.has_leftMtMapping, fn.leftMtMapping);
-        copyMappingOrZero(&pendingBySlot_[SLOT_MT_RIGHT], fn.has_rightMtMapping, fn.rightMtMapping);
-        copyMappingOrZero(&pendingBySlot_[SLOT_EXT_L2], fn.has_leftExtTriggerMapping, fn.leftExtTriggerMapping);
-        copyMappingOrZero(&pendingBySlot_[SLOT_EXT_R2], fn.has_rightExtTriggerMapping, fn.rightExtTriggerMapping);
-    } else {
-        for (int i = SLOT_FN_LEFT; i <= SLOT_EXT_R2; i++) {
-            pendingBySlot_[i] = GpioMappingInfo_init_zero;
-        }
-    }
+    const FnKeyMappingOptions& fn = preset.fnKey;
+    copyMappingOrZero(&pendingBySlot_[SLOT_FN_LEFT], fn.has_leftFnMapping, fn.leftFnMapping);
+    copyMappingOrZero(&pendingBySlot_[SLOT_FN_RIGHT], fn.has_rightFnMapping, fn.rightFnMapping);
+    copyMappingOrZero(&pendingBySlot_[SLOT_MT_LEFT], fn.has_leftMtMapping, fn.leftMtMapping);
+    copyMappingOrZero(&pendingBySlot_[SLOT_MT_RIGHT], fn.has_rightMtMapping, fn.rightMtMapping);
+    copyMappingOrZero(&pendingBySlot_[SLOT_EXT_L2], fn.has_leftExtTriggerMapping, fn.leftExtTriggerMapping);
+    copyMappingOrZero(&pendingBySlot_[SLOT_EXT_R2], fn.has_rightExtTriggerMapping, fn.rightExtTriggerMapping);
 }
 
 void BackStickMappingScreen::rebuildStickSelectionMenu() {
@@ -231,6 +223,24 @@ int8_t BackStickMappingScreen::update() {
         return result;
     }
 
+    const uint32_t activePreset = getHmlBackMappingActivePresetIndex(Storage::getInstance().getAddonOptions());
+    if (activePreset != lastSyncedActivePreset_) {
+        changesPending = false;
+        loadPendingFromStorage();
+        rebuildStickSelectionMenu();
+        buildValueMappingMenu();
+        if (currentState == STATE_MAPPING_VALUE) {
+            currentState = STATE_SELECT_SLOT;
+            currentMenu = &stickSelectionMenu;
+            previousMenu = nullptr;
+            if (gpMenu != nullptr) {
+                gpMenu->setMenuData(currentMenu);
+                gpMenu->setMenuSize(2, slotMenuRowsY_);
+                gpMenu->setIndex(0);
+            }
+        }
+    }
+
     GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
@@ -375,8 +385,10 @@ void BackStickMappingScreen::saveOptions() {
     applySimpleAction(&gm.pins[24], GpioAction::ASSIGNED_TO_ADDON);
 
     AddonOptions& ao = Storage::getInstance().getAddonOptions();
-    ao.has_backButtonAddonOptions = true;
-    BackButtonAddonOptions& bb = ao.backButtonAddonOptions;
+    HmlBackMappingPreset& preset = getActiveHmlBackPreset(ao);
+
+    preset.has_backButton = true;
+    BackButtonAddonOptions& bb = preset.backButton;
     bb.leftElMapping = pendingBySlot_[SLOT_GPIO25_EL];
     bb.has_leftElMapping = true;
     bb.rightErMapping = pendingBySlot_[SLOT_GPIO24_ER];
@@ -390,27 +402,33 @@ void BackStickMappingScreen::saveOptions() {
     bb.rightBack2Mapping = pendingBySlot_[SLOT_RIGHT_BACK2];
     bb.has_rightBack2Mapping = true;
 
-    ao.has_twoKeyTouchpadOptions = true;
-    TwoKeyTouchpadOptions& tk = ao.twoKeyTouchpadOptions;
-    tk.leftKeyMapping = pendingBySlot_[SLOT_TWOKEY_LEFT];
-    tk.has_leftKeyMapping = true;
-    tk.rightKeyMapping = pendingBySlot_[SLOT_TWOKEY_RIGHT];
-    tk.has_rightKeyMapping = true;
+    preset.leftKeyMapping = pendingBySlot_[SLOT_TWOKEY_LEFT];
+    preset.has_leftKeyMapping = true;
+    preset.leftKeyMapping.has_action = true;
+    preset.rightKeyMapping = pendingBySlot_[SLOT_TWOKEY_RIGHT];
+    preset.has_rightKeyMapping = true;
+    preset.rightKeyMapping.has_action = true;
 
-    ao.has_fnKeyMappingOptions = true;
-    FnKeyMappingOptions& fn = ao.fnKeyMappingOptions;
+    preset.has_fnKey = true;
+    FnKeyMappingOptions& fn = preset.fnKey;
     fn.leftFnMapping = pendingBySlot_[SLOT_FN_LEFT];
     fn.has_leftFnMapping = true;
+    fn.leftFnMapping.has_action = true;
     fn.rightFnMapping = pendingBySlot_[SLOT_FN_RIGHT];
     fn.has_rightFnMapping = true;
+    fn.rightFnMapping.has_action = true;
     fn.leftMtMapping = pendingBySlot_[SLOT_MT_LEFT];
     fn.has_leftMtMapping = true;
+    fn.leftMtMapping.has_action = true;
     fn.rightMtMapping = pendingBySlot_[SLOT_MT_RIGHT];
     fn.has_rightMtMapping = true;
+    fn.rightMtMapping.has_action = true;
     fn.leftExtTriggerMapping = pendingBySlot_[SLOT_EXT_L2];
     fn.has_leftExtTriggerMapping = true;
+    fn.leftExtTriggerMapping.has_action = true;
     fn.rightExtTriggerMapping = pendingBySlot_[SLOT_EXT_R2];
     fn.has_rightExtTriggerMapping = true;
+    fn.rightExtTriggerMapping.has_action = true;
 
     Storage::getInstance().setFunctionalPinMappings();
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));

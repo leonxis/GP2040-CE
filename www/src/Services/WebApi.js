@@ -215,9 +215,13 @@ async function getDisplayOptions() {
 	}
 }
 
-async function getTwoKeyTouchpadOptions() {
+async function getTwoKeyTouchpadOptions(presetIndex) {
 	try {
-		const response = await Http.get(`${baseUrl}/api/getTwoKeyTouchpadOptions`);
+		const url =
+			presetIndex === undefined || presetIndex === null
+				? `${baseUrl}/api/getTwoKeyTouchpadOptions`
+				: `${baseUrl}/api/getTwoKeyTouchpadOptions?presetIndex=${presetIndex}`;
+		const response = await Http.get(url);
 		return response.data;
 	} catch (error) {
 		console.error(error);
@@ -234,9 +238,10 @@ async function setTwoKeyTouchpadOptions(options) {
 	}
 }
 
-async function getBackButtonAddonOptions() {
+async function getBackButtonAddonOptions(presetIndex) {
 	try {
-		const response = await Http.get(`${baseUrl}/api/getBackButtonAddonOptions`);
+		const url = `${baseUrl}/api/getBackButtonAddonOptions?presetIndex=${presetIndex ?? 0}`;
+		const response = await Http.get(url);
 		return response.data;
 	} catch (error) {
 		console.error(error);
@@ -253,9 +258,10 @@ async function setBackButtonAddonOptions(options) {
 	}
 }
 
-async function getFnKeyMappingOptions() {
+async function getFnKeyMappingOptions(presetIndex) {
 	try {
-		const response = await Http.get(`${baseUrl}/api/getFnKeyMappingOptions`);
+		const url = `${baseUrl}/api/getFnKeyMappingOptions?presetIndex=${presetIndex ?? 0}`;
+		const response = await Http.get(url);
 		return response.data;
 	} catch (error) {
 		console.error(error);
