@@ -60,11 +60,17 @@ export type SetProfilePinType = (
 	{ action, customButtonMask, customDpadMask }: MaskPayload,
 ) => void;
 
+type SaveProfilesAndActivateResult = {
+	mappingsOk: boolean;
+	activateOk: boolean;
+};
+
 type Actions = {
 	addProfile: () => void;
 	copyBaseProfile: (profileIndex: number) => void;
-	fetchProfiles: () => void;
-	saveProfiles: () => Promise<object>;
+	fetchProfiles: () => Promise<boolean>;
+	saveProfiles: () => Promise<void>;
+	saveProfilesAndActivate: (profileIndex: number) => Promise<SaveProfilesAndActivateResult>;
 	setProfileLabel: (profileIndex: number, profileLabel: string) => void;
 	setProfilePin: SetProfilePinType;
 	toggleProfileEnabled: (profileIndex: number) => void;
@@ -94,16 +100,22 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 	},
 	fetchProfiles: async () => {
 		set({ loadingProfiles: true });
-
-		// TODO, unify baseProfile with other profiles when done in web api
-		const baseProfile = await WebApi.getPinMappings();
-		const profiles = await WebApi.getProfileOptions();
-
-		set((state) => ({
-			...state,
-			profiles: [baseProfile, ...profiles],
-			loadingProfiles: false,
-		}));
+		try {
+			const baseProfile = await WebApi.getPinMappings();
+			if (!baseProfile) {
+				throw new Error('Failed to load base pin mappings');
+			}
+			const profiles = await WebApi.getProfileOptions();
+			set({
+				profiles: [baseProfile, ...(profiles ?? [])],
+				loadingProfiles: false,
+			});
+			return true;
+		} catch (error) {
+			console.error('Failed to load GPIO profiles:', error);
+			set({ profiles: [], loadingProfiles: false });
+			return false;
+		}
 	},
 	copyBaseProfile: (profileIndex) =>
 		set((state) => ({
@@ -142,11 +154,34 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 			return { profiles };
 		}),
 	saveProfiles: async () => {
-		const [baseProfile, ...profiles] = get().profiles;
+		const { profiles } = get();
+		if (profiles.length === 0) {
+			throw new Error('No profiles loaded');
+		}
+		const [baseProfile, ...alternatives] = profiles;
 		return Promise.all([
 			WebApi.setPinMappings(baseProfile),
-			WebApi.setProfileOptions(profiles),
+			WebApi.setProfileOptions(alternatives),
 		]);
+	},
+	saveProfilesAndActivate: async (profileIndex: number) => {
+		if (profileIndex < 0 || profileIndex >= get().profiles.length) {
+			return { mappingsOk: false, activateOk: false };
+		}
+		try {
+			await get().saveProfiles();
+		} catch {
+			return { mappingsOk: false, activateOk: false };
+		}
+		const gamepadOptions = await WebApi.getGamepadOptions();
+		if (!gamepadOptions) {
+			return { mappingsOk: true, activateOk: false };
+		}
+		const activateOk = await WebApi.setGamepadOptions({
+			...gamepadOptions,
+			profileNumber: profileIndex + 1,
+		});
+		return { mappingsOk: true, activateOk: Boolean(activateOk) };
 	},
 	toggleProfileEnabled: (profileIndex) =>
 		set((state) => {

@@ -169,7 +169,7 @@ function BackPaddleSettingsBody({
 			setSaveMessage(t('Common:saved-success-message'));
 			setTimeout(() => setSaveMessage(''), 3000);
 		} catch (error) {
-			console.error('保存背键映射失败:', error);
+			console.error('Failed to save back paddle mappings:', error);
 			setSaveMessage(t('Common:saved-error-message'));
 			setTimeout(() => setSaveMessage(''), 3000);
 		} finally {
@@ -424,10 +424,7 @@ export default function BackPaddleSettings() {
 							return copy;
 						})
 					}
-					onSaved={() => {
-						commitSnapshot(index);
-						setSelectedTab(PRESET_TAB_KEYS[index] ?? 'preset-0');
-					}}
+					onSaved={() => commitSnapshot(index)}
 				/>
 			)}
 		</MappingPresetShell>
