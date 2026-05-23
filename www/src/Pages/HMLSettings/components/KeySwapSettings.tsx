@@ -255,13 +255,15 @@ export default function KeySwapSettings() {
 	}
 
 	return (
-		<Card style={{ marginBottom: '1rem' }}>
-			<Card.Header>{t('SettingsPage:hml-key-swap-title')}</Card.Header>
-			<Card.Body>
-				<GpioProfileTabs activeKey={activeKey} onSelectProfile={setActiveKey}>
-					{(profileIndex) => <KeySwapSettingsBody profileIndex={profileIndex} />}
-				</GpioProfileTabs>
-			</Card.Body>
-		</Card>
+		<GpioProfileTabs activeKey={activeKey} onSelectProfile={setActiveKey}>
+			{(profileIndex) => (
+				<Card style={{ marginBottom: '1rem' }}>
+					<Card.Header>{t('SettingsPage:hml-key-swap-title')}</Card.Header>
+					<Card.Body>
+						<KeySwapSettingsBody profileIndex={profileIndex} />
+					</Card.Body>
+				</Card>
+			)}
+		</GpioProfileTabs>
 	);
 }
