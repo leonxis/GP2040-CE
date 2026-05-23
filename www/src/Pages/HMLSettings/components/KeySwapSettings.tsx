@@ -260,6 +260,9 @@ export default function KeySwapSettings() {
 				<Card style={{ marginBottom: '1rem' }}>
 					<Card.Header>{t('SettingsPage:hml-key-swap-title')}</Card.Header>
 					<Card.Body>
+						<p className="text-muted small mb-3">
+							{t('SettingsPage:hml-key-swap-profile-manage-hint')}
+						</p>
 						<KeySwapSettingsBody profileIndex={profileIndex} />
 					</Card.Body>
 				</Card>

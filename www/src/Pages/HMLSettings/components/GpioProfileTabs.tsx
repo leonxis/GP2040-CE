@@ -49,7 +49,7 @@ export default function GpioProfileTabs({
 
 	return (
 		<Tab.Container activeKey={activeKey} onSelect={handleSelect}>
-			<Nav variant="tabs" className="macro-settings-top-tabs mb-0 w-100">
+			<Nav variant="tabs" className="macro-settings-top-tabs mb-3 w-100">
 				{profiles.map(({ profileLabel, enabled }, index) => (
 					<Nav.Item key={`profile-${index}`}>
 						<Nav.Link eventKey={`profile-${index}`}>
@@ -71,9 +71,6 @@ export default function GpioProfileTabs({
 					</Nav.Item>
 				)}
 			</Nav>
-			<p className="text-muted small mb-3 mt-2">
-				{t('SettingsPage:hml-key-swap-profile-manage-hint')}
-			</p>
 			<Tab.Content>
 				{profiles.map((_, index) => (
 					<Tab.Pane key={`profile-${index}`} eventKey={`profile-${index}`} className="pt-0">
