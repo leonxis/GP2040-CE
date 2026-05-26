@@ -20,7 +20,7 @@ public:
     virtual void setup();
     virtual void process() {}
     virtual void preprocess();
-    virtual void postprocess(bool) {}
+    virtual void postprocess(bool);
     virtual std::string name() { return LINEAR_TRIGGER_ADDON_NAME; }
     virtual void reinit() {}  // 线性扳机校准为全局配置，不随 profile 切换，无需在 reinit 中重载
 private:

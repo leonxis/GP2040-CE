@@ -1,6 +1,7 @@
 #include "addons/linear_trigger.h"
 #include "storagemanager.h"
 #include "gamepad.h"
+#include "gamepad/GamepadState.h"
 #include "hardware/adc.h"
 
 #define ADC_MAX ((1 << 12) - 1)  // 4095
@@ -69,18 +70,50 @@ void LinearTriggerAddon::setup() {
 
 void LinearTriggerAddon::preprocess() {
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
+    if (gamepad == nullptr) {
+        return;
+    }
+
     adc_select_input(LINEAR_L2_PIN - 26);  // GPIO29 = ADC channel 3 = L2
     uint16_t rawL2 = adc_read();  // 真实 ADC：松开=高，压下=低
     adc_select_input(LINEAR_R2_PIN - 26);  // GPIO28 = ADC channel 2 = R2
     uint16_t rawR2 = adc_read();
-    gamepad->state.lt = adcToTrigger(rawL2, minAdcL, maxAdcL);  // minAdcL=松开侧(高)，maxAdcL=按到底侧(低)
-    if (gamepad->state.lt > 0)
+    const uint8_t hwLt = adcToTrigger(rawL2, minAdcL, maxAdcL);
+    const uint8_t hwRt = adcToTrigger(rawR2, minAdcR, maxAdcR);
+
+    // 硬件 ADC 为 lt/rt 基准；背键/触摸板/FN 等映射可能已置 L2/R2 位，不得在此处清除。
+    if (gamepad->state.buttons & GAMEPAD_MASK_L2) {
+        gamepad->state.lt = (hwLt > gamepad->state.lt) ? hwLt : gamepad->state.lt;
+    } else {
+        gamepad->state.lt = hwLt;
+    }
+    if (gamepad->state.buttons & GAMEPAD_MASK_R2) {
+        gamepad->state.rt = (hwRt > gamepad->state.rt) ? hwRt : gamepad->state.rt;
+    } else {
+        gamepad->state.rt = hwRt;
+    }
+
+    // 硬件模拟量 → 数字扳机位；仅在无映射/虚拟输入时清除，避免抹掉背键等映射
+    if (hwLt > 0) {
         gamepad->state.buttons |= GAMEPAD_MASK_L2;
-    else
+    } else if (gamepad->state.lt == 0) {
         gamepad->state.buttons &= ~GAMEPAD_MASK_L2;
-    gamepad->state.rt = adcToTrigger(rawR2, minAdcR, maxAdcR);
-    if (gamepad->state.rt > 0)
+    }
+    if (hwRt > 0) {
         gamepad->state.buttons |= GAMEPAD_MASK_R2;
-    else
+    } else if (gamepad->state.rt == 0) {
         gamepad->state.buttons &= ~GAMEPAD_MASK_R2;
+    }
+
+    // 映射/热键等仅置 L2/R2 位时，补齐模拟量（须在 USB 驱动读取前完成）
+    if ((gamepad->state.buttons & GAMEPAD_MASK_L2) && gamepad->state.lt == 0) {
+        gamepad->state.lt = GAMEPAD_TRIGGER_MAX;
+    }
+    if ((gamepad->state.buttons & GAMEPAD_MASK_R2) && gamepad->state.rt == 0) {
+        gamepad->state.rt = GAMEPAD_TRIGGER_MAX;
+    }
+}
+
+void LinearTriggerAddon::postprocess(bool reportSent) {
+	(void)reportSent;
 }

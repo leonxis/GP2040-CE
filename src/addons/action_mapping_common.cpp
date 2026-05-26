@@ -257,6 +257,13 @@ void applyActionMappingEntry(Gamepad* gamepad, const ActionMappingEntry& entry) 
     gamepad->addonKeyboardKeyMask |= entry.keyboardMask;
     gamepad->addonMouseButtonMask |= entry.mouseButtonMask;
 
+    if (entry.buttonMask & GAMEPAD_MASK_L2) {
+        gamepad->state.lt = GAMEPAD_TRIGGER_MAX;
+    }
+    if (entry.buttonMask & GAMEPAD_MASK_R2) {
+        gamepad->state.rt = GAMEPAD_TRIGGER_MAX;
+    }
+
     if (entry.complexAction != GpioAction::NONE) {
         applyComplexAction(gamepad, entry.complexAction);
     }

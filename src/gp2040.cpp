@@ -308,9 +308,10 @@ void GP2040::setup() {
 	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon());
 	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
-	addons.LoadAddon(new LinearTriggerAddon());
 	addons.LoadAddon(new TwoKeyTouchpadAddon());
 	addons.LoadAddon(new BackButtonDividerAddon());
+	// 须在背键/触摸板/FN 电压映射之后：preprocess 内合并 ADC 与映射的 L2/R2（含 lt/rt）
+	addons.LoadAddon(new LinearTriggerAddon());
 	addons.LoadAddon(new BootselButtonAddon());
 	addons.LoadAddon(new DualDirectionalInput());
 	addons.LoadAddon(new FocusModeAddon());
