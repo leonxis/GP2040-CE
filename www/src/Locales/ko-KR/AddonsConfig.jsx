@@ -137,7 +137,10 @@ export default {
 	'snes-extension-desc-header': 'SNES 확장 맵핑',
 	'focus-mode-header-text': '포커스 모드 설정',
 	'focus-mode-pin-label': '포커스 모드 핀',
-	'keyboard-host-header-text': '키보드/마우스 호스트 설정',
+	'keyboard-host-header-text': '키보드/마우스 변환',
+	'gamepad-usb-host-header-text': '기타 게임패드 변환',
+	'gamepad-usb-host-incompatible-hint':
+		'키보드/마우스 변환 애드온과 동시에 사용할 수 없습니다.',
 	'keyboard-host-sub-header-text': '키보드 버튼',
 	'keyboard-host-mouse-header-text': '마우스 버튼',
 	'keyboard-host-left-mouse': '왼쪽 버튼',

@@ -136,7 +136,10 @@ export default {
 	'snes-extension-desc-header': 'Mappage des extensions SNES',
 	'focus-mode-header-text': 'Configuration du mode Focus',
 	'focus-mode-pin-label': 'Broche GPIO du mode Focus',
-	'keyboard-host-header-text': 'Configuration de l\'hôte clavier/souris',
+	'keyboard-host-header-text': 'Conversion clavier/souris',
+	'gamepad-usb-host-header-text': 'Conversion autre manette',
+	'gamepad-usb-host-incompatible-hint':
+		'Actuellement incompatible avec le module de conversion clavier/souris.',
 	'keyboard-host-sub-header-text': 'Boutons du clavier',
 	'keyboard-host-mouse-header-text': 'Boutons de la souris',
 	'keyboard-host-left-mouse': 'Gauche',

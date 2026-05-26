@@ -134,7 +134,10 @@ export default {
 	'snes-extension-data-pin-label': 'Pino de Dados',
 	'focus-mode-header-text': 'Configuração de Modo de Foco',
 	'focus-mode-pin-label': 'Pino do Modo de Foco',
-	'keyboard-host-header-text': 'Configuração de Host de Teclado',
+	'keyboard-host-header-text': 'Conversão teclado/mouse',
+	'gamepad-usb-host-header-text': 'Conversão de outros gamepads',
+	'gamepad-usb-host-incompatible-hint':
+		'Atualmente incompatível com o add-on de conversão teclado/mouse.',
 	'keyboard-host-sub-header-text':
 		'A seguir, defina os pinos de dados +, - e 5V (opcional). Apenas os pinos + e 5V podem ser configurados.',
 	'input-history-header-text': 'Histórico de Entrada',

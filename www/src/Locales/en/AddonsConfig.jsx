@@ -232,7 +232,10 @@ export default {
 	'snes-extension-desc-header': 'SNES Extension Mapping',
 	'focus-mode-header-text': 'Focus Mode Configuration',
 	'focus-mode-pin-label': 'Focus Mode GPIO Pin',
-	'keyboard-host-header-text': 'Keyboard/Mouse Host Configuration',
+	'keyboard-host-header-text': 'Keyboard/Mouse Conversion',
+	'gamepad-usb-host-header-text': 'Other Gamepad Conversion',
+	'gamepad-usb-host-incompatible-hint':
+		'Currently incompatible with the Keyboard/Mouse Conversion add-on.',
 	'keyboard-host-sub-header-text': 'Keyboard Buttons',
 	'keyboard-host-mouse-header-text': 'Mouse Buttons',
 	'keyboard-host-left-mouse': 'Left',

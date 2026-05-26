@@ -136,7 +136,10 @@ export default {
 	'snes-extension-desc-header': 'SNES Uzantısı Eşlemesi',
 	'focus-mode-header-text': 'Odak Modu Yapılandırması',
 	'focus-mode-pin-label': 'Odak Modu GPIO Pin',
-	'keyboard-host-header-text': 'Klavye/Fare Ana Bilgisayar Yapılandırması',
+	'keyboard-host-header-text': 'Klavye/Fare Dönüşümü',
+	'gamepad-usb-host-header-text': 'Diğer Oyun Kolu Dönüşümü',
+	'gamepad-usb-host-incompatible-hint':
+		'Klavye/Fare Dönüşümü eklentisiyle birlikte kullanılamaz.',
 	'keyboard-host-sub-header-text': 'Klavye Düğmeleri',
 	'keyboard-host-mouse-header-text': 'Fare Düğmeleri',
 	'keyboard-host-left-mouse': 'Sol',

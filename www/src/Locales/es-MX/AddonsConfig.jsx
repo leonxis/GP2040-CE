@@ -133,7 +133,10 @@ export default {
 	'snes-extension-data-pin-label': 'Pin GPIO Datos',
 	'focus-mode-header-text': 'Configuración de Modo Enfoque',
 	'focus-mode-pin-label': 'Pin GPIO Modo Enfoque',
-	'keyboard-host-header-text': 'Configuración de Host Teclado/Ratón',
+	'keyboard-host-header-text': 'Conversión teclado/ratón',
+	'gamepad-usb-host-header-text': 'Conversión de otros mandos',
+	'gamepad-usb-host-incompatible-hint':
+		'Actualmente incompatible con el complemento de conversión teclado/ratón.',
 	'keyboard-host-sub-header-text': 'Botones de Teclado',
 	'keyboard-host-mouse-header-text': 'Botones de Ratón',
 	'keyboard-host-left-mouse': 'Izquierdo',

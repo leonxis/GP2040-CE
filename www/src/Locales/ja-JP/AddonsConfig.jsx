@@ -136,7 +136,10 @@ export default {
 	'snes-extension-desc-header': 'スーパーファミコン拡張マッピング',
 	'focus-mode-header-text': 'フォーカスモード設定',
 	'focus-mode-pin-label': 'フォーカスモード端子',
-	'keyboard-host-header-text': 'キーボードホスト設定',
+	'keyboard-host-header-text': 'キーボード/マウス変換',
+	'gamepad-usb-host-header-text': '他ゲームパッド変換',
+	'gamepad-usb-host-incompatible-hint':
+		'キーボード/マウス変換アドオンと同時には使用できません。',
 	'keyboard-host-sub-header-text':
 		'以下のフォームでボタンとキーの割り当てを設定してください',
 	'keyboard-host-mouse-header-text': 'マウスボタン',

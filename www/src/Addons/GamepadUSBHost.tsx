@@ -1,5 +1,7 @@
 import { useContext } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { FormCheck, FormLabel } from 'react-bootstrap';
+import { NavLink } from 'react-router-dom';
 import * as yup from 'yup';
 
 import Section from '../Components/Section';
@@ -20,6 +22,7 @@ export const gamepadUSBHostState = {
 
 const GamepadUSBHost = ({ values, handleChange, handleCheckbox }: AddonPropTypes) => {
 	const { getAvailablePeripherals } = useContext(AppContext);
+	const { t } = useTranslation();
 	return (
 		<Section title={
 			<a
@@ -27,18 +30,18 @@ const GamepadUSBHost = ({ values, handleChange, handleCheckbox }: AddonPropTypes
 				target="_blank"
 				className="text-reset text-decoration-none" rel="noreferrer"
 			>
-				{'Gamepad USB Host Addon'}
+				{t('AddonsConfig:gamepad-usb-host-header-text')}
 			</a>
 		}
 		>
 			<div id="GamepadUSBHostOptions" hidden={!values.GamepadUSBHostAddonEnabled}>
 				<div className="alert alert-info" role="alert">
-					Currently incompatible with Keyboard/Mouse Host addon.
+					{t('AddonsConfig:gamepad-usb-host-incompatible-hint')}
 				</div>
 			</div>
 			{getAvailablePeripherals('usb') ? (
 					<FormCheck
-						label="Enabled"
+						label={t('Common:switch-enabled')}
 						type="switch"
 						id="GamepadUSBHostAddonButton"
 						reverse
@@ -50,7 +53,17 @@ const GamepadUSBHost = ({ values, handleChange, handleCheckbox }: AddonPropTypes
 						}}
 					/>
 				) : (
-					<FormLabel>USB host not enabled!</FormLabel>
+					<FormLabel>
+						<Trans
+							ns="PeripheralMapping"
+							i18nKey="peripheral-toggle-unavailable"
+							values={{ name: 'USB' }}
+						>
+							<NavLink to="/peripheral-mapping">
+								{t('PeripheralMapping:header-text')}
+							</NavLink>
+						</Trans>
+					</FormLabel>
 				)}
 		</Section>
 	);
