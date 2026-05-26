@@ -2,7 +2,6 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { Card, Row, Col, Button } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { omit } from 'lodash';
-import { MultiValue } from 'react-select';
 
 import { AppContext } from '../../../Contexts/AppContext';
 import { MaskPayload } from '../../../Store/useProfilesStore';
@@ -109,11 +108,7 @@ function BackPaddleSettingsBody({
 	const { t } = useTranslation();
 	const appContext = useContext(AppContext);
 	const [saveMessage, setSaveMessage] = useState('');
-	const [isLoading, setIsLoading] = useState(false);
-	const [twoKeySaveMsg, setTwoKeySaveMsg] = useState('');
-	const [twoKeySaving, setTwoKeySaving] = useState(false);
-	const [fnSaveMsg, setFnSaveMsg] = useState('');
-	const [fnSaving, setFnSaving] = useState(false);
+	const [isSaving, setIsSaving] = useState(false);
 
 	const backAddonOptions = bundle.back;
 	const fnOptions = bundle.fn;
@@ -148,11 +143,11 @@ function BackPaddleSettingsBody({
 	const patchTwoKey = (key: string, payload: MaskPayload) =>
 		onBundleChange({ ...bundle, twoKey: { ...bundle.twoKey, [key]: payload } });
 
-	const handleSaveBackCard = useCallback(async () => {
+	const handleSaveAll = useCallback(async () => {
 		setSaveMessage('');
-		setIsLoading(true);
+		setIsSaving(true);
 		try {
-			await WebApi.setBackButtonAddonOptions({
+			const backReq = WebApi.setBackButtonAddonOptions({
 				presetIndex,
 				setActive: true,
 				leftEl: backAddonOptions.leftEl,
@@ -162,27 +157,7 @@ function BackPaddleSettingsBody({
 				leftBack2: backAddonOptions.leftBack2,
 				rightBack2: backAddonOptions.rightBack2,
 			});
-			if (appContext) {
-				const { updateUsedPins } = appContext as AppContextShape;
-				if (updateUsedPins) updateUsedPins();
-			}
-			onSaved();
-			setSaveMessage(t('Common:saved-success-message'));
-			setTimeout(() => setSaveMessage(''), 3000);
-		} catch (error) {
-			console.error('Failed to save back paddle mappings:', error);
-			setSaveMessage(t('Common:saved-error-message'));
-			setTimeout(() => setSaveMessage(''), 3000);
-		} finally {
-			setIsLoading(false);
-		}
-	}, [appContext, backAddonOptions, presetIndex, onSaved, t]);
-
-	const handleSaveFn = useCallback(async () => {
-		setFnSaveMsg('');
-		setFnSaving(true);
-		try {
-			await WebApi.setFnKeyMappingOptions({
+			const fnReq = WebApi.setFnKeyMappingOptions({
 				presetIndex,
 				setActive: true,
 				leftFn: fnOptions.leftFn,
@@ -192,38 +167,35 @@ function BackPaddleSettingsBody({
 				extLeftTrigger: fnOptions.extLeftTrigger,
 				extRightTrigger: fnOptions.extRightTrigger,
 			});
-			onSaved();
-			setFnSaveMsg(t('Common:saved-success-message'));
-			setTimeout(() => setFnSaveMsg(''), 3000);
-		} catch {
-			setFnSaveMsg(t('Common:saved-error-message'));
-			setTimeout(() => setFnSaveMsg(''), 3000);
-		} finally {
-			setFnSaving(false);
-		}
-	}, [fnOptions, presetIndex, onSaved, t]);
-
-	const handleSaveTwoKey = useCallback(async () => {
-		setTwoKeySaveMsg('');
-		setTwoKeySaving(true);
-		try {
-			await WebApi.setTwoKeyTouchpadOptions({
+			const twoKeyReq = WebApi.setTwoKeyTouchpadOptions({
 				presetIndex,
 				setActive: true,
 				section: 'twoKey',
 				leftKey: twoKeyOptions.leftKey,
 				rightKey: twoKeyOptions.rightKey,
 			});
+			const [backOk, fnOk, twoKeyResult] = await Promise.all([backReq, fnReq, twoKeyReq]);
+			// WebApi setters return false/null on failure instead of throwing
+			if (backOk !== true || fnOk !== true || twoKeyResult == null) {
+				setSaveMessage(t('Common:saved-error-message'));
+				setTimeout(() => setSaveMessage(''), 3000);
+				return;
+			}
+			if (appContext) {
+				const { updateUsedPins } = appContext as AppContextShape;
+				if (updateUsedPins) await updateUsedPins();
+			}
 			onSaved();
-			setTwoKeySaveMsg(t('Common:saved-success-message'));
-			setTimeout(() => setTwoKeySaveMsg(''), 3000);
-		} catch {
-			setTwoKeySaveMsg(t('Common:saved-error-message'));
-			setTimeout(() => setTwoKeySaveMsg(''), 3000);
+			setSaveMessage(t('Common:saved-success-message'));
+			setTimeout(() => setSaveMessage(''), 3000);
+		} catch (error) {
+			console.error('Failed to save HML paddle / touchpad / Fn mappings:', error);
+			setSaveMessage(t('Common:saved-error-message'));
+			setTimeout(() => setSaveMessage(''), 3000);
 		} finally {
-			setTwoKeySaving(false);
+			setIsSaving(false);
 		}
-	}, [twoKeyOptions, presetIndex, onSaved, t]);
+	}, [appContext, bundle, onSaved, presetIndex, t]);
 
 	const backMappingRows = [
 		{ key: 'leftEl', labelKey: 'hml-paddle-left-el' },
@@ -274,20 +246,6 @@ function BackPaddleSettingsBody({
 							selectRow(key, labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`),
 						)}
 					</Row>
-					<Row className="mt-3">
-						<Col sm={4} className="mb-2">
-							<Button variant="primary" onClick={handleSaveBackCard} disabled={isLoading} className="me-3">
-								{t('Common:button-save-label')}
-							</Button>
-							{saveMessage && (
-								<span
-									className={`me-3 ${saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}
-								>
-									{saveMessage}
-								</span>
-							)}
-						</Col>
-					</Row>
 				</Card.Body>
 			</Card>
 
@@ -295,26 +253,10 @@ function BackPaddleSettingsBody({
 				<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
 				<Card.Body>
 					{twoKeyTouchpadEnabled ? (
-						<>
-							<Row className="g-3">
-								{selectRow('leftKey', 'hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
-								{selectRow('rightKey', 'hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
-							</Row>
-							<Row className="mt-3">
-								<Col sm={4}>
-									<Button variant="primary" onClick={handleSaveTwoKey} disabled={twoKeySaving}>
-										{t('Common:button-save-label')}
-									</Button>
-									{twoKeySaveMsg && (
-										<span
-											className={`ms-3 ${twoKeySaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}
-										>
-											{twoKeySaveMsg}
-										</span>
-									)}
-								</Col>
-							</Row>
-						</>
+						<Row className="g-3">
+							{selectRow('leftKey', 'hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
+							{selectRow('rightKey', 'hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
+						</Row>
 					) : (
 						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
 					)}
@@ -332,20 +274,19 @@ function BackPaddleSettingsBody({
 						{selectRow('extLeftTrigger', 'hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l')}
 						{selectRow('extRightTrigger', 'hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r')}
 					</Row>
-					<Row className="mt-3">
-						<Col sm={4}>
-							<Button variant="primary" onClick={handleSaveFn} disabled={fnSaving}>
-								{t('Common:button-save-label')}
-							</Button>
-							{fnSaveMsg && (
-								<span className={`ms-3 ${fnSaveMsg === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}`}>
-									{fnSaveMsg}
-								</span>
-							)}
-						</Col>
-					</Row>
 				</Card.Body>
 			</Card>
+
+			<div className="d-flex justify-content-start align-items-center flex-wrap gap-2 mt-2">
+				<Button variant="primary" onClick={handleSaveAll} disabled={isSaving}>
+					{t('Common:button-save-label')}
+				</Button>
+				{saveMessage && (
+					<span className={saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}>
+						{saveMessage}
+					</span>
+				)}
+			</div>
 		</div>
 	);
 }
