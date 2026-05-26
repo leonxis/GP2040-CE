@@ -144,35 +144,36 @@ function BackPaddleSettingsBody({
 		onBundleChange({ ...bundle, twoKey: { ...bundle.twoKey, [key]: payload } });
 
 	const handleSaveAll = useCallback(async () => {
+		const { back, fn, twoKey } = bundle;
 		setSaveMessage('');
 		setIsSaving(true);
 		try {
 			const backReq = WebApi.setBackButtonAddonOptions({
 				presetIndex,
 				setActive: true,
-				leftEl: backAddonOptions.leftEl,
-				rightEr: backAddonOptions.rightEr,
-				leftBack1: backAddonOptions.leftBack1,
-				rightBack1: backAddonOptions.rightBack1,
-				leftBack2: backAddonOptions.leftBack2,
-				rightBack2: backAddonOptions.rightBack2,
+				leftEl: back.leftEl,
+				rightEr: back.rightEr,
+				leftBack1: back.leftBack1,
+				rightBack1: back.rightBack1,
+				leftBack2: back.leftBack2,
+				rightBack2: back.rightBack2,
 			});
 			const fnReq = WebApi.setFnKeyMappingOptions({
 				presetIndex,
 				setActive: true,
-				leftFn: fnOptions.leftFn,
-				rightFn: fnOptions.rightFn,
-				leftMt: fnOptions.leftMt,
-				rightMt: fnOptions.rightMt,
-				extLeftTrigger: fnOptions.extLeftTrigger,
-				extRightTrigger: fnOptions.extRightTrigger,
+				leftFn: fn.leftFn,
+				rightFn: fn.rightFn,
+				leftMt: fn.leftMt,
+				rightMt: fn.rightMt,
+				extLeftTrigger: fn.extLeftTrigger,
+				extRightTrigger: fn.extRightTrigger,
 			});
 			const twoKeyReq = WebApi.setTwoKeyTouchpadOptions({
 				presetIndex,
 				setActive: true,
 				section: 'twoKey',
-				leftKey: twoKeyOptions.leftKey,
-				rightKey: twoKeyOptions.rightKey,
+				leftKey: twoKey.leftKey,
+				rightKey: twoKey.rightKey,
 			});
 			const [backOk, fnOk, twoKeyResult] = await Promise.all([backReq, fnReq, twoKeyReq]);
 			// WebApi setters return false/null on failure instead of throwing
@@ -207,7 +208,6 @@ function BackPaddleSettingsBody({
 	];
 
 	const selectRow = (
-		key: string,
 		labelKey: string,
 		data: MaskPayload,
 		onChange: (p: MaskPayload) => void,
@@ -243,7 +243,7 @@ function BackPaddleSettingsBody({
 				<Card.Body>
 					<Row className="g-3">
 						{backMappingRows.map(({ key, labelKey }) =>
-							selectRow(key, labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`),
+							selectRow(labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`),
 						)}
 					</Row>
 				</Card.Body>
@@ -254,8 +254,8 @@ function BackPaddleSettingsBody({
 				<Card.Body>
 					{twoKeyTouchpadEnabled ? (
 						<Row className="g-3">
-							{selectRow('leftKey', 'hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
-							{selectRow('rightKey', 'hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
+							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
+							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
 						</Row>
 					) : (
 						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
@@ -267,30 +267,33 @@ function BackPaddleSettingsBody({
 				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{selectRow('leftFn', 'hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l')}
-						{selectRow('rightFn', 'hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r')}
-						{selectRow('leftMt', 'hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l')}
-						{selectRow('rightMt', 'hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r')}
-						{selectRow('extLeftTrigger', 'hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l')}
-						{selectRow('extRightTrigger', 'hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r')}
+						{selectRow('hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l')}
+						{selectRow('hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r')}
+						{selectRow('hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l')}
+						{selectRow('hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r')}
+						{selectRow('hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l')}
+						{selectRow('hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r')}
+					</Row>
+					<Row className="mt-3">
+						<Col sm={4}>
+							<Button variant="primary" onClick={handleSaveAll} disabled={isSaving}>
+								{t('Common:button-save-label')}
+							</Button>
+							{saveMessage && (
+								<span
+									className={`ms-3 ${
+										saveMessage === t('Common:saved-success-message')
+											? 'text-success'
+											: 'text-danger'
+									}`}
+								>
+									{saveMessage}
+								</span>
+							)}
+						</Col>
 					</Row>
 				</Card.Body>
 			</Card>
-
-			<div className="hml-card-save-btn d-flex justify-content-start align-items-center flex-wrap gap-2 mt-2">
-				<Button variant="primary" onClick={handleSaveAll} disabled={isSaving}>
-					{t('Common:button-save-label')}
-				</Button>
-				{saveMessage && (
-					<span
-						className={
-							saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'
-						}
-					>
-						{saveMessage}
-					</span>
-				)}
-			</div>
 		</div>
 	);
 }
