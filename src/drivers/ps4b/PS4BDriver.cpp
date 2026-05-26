@@ -578,8 +578,8 @@ bool PS4BDriver::process(Gamepad * gamepad) {
 
     if (gamepad->hasAnalogTriggers)
     {
-        ps4Report.leftTrigger = gamepad->pressedL2() ? 0xFF : gamepad->state.lt;
-        ps4Report.rightTrigger = gamepad->pressedR2() ? 0xFF : gamepad->state.rt;
+        ps4Report.leftTrigger = gamepad->state.lt;
+        ps4Report.rightTrigger = gamepad->state.rt;
     } else {
         ps4Report.leftTrigger = gamepad->pressedL2() ? 0xFF : 0;
         ps4Report.rightTrigger = gamepad->pressedR2() ? 0xFF : 0;

@@ -158,8 +158,8 @@ bool P5GeneralDriver::process(Gamepad * gamepad) {
     p5GeneralReport.right_stick_x = static_cast<uint8_t>(gamepad->state.rx >> 8);
     p5GeneralReport.right_stick_y = static_cast<uint8_t>(gamepad->state.ry >> 8);
     if (gamepad->hasAnalogTriggers) {
-        p5GeneralReport.left_trigger = gamepad->pressedL2() ? 0xFF : gamepad->state.lt;
-        p5GeneralReport.right_trigger = gamepad->pressedR2() ? 0xFF : gamepad->state.rt;
+        p5GeneralReport.left_trigger = gamepad->state.lt;
+        p5GeneralReport.right_trigger = gamepad->state.rt;
     } else {
         p5GeneralReport.left_trigger = gamepad->pressedL2() ? 0xFF : 0;
         p5GeneralReport.right_trigger = gamepad->pressedR2() ? 0xFF : 0;

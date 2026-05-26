@@ -277,12 +277,16 @@ function BackPaddleSettingsBody({
 				</Card.Body>
 			</Card>
 
-			<div className="d-flex justify-content-start align-items-center flex-wrap gap-2 mt-2">
+			<div className="hml-card-save-btn d-flex justify-content-start align-items-center flex-wrap gap-2 mt-2">
 				<Button variant="primary" onClick={handleSaveAll} disabled={isSaving}>
 					{t('Common:button-save-label')}
 				</Button>
 				{saveMessage && (
-					<span className={saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'}>
+					<span
+						className={
+							saveMessage === t('Common:saved-success-message') ? 'text-success' : 'text-danger'
+						}
+					>
 						{saveMessage}
 					</span>
 				)}

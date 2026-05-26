@@ -292,7 +292,7 @@ export default {
 	'hml-fn-key-mapping-title': 'FN键映射',
 	'hml-key-swap-title': '按键交换',
 	'hml-key-swap-profile-manage-hint':
-		'需要对方案改名或删除方案请到功能配置-GPIO引脚映射中操作。',
+		'需要对方案改名或删除方案请到高级配置-GPIO引脚映射中操作。',
 	'hml-report-rate-250hz': '250Hz',
 	'hml-report-rate-500hz': '500Hz',
 	'hml-report-rate-1khz': '1KHz',

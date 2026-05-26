@@ -113,7 +113,3 @@ void LinearTriggerAddon::preprocess() {
         gamepad->state.rt = GAMEPAD_TRIGGER_MAX;
     }
 }
-
-void LinearTriggerAddon::postprocess(bool reportSent) {
-	(void)reportSent;
-}
