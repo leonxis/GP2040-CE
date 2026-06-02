@@ -56,6 +56,7 @@ export default function HardwareConfig() {
 		alGradientBrightnessCustomX: 1,
 		ambientLightChaseSpeed: 100,
 		alChaseBrightnessCustomX: 1,
+		alBreathBrightnessCustomX: 1,
 		ambientLightBreathSpeed: 0.1,
 	});
 
@@ -133,6 +134,7 @@ export default function HardwareConfig() {
 						ambient?.alGradientBrightnessCustomX ?? 1,
 					ambientLightChaseSpeed: ambient?.ambientLightChaseSpeed ?? 100,
 					alChaseBrightnessCustomX: ambient?.alChaseBrightnessCustomX ?? 1,
+					alBreathBrightnessCustomX: ambient?.alBreathBrightnessCustomX ?? 1,
 					ambientLightBreathSpeed: Math.max(
 						BREATH_SPEED_UI_MIN,
 						Math.min(
@@ -616,25 +618,45 @@ export default function HardwareConfig() {
 						)}
 
 						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.BREATH && (
-							<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
-								<label style={{ minWidth: '120px' }}>
-									{t('SettingsPage:hml-speed-label')}
-								</label>
-								<input
-									type="range"
-									min={BREATH_SPEED_UI_MIN}
-									max={BREATH_SPEED_UI_MAX}
-									step="0.1"
-									value={ambientOptions.ambientLightBreathSpeed}
-									onChange={(e) =>
-										setAmbientOptions((prev) => ({
-											...prev,
-											ambientLightBreathSpeed: parseFloat(e.target.value),
-										}))
-									}
-									style={{ flex: 1 }}
-								/>
-							</div>
+							<>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+									<label style={{ minWidth: '120px' }}>
+										{t('SettingsPage:hml-ambient-brightness-label')}
+									</label>
+									<input
+										type="range"
+										min="0"
+										max="100"
+										value={Math.round(ambientOptions.alBreathBrightnessCustomX * 100)}
+										onChange={(e) =>
+											setAmbientOptions((prev) => ({
+												...prev,
+												alBreathBrightnessCustomX: Number(e.target.value) / 100,
+											}))
+										}
+										style={{ flex: 1 }}
+									/>
+								</div>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
+									<label style={{ minWidth: '120px' }}>
+										{t('SettingsPage:hml-speed-label')}
+									</label>
+									<input
+										type="range"
+										min={BREATH_SPEED_UI_MIN}
+										max={BREATH_SPEED_UI_MAX}
+										step="0.1"
+										value={ambientOptions.ambientLightBreathSpeed}
+										onChange={(e) =>
+											setAmbientOptions((prev) => ({
+												...prev,
+												ambientLightBreathSpeed: parseFloat(e.target.value),
+											}))
+										}
+										style={{ flex: 1 }}
+									/>
+								</div>
+							</>
 						)}
 
 						{/* 保存按键 */}

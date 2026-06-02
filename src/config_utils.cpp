@@ -602,6 +602,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.animationOptions, alStaticColorBrightnessCustomX, AMBIENT_STATIC_COLOR_BRIGHTNESS);
     INIT_UNSET_PROPERTY(config.animationOptions, alGradientBrightnessCustomX, AMBIENT_GRADIENT_COLOR_BRIGHTNESS);
     INIT_UNSET_PROPERTY(config.animationOptions, alChaseBrightnessCustomX, AMBIENT_CHASE_COLOR_BRIGHTNESS);
+    INIT_UNSET_PROPERTY(config.animationOptions, alBreathBrightnessCustomX, AMBIENT_BREATH_COLOR_BRIGHTNESS);
     INIT_UNSET_PROPERTY(config.animationOptions, alStaticBrightnessCustomThemeX, AMBIENT_CUSTOM_THEME_BRIGHTNESS);
     INIT_UNSET_PROPERTY(config.animationOptions, ambientLightGradientSpeed, AMBIENT_GRADIENT_SPEED);
     INIT_UNSET_PROPERTY(config.animationOptions, ambientLightChaseSpeed, AMBIENT_CHASE_SPEED);

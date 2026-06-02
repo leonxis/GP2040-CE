@@ -1410,6 +1410,7 @@ std::string setAmbientOptions()
     docToValue(options.ambientLightBreathSpeed, doc, "ambientLightBreathSpeed");
     docToValue(options.alGradientBrightnessCustomX, doc, "alGradientBrightnessCustomX");
     docToValue(options.alChaseBrightnessCustomX, doc, "alChaseBrightnessCustomX");
+    docToValue(options.alBreathBrightnessCustomX, doc, "alBreathBrightnessCustomX");
     docToValue(options.alStaticBrightnessCustomThemeX, doc, "alStaticBrightnessCustomThemeX");
 
     if (doc["ambientColor"] != nullptr) {
@@ -1454,6 +1455,7 @@ std::string getAmbientOptions()
     writeDoc(doc, "ambientLightBreathSpeed", options.ambientLightBreathSpeed);
     writeDoc(doc, "alGradientBrightnessCustomX", options.alGradientBrightnessCustomX);
     writeDoc(doc, "alChaseBrightnessCustomX", options.alChaseBrightnessCustomX);
+    writeDoc(doc, "alBreathBrightnessCustomX", options.alBreathBrightnessCustomX);
     writeDoc(doc, "alStaticBrightnessCustomThemeX", options.alStaticBrightnessCustomThemeX);
     writeDoc(doc, "ambientColor", ((RGB)ambientColor).value(LED_FORMAT_RGB));
 

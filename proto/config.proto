@@ -373,6 +373,7 @@ message AnimationOptions
     optional uint32 alCustomStaticThemeIndex = 55;          // custom theme index
     optional uint32 alCustomStaticColorIndex = 56;          // static color index
     optional bool webConfigAmbientHintEnabled = 57;        // gate Web-config ambient blink + RAM override
+    optional float alBreathBrightnessCustomX = 58;        // breath max brightness
 }
 
 message BootselButtonOptions

@@ -442,7 +442,9 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 			ambientLight = RGB(static_cast<uint32_t>(configuredColor));
 			// Fill Frame
 			for(int i = 0; i < maxFrame; i++) {
-				frame[alStartIndex + i] = ambientLight.value(Animation::format, alBrightnessBreathX);
+				frame[alStartIndex + i] = ambientLight.value(
+				    Animation::format,
+				    alBrightnessBreathX * options.alBreathBrightnessCustomX);
 			}
 			break;
 		}
