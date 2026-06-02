@@ -938,10 +938,12 @@ message LinearTriggerOptions
     optional uint32 rightTriggerDeadzone = 5 [default = 5];
     optional uint32 leftTriggerTravel = 6 [default = 95];
     optional uint32 rightTriggerTravel = 7 [default = 95];
-    optional int32 leftTriggerReleasedRaw = 8 [default = 4095];   // 扳机下压=低 ADC，松开时高
+    optional int32 leftTriggerReleasedRaw = 8 [default = 4095];   // 校准：松开时 ADC
     optional int32 rightTriggerReleasedRaw = 9 [default = 4095];
-    optional int32 leftTriggerMaxRaw = 10 [default = 0];          // 按到底时低
+    optional int32 leftTriggerMaxRaw = 10 [default = 0];          // 校准：按到底时 ADC
     optional int32 rightTriggerMaxRaw = 11 [default = 0];
+    optional bool leftTriggerInvert = 12 [default = false];       // true=按下 ADC 升高，由校准自动设定
+    optional bool rightTriggerInvert = 13 [default = false];
 }
 
 message AddonOptions

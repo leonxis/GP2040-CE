@@ -44,9 +44,11 @@ export const triggerCalibrationScheme = {
 				Number(value) > Number(ctx.parent?.rightTriggerDeadzone ?? 0),
 		)
 		.label(tc('hml-yup-right-travel')),
+	leftTriggerInvert: yup.number().min(0).max(1),
+	rightTriggerInvert: yup.number().min(0).max(1),
 };
 
-// 与后端一致：硬件为扳机下压=低 ADC，未校准时松开=4095、按到底=0（全量程）
+// 默认：按下 ADC 降低；极性由校准写入 left/rightTriggerInvert
 export const triggerCalibrationState = {
 	linearTriggerEnabled: 0,
 	leftTriggerDeadzone: 5,
@@ -57,6 +59,8 @@ export const triggerCalibrationState = {
 	rightTriggerReleasedRaw: 4095,
 	leftTriggerMaxRaw: 0,
 	rightTriggerMaxRaw: 0,
+	leftTriggerInvert: 0,
+	rightTriggerInvert: 0,
 };
 
 const TRIGGER_CANVAS_W = 120;
@@ -91,6 +95,8 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 	const rightReleasedRaw = Number(values.rightTriggerReleasedRaw) ?? 0;
 	const leftMaxRaw = Number(values.leftTriggerMaxRaw) ?? 4095;
 	const rightMaxRaw = Number(values.rightTriggerMaxRaw) ?? 4095;
+	const leftInvert = Boolean(Number(values.leftTriggerInvert));
+	const rightInvert = Boolean(Number(values.rightTriggerInvert));
 
 	// 约束：扳机行程必须大于死区（如死区 4% 则行程最小 5%）。调整时如不满足则推动另一滑块
 	const applyLeftDeadzone = (v: number) => {
@@ -148,19 +154,18 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 		releasedRaw: number,
 		maxRaw: number,
 		currentRaw: number,
+		invert: boolean,
 	) => {
 		const w = TRIGGER_CANVAS_W;
 		const h = TRIGGER_CANVAS_H;
 		ctx.clearRect(0, 0, w, h);
-		// 无网格；Y 轴：底部=0%（松开），顶部=100%（按到底）
-		// 支持两种硬件：releasedRaw < maxRaw（按下=高 ADC）或 releasedRaw > maxRaw（按下=低 ADC）
+		// Y 轴：底部=0%（松开），顶部=100%（按到底）；方向由持久化极性标记决定
 		const yDeadzone = h * (1 - deadzonePct / 100); // 死区横线（靠近底部）
 		const yTravel = h * (1 - travelPct / 100); // 行程横线（靠近顶部）
 		const range = Math.max(1, Math.abs(maxRaw - releasedRaw));
-		const currentPercent =
-			maxRaw >= releasedRaw
-				? ((currentRaw - releasedRaw) / range) * 100
-				: ((releasedRaw - currentRaw) / range) * 100;
+		const currentPercent = invert
+			? ((currentRaw - releasedRaw) / range) * 100
+			: ((releasedRaw - currentRaw) / range) * 100;
 		const currentPercentClamped = Math.min(100, Math.max(0, currentPercent));
 		const fillTop = h * (1 - currentPercentClamped / 100); // 填充上边界（canvas y 向下为正）
 
@@ -212,13 +217,14 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 		if (!canvas) return;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
-		drawTriggerCanvas(ctx, leftDeadzone, leftTravel, leftReleasedRaw, leftMaxRaw, leftTriggerCurrentRaw);
+		drawTriggerCanvas(ctx, leftDeadzone, leftTravel, leftReleasedRaw, leftMaxRaw, leftTriggerCurrentRaw, leftInvert);
 	}, [
 		leftDeadzone,
 		leftTravel,
 		leftReleasedRaw,
 		leftMaxRaw,
 		leftTriggerCurrentRaw,
+		leftInvert,
 	]);
 
 	useEffect(() => {
@@ -226,13 +232,14 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 		if (!canvas) return;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
-		drawTriggerCanvas(ctx, rightDeadzone, rightTravel, rightReleasedRaw, rightMaxRaw, rightTriggerCurrentRaw);
+		drawTriggerCanvas(ctx, rightDeadzone, rightTravel, rightReleasedRaw, rightMaxRaw, rightTriggerCurrentRaw, rightInvert);
 	}, [
 		rightDeadzone,
 		rightTravel,
 		rightReleasedRaw,
 		rightMaxRaw,
 		rightTriggerCurrentRaw,
+		rightInvert,
 	]);
 
 	const openCalibrateModal = (side: 'left' | 'right') => {
@@ -269,12 +276,24 @@ function TriggerCalibrationBlock({ values, setFieldValue }: TriggerCalibrationBl
 		if (!calibrationActiveRef.current) return;
 		const released = releasedRawCurrent ?? 0;
 		const maxRaw = rawNum;
+		let invert: number | undefined;
+		if (released > maxRaw) {
+			invert = 0;
+		} else if (released < maxRaw) {
+			invert = 1;
+		}
 		if (calibrateSide === 'left') {
 			setFieldValue('leftTriggerReleasedRaw', released);
 			setFieldValue('leftTriggerMaxRaw', maxRaw);
+			if (invert !== undefined) {
+				setFieldValue('leftTriggerInvert', invert);
+			}
 		} else {
 			setFieldValue('rightTriggerReleasedRaw', released);
 			setFieldValue('rightTriggerMaxRaw', maxRaw);
+			if (invert !== undefined) {
+				setFieldValue('rightTriggerInvert', invert);
+			}
 		}
 		calibrationActiveRef.current = false;
 		handleCalibrateClose();

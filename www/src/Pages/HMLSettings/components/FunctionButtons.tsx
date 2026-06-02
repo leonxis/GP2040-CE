@@ -50,7 +50,11 @@ export default function FunctionButtons() {
 				(Object.keys(triggerCalibrationState) as (keyof typeof triggerCalibrationState)[]).forEach((k) => {
 					const v = data[k as string];
 					if (v !== undefined && v !== null) {
-						(merged as Record<string, unknown>)[k] = v;
+						if (k === 'leftTriggerInvert' || k === 'rightTriggerInvert') {
+							(merged as Record<string, unknown>)[k] = v ? 1 : 0;
+						} else {
+							(merged as Record<string, unknown>)[k] = v;
+						}
 					}
 				});
 				setTriggerCalibInitial(merged);

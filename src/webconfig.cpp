@@ -2604,6 +2604,8 @@ std::string setAddonOptions()
     docToValue(linearTriggerOptions.rightTriggerReleasedRaw, doc, "rightTriggerReleasedRaw");
     docToValue(linearTriggerOptions.leftTriggerMaxRaw, doc, "leftTriggerMaxRaw");
     docToValue(linearTriggerOptions.rightTriggerMaxRaw, doc, "rightTriggerMaxRaw");
+    docToValue(linearTriggerOptions.leftTriggerInvert, doc, "leftTriggerInvert");
+    docToValue(linearTriggerOptions.rightTriggerInvert, doc, "rightTriggerInvert");
 
     // Sync GPIO mapping: when linear trigger on → 28/29 = ASSIGNED_TO_ADDON.
     // When turning off (28/29 were ASSIGNED_TO_ADDON) → reset to 28=R2, 29=L2. When linear trigger stays off, do not touch 28/29.
@@ -3207,6 +3209,8 @@ std::string getAddonOptions()
     writeDoc(doc, "rightTriggerReleasedRaw", linearTriggerOptions.rightTriggerReleasedRaw);
     writeDoc(doc, "leftTriggerMaxRaw", linearTriggerOptions.leftTriggerMaxRaw);
     writeDoc(doc, "rightTriggerMaxRaw", linearTriggerOptions.rightTriggerMaxRaw);
+    writeDoc(doc, "leftTriggerInvert", linearTriggerOptions.leftTriggerInvert);
+    writeDoc(doc, "rightTriggerInvert", linearTriggerOptions.rightTriggerInvert);
 
     return serialize_json(doc);
 }
