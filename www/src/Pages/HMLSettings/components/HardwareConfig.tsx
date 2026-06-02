@@ -21,6 +21,19 @@ const GRADIENT_SPEED_UI_MAX = 1;
 const BREATH_SPEED_UI_MIN = 0.1;
 const BREATH_SPEED_UI_MAX = 1;
 
+function normalizeAmbientEffectIndex(value: unknown): number {
+	const index = Number(value);
+	if (
+		index === AMBIENT_EFFECTS.GRADIENT ||
+		index === AMBIENT_EFFECTS.CHASE ||
+		index === AMBIENT_EFFECTS.BREATH ||
+		index === AMBIENT_EFFECTS.STATIC_RGB
+	) {
+		return index;
+	}
+	return AMBIENT_EFFECTS.STATIC_RGB;
+}
+
 export default function HardwareConfig() {
 	const navigate = useNavigate();
 	const { t } = useTranslation();
@@ -116,9 +129,9 @@ export default function HardwareConfig() {
 					ledsPerButton: led.ledsPerButton || 2,
 				});
 				setAmbientOptions({
-					ambientLightEffectsCountIndex:
-						ambient?.ambientLightEffectsCountIndex ??
-						AMBIENT_EFFECTS.STATIC_RGB,
+					ambientLightEffectsCountIndex: normalizeAmbientEffectIndex(
+						ambient?.ambientLightEffectsCountIndex,
+					),
 					ambientColor: ambient?.ambientColor || '#ffa500',
 					webConfigAmbientHintEnabled: Boolean(ambient?.webConfigAmbientHintEnabled),
 					alStaticBrightnessCustomThemeX:
@@ -513,7 +526,9 @@ export default function HardwareConfig() {
 						</div>
 
 						{/* 当前模式参数 */}
-						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.STATIC_RGB && (
+						{normalizeAmbientEffectIndex(
+							ambientOptions.ambientLightEffectsCountIndex,
+						) === AMBIENT_EFFECTS.STATIC_RGB && (
 							<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
 								<label style={{ minWidth: '120px' }}>
 									{t('SettingsPage:hml-ambient-brightness-label')}
@@ -534,7 +549,9 @@ export default function HardwareConfig() {
 							</div>
 						)}
 
-						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.GRADIENT && (
+						{normalizeAmbientEffectIndex(
+							ambientOptions.ambientLightEffectsCountIndex,
+						) === AMBIENT_EFFECTS.GRADIENT && (
 							<>
 								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
 									<label style={{ minWidth: '120px' }}>
@@ -576,7 +593,9 @@ export default function HardwareConfig() {
 							</>
 						)}
 
-						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.CHASE && (
+						{normalizeAmbientEffectIndex(
+							ambientOptions.ambientLightEffectsCountIndex,
+						) === AMBIENT_EFFECTS.CHASE && (
 							<>
 								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
 									<label style={{ minWidth: '120px' }}>
@@ -617,7 +636,9 @@ export default function HardwareConfig() {
 							</>
 						)}
 
-						{ambientOptions.ambientLightEffectsCountIndex === AMBIENT_EFFECTS.BREATH && (
+						{normalizeAmbientEffectIndex(
+							ambientOptions.ambientLightEffectsCountIndex,
+						) === AMBIENT_EFFECTS.BREATH && (
 							<>
 								<div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '400px' }}>
 									<label style={{ minWidth: '120px' }}>
