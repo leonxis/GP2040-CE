@@ -456,10 +456,11 @@ void GP2040::initializeStandardGpio() {
 		// (NONE=-10, RESERVED=-5, ASSIGNED_TO_ADDON=0, everything else is ours)
 		if (pinMappings[pin].action > 0)
 		{
-			gpio_init(pin);             // Initialize pin
-			gpio_set_dir(pin, GPIO_IN); // Set as INPUT
-			gpio_pull_up(pin);          // Set as PULLUP
-			buttonGpios |= 1 << pin;    // mark this pin as mattering for GPIO debouncing
+			gpio_init(pin);                    // Initialize pin
+			gpio_set_dir(pin, GPIO_IN);        // Set as INPUT
+			gpio_pull_up(pin);                 // Set as PULLUP
+			gpio_set_input_enabled(pin, true); // Ensure digital input buffer is enabled (may be disabled by adc_gpio_init)
+			buttonGpios |= 1 << pin;           // mark this pin as mattering for GPIO debouncing
 		}
 	}
 }
