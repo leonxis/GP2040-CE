@@ -62,8 +62,14 @@ static void applyComplexAction(Gamepad* gamepad, GpioAction action) {
         case GpioAction::MENU_NAVIGATION_TOGGLE:
             EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(action));
             break;
+        case GpioAction::BUTTON_PRESS_MACRO_1: gamepad->addonMacroTriggerMask |= (1U << 0); break;
+        case GpioAction::BUTTON_PRESS_MACRO_2: gamepad->addonMacroTriggerMask |= (1U << 1); break;
+        case GpioAction::BUTTON_PRESS_MACRO_3: gamepad->addonMacroTriggerMask |= (1U << 2); break;
+        case GpioAction::BUTTON_PRESS_MACRO_4: gamepad->addonMacroTriggerMask |= (1U << 3); break;
+        case GpioAction::BUTTON_PRESS_MACRO_5: gamepad->addonMacroTriggerMask |= (1U << 4); break;
+        case GpioAction::BUTTON_PRESS_MACRO_6: gamepad->addonMacroTriggerMask |= (1U << 5); break;
         default:
-            // TURBO / MACRO actions are accepted by the shared parser but are currently
+            // TURBO actions are accepted by the shared parser but are currently
             // not represented by GamepadState bitmasks, so no-op here.
             break;
     }
@@ -87,6 +93,12 @@ static void clearComplexAction(Gamepad* gamepad, GpioAction action) {
         case GpioAction::ANALOG_DIRECTION_RS_Y_POS:
             gamepad->state.ry = GAMEPAD_JOYSTICK_MID;
             break;
+        case GpioAction::BUTTON_PRESS_MACRO_1: gamepad->addonMacroTriggerMask &= ~(1U << 0); break;
+        case GpioAction::BUTTON_PRESS_MACRO_2: gamepad->addonMacroTriggerMask &= ~(1U << 1); break;
+        case GpioAction::BUTTON_PRESS_MACRO_3: gamepad->addonMacroTriggerMask &= ~(1U << 2); break;
+        case GpioAction::BUTTON_PRESS_MACRO_4: gamepad->addonMacroTriggerMask &= ~(1U << 3); break;
+        case GpioAction::BUTTON_PRESS_MACRO_5: gamepad->addonMacroTriggerMask &= ~(1U << 4); break;
+        case GpioAction::BUTTON_PRESS_MACRO_6: gamepad->addonMacroTriggerMask &= ~(1U << 5); break;
         default:
             break;
     }

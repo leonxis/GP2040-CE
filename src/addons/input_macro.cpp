@@ -104,6 +104,10 @@ void InputMacro::checkMacroPress() {
             // Use Pin Manager for Macro Trigger
             pressedMacro = i;
             break;
+        } else if ( gamepad->addonMacroTriggerMask & (1U << i) ) {
+            // Use Addon Macro Trigger Mask (e.g. from back buttons, touchpad, FN keys)
+            pressedMacro = i;
+            break;
         }
     }
 }

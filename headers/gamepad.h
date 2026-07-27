@@ -288,6 +288,8 @@ public:
 	uint64_t addonKeyboardKeyMask = 0;
 	// Addon-driven mouse buttons: bit0=left, bit1=right, bit2=middle
 	uint8_t addonMouseButtonMask = 0;
+	// Addon-driven macro trigger mask: bit0=MACRO_1, bit1=MACRO_2, ..., bit5=MACRO_6
+	uint8_t addonMacroTriggerMask = 0;
 
 	uint32_t lastReinitProfileNumber = 0;
 
