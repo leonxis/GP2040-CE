@@ -400,15 +400,19 @@ void LSM6DSRIMUAddon::outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG
 	if (ds4y > 32767) ds4y = 32767; else if (ds4y < -32767) ds4y = -32767;
 	if (ds4z > 32767) ds4z = 32767; else if (ds4z < -32767) ds4z = -32767;
 
-	// NS Pro 最终映射（保持当前已验证结果）：
-	// Gyro : gx=-ds4y, gy=-ds4x, gz=ds4z
-	// Accel: ax=-rawA[2]/2, ay=-rawA[0]/2, az=rawA[1]/2
-	int16_t gx = (int16_t)(-ds4y);
+	// NS Pro 最终映射（与 PS4 物理运动一致）：
+	// NS Pro 坐标系：X=向上, Y=向左, Z=向后
+	// Gyro : gx=ds4y, gy=-ds4x, gz=-ds4z（X/Y互换，Z取反）
+	// Accel: 先按 DS4 映射，再按 NS Pro 变换并除以2
+	int16_t gx = (int16_t)(ds4y);
 	int16_t gy = (int16_t)(-ds4x);
-	int16_t gz = (int16_t)(ds4z);
-	int16_t ax = (int16_t)(-(int32_t)rawA[2] / 2);
-	int16_t ay = (int16_t)(-(int32_t)rawA[0] / 2);
-	int16_t az = (int16_t)((int32_t)rawA[1] / 2);
+	int16_t gz = (int16_t)(-ds4z);
+	int16_t ds4AccelX = (int16_t)(-(int32_t)rawA[0]);
+	int16_t ds4AccelY = (int16_t)rawA[2];
+	int16_t ds4AccelZ = (int16_t)rawA[1];
+	int16_t ax = (int16_t)((int32_t)ds4AccelZ / 2);
+	int16_t ay = (int16_t)(-(int32_t)ds4AccelX / 2);
+	int16_t az = (int16_t)(-(int32_t)ds4AccelY / 2);
 
 	// 将当前帧数据存储到历史缓冲区
 	uint8_t currentFrame[12];
