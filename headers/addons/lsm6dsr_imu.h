@@ -35,6 +35,7 @@ private:
 	void buildEngageMasks();   // 根据 engageKeys 填充 engageButtonMask / engageDpadMask（仅支持上下左右、B1-B4、L1/L2/R1/R2、S1/S2）
 	void applyOneEuroFilter(float teS); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)
 	void outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3], float dtS); // 陀螺仪→HID 鼠标（按 dt 缩放）
+	void outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]); // 陀螺仪→Switch Pro IMU
 	void clearMouseOutput(Gamepad* gamepad); // 仅在状态切换时清零鼠标输出
 	void clearGyroOutput(Gamepad* gamepad);  // 仅在状态切换时清零陀螺仪/加速度与Switch Pro IMU输出
 	PeripheralSPI* spi;
@@ -66,6 +67,9 @@ private:
 	int16_t rawG[3];
 	int16_t rawA[3];
 	int16_t calG[3];
+	// Switch Pro IMU 需要三组历史数据（每组12字节：6字节加速度+6字节陀螺仪）
+	uint8_t imuHistory[3][12];
+	int imuHistoryIndex;
 	// 一欧元滤波内部状态（浮点，每轴一个）
 	float oneEuroState[3];
 	bool oneEuroInited;
