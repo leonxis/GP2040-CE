@@ -980,12 +980,18 @@ message AddonOptions
     optional HETriggerOptions heTriggerOptions = 30;
     optional LinearTriggerOptions linearTriggerOptions = 31;
     optional HmlBackMappingPresetOptions hmlBackMappingPresetOptions = 33;
+    optional MCP3208Options mcp3208Options = 34;
     optional LSM6DSROptions lsm6dsrOptions = 35;
     optional TwoKeyTouchpadOptions twoKeyTouchpadOptions = 37;
     // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz
     optional uint32 reportRate = 36 [default = 1000];
     optional ADS8332Options ads8332Options = 39;
     optional AxisTiltOverlayOptions axisTiltOverlayOptions = 40;
+}
+
+// MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
+message MCP3208Options {
+    optional bool enabled = 1 [default = false];
 }
 
 // ADS8332 ADC: 仅实现基础摇杆输出（CH0/CH1/CH6/CH7 -> LX/LY/RY/RX）

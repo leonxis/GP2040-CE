@@ -253,6 +253,7 @@ export default {
 	'input-history-col-label': 'Column',
 	'input-history-row-label': 'Row',
 	'ads8332-header-text': '16bit摇杆',
+	'mcp3208-header-text': 'MCP3208 12bit摇杆',
 	'lsm6dsr-header-text': 'LSM6DSR IMU (Gyro)',
 	'joystick-selection-slider-mode-0': 'Digital',
 	'joystick-selection-slider-mode-1': 'Left Analog',

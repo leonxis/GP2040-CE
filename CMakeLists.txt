@@ -286,6 +286,7 @@ src/addons/linear_trigger.cpp
 src/addons/two_key_touchpad.cpp
 src/addons/back_button_divider.cpp
 src/addons/ads8332_adc.cpp
+src/addons/mcp3208_adc.cpp
 src/addons/lsm6dsr_imu.cpp
 src/addons/buzzerspeaker.cpp
 src/addons/dualdirectional.cpp

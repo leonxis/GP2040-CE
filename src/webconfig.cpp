@@ -2496,6 +2496,9 @@ std::string setAddonOptions()
     ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
     docToValue(ads8332Options.enabled, doc, "ADS8332AddonEnabled");
 
+    MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
+    docToValue(mcp3208Options.enabled, doc, "MCP3208AddonEnabled");
+
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
     docToValue(lsm6dsrOptions.outputMode, doc, "lsm6dsrOutputMode");
@@ -2996,6 +2999,8 @@ std::string getAddonOptions()
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
     const ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
     writeDoc(doc, "ADS8332AddonEnabled", ads8332Options.enabled ? 1 : 0);
+    const MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
+    writeDoc(doc, "MCP3208AddonEnabled", mcp3208Options.enabled ? 1 : 0);
     const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOutputMode", lsm6dsrOptions.outputMode);

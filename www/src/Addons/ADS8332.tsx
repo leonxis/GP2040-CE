@@ -17,9 +17,17 @@ export const ads8332State = {
 	ADS8332AddonEnabled: 0,
 };
 
-const ADS8332 = ({ values, handleCheckbox }: AddonPropTypes) => {
+const ADS8332 = ({ values, handleCheckbox, setFieldValue }: AddonPropTypes) => {
 	const { getAvailablePeripherals } = useContext(AppContext);
 	const { t } = useTranslation();
+
+	// ADS8332 和 MCP3208 互斥：启用 ADS8332 时自动禁用 MCP3208
+	const handleADS8332Toggle = () => {
+		handleCheckbox('ADS8332AddonEnabled');
+		if (!values.ADS8332AddonEnabled && values.MCP3208AddonEnabled) {
+			setFieldValue('MCP3208AddonEnabled', 0);
+		}
+	};
 
 	return (
 		<Section title={t('AddonsConfig:ads8332-header-text')}>
@@ -31,9 +39,7 @@ const ADS8332 = ({ values, handleCheckbox }: AddonPropTypes) => {
 					reverse
 					isInvalid={false}
 					checked={Boolean(values.ADS8332AddonEnabled) && getAvailablePeripherals('spi')}
-					onChange={() => {
-						handleCheckbox('ADS8332AddonEnabled');
-					}}
+					onChange={handleADS8332Toggle}
 				/>
 			) : (
 				<FormLabel>

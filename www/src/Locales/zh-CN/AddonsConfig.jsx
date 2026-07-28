@@ -239,6 +239,7 @@ export default {
 	'input-history-col-label': '列',
 	'input-history-row-label': '行',
 	'ads8332-header-text': '16bit摇杆',
+	'mcp3208-header-text': 'MCP3208 12bit摇杆',
 	'lsm6dsr-header-text': 'LSM6DSR 陀螺仪 (IMU)',
 	'joystick-selection-slider-mode-0': '数字',
 	'joystick-selection-slider-mode-1': '左模拟摇杆',

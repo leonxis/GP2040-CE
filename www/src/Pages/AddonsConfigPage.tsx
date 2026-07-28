@@ -14,6 +14,7 @@ import { hexToInt } from '../Services/Utilities';
 import WebApi from '../Services/WebApi';
 import Analog, { analogScheme, analogState } from '../Addons/Analog';
 import ADS8332, { ads8332Scheme, ads8332State } from '../Addons/ADS8332';
+import MCP3208, { mcp3208Scheme, mcp3208State } from '../Addons/MCP3208';
 import LSM6DSR, { lsm6dsrScheme, lsm6dsrState } from '../Addons/LSM6DSR';
 import Bootsel, { bootselScheme, bootselState } from '../Addons/Bootsel';
 import Buzzer, { buzzerScheme, buzzerState } from '../Addons/Buzzer';
@@ -63,6 +64,7 @@ export type AddonPropTypes = {
 const schema = yup.object().shape({
 	...analogScheme,
 	...ads8332Scheme,
+	...mcp3208Scheme,
 	...lsm6dsrScheme,
 	...bootselScheme,
 	...turboScheme,
@@ -101,6 +103,7 @@ const FLOAT_KEYS = [
 export const DEFAULT_VALUES = {
 	...analogState,
 	...ads8332State,
+	...mcp3208State,
 	...lsm6dsrState,
 	...bootselState,
 	...turboState,
@@ -126,6 +129,7 @@ const ADDONS = [
 	Keyboard,
 	GamepadUSBHost,
 	ADS8332,
+	MCP3208,
 	LSM6DSR,
 	Analog,
 	Tilt,
@@ -147,7 +151,7 @@ const ADDONS = [
 ];
 
 const FormContext = ({ setStoredData }) => {
-	const { values, setValues } = useFormikContext();
+	const { values, setValues, setFieldValue } = useFormikContext();
 	const { setLoading } = useContext(AppContext);
 
 	useEffect(() => {
@@ -163,6 +167,13 @@ const FormContext = ({ setStoredData }) => {
 	useEffect(() => {
 		sanitizeData(values);
 	}, [values, setValues]);
+
+	// MCP3208 和 ADS8332 互斥：初始加载时如果两者同时启用，自动禁用 ADS8332
+	useEffect(() => {
+		if (values.MCP3208AddonEnabled && values.ADS8332AddonEnabled) {
+			setFieldValue('ADS8332AddonEnabled', 0);
+		}
+	}, []);
 
 	return null;
 };
