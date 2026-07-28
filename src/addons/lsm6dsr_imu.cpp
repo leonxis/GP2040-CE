@@ -159,6 +159,9 @@ void LSM6DSRIMUAddon::setup() {
 	mouseSuppressUntilUs = 0;
 	mouseOutputCleared = false;
 	gyroOutputCleared = false;
+	// 初始化 IMU 历史数据缓冲区
+	imuHistoryIndex = 0;
+	memset(imuHistory, 0, sizeof(imuHistory));
 
 	// LSM6DSR requires MODE3 on shared SPI.
 	spi->setBaudrate(LSM6DSR_SPI_HZ);
@@ -213,6 +216,9 @@ void LSM6DSRIMUAddon::reinit() {
 	mouseSuppressUntilUs = 0;
 	mouseOutputCleared = false;
 	gyroOutputCleared = false;
+	// 重置 IMU 历史数据缓冲区，避免切换模式时使用过期数据
+	imuHistoryIndex = 0;
+	memset(imuHistory, 0, sizeof(imuHistory));
 }
 
 void LSM6DSRIMUAddon::applyOneEuroFilter(float teS) {
@@ -385,7 +391,7 @@ static void writeLe16(uint8_t* p, int16_t v) {
 	p[1] = (uint8_t)((uint16_t)(v) >> 8);
 }
 
-static void outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
+void LSM6DSRIMUAddon::outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
 	// 先换算到协议单位（与 DS4 同量纲，X 轴在此处完成协议向取反）。
 	int32_t ds4x = -(int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	int32_t ds4y = (int32_t)calG[1] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
@@ -403,15 +409,30 @@ static void outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const
 	int16_t ax = (int16_t)(-(int32_t)rawA[2] / 2);
 	int16_t ay = (int16_t)(-(int32_t)rawA[0] / 2);
 	int16_t az = (int16_t)((int32_t)rawA[1] / 2);
+
+	// 将当前帧数据存储到历史缓冲区
+	uint8_t currentFrame[12];
+	writeLe16(currentFrame + 0, ax);
+	writeLe16(currentFrame + 2, ay);
+	writeLe16(currentFrame + 4, az);
+	writeLe16(currentFrame + 6, gx);
+	writeLe16(currentFrame + 8, gy);
+	writeLe16(currentFrame + 10, gz);
+
+	// Switch Pro 协议要求 IMU 数据包含三组不同时刻的采样（共36字节）
+	// 数据顺序：从旧到新排列（第一组最旧，第三组最新）
 	uint8_t* d = gamepad->auxState.sensors.switchProImuData;
-	writeLe16(d + 0, ax);
-	writeLe16(d + 2, ay);
-	writeLe16(d + 4, az);
-	writeLe16(d + 6, gx);
-	writeLe16(d + 8, gy);
-	writeLe16(d + 10, gz);
-	memcpy(d + 12, d, 12);
-	memcpy(d + 24, d, 12);
+	// 第一组：最旧帧
+	memcpy(d + 0, imuHistory[(imuHistoryIndex + 1) % 3], 12);
+	// 第二组：中间帧
+	memcpy(d + 12, imuHistory[(imuHistoryIndex + 2) % 3], 12);
+	// 第三组：当前帧（最新）
+	memcpy(d + 24, currentFrame, 12);
+
+	// 更新历史缓冲区（循环缓冲区）- 在输出之后再存储当前帧
+	memcpy(imuHistory[imuHistoryIndex], currentFrame, 12);
+	imuHistoryIndex = (imuHistoryIndex + 1) % 3;
+
 	gamepad->auxState.sensors.switchProImuDataActive = true;
 	gamepad->auxState.sensors.gyroscope.enabled = false;
 	gamepad->auxState.sensors.gyroscope.active = false;

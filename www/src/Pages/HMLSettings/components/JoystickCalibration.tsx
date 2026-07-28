@@ -663,6 +663,8 @@ const JoystickCalibration = ({
 	const [showRightCalibrationModal, setShowRightCalibrationModal] = useState(false);
 	const [showLeftRangeModal, setShowLeftRangeModal] = useState(false);
 	const [showRightRangeModal, setShowRightRangeModal] = useState(false);
+	// Track if any calibration is in progress to pause main joystick polling
+	const [isCalibrating, setIsCalibrating] = useState(false);
 	const [leftFinetuneCenterActive, setLeftFinetuneCenterActive] = useState(false);
 	const [rightFinetuneCenterActive, setRightFinetuneCenterActive] = useState(false);
 	// Curve control points: array of {x, y} where x and y are in [0, 1] range
@@ -724,7 +726,7 @@ const JoystickCalibration = ({
 	
 	// Fetch joystick data periodically from unified joystick endpoints.
 	useEffect(() => {
-		if (!values) {
+		if (!values || isCalibrating) {
 			return;
 		}
 
@@ -1054,7 +1056,8 @@ const JoystickCalibration = ({
 		values?.joystickJitterFilter1,
 		values?.joystickJitterFilter2,
 		leftShowErrorRate,
-		rightShowErrorRate
+		rightShowErrorRate,
+		isCalibrating
 	]);
 
 	// Cache canvas dimensions and center/radius calculations (performance optimization)
@@ -1262,8 +1265,14 @@ const JoystickCalibration = ({
 					{/* Row 2, Column 2: Left stick buttons */}
 					<div style={{ ...buttonsContainerStyle, gridColumn: '2' }}>
 						<StickButtons
-							onCenterCalibration={() => setShowLeftCalibrationModal(true)}
-							onRangeCalibration={() => setShowLeftRangeModal(true)}
+							onCenterCalibration={() => {
+								setIsCalibrating(true);
+								setShowLeftCalibrationModal(true);
+							}}
+							onRangeCalibration={() => {
+								setIsCalibrating(true);
+								setShowLeftRangeModal(true);
+							}}
 							onFinetuneCenter={() => setLeftFinetuneCenterActive(!leftFinetuneCenterActive)}
 							finetuneCenterActive={leftFinetuneCenterActive}
 							onJitterSampling={() => setShowLeftJitterDataModal(true)}
@@ -1273,8 +1282,14 @@ const JoystickCalibration = ({
 					{/* Row 2, Column 3: Right stick buttons */}
 					<div style={{ ...buttonsContainerStyle, gridColumn: '3' }}>
 						<StickButtons
-							onCenterCalibration={() => setShowRightCalibrationModal(true)}
-							onRangeCalibration={() => setShowRightRangeModal(true)}
+							onCenterCalibration={() => {
+								setIsCalibrating(true);
+								setShowRightCalibrationModal(true);
+							}}
+							onRangeCalibration={() => {
+								setIsCalibrating(true);
+								setShowRightRangeModal(true);
+							}}
 							onFinetuneCenter={() => setRightFinetuneCenterActive(!rightFinetuneCenterActive)}
 							finetuneCenterActive={rightFinetuneCenterActive}
 							onJitterSampling={() => setShowRightJitterDataModal(true)}
@@ -1313,7 +1328,10 @@ const JoystickCalibration = ({
 			{/* Calibration Modals */}
 			<StickCalibrationModal
 				show={showLeftCalibrationModal}
-				onHide={() => setShowLeftCalibrationModal(false)}
+				onHide={() => {
+					setShowLeftCalibrationModal(false);
+					setIsCalibrating(false);
+				}}
 				onComplete={(centerX, centerY) => {
 					setFieldValue('joystickCenterX', centerX);
 					setFieldValue('joystickCenterY', centerY);
@@ -1323,7 +1341,10 @@ const JoystickCalibration = ({
 			/>
 			<StickCalibrationModal
 				show={showRightCalibrationModal}
-				onHide={() => setShowRightCalibrationModal(false)}
+				onHide={() => {
+					setShowRightCalibrationModal(false);
+					setIsCalibrating(false);
+				}}
 				onComplete={(centerX, centerY) => {
 					setFieldValue('joystickCenterX2', centerX);
 					setFieldValue('joystickCenterY2', centerY);
@@ -1335,7 +1356,10 @@ const JoystickCalibration = ({
 			{/* Range Calibration Modals */}
 			<RangeCalibrationModal
 				show={showLeftRangeModal}
-				onHide={() => setShowLeftRangeModal(false)}
+				onHide={() => {
+					setShowLeftRangeModal(false);
+					setIsCalibrating(false);
+				}}
 				onComplete={(rangeData) => {
 					setFieldValue('joystickRangeData1', rangeData);
 				}}
@@ -1346,7 +1370,10 @@ const JoystickCalibration = ({
 			/>
 			<RangeCalibrationModal
 				show={showRightRangeModal}
-				onHide={() => setShowRightRangeModal(false)}
+				onHide={() => {
+					setShowRightRangeModal(false);
+					setIsCalibrating(false);
+				}}
 				onComplete={(rangeData) => {
 					setFieldValue('joystickRangeData2', rangeData);
 				}}

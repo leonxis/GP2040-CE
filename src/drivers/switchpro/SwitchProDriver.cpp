@@ -165,17 +165,18 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
     processedGamepad->auxState.playerID.value = playerID;
 
     if (isReady && !reportSent) {
-        switchReport.timestamp = last_report_counter;
-        void * inputReport = &switchReport;
-        uint16_t report_size = sizeof(switchReport);
-        // Send continuously while endpoint is ready to keep idle report rate pinned.
-        const bool hidReady = tud_hid_ready();
-        if (hidReady && sendReport(0, inputReport, report_size) == true ) {
-            memcpy(last_report, inputReport, report_size);
-            reportSent = true;
-            last_report_timer = now;
-        } else if (!hidReady) {
-            usb_notify_main_gamepad_poll_done_not_ready();
+        if ((now - last_report_timer) > SWITCH_PRO_KEEPALIVE_TIMER) {
+            switchReport.timestamp = last_report_counter;
+            void * inputReport = &switchReport;
+            uint16_t report_size = sizeof(switchReport);
+            // Only send if report has changed to avoid flooding the host
+            if (memcmp(last_report, inputReport, report_size) != 0) {
+                if (tud_hid_ready() && sendReport(0, inputReport, report_size) == true ) {
+                    memcpy(last_report, inputReport, report_size);
+                    reportSent = true;
+                }
+                last_report_timer = now;
+            }
         }
     } else {
         if (!isInitialized) {
@@ -255,11 +256,9 @@ void SwitchProDriver::handleConfigReport(uint8_t switchReportID, uint8_t switchR
             //printf("SwitchProDriver::set_report: DISABLE_USB_TIMEOUT\n");
             report[0] = SwitchReportID::REPORT_OUTPUT_30;
             report[1] = switchReportSubID;
-            //if (handshakeCounter < 4) {
-            //    handshakeCounter++;
-            //} else {
-                isReady = true;
-            //}
+            // Switch Pro 协议：收到 DISABLE_USB_TIMEOUT 后进入就绪状态
+            // 某些主机可能不发送 SET_MODE，因此这里也要设置 isReady（双重保险）
+            isReady = true;
             canSend = true;
             break;
         case SwitchOutputSubtypes::ENABLE_USB_TIMEOUT:
@@ -321,6 +320,8 @@ void SwitchProDriver::handleFeatureReport(uint8_t switchReportID, uint8_t switch
             report[14] = 0x03;
             report[15] = inputMode;
             canSend = true;
+            // Switch Pro 协议：收到 SET_MODE 命令后进入就绪状态
+            isReady = true;
             //printf("Input Mode set to ");
             switch (inputMode) {
                 case 0x00:
