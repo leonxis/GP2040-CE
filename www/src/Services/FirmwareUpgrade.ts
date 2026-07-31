@@ -1,5 +1,5 @@
-const FIRMWARE_DOWNLOAD_URL = 'https://home.chobits.site:51000/GNS/updata.uf2';
-const LATEST_INFO_URL = 'https://home.chobits.site:51000/GNS/latest.json';
+const FIRMWARE_DOWNLOAD_URL = 'https://gns.chobits.site:8443/GNS/updata.uf2';
+const LATEST_INFO_URL = 'https://gns.chobits.site:8443/GNS/latest.json';
 const LATEST_INFO_KEY = 'GNS2040';
 const LATEST_REQUEST_TIMEOUT_MS = 10000;
 const FIRMWARE_REQUEST_TIMEOUT_MS = 60000;

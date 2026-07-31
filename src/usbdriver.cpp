@@ -36,7 +36,9 @@ static inline bool shouldCountMainLoopPollDoneEvents() {
 		return false;
 	}
 	const InputMode mode = DriverManager::getInstance().getInputMode();
-	return (mode == INPUT_MODE_PS4 || mode == INPUT_MODE_PS4B || mode == INPUT_MODE_SWITCH_PRO ||
+	// Note: SWITCH_PRO (NS PRO) excluded — handshake/feature report phases
+	// do not consistently trigger HID IN completions for gating.
+	return (mode == INPUT_MODE_PS4 || mode == INPUT_MODE_PS4B ||
 	        mode == INPUT_MODE_XINPUT || mode == INPUT_MODE_XINPUTB);
 }
 
@@ -328,6 +330,13 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
 	const uint8_t *raw = DriverManager::getInstance().getDriver()->get_descriptor_configuration_cb(index);
 	if (!raw || raw[0] != 9 || raw[1] != 0x02) return raw;
 	InputMode mode = DriverManager::getInstance().getInputMode();
+	// NS Pro (Switch Pro) uses fixed 125Hz polling (bInterval=8) per the official protocol.
+	// Do NOT patch bInterval for NS Pro — it breaks the handshake and causes the controller
+	// to be recognized but unresponsive. Main branch returns the original descriptor directly.
+	if (mode == INPUT_MODE_SWITCH_PRO) {
+		compositeHIDInstance = 0xFF;
+		return raw;
+	}
 	if (!shouldAddCompositeHID(mode)) {
 		compositeHIDInstance = 0xFF;
 	}

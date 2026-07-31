@@ -92,8 +92,11 @@ extern void processCompositeHID(Gamepad *gamepad);
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const InputMode inputMode = DriverManager::getInstance().getInputMode();
+	// Note: SWITCH_PRO (NS PRO) is excluded from main-loop gating because its
+	// handshake/feature report phases do not consistently trigger HID IN
+	// completions, causing the gate to stall the main loop and drop inputs.
 	const bool supportedMode =
-		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B || inputMode == INPUT_MODE_SWITCH_PRO ||
+		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B ||
 		 inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
 	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
 }

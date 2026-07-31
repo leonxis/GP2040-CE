@@ -152,11 +152,11 @@ private:
         0xC7,
 
         0x79, 
-        
+
         0x9C, 
 
         0x33, 
-        
+
         0x36, 
         
         0x63, 0xFF, 0xFF, 0xFF,
