@@ -164,17 +164,12 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
     processedGamepad->auxState.playerID.value = playerID;
 
     if (isReady && !reportSent) {
-        if ((now - last_report_timer) > SWITCH_PRO_KEEPALIVE_TIMER) {
-            switchReport.timestamp = last_report_counter;
-            void * inputReport = &switchReport;
-            uint16_t report_size = sizeof(switchReport);
-            if (memcmp(last_report, inputReport, report_size) != 0) {
-                // Only send if report has changed to avoid flooding the host
-                if (tud_hid_ready() && sendReport(0, inputReport, report_size) == true ) {
-                    memcpy(last_report, inputReport, report_size);
-                    reportSent = true;
-                }
-            }
+        switchReport.timestamp = last_report_counter;
+        void * inputReport = &switchReport;
+        uint16_t report_size = sizeof(switchReport);
+        if (tud_hid_ready() && sendReport(0, inputReport, report_size) == true ) {
+            memcpy(last_report, inputReport, report_size);
+            reportSent = true;
             last_report_timer = now;
         }
     } else {
@@ -195,11 +190,24 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
 
 // tud_hid_get_report_cb
 uint16_t SwitchProDriver::get_report(uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
-    //printf("SwitchProDriver::get_report Rpt: %02x, Type: %d, Len: %d\n", report_id, report_type, reqlen);
-//    if (isReady) {
-//        memcpy(buffer, &switchReport, sizeof(SwitchProReport));
-//        return sizeof(SwitchProReport);
-//    }
+    (void)report_type;
+    (void)reqlen;
+
+    if (report_id == SwitchReportID::REPORT_OUTPUT_30) {
+        // Return current main input report state
+        switchReport.timestamp = last_report_counter;
+        uint16_t report_size = sizeof(switchReport);
+        if (report_size > reqlen) report_size = reqlen;
+        memcpy(buffer, &switchReport, report_size);
+        return report_size;
+    } else if (report_id == SwitchReportID::REPORT_USB_INPUT_81) {
+        // Return identification report
+        sendIdentify();
+        uint16_t report_size = 64;
+        if (report_size > reqlen) report_size = reqlen;
+        memcpy(buffer, report, report_size);
+        return report_size;
+    }
 
     return 0;
 }
@@ -500,10 +508,10 @@ void SwitchProDriver::set_report(uint8_t report_id, hid_report_type_t report_typ
     //printf("SwitchProDriver::set_report Rpt: %02x, Type: %d, Len: %d :: SID: %02x, SSID: %02x\n", report_id, report_type, bufsize, switchReportID, switchReportSubID);
     if (switchReportID == SwitchReportID::REPORT_OUTPUT_00) {
     } else if (switchReportID == SwitchReportID::REPORT_FEATURE) {
-        queuedReportID = report_id;
+        queuedReportID = 0;
         handleFeatureReport(switchReportID, switchReportSubID, buffer, bufsize);
     } else if (switchReportID == SwitchReportID::REPORT_CONFIGURATION) {
-        queuedReportID = report_id;
+        queuedReportID = 0;
         handleConfigReport(switchReportID, switchReportSubID, buffer, bufsize);
     } else {
         //printf("SwitchProDriver::set_report Rpt: %02x, Type: %d, Len: %d :: SID: %02x, SSID: %02x\n", report_id, report_type, bufsize, switchReportID, switchReportSubID);
