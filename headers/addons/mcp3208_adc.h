@@ -5,12 +5,13 @@
 #include "types.h"
 #include "peripheral_spi.h"
 
+#include <atomic>
+
 #define MCP3208_ADC_ADDON_NAME "MCP3208 ADC"
 
-// HML 固定接线：与 ADS8332 使用相同的 SPI 硬件线路，SPI0、CS=GPIO1、CONVST=GPIO4
+// HML fixed wiring: shares SPI0 and CS GPIO1 with the ADS8332 option.
 static constexpr uint8_t MCP3208_HW_SPI_BLOCK = 0;
 static constexpr int8_t MCP3208_HW_CS_PIN = 1;
-static constexpr int8_t MCP3208_HW_CONVST_PIN = 4;
 
 #define MCP3208_SPI_HZ          1500000u
 
@@ -23,7 +24,11 @@ static constexpr int8_t MCP3208_HW_CONVST_PIN = 4;
 class MCP3208ADCAddon : public GPAddon {
 public:
     // For webconfig/calibration: read current raw ADC for a stick (0=left, 1=right). Returns false if addon not ready.
-    static bool getRawStickForWebConfig(uint8_t stickNum, uint16_t& x, uint16_t& y);
+    static bool getRawStickForWebConfig(
+        uint8_t stickNum,
+        uint32_t& x,
+        uint32_t& y,
+        uint32_t& adcMax);
     static bool getRawStickForProcessor(
         uint8_t stickNum,
         uint16_t& x,
@@ -47,6 +52,9 @@ public:
     virtual void preprocess();
     virtual void process();
     virtual void postprocess(bool) {}
+    virtual void preprocessGateEarly();
+    virtual bool isGateLateAnalogProvider() const { return true; }
+    virtual bool sampleGateLateAnalog();
     virtual std::string name() { return MCP3208_ADC_ADDON_NAME; }
     virtual void reinit();
 
@@ -61,21 +69,33 @@ private:
         uint8_t right_channel;
     };
 
-    void readStickChannels();
-    void readSwitchChannels();
-    bool readChannel(uint8_t channel);
+    struct StickSnapshot {
+        uint16_t x[MCP3208_STICK_COUNT];
+        uint16_t y[MCP3208_STICK_COUNT];
+        uint32_t sequence;
+        uint32_t completedTimeUs;
+    };
+
+    bool sampleStickSnapshot();
+    bool sampleSwitchChannels();
+    bool readChannel(uint8_t channel, uint16_t& value);
     bool prepareSPITransaction();
+    void publishStickSnapshot(
+        const uint16_t* xValues,
+        const uint16_t* yValues);
 
     static MCP3208ADCAddon* s_instance;
     PeripheralSPI* spi_;
     SPIBaudrateProfile spiProfile_;
     int8_t csPin_;            // Chip select GPIO (硬编码)
-    uint16_t adcValues_[8];   // CH0-CH7，仅 0,1,2,5,6,7 有效
+    uint16_t adcValues_[8];   // Auxiliary CH2/CH5 cache; sticks use published snapshots.
     bool spiOk_;
     SamplerStickChannelConfig stick_channels_[MCP3208_STICK_COUNT];
     SamplerDividerChannelConfig divider_channels_;
     // CH2/CH5 采样降频计数器：仅控制 raw 采样频率，不承担映射/防抖状态
     uint8_t ch25_sample_counter_;
+    StickSnapshot stickSnapshots_[2] = {};
+    std::atomic<uint8_t> publishedStickSnapshot_ { 0 };
 };
 
 #endif

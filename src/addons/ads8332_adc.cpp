@@ -83,7 +83,7 @@ void ADS8332ADCAddon::setup() {
     s_instance_ = this;
     spiOk_ = false;
     spi_ = nullptr;
-    lsm6dsrActiveCached_ = false;
+    spiProfile_ = {};
     dividerSampleFrameCounter_ = 0;
     csPin_ = -1;
     convstPin_ = -1;
@@ -104,6 +104,15 @@ void ADS8332ADCAddon::setup() {
     for (int i = 0; i < ADS8332ADCAddon::ADS8332_CHANNEL_COUNT; i++) {
         adcValues_[i] = ADS8332_RAW_HALF;
     }
+    for (StickSnapshot& snapshot : stickSnapshots_) {
+        for (uint8_t stick = 0; stick < 2; stick++) {
+            snapshot.x[stick] = ADS8332_RAW_HALF;
+            snapshot.y[stick] = ADS8332_RAW_HALF;
+        }
+        snapshot.sequence = 0;
+        snapshot.completedTimeUs = 0;
+    }
+    publishedStickSnapshot_.store(0, std::memory_order_relaxed);
     csPin_ = ADS8332_HW_CS_PIN;
     convstPin_ = ADS8332_HW_CONVST_PIN;
 
@@ -113,9 +122,11 @@ void ADS8332ADCAddon::setup() {
     }
 
     spi_ = spi;
-    lsm6dsrActiveCached_ = Storage::getInstance().getAddonOptions().lsm6dsrOptions.enabled;
-    spi_->setBaudrate(ADS8332_SPI_HZ);
-    spi_->setMode(SPI_MODE2);
+    spiProfile_ = spi_->makeBaudrateProfile(ADS8332_SPI_HZ);
+    if (!spiProfile_.valid()) {
+        return;
+    }
+    spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE2);
 
     if (convstPin_ >= 0) {
         gpio_init(static_cast<uint>(convstPin_));
@@ -128,8 +139,7 @@ void ADS8332ADCAddon::setup() {
     }
 
     spiOk_ = true;
-    const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
-    readAllChannelsOptimized(dividerChannels, 2);
+    (void)sampleDividerChannels();
 }
 
 void ADS8332ADCAddon::reinit() {
@@ -137,51 +147,117 @@ void ADS8332ADCAddon::reinit() {
         return;
     }
     dividerSampleFrameCounter_ = 0;
-    const uint8_t dividerChannels[2] = {divider_channels_.left_channel, divider_channels_.right_channel};
-    readAllChannelsOptimized(dividerChannels, 2);
+    (void)sampleDividerChannels();
 }
 
 void ADS8332ADCAddon::preprocess() {
     if (!spiOk_) {
         return;
     }
-    if (lsm6dsrActiveCached_) {
-        spi_->setMode(SPI_MODE2);
+    if (!prepareSPITransaction()) {
+        return;
     }
+
     // Sticks sample every frame; divider keys sample every 4th frame to reduce SPI/CPU load.
     const bool sampleDividerThisFrame = ((dividerSampleFrameCounter_++ & 0x03u) == 0u);
     const uint8_t countThisFrame = sampleDividerThisFrame ? preprocess_channel_count_ : 4u;
-    readAllChannelsOptimizedUnique(preprocess_channels_, countThisFrame);
-}
-
-void ADS8332ADCAddon::readAllChannelsOptimized(const uint8_t* channels, uint8_t count) {
-    if (!spi_ || !spiOk_ || channels == nullptr || count == 0) {
+    uint16_t sampledValues[ADS8332_CHANNEL_COUNT] = {};
+    if (!readAllChannelsOptimizedUnique(
+            preprocess_channels_,
+            countThisFrame,
+            sampledValues)) {
         return;
     }
 
-    // Dedupe requested channels so each conversion slot is used once.
-    uint8_t uniqueChannels[ADS8332_CHANNEL_COUNT] = {};
-    uint8_t uniqueCount = 0;
-    bool sampled[ADS8332_CHANNEL_COUNT] = {};
+    publishStickSnapshot(sampledValues);
+    if (sampleDividerThisFrame) {
+        adcValues_[divider_channels_.left_channel] =
+            sampledValues[divider_channels_.left_channel];
+        adcValues_[divider_channels_.right_channel] =
+            sampledValues[divider_channels_.right_channel];
+    }
+}
+
+void ADS8332ADCAddon::preprocessGateEarly() {
+    if (!spiOk_) {
+        return;
+    }
+    if ((dividerSampleFrameCounter_++ & 0x03u) == 0u) {
+        (void)sampleDividerChannels();
+    }
+}
+
+bool ADS8332ADCAddon::sampleGateLateAnalog() {
+    return sampleStickSnapshot();
+}
+
+bool ADS8332ADCAddon::prepareSPITransaction() {
+    if (!spi_ || !spiOk_ || !spiProfile_.valid()) {
+        return false;
+    }
+    spi_->beginTransaction(
+        spiProfile_,
+        SPI_MSB_FIRST,
+        SPI_MODE2);
+    return true;
+}
+
+bool ADS8332ADCAddon::sampleStickSnapshot() {
+    if (!prepareSPITransaction()) {
+        return false;
+    }
+
+    uint16_t sampledValues[ADS8332_CHANNEL_COUNT] = {};
+    if (!readAllChannelsOptimizedUnique(
+            preprocess_channels_,
+            4,
+            sampledValues)) {
+        return false;
+    }
+
+    publishStickSnapshot(sampledValues);
+    return true;
+}
+
+bool ADS8332ADCAddon::sampleDividerChannels() {
+    if (!prepareSPITransaction()) {
+        return false;
+    }
+
+    const uint8_t dividerChannels[2] = {
+        divider_channels_.left_channel,
+        divider_channels_.right_channel,
+    };
+    uint16_t sampledValues[ADS8332_CHANNEL_COUNT] = {};
+    if (!readAllChannelsOptimizedUnique(
+            dividerChannels,
+            2,
+            sampledValues)) {
+        return false;
+    }
+
+    adcValues_[divider_channels_.left_channel] =
+        sampledValues[divider_channels_.left_channel];
+    adcValues_[divider_channels_.right_channel] =
+        sampledValues[divider_channels_.right_channel];
+    return true;
+}
+
+bool ADS8332ADCAddon::readAllChannelsOptimizedUnique(
+    const uint8_t* channels,
+    uint8_t count,
+    uint16_t* sampledValues
+) {
+    if (!spi_ || !spiOk_ || channels == nullptr ||
+        sampledValues == nullptr || count == 0) {
+        return false;
+    }
     for (uint8_t i = 0; i < count; i++) {
-        const uint8_t channel = channels[i];
-        if (channel >= ADS8332_CHANNEL_COUNT || sampled[channel]) {
-            continue;
+        if (channels[i] >= ADS8332_CHANNEL_COUNT) {
+            return false;
         }
-        sampled[channel] = true;
-        uniqueChannels[uniqueCount++] = channel;
-    }
-    if (uniqueCount == 0) {
-        return;
     }
 
-    readAllChannelsOptimizedUnique(uniqueChannels, uniqueCount);
-}
-
-void ADS8332ADCAddon::readAllChannelsOptimizedUnique(const uint8_t* channels, uint8_t count) {
-    if (!spi_ || !spiOk_ || channels == nullptr || count == 0) {
-        return;
-    }
     // Fixed sequence per channel: discard first conversion, keep second (ADC settling).
     // READ DATA does not alter MUX; a CMR write is only required when channel changes.
     // Prime first channel so the first loop body read clocks out its discard sample.
@@ -191,11 +267,33 @@ void ADS8332ADCAddon::readAllChannelsOptimizedUnique(const uint8_t* channels, ui
         (void)ads8332ReadDataWord(spi_, csPin_);
         ads8332KickConversion(convstPin_);
         const uint16_t rawValue = ads8332ReadDataWord(spi_, csPin_);
-        adcValues_[ch] = rawValue;
+        sampledValues[ch] = rawValue;
         if (i + 1 < count) {
             ads8332ArmChannelAndKick(spi_, csPin_, convstPin_, channels[i + 1]);
         }
     }
+    return true;
+}
+
+void ADS8332ADCAddon::publishStickSnapshot(
+    const uint16_t* sampledValues
+) {
+    const uint8_t currentIndex =
+        publishedStickSnapshot_.load(std::memory_order_relaxed);
+    const uint8_t nextIndex = currentIndex ^ 1u;
+    StickSnapshot& next = stickSnapshots_[nextIndex];
+
+    for (uint8_t stick = 0; stick < 2; stick++) {
+        next.x[stick] =
+            sampledValues[stick_channels_[stick].x_channel];
+        next.y[stick] =
+            sampledValues[stick_channels_[stick].y_channel];
+    }
+    next.sequence = stickSnapshots_[currentIndex].sequence + 1u;
+    next.completedTimeUs = time_us_32();
+    publishedStickSnapshot_.store(
+        nextIndex,
+        std::memory_order_release);
 }
 
 bool ADS8332ADCAddon::configureADS8332CFR() {
@@ -224,10 +322,14 @@ bool ADS8332ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uin
     }
 
     adcMax = ADS8332_RAW_MAX;
-    s_instance_->preprocess();
-    const SamplerStickChannelConfig& channels = s_instance_->stick_channels_[stickNum];
-    x = s_instance_->adcValues_[channels.x_channel];
-    y = s_instance_->adcValues_[channels.y_channel];
+    (void)s_instance_->sampleStickSnapshot();
+    const uint8_t snapshotIndex =
+        s_instance_->publishedStickSnapshot_.load(
+            std::memory_order_acquire);
+    const StickSnapshot& snapshot =
+        s_instance_->stickSnapshots_[snapshotIndex];
+    x = snapshot.x[stickNum];
+    y = snapshot.y[stickNum];
     return true;
 }
 
@@ -244,9 +346,13 @@ bool ADS8332ADCAddon::getRawStickForProcessor(
     if (s_instance_ == nullptr || !s_instance_->spiOk_ || stickNum > 1) {
         return false;
     }
-    const SamplerStickChannelConfig& channels = s_instance_->stick_channels_[stickNum];
-    x = s_instance_->adcValues_[channels.x_channel];
-    y = s_instance_->adcValues_[channels.y_channel];
+    const uint8_t snapshotIndex =
+        s_instance_->publishedStickSnapshot_.load(
+            std::memory_order_acquire);
+    const StickSnapshot& snapshot =
+        s_instance_->stickSnapshots_[snapshotIndex];
+    x = snapshot.x[stickNum];
+    y = snapshot.y[stickNum];
     xCenter = ADS8332_RAW_HALF;
     yCenter = ADS8332_RAW_HALF;
     xValid = true;

@@ -350,7 +350,8 @@ static void mainLoopGateReportAttempted(bool submitted) {
 		usb_mark_main_gamepad_report_submitted(main_loop_gate_action_epoch)) {
 		if (!main_loop_gate_first_in_seen) {
 			main_loop_gate_state = MainLoopGateState::WAIT_FIRST_IN;
-		} else if (main_loop_gate_state != MainLoopGateState::LOCKED) {
+		} else if (main_loop_gate_state != MainLoopGateState::LOCKED &&
+			main_loop_gate_state != MainLoopGateState::RECOVERY) {
 			main_loop_gate_state = MainLoopGateState::LEARNING;
 		}
 		return;
@@ -886,10 +887,21 @@ void GP2040::run() {
 			continue;
 		}
 
-		// Pre-Process add-ons for MPGS
-		addons.PreprocessAddons();
+                // Gated frames run ordinary input work once.
+                const bool splitGateFrame =
+                        main_loop_gate_runtime_enabled;
+                if (splitGateFrame) {
+                        addons.PreprocessGateEarlyAddons();
+                } else {
+                        addons.PreprocessAddons();
+                }
 
 		gamepad->process(); // process through MPGS
+
+                if (splitGateFrame) {
+                        // A failed sample leaves the previous complete snapshot published.
+                        (void)addons.SampleGateLateAnalog();
+                }
 
 		// (Post) Process for add-ons
 		addons.ProcessAddons();

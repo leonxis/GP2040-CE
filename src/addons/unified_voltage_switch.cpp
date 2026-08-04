@@ -2,6 +2,7 @@
 
 #include "hml_back_mapping_preset.h"
 #include "addons/ads8332_adc.h"
+#include "addons/mcp3208_adc.h"
 #include "config.pb.h"
 #include "gamepad.h"
 #include "storagemanager.h"
@@ -16,7 +17,8 @@ static constexpr float CH25_T4_RATIO = 3596.0f / 4095.0f;
 
 bool UnifiedVoltageSwitchAddon::available() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    return addonOptions.ads8332Options.enabled;
+    return addonOptions.ads8332Options.enabled ||
+        addonOptions.mcp3208Options.enabled;
 }
 
 void UnifiedVoltageSwitchAddon::setup() {
@@ -94,7 +96,13 @@ void UnifiedVoltageSwitchAddon::preprocess() {
 
     uint16_t left = 0, right = 0, adcMax = 0;
     bool leftValid = false, rightValid = false;
-    const bool hasSource = ADS8332ADCAddon::getRawDividerForProcessor(left, right, adcMax, leftValid, rightValid);
+    const AddonOptions& addonOptions =
+        Storage::getInstance().getAddonOptions();
+    const bool hasSource = addonOptions.ads8332Options.enabled
+        ? ADS8332ADCAddon::getRawDividerForProcessor(
+            left, right, adcMax, leftValid, rightValid)
+        : MCP3208ADCAddon::getRawDividerForProcessor(
+            left, right, adcMax, leftValid, rightValid);
     if (!hasSource || adcMax == 0) {
         outputScope_.endFrame();
         ActionMappingCommon::resetDebounceLevel(leftDebounce_, -1);

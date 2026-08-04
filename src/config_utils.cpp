@@ -36,6 +36,7 @@
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
 #include "addons/ads8332_adc.h"
+#include "addons/mcp3208_adc.h"
 #include "addons/lsm6dsr_imu.h"
 #include "addons/tg16_input.h"
 
@@ -1635,6 +1636,8 @@ void gpioMappingsMigrationCore(Config& config)
     if (config.addonOptions.ads8332Options.enabled) {
         markAddonPinIfUsed((Pin_t)ADS8332_HW_CS_PIN);
         markAddonPinIfUsed((Pin_t)ADS8332_HW_CONVST_PIN);
+    } else if (config.addonOptions.mcp3208Options.enabled) {
+        markAddonPinIfUsed((Pin_t)MCP3208_HW_CS_PIN);
     }
     if (config.addonOptions.lsm6dsrOptions.enabled) {
         markAddonPinIfUsed((Pin_t)LSM6DSR_HW_CS_PIN);

@@ -4,6 +4,8 @@
 #include "gpaddon.h"
 #include "peripheralmanager.h"
 
+#include <atomic>
+
 #define ADS8332_ADC_ADDON_NAME "ADS8332 ADC"
 #define ADS8332_SPI_HZ 10000000u
 
@@ -19,6 +21,9 @@ public:
     virtual void preprocess();
     virtual void process();
     virtual void postprocess(bool) {}
+    virtual void preprocessGateEarly();
+    virtual bool isGateLateAnalogProvider() const { return true; }
+    virtual bool sampleGateLateAnalog();
     virtual std::string name() { return ADS8332_ADC_ADDON_NAME; }
     virtual void reinit();
     static bool getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax);
@@ -52,23 +57,36 @@ private:
         uint8_t right_channel;
     };
 
-    void readAllChannelsOptimized(const uint8_t* channels, uint8_t count);
-    void readAllChannelsOptimizedUnique(const uint8_t* channels, uint8_t count);
+    struct StickSnapshot {
+        uint16_t x[2];
+        uint16_t y[2];
+        uint32_t sequence;
+        uint32_t completedTimeUs;
+    };
+
+    bool prepareSPITransaction();
+    bool sampleStickSnapshot();
+    bool sampleDividerChannels();
+    bool readAllChannelsOptimizedUnique(
+        const uint8_t* channels,
+        uint8_t count,
+        uint16_t* sampledValues);
+    void publishStickSnapshot(const uint16_t* sampledValues);
     bool configureADS8332CFR();
 
     PeripheralSPI* spi_ = nullptr;
+    SPIBaudrateProfile spiProfile_;
     int8_t csPin_ = -1;
     int8_t convstPin_ = -1;
     bool spiOk_ = false;
-    uint16_t adcValues_[8] = {0};
+    uint16_t adcValues_[8] = {0}; // Auxiliary divider cache; sticks use published snapshots.
     uint8_t preprocess_channels_[6] = {0};
     uint8_t preprocess_channel_count_ = 0;
     SamplerStickChannelConfig stick_channels_[2];
     SamplerDividerChannelConfig divider_channels_;
-    // Cached in setup(): LSM6DSR plugin enabled flag; preprocess restores
-    // ADS8332 MODE2 after LSM6DSR leaves the shared bus in MODE0.
-    bool lsm6dsrActiveCached_ = false;
     uint8_t dividerSampleFrameCounter_ = 0;
+    StickSnapshot stickSnapshots_[2] = {};
+    std::atomic<uint8_t> publishedStickSnapshot_ { 0 };
     static ADS8332ADCAddon* s_instance_;
 };
 

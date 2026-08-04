@@ -17,6 +17,12 @@ public:
     virtual void postprocess(bool) = 0;
     virtual std::string name() = 0;
 
+    // Gated frames run ordinary pre-processing once, then may refresh only the
+    // active analog provider immediately before final add-on processing.
+    virtual void preprocessGateEarly() { preprocess(); }
+    virtual bool isGateLateAnalogProvider() const { return false; }
+    virtual bool sampleGateLateAnalog() { return false; }
+
     /**
      * Reinitialize the addon --- only implement this if it makes sense to, e.g. if this
      * addon allows its pin assignments to be changed, in which case it needs to rebuild

@@ -1,6 +1,7 @@
 #include "addons/analog_utils.h"
 #include "addons/analog.h"  // For ADC_PIN_OFFSET definition
 #include "addons/ads8332_adc.h"
+#include "addons/mcp3208_adc.h"
 #include "storagemanager.h"
 #include "eventmanager.h"
 #include "hardware/adc.h"
@@ -19,8 +20,11 @@ bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMa
     adcMax = 0;
 
     // Match Core0 addon write priority for stick fields:
-    // ADS8332 -> Onboard ADC
+    // ADS8332 -> MCP3208 -> Onboard ADC
     if (ADS8332ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
+        return true;
+    }
+    if (MCP3208ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
         return true;
     }
 
@@ -70,4 +74,3 @@ void saveCalibrationValues(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2) {
     // Save to flash
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
 }
-

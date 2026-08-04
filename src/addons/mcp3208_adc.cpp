@@ -3,6 +3,8 @@
 #include "storagemanager.h"
 #include "peripheralmanager.h"
 
+#include "pico/time.h"
+
 static const uint8_t CH25_SAMPLE_DIVIDER = 4;    // CH2/CH5 降采样：每 N 帧读取一次
 
 static const uint8_t MCP3208_CHANNELS[MCP3208_READ_CHANNELS] = {0, 1, 2, 5, 6, 7};
@@ -28,14 +30,25 @@ bool MCP3208ADCAddon::available() {
 // Static instance for webconfig to read raw stick values (no AddonManager dependency)
 MCP3208ADCAddon* MCP3208ADCAddon::s_instance = nullptr;
 
-bool MCP3208ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint16_t& x, uint16_t& y) {
+bool MCP3208ADCAddon::getRawStickForWebConfig(
+    uint8_t stickNum,
+    uint32_t& x,
+    uint32_t& y,
+    uint32_t& adcMax
+) {
     if (s_instance == nullptr || !s_instance->spiOk_ || stickNum >= MCP3208_STICK_COUNT) {
         return false;
     }
+    adcMax = MCP3208_ADC_MAX;
     // Web calibration canvas only needs stick channels.
-    s_instance->readStickChannels();
-    x = (stickNum == 0) ? s_instance->adcValues_[0] : s_instance->adcValues_[7];
-    y = (stickNum == 0) ? s_instance->adcValues_[1] : s_instance->adcValues_[6];
+    (void)s_instance->sampleStickSnapshot();
+    const uint8_t snapshotIndex =
+        s_instance->publishedStickSnapshot_.load(
+            std::memory_order_acquire);
+    const StickSnapshot& snapshot =
+        s_instance->stickSnapshots_[snapshotIndex];
+    x = snapshot.x[stickNum];
+    y = snapshot.y[stickNum];
     return true;
 }
 
@@ -52,9 +65,13 @@ bool MCP3208ADCAddon::getRawStickForProcessor(
     if (s_instance == nullptr || !s_instance->spiOk_ || stickNum >= MCP3208_STICK_COUNT) {
         return false;
     }
-    const SamplerStickChannelConfig& channels = s_instance->stick_channels_[stickNum];
-    x = s_instance->adcValues_[channels.x_channel];
-    y = s_instance->adcValues_[channels.y_channel];
+    const uint8_t snapshotIndex =
+        s_instance->publishedStickSnapshot_.load(
+            std::memory_order_acquire);
+    const StickSnapshot& snapshot =
+        s_instance->stickSnapshots_[snapshotIndex];
+    x = snapshot.x[stickNum];
+    y = snapshot.y[stickNum];
     xCenter = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
     yCenter = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
     xValid = true;
@@ -90,7 +107,15 @@ void MCP3208ADCAddon::setup() {
     // Initialize stick channels to center so first frame is neutral.
     const uint16_t center = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
     for (int i = 0; i < 8; i++) adcValues_[i] = 0;
-    adcValues_[0] = adcValues_[1] = adcValues_[6] = adcValues_[7] = center;
+    for (StickSnapshot& snapshot : stickSnapshots_) {
+        for (uint8_t stick = 0; stick < MCP3208_STICK_COUNT; stick++) {
+            snapshot.x[stick] = center;
+            snapshot.y[stick] = center;
+        }
+        snapshot.sequence = 0;
+        snapshot.completedTimeUs = 0;
+    }
+    publishedStickSnapshot_.store(0, std::memory_order_relaxed);
     ch25_sample_counter_ = 0;
     // Semantic mapping aligned with AnalogInput contract:
     // stick0 -> ANALOG_ADC_1_VRX/VRY, stick1 -> ANALOG_ADC_2_VRX/VRY.
@@ -98,7 +123,7 @@ void MCP3208ADCAddon::setup() {
     stick_channels_[1] = {7, 6}; // stick1: CH7/CH6 (VRX/VRY)
     divider_channels_ = {2, 5};  // divider left/right: CH2/CH5
 
-    // 使用硬编码的 SPI 引脚配置（与 ADS8332 相同）
+    // Fixed CS wiring shared with the ADS8332 option.
     csPin_ = MCP3208_HW_CS_PIN;
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(MCP3208_HW_SPI_BLOCK);
     if (!spi || !spi->configured) return;
@@ -108,7 +133,7 @@ void MCP3208ADCAddon::setup() {
     spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE0);
 
     spiOk_ = true;
-    readSwitchChannels();
+    (void)sampleSwitchChannels();
 }
 
 bool MCP3208ADCAddon::prepareSPITransaction() {
@@ -119,36 +144,50 @@ bool MCP3208ADCAddon::prepareSPITransaction() {
     return true;
 }
 
-void MCP3208ADCAddon::readStickChannels() {
+bool MCP3208ADCAddon::sampleStickSnapshot() {
     if (!prepareSPITransaction()) {
-        return;
+        return false;
     }
-    bool sampled[8] = {};
+
+    uint16_t xValues[MCP3208_STICK_COUNT] = {};
+    uint16_t yValues[MCP3208_STICK_COUNT] = {};
     for (int stick = 0; stick < MCP3208_STICK_COUNT; stick++) {
         const uint8_t x = stick_channels_[stick].x_channel;
         const uint8_t y = stick_channels_[stick].y_channel;
-        if (x < 8 && !sampled[x] && readChannel(x)) {
-            sampled[x] = true;
-        }
-        if (y < 8 && !sampled[y] && readChannel(y)) {
-            sampled[y] = true;
+        if (x >= 8 || y >= 8 ||
+            !readChannel(x, xValues[stick]) ||
+            !readChannel(y, yValues[stick])) {
+            return false;
         }
     }
+
+    publishStickSnapshot(xValues, yValues);
+    return true;
 }
 
-void MCP3208ADCAddon::readSwitchChannels() {
+bool MCP3208ADCAddon::sampleSwitchChannels() {
     if (!prepareSPITransaction()) {
-        return;
+        return false;
     }
-    if (divider_channels_.left_channel < 8) {
-        (void)readChannel(divider_channels_.left_channel);
+
+    uint16_t leftValue = 0;
+    uint16_t rightValue = 0;
+    if (divider_channels_.left_channel >= 8 ||
+        divider_channels_.right_channel >= 8 ||
+        !readChannel(divider_channels_.left_channel, leftValue) ||
+        !readChannel(divider_channels_.right_channel, rightValue)) {
+        return false;
     }
-    if (divider_channels_.right_channel < 8) {
-        (void)readChannel(divider_channels_.right_channel);
-    }
+
+    adcValues_[divider_channels_.left_channel] = leftValue;
+    adcValues_[divider_channels_.right_channel] = rightValue;
+    return true;
 }
 
-bool MCP3208ADCAddon::readChannel(uint8_t channel) {
+bool MCP3208ADCAddon::readChannel(
+    uint8_t channel,
+    uint16_t& value
+) {
     if (!spi_ || !spiOk_ || channel >= 8) {
         return false;
     }
@@ -160,19 +199,54 @@ bool MCP3208ADCAddon::readChannel(uint8_t channel) {
         spi_->select(csPin_);
         spi_->transfer(MCP3208_TX_COMMANDS[i], rx, 3);
         spi_->deselect();
-        adcValues_[channel] = static_cast<uint16_t>(((rx[1] & 0x0F) << 8) | rx[2]);
+        value = static_cast<uint16_t>(
+            ((rx[1] & 0x0F) << 8) | rx[2]);
         return true;
     }
     return false;
 }
 
+void MCP3208ADCAddon::publishStickSnapshot(
+    const uint16_t* xValues,
+    const uint16_t* yValues
+) {
+    const uint8_t currentIndex =
+        publishedStickSnapshot_.load(std::memory_order_relaxed);
+    const uint8_t nextIndex = currentIndex ^ 1u;
+    StickSnapshot& next = stickSnapshots_[nextIndex];
+
+    for (uint8_t stick = 0; stick < MCP3208_STICK_COUNT; stick++) {
+        next.x[stick] = xValues[stick];
+        next.y[stick] = yValues[stick];
+    }
+    next.sequence = stickSnapshots_[currentIndex].sequence + 1u;
+    next.completedTimeUs = time_us_32();
+    publishedStickSnapshot_.store(
+        nextIndex,
+        std::memory_order_release);
+}
+
 void MCP3208ADCAddon::preprocess() {
     if (!spiOk_) return;
-    readStickChannels();
+    (void)sampleStickSnapshot();
     if (++ch25_sample_counter_ >= CH25_SAMPLE_DIVIDER) {
         ch25_sample_counter_ = 0;
-        readSwitchChannels();
+        (void)sampleSwitchChannels();
     }
+}
+
+void MCP3208ADCAddon::preprocessGateEarly() {
+    if (!spiOk_) {
+        return;
+    }
+    if (++ch25_sample_counter_ >= CH25_SAMPLE_DIVIDER) {
+        ch25_sample_counter_ = 0;
+        (void)sampleSwitchChannels();
+    }
+}
+
+bool MCP3208ADCAddon::sampleGateLateAnalog() {
+    return sampleStickSnapshot();
 }
 
 void MCP3208ADCAddon::process() {
@@ -182,6 +256,6 @@ void MCP3208ADCAddon::process() {
 void MCP3208ADCAddon::reinit() {
     ch25_sample_counter_ = 0;
     if (spiOk_) {
-        readSwitchChannels();
+        (void)sampleSwitchChannels();
     }
 }

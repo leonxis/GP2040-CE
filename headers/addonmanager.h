@@ -25,11 +25,14 @@ public:
     bool LoadUSBAddon(GPAddon*);
     void ReinitializeAddons();
     void PreprocessAddons();
+    void PreprocessGateEarlyAddons();
+    bool SampleGateLateAnalog();
     void ProcessAddons();
     void PostprocessAddons(bool);
     GPAddon * GetAddon(std::string); // hack for NeoPicoLED
 private:
     std::vector<AddonBlock*> addons;    // addons currently loaded
+    GPAddon* gateLateAnalogProvider = nullptr;
 };
 
 #endif

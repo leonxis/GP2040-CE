@@ -7,6 +7,9 @@ bool AddonManager::LoadAddon(GPAddon* addon) {
         addon->setup();
         block->ptr = addon;
         addons.push_back(block);
+        if (addon->isGateLateAnalogProvider()) {
+            gateLateAnalogProvider = addon;
+        }
         return true;
     } else {
         delete addon; // Don't use the memory if we don't have to   
@@ -34,6 +37,17 @@ void AddonManager::PreprocessAddons() {
     for (std::vector<AddonBlock*>::iterator it = addons.begin(); it != addons.end(); it++) {
         (*it)->ptr->preprocess();
     }
+}
+
+void AddonManager::PreprocessGateEarlyAddons() {
+    for (std::vector<AddonBlock*>::iterator it = addons.begin(); it != addons.end(); it++) {
+        (*it)->ptr->preprocessGateEarly();
+    }
+}
+
+bool AddonManager::SampleGateLateAnalog() {
+    return gateLateAnalogProvider != nullptr &&
+        gateLateAnalogProvider->sampleGateLateAnalog();
 }
 
 void AddonManager::ProcessAddons() {

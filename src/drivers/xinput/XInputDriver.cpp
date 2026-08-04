@@ -61,6 +61,20 @@ static void xinput_reset(uint8_t rhport) {
     usb_notify_main_gamepad_usb_reset();
 }
 
+static bool queue_xinput_out_transfer() {
+    if (endpoint_out == 0 || usbd_edpt_busy(0, endpoint_out)) {
+        return false;
+    }
+    if (!usbd_edpt_claim(0, endpoint_out)) {
+        return false;
+    }
+    return usbd_edpt_xfer(
+        0,
+        endpoint_out,
+        xinput_out_buffer,
+        XINPUT_OUT_SIZE);
+}
+
 static uint16_t xinput_open(uint8_t rhport, tusb_desc_interface_t const *itf_descriptor, uint16_t max_length) {
     uint16_t driver_length = 0;
     // Xbox 360 Vendor USB Interfaces: Control, Audio, Plug-in, Security
@@ -128,8 +142,9 @@ static bool xinput_xfer_callback(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
         }
     }
 
-    if (ep_addr == endpoint_out)
-        usbd_edpt_xfer(0, endpoint_out, xinput_out_buffer, XINPUT_OUT_SIZE);
+    if (ep_addr == endpoint_out) {
+        (void)queue_xinput_out_transfer();
+    }
 
     return true;
 }
@@ -347,19 +362,14 @@ bool XInputDriver::process(Gamepad * gamepad) {
     // Send continuously while endpoint is available so idle rate matches USB poll rate.
     if (canStartInTransfer && usbd_edpt_claim(0, endpoint_in)) {
         if (usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport))) {
-            usbd_edpt_release(0, endpoint_in);
             memcpy(last_report, &xinputReport, sizeof(XInputReport)); // save if we sent it
             reportSent = true;
         }
     }
 
-    // clear potential initial uncaught data in endpoint_out from before registration of xfer_cb
-    if (tud_ready() &&
-        (endpoint_out != 0) && (!usbd_edpt_busy(0, endpoint_out)))
-    {
-        usbd_edpt_claim(0, endpoint_out);									 // Take control of OUT endpoint
-        usbd_edpt_xfer(0, endpoint_out, xinput_out_buffer, XINPUT_OUT_SIZE); 		 // Retrieve report buffer
-        usbd_edpt_release(0, endpoint_out);									 // Release control of OUT endpoint
+    // Keep OUT armed; this also catches data sent before the first callback.
+    if (tud_ready()) {
+        (void)queue_xinput_out_transfer();
     }
 
     //---------------
