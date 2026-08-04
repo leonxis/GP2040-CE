@@ -374,15 +374,15 @@ static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16
 	if (ds4z > 32767) ds4z = 32767; else if (ds4z < -32767) ds4z = -32767;
 	gamepad->auxState.sensors.gyroscope.enabled = true;
 	gamepad->auxState.sensors.gyroscope.active = true;
-	gamepad->auxState.sensors.gyroscope.x = (uint16_t)(int16_t)ds4x;
-	gamepad->auxState.sensors.gyroscope.y = (uint16_t)(int16_t)ds4y;
-	gamepad->auxState.sensors.gyroscope.z = (uint16_t)(int16_t)ds4z;
+	gamepad->auxState.sensors.gyroscope.x = (int16_t)ds4x;
+	gamepad->auxState.sensors.gyroscope.y = (int16_t)ds4y;
+	gamepad->auxState.sensors.gyroscope.z = (int16_t)ds4z;
 	gamepad->auxState.sensors.accelerometer.enabled = true;
 	gamepad->auxState.sensors.accelerometer.active = true;
 	// DS4 协议轴映射：X 取反，Y/Z 交换。
-	gamepad->auxState.sensors.accelerometer.x = (uint16_t)(int16_t)(-(int32_t)rawA[0]);
-	gamepad->auxState.sensors.accelerometer.y = (uint16_t)(int16_t)rawA[2];
-	gamepad->auxState.sensors.accelerometer.z = (uint16_t)(int16_t)rawA[1];
+	gamepad->auxState.sensors.accelerometer.x = (int16_t)(-(int32_t)rawA[0]);
+	gamepad->auxState.sensors.accelerometer.y = (int16_t)rawA[2];
+	gamepad->auxState.sensors.accelerometer.z = (int16_t)rawA[1];
 }
 
 // 与 outputGyroToDS4 相同的角速度标定；加速度按 LSM6DSR 4g 与 Nintendo 官方 int16 标度（≈ raw/2）对齐 deku 文档

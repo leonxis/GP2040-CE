@@ -572,17 +572,17 @@ void WiiExtensionInput::updateMotionState() {
 
     gamepad->auxState.sensors.accelerometer.enabled = isAccelerometer;
     if (isAccelerometer) {
-        gamepad->auxState.sensors.accelerometer.x = accelerometerX;
-        gamepad->auxState.sensors.accelerometer.y = accelerometerY;
-        gamepad->auxState.sensors.accelerometer.z = accelerometerZ;
+        gamepad->auxState.sensors.accelerometer.x = (int16_t)accelerometerX;
+        gamepad->auxState.sensors.accelerometer.y = (int16_t)accelerometerY;
+        gamepad->auxState.sensors.accelerometer.z = (int16_t)accelerometerZ;
         gamepad->auxState.sensors.accelerometer.active = true;
     }
 
     gamepad->auxState.sensors.gyroscope.enabled = isGyroscope;
     if (isGyroscope) {
-        gamepad->auxState.sensors.gyroscope.x = gyroscopeX;
-        gamepad->auxState.sensors.gyroscope.y = gyroscopeY;
-        gamepad->auxState.sensors.gyroscope.z = gyroscopeZ;
+        gamepad->auxState.sensors.gyroscope.x = (int16_t)gyroscopeX;
+        gamepad->auxState.sensors.gyroscope.y = (int16_t)gyroscopeY;
+        gamepad->auxState.sensors.gyroscope.z = (int16_t)gyroscopeZ;
         gamepad->auxState.sensors.gyroscope.active = true;
     }
 

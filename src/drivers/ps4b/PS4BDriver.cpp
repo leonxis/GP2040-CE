@@ -641,15 +641,15 @@ bool PS4BDriver::process(Gamepad * gamepad) {
 
     // DS4 USB report: little-endian int16; sensor block byte 12=temp, 13-18=gyro X/Z/Y, 19-24=accel X/Y/Z (ControllersInfo, Linux hid-sony)
     if (gamepad->auxState.sensors.accelerometer.enabled) {
-        ps4Report.gamepad.sensorData.accelX = (int16_t)gamepad->auxState.sensors.accelerometer.x;
-        ps4Report.gamepad.sensorData.accelY = (int16_t)gamepad->auxState.sensors.accelerometer.y;
-        ps4Report.gamepad.sensorData.accelZ = (int16_t)gamepad->auxState.sensors.accelerometer.z;
+        ps4Report.gamepad.sensorData.accelX = gamepad->auxState.sensors.accelerometer.x;
+        ps4Report.gamepad.sensorData.accelY = gamepad->auxState.sensors.accelerometer.y;
+        ps4Report.gamepad.sensorData.accelZ = gamepad->auxState.sensors.accelerometer.z;
     }
 
     if (gamepad->auxState.sensors.gyroscope.enabled) {
-        ps4Report.gamepad.sensorData.gyroX = (int16_t)gamepad->auxState.sensors.gyroscope.x;
-        ps4Report.gamepad.sensorData.gyroZ = (int16_t)gamepad->auxState.sensors.gyroscope.z;
-        ps4Report.gamepad.sensorData.gyroY = (int16_t)gamepad->auxState.sensors.gyroscope.y;
+        ps4Report.gamepad.sensorData.gyroX = gamepad->auxState.sensors.gyroscope.x;
+        ps4Report.gamepad.sensorData.gyroZ = gamepad->auxState.sensors.gyroscope.z;
+        ps4Report.gamepad.sensorData.gyroY = gamepad->auxState.sensors.gyroscope.y;
     }
 
     // Wake up TinyUSB device

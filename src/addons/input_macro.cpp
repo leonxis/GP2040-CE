@@ -5,21 +5,11 @@
 #include "drivermanager.h"
 
 bool InputMacro::available() {
-    // Macro Button initialized by void Gamepad::setup()
-    GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
-    for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++)
-    {
-        switch( pinMappings[pin].action ) {
-            case GpioAction::BUTTON_PRESS_MACRO:
-            case GpioAction::BUTTON_PRESS_MACRO_1:
-            case GpioAction::BUTTON_PRESS_MACRO_2:
-            case GpioAction::BUTTON_PRESS_MACRO_3:
-            case GpioAction::BUTTON_PRESS_MACRO_4:
-            case GpioAction::BUTTON_PRESS_MACRO_5:
-            case GpioAction::BUTTON_PRESS_MACRO_6:
-                return true;
-            default:
-                break;
+    const MacroOptions& macroOptions = Storage::getInstance().getAddonOptions().macroOptions;
+    for (int i = 0; i < MAX_MACRO_LIMIT; i++) {
+        const Macro& macro = macroOptions.macroList[i];
+        if (macro.enabled && macro.macroInputs_count > 0) {
+            return true;
         }
     }
     return false;
@@ -89,10 +79,15 @@ void InputMacro::checkMacroPress() {
     // Go through our macro list
     pressedMacro = -1;
     for(int i = 0; i < MAX_MACRO_LIMIT; i++) {
-        if ( inputMacroOptions->macroList[i].enabled == false ) // Skip disabled macros
+        if (!inputMacroOptions->macroList[i].enabled ||
+            inputMacroOptions->macroList[i].macroInputs_count == 0)
             continue;
         Macro * macro = &inputMacroOptions->macroList[i];
-        if ( macro->useMacroTriggerButton ) {
+        if ( gamepad->addonMacroTriggerMask & (1U << i) ) {
+            // Addon mappings are an independent trigger source.
+            pressedMacro = i;
+            break;
+        } else if ( macro->useMacroTriggerButton ) {
             // Use Gamepad Button for Macro Trigger
             if ((allPins & macroButtonMask) &&
                 ((gamepad->state.buttons & macro->macroTriggerButton) ||
@@ -102,10 +97,6 @@ void InputMacro::checkMacroPress() {
             }
         } else if ( allPins & macroPinMasks[i] ) {
             // Use Pin Manager for Macro Trigger
-            pressedMacro = i;
-            break;
-        } else if ( gamepad->addonMacroTriggerMask & (1U << i) ) {
-            // Use Addon Macro Trigger Mask (e.g. from back buttons, touchpad, FN keys)
             pressedMacro = i;
             break;
         }
@@ -121,6 +112,12 @@ void InputMacro::checkMacroAction() {
     }
 
     bool newPress = macroInputPressed && (prevMacroInputPressed ^ macroInputPressed);
+
+    if (!isMacroRunning && macroPosition == -1) {
+        isMacroTriggerHeld = false;
+        prevMacroInputPressed = false;
+        return;
+    }
 
     // Check to see if we should change the current macro (or turn off based on input)
     if ( inputMacroOptions->macroList[macroPosition].macroType == ON_PRESS ) {
@@ -163,9 +160,10 @@ void InputMacro::runCurrentMacro() {
 
     Macro& macro = inputMacroOptions->macroList[macroPosition];
 
-    // Stop Macro if released (ON PRESS & ON HOLD REPEAT)
-    if (inputMacroOptions->macroList[macroPosition].macroType == ON_HOLD_REPEAT &&
-            !isMacroTriggerHeld ) {
+    // Interruptible hold-repeat macros stop immediately when their trigger is released.
+    if (macro.macroType == ON_HOLD_REPEAT &&
+            macro.interruptible &&
+            !isMacroTriggerHeld) {
         reset();
         return;
     }
@@ -198,8 +196,10 @@ void InputMacro::runCurrentMacro() {
         macroInputPosition++;
         
         if (macroInputPosition >= (macro.macroInputs_count)) {
-            if ( macro.macroType == ON_PRESS ) {
-                reset(); // On press = no more macro
+            if (macro.macroType == ON_PRESS ||
+                (macro.macroType == ON_HOLD_REPEAT && !isMacroTriggerHeld)) {
+                // Non-interruptible hold-repeat macros finish the current pass after release.
+                reset();
             } else {
                 restart(macro); // On Hold-Repeat or On Toggle = start macro again
             }

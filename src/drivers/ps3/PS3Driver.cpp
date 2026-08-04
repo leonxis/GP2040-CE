@@ -239,9 +239,9 @@ bool PS3Driver::process(Gamepad * gamepad) {
         ps3Report.dpadDownAnalog    = gamepad->state.dpad & GAMEPAD_MASK_DOWN ? 0xFF : 0;
 
         if (gamepad->auxState.sensors.accelerometer.enabled) {
-            ps3Report.accelerometerX = ((gamepad->auxState.sensors.accelerometer.x & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.x & 0xFF00) >> 8);
-            ps3Report.accelerometerY = ((gamepad->auxState.sensors.accelerometer.y & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.y & 0xFF00) >> 8);
-            ps3Report.accelerometerZ = ((gamepad->auxState.sensors.accelerometer.z & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.z & 0xFF00) >> 8);
+            ps3Report.accelerometerX = (uint16_t)gamepad->auxState.sensors.accelerometer.x;
+            ps3Report.accelerometerY = (uint16_t)gamepad->auxState.sensors.accelerometer.y;
+            ps3Report.accelerometerZ = (uint16_t)gamepad->auxState.sensors.accelerometer.z;
         } else {
             ps3Report.accelerometerX = PS3_CENTER_SIXAXIS;
             ps3Report.accelerometerY = PS3_CENTER_SIXAXIS;
@@ -249,7 +249,7 @@ bool PS3Driver::process(Gamepad * gamepad) {
         }
 
         if (gamepad->auxState.sensors.gyroscope.enabled) {
-            ps3Report.gyroscopeZ = ((gamepad->auxState.sensors.gyroscope.z & 0xFF) << 8) | ((gamepad->auxState.sensors.gyroscope.z & 0xFF00) >> 8);
+            ps3Report.gyroscopeZ = (uint16_t)gamepad->auxState.sensors.gyroscope.z;
             ps3Report.reserved4 = PS3_CENTER_SIXAXIS;
         } else {
             ps3Report.gyroscopeZ = PS3_CENTER_SIXAXIS;
@@ -396,9 +396,9 @@ bool PS3Driver::process(Gamepad * gamepad) {
             ps3ReportAlt.gamepad.dpadDownAnalog    = gamepad->state.dpad & GAMEPAD_MASK_DOWN  ? PS3_JOYSTICK_MAX : PS3_JOYSTICK_MIN;
 
             if (gamepad->auxState.sensors.accelerometer.enabled) {
-                ps3ReportAlt.gamepad.accelerometerX = ((gamepad->auxState.sensors.accelerometer.x & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.x & 0xFF00) >> 8);
-                ps3ReportAlt.gamepad.accelerometerY = ((gamepad->auxState.sensors.accelerometer.y & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.y & 0xFF00) >> 8);
-                ps3ReportAlt.gamepad.accelerometerZ = ((gamepad->auxState.sensors.accelerometer.z & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.z & 0xFF00) >> 8);
+                ps3ReportAlt.gamepad.accelerometerX = (uint16_t)gamepad->auxState.sensors.accelerometer.x;
+                ps3ReportAlt.gamepad.accelerometerY = (uint16_t)gamepad->auxState.sensors.accelerometer.y;
+                ps3ReportAlt.gamepad.accelerometerZ = (uint16_t)gamepad->auxState.sensors.accelerometer.z;
             } else {
                 ps3ReportAlt.gamepad.accelerometerX = PS3_CENTER_SIXAXIS;
                 ps3ReportAlt.gamepad.accelerometerY = PS3_CENTER_SIXAXIS;
@@ -406,7 +406,7 @@ bool PS3Driver::process(Gamepad * gamepad) {
             }
 
             if (gamepad->auxState.sensors.gyroscope.enabled) {
-                ps3ReportAlt.gamepad.gyroscopeZ = ((gamepad->auxState.sensors.gyroscope.z & 0xFF) << 8) | ((gamepad->auxState.sensors.gyroscope.z & 0xFF00) >> 8);
+                ps3ReportAlt.gamepad.gyroscopeZ = (uint16_t)gamepad->auxState.sensors.gyroscope.z;
             } else {
                 ps3ReportAlt.gamepad.gyroscopeZ = PS3_CENTER_SIXAXIS;
             }

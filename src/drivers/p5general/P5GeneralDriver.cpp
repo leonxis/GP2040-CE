@@ -167,16 +167,16 @@ bool P5GeneralDriver::process(Gamepad * gamepad) {
 
     // gyroscope
     if (gamepad->auxState.sensors.gyroscope.enabled) {
-        p5GeneralReport.gyroscope.x = ((gamepad->auxState.sensors.gyroscope.x & 0xFF) << 8) | ((gamepad->auxState.sensors.gyroscope.x & 0xFF00) >> 8);
-        p5GeneralReport.gyroscope.y = ((gamepad->auxState.sensors.gyroscope.y & 0xFF) << 8) | ((gamepad->auxState.sensors.gyroscope.y & 0xFF00) >> 8);
-        p5GeneralReport.gyroscope.z = ((gamepad->auxState.sensors.gyroscope.z & 0xFF) << 8) | ((gamepad->auxState.sensors.gyroscope.z & 0xFF00) >> 8);
+        p5GeneralReport.gyroscope.x = gamepad->auxState.sensors.gyroscope.x;
+        p5GeneralReport.gyroscope.y = gamepad->auxState.sensors.gyroscope.y;
+        p5GeneralReport.gyroscope.z = gamepad->auxState.sensors.gyroscope.z;
     }
 
     // accelerometer
     if (gamepad->auxState.sensors.accelerometer.enabled) {
-        p5GeneralReport.accelerometer.x = ((gamepad->auxState.sensors.accelerometer.x & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.x & 0xFF00) >> 8);
-        p5GeneralReport.accelerometer.y = ((gamepad->auxState.sensors.accelerometer.y & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.y & 0xFF00) >> 8);
-        p5GeneralReport.accelerometer.z = ((gamepad->auxState.sensors.accelerometer.z & 0xFF) << 8) | ((gamepad->auxState.sensors.accelerometer.z & 0xFF00) >> 8);
+        p5GeneralReport.accelerometer.x = gamepad->auxState.sensors.accelerometer.x;
+        p5GeneralReport.accelerometer.y = gamepad->auxState.sensors.accelerometer.y;
+        p5GeneralReport.accelerometer.z = gamepad->auxState.sensors.accelerometer.z;
     }
 
     // if the touchpad is pressed (note A2 vs. S1 choice above), emulate one finger of the touchpad
