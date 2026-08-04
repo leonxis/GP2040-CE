@@ -17,6 +17,14 @@ static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
     {0x07, 0xC0, 0x00}, // CH7
 };
 
+static inline bool gateDeadlineReached(
+    const GateLateAnalogSampleRequest& request,
+    uint32_t nowUs
+) {
+    return request.enforceDeadline &&
+        static_cast<int32_t>(nowUs - request.deadlineUs) >= 0;
+}
+
 bool MCP3208ADCAddon::available() {
     const AddonOptions& addonOptions =
         Storage::getInstance().getAddonOptions();
@@ -103,6 +111,7 @@ void MCP3208ADCAddon::setup() {
     spi_ = nullptr;
     spiProfile_ = {};
     spiOk_ = false;
+    gateLateBurstActive_ = false;
     csPin_ = -1;
     // Initialize stick channels to center so first frame is neutral.
     const uint16_t center = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
@@ -144,8 +153,10 @@ bool MCP3208ADCAddon::prepareSPITransaction() {
     return true;
 }
 
-bool MCP3208ADCAddon::sampleStickSnapshot() {
-    if (!prepareSPITransaction()) {
+bool MCP3208ADCAddon::sampleStickSnapshot(
+    const GateLateAnalogSampleRequest& request
+) {
+    if (!gateLateBurstActive_ && !prepareSPITransaction()) {
         return false;
     }
 
@@ -160,9 +171,7 @@ bool MCP3208ADCAddon::sampleStickSnapshot() {
             return false;
         }
     }
-
-    publishStickSnapshot(xValues, yValues);
-    return true;
+    return publishStickSnapshot(xValues, yValues, request);
 }
 
 bool MCP3208ADCAddon::sampleSwitchChannels() {
@@ -206,9 +215,10 @@ bool MCP3208ADCAddon::readChannel(
     return false;
 }
 
-void MCP3208ADCAddon::publishStickSnapshot(
+bool MCP3208ADCAddon::publishStickSnapshot(
     const uint16_t* xValues,
-    const uint16_t* yValues
+    const uint16_t* yValues,
+    const GateLateAnalogSampleRequest& request
 ) {
     const uint8_t currentIndex =
         publishedStickSnapshot_.load(std::memory_order_relaxed);
@@ -220,10 +230,15 @@ void MCP3208ADCAddon::publishStickSnapshot(
         next.y[stick] = yValues[stick];
     }
     next.sequence = stickSnapshots_[currentIndex].sequence + 1u;
-    next.completedTimeUs = time_us_32();
+    const uint32_t completedTimeUs = time_us_32();
+    if (gateDeadlineReached(request, completedTimeUs)) {
+        return false;
+    }
+    next.completedTimeUs = completedTimeUs;
     publishedStickSnapshot_.store(
         nextIndex,
         std::memory_order_release);
+    return true;
 }
 
 void MCP3208ADCAddon::preprocess() {
@@ -245,8 +260,25 @@ void MCP3208ADCAddon::preprocessGateEarly() {
     }
 }
 
-bool MCP3208ADCAddon::sampleGateLateAnalog() {
-    return sampleStickSnapshot();
+bool MCP3208ADCAddon::beginGateLateAnalogBurst() {
+    gateLateBurstActive_ = prepareSPITransaction();
+    return gateLateBurstActive_;
+}
+
+bool MCP3208ADCAddon::sampleGateLateAnalog(
+    const GateLateAnalogSampleRequest& request
+) {
+    return sampleStickSnapshot(request);
+}
+
+void MCP3208ADCAddon::endGateLateAnalogBurst() {
+    gateLateBurstActive_ = false;
+}
+
+uint32_t MCP3208ADCAddon::gateLateAnalogCompletedTimeUs() const {
+    const uint8_t snapshotIndex =
+        publishedStickSnapshot_.load(std::memory_order_acquire);
+    return stickSnapshots_[snapshotIndex].completedTimeUs;
 }
 
 void MCP3208ADCAddon::process() {

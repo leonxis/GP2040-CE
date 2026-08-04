@@ -31,6 +31,7 @@ public:
 	virtual void postprocess(bool) {}
 	virtual std::string name() { return LSM6DSR_IMU_ADDON_NAME; }
 	virtual void reinit();
+        static void restoreGateSPIProfile();
 private:
 	void buildEngageMasks();   // 根据 engageKeys 填充 engageButtonMask / engageDpadMask（仅支持上下左右、B1-B4、L1/L2/R1/R2、S1/S2）
 	void applyOneEuroFilter(float teS); // 一欧元滤波：低通平滑，alpha = 1/(1+tau/Te)

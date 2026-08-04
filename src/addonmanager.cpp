@@ -45,9 +45,34 @@ void AddonManager::PreprocessGateEarlyAddons() {
     }
 }
 
-bool AddonManager::SampleGateLateAnalog() {
+GateLateAnalogSource AddonManager::GetGateLateAnalogSource() const {
+    return gateLateAnalogProvider != nullptr
+        ? gateLateAnalogProvider->gateLateAnalogSource()
+        : GateLateAnalogSource::None;
+}
+
+bool AddonManager::BeginGateLateAnalogBurst() {
     return gateLateAnalogProvider != nullptr &&
-        gateLateAnalogProvider->sampleGateLateAnalog();
+        gateLateAnalogProvider->beginGateLateAnalogBurst();
+}
+
+bool AddonManager::SampleGateLateAnalog(
+    const GateLateAnalogSampleRequest& request
+) {
+    return gateLateAnalogProvider != nullptr &&
+        gateLateAnalogProvider->sampleGateLateAnalog(request);
+}
+
+void AddonManager::EndGateLateAnalogBurst() {
+    if (gateLateAnalogProvider != nullptr) {
+        gateLateAnalogProvider->endGateLateAnalogBurst();
+    }
+}
+
+uint32_t AddonManager::GetGateLateAnalogCompletedTimeUs() const {
+    return gateLateAnalogProvider != nullptr
+        ? gateLateAnalogProvider->gateLateAnalogCompletedTimeUs()
+        : 0;
 }
 
 void AddonManager::ProcessAddons() {

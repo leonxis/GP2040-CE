@@ -26,7 +26,11 @@ public:
     void ReinitializeAddons();
     void PreprocessAddons();
     void PreprocessGateEarlyAddons();
-    bool SampleGateLateAnalog();
+    GateLateAnalogSource GetGateLateAnalogSource() const;
+    bool BeginGateLateAnalogBurst();
+    bool SampleGateLateAnalog(const GateLateAnalogSampleRequest&);
+    void EndGateLateAnalogBurst();
+    uint32_t GetGateLateAnalogCompletedTimeUs() const;
     void ProcessAddons();
     void PostprocessAddons(bool);
     GPAddon * GetAddon(std::string); // hack for NeoPicoLED

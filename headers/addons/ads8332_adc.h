@@ -23,7 +23,14 @@ public:
     virtual void postprocess(bool) {}
     virtual void preprocessGateEarly();
     virtual bool isGateLateAnalogProvider() const { return true; }
-    virtual bool sampleGateLateAnalog();
+    virtual GateLateAnalogSource gateLateAnalogSource() const {
+        return GateLateAnalogSource::ADS8332;
+    }
+    virtual bool beginGateLateAnalogBurst();
+    virtual bool sampleGateLateAnalog(
+        const GateLateAnalogSampleRequest& request);
+    virtual void endGateLateAnalogBurst();
+    virtual uint32_t gateLateAnalogCompletedTimeUs() const;
     virtual std::string name() { return ADS8332_ADC_ADDON_NAME; }
     virtual void reinit();
     static bool getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax);
@@ -65,13 +72,16 @@ private:
     };
 
     bool prepareSPITransaction();
-    bool sampleStickSnapshot();
+    bool sampleStickSnapshot(
+        const GateLateAnalogSampleRequest& request = {});
     bool sampleDividerChannels();
     bool readAllChannelsOptimizedUnique(
         const uint8_t* channels,
         uint8_t count,
         uint16_t* sampledValues);
-    void publishStickSnapshot(const uint16_t* sampledValues);
+    bool publishStickSnapshot(
+        const uint16_t* sampledValues,
+        const GateLateAnalogSampleRequest& request = {});
     bool configureADS8332CFR();
 
     PeripheralSPI* spi_ = nullptr;
@@ -85,6 +95,7 @@ private:
     SamplerStickChannelConfig stick_channels_[2];
     SamplerDividerChannelConfig divider_channels_;
     uint8_t dividerSampleFrameCounter_ = 0;
+    bool gateLateBurstActive_ = false;
     StickSnapshot stickSnapshots_[2] = {};
     std::atomic<uint8_t> publishedStickSnapshot_ { 0 };
     static ADS8332ADCAddon* s_instance_;

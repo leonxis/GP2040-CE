@@ -101,6 +101,15 @@ static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t v
 	spi->deselect();
 }
 
+void LSM6DSRIMUAddon::restoreGateSPIProfile() {
+        if (s_spi != nullptr && s_spiProfile.valid()) {
+                s_spi->beginTransaction(
+                        s_spiProfile,
+                        SPI_MSB_FIRST,
+                        SPI_MODE0);
+        }
+}
+
 bool LSM6DSRIMUAddon::available() {
 	const InputMode inputMode = Storage::getInstance().getGamepadOptions().inputMode;
 	if (inputMode != INPUT_MODE_PS4 && inputMode != INPUT_MODE_PS4B && inputMode != INPUT_MODE_SWITCH_PRO) {

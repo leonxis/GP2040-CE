@@ -66,6 +66,12 @@ static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static const uint32_t MAIN_LOOP_GATE_WAIT_TIMEOUT_US = 1000;
 static const uint32_t MAIN_LOOP_GATE_SUSPEND_SCAN_US = 4000;
 static const uint32_t MAIN_LOOP_GATE_INTERVAL_2MS_US = 1500;
+static const uint32_t MAIN_LOOP_GATE_USB_FRAME_US = 1000;
+static const uint32_t MAIN_LOOP_GATE_PHASE_SPREAD_LIMIT_US = 125;
+static const uint32_t MAIN_LOOP_GATE_COMPLETION_TO_TOKEN_GUARD_US = 64;
+static const uint32_t MAIN_LOOP_GATE_ENDPOINT_READY_GUARD_US = 16;
+static const uint32_t MAIN_LOOP_GATE_WCET_MARGIN_US = 16;
+static const uint8_t MAIN_LOOP_GATE_WCET_WINDOW = 64;
 static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
@@ -110,6 +116,67 @@ enum class MainLoopGateAction {
 	ScanSuspended,
 };
 
+enum class MainLoopGateCompletionResult {
+        Baseline,
+        Normal,
+        IntervalMutation,
+        PhaseMutation,
+};
+
+struct MainLoopGateRollingMax {
+        uint32_t samples[MAIN_LOOP_GATE_WCET_WINDOW] = {};
+        uint8_t nextIndex = 0;
+        uint8_t count = 0;
+        uint32_t maximum = 0;
+
+        void reset() {
+                for (uint8_t i = 0; i < MAIN_LOOP_GATE_WCET_WINDOW; i++) {
+                        samples[i] = 0;
+                }
+                nextIndex = 0;
+                count = 0;
+                maximum = 0;
+        }
+
+        void record(uint32_t value) {
+                const bool full = count == MAIN_LOOP_GATE_WCET_WINDOW;
+                const uint32_t replaced = full ? samples[nextIndex] : 0;
+                samples[nextIndex] = value;
+                nextIndex++;
+                if (nextIndex == MAIN_LOOP_GATE_WCET_WINDOW) {
+                        nextIndex = 0;
+                }
+                if (!full) {
+                        count++;
+                }
+                if (value >= maximum) {
+                        maximum = value;
+                        return;
+                }
+                if (full && replaced == maximum) {
+                        maximum = 0;
+                        for (uint8_t i = 0; i < count; i++) {
+                                if (samples[i] > maximum) {
+                                        maximum = samples[i];
+                                }
+                        }
+                }
+        }
+};
+
+struct MainLoopGateFrameSchedule {
+        bool valid = false;
+        uint32_t nextTokenEarliestUs = 0;
+        uint32_t armDeadlineUs = 0;
+        uint32_t finalizeDeadlineUs = 0;
+};
+
+struct MainLoopGateLateSampleResult {
+        uint8_t sampleSets = 0;
+        bool busTouched = false;
+        bool deadlineOverrun = false;
+};
+
 static MainLoopGateState main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
 static uint32_t main_loop_gate_epoch = 0;
 static uint32_t main_loop_gate_complete_seq = 0;
@@ -123,11 +190,147 @@ static uint32_t main_loop_gate_phase_min_us = 0xFFFFFFFFu;
 static uint32_t main_loop_gate_phase_max_us = 0;
 static uint32_t main_loop_gate_interval_max_us = 0;
 static uint16_t main_loop_gate_stable_completions = 0;
+static GateLateAnalogSource main_loop_gate_analog_source =
+        GateLateAnalogSource::None;
+static MainLoopGateRollingMax main_loop_gate_ads8332_burst_setup_wcet;
+static MainLoopGateRollingMax main_loop_gate_ads8332_sample_wcet;
+static MainLoopGateRollingMax main_loop_gate_mcp3208_burst_setup_wcet;
+static MainLoopGateRollingMax main_loop_gate_mcp3208_sample_wcet;
+static MainLoopGateRollingMax main_loop_gate_final_process_wcet;
+static MainLoopGateRollingMax main_loop_gate_endpoint_arm_wcet;
+static MainLoopGateFrameSchedule main_loop_gate_frame_schedule;
+static uint32_t main_loop_gate_sample_age_last_us = 0;
+static uint32_t main_loop_gate_sample_age_max_us = 0;
+static uint32_t main_loop_gate_deadline_miss_count = 0;
+static uint32_t main_loop_gate_phase_mutation_count = 0;
+static uint32_t main_loop_gate_late_sample_set_count = 0;
+static uint32_t main_loop_gate_repeated_sample_frame_count = 0;
+static uint32_t main_loop_gate_frame_without_fresh_sample_count = 0;
+static uint32_t main_loop_gate_max_sample_sets_per_frame = 0;
 static bool main_loop_suspend_scan_initialized = false;
 static uint32_t main_loop_suspend_last_gpio = 0;
 static absolute_time_t main_loop_suspend_next_scan = nil_time;
 
 extern void processCompositeHID(Gamepad *gamepad);
+
+static inline bool mainLoopGateTimeReached(
+        uint32_t nowUs,
+        uint32_t deadlineUs) {
+        return static_cast<int32_t>(nowUs - deadlineUs) >= 0;
+}
+
+static inline uint32_t mainLoopGateTimeRemaining(
+        uint32_t nowUs,
+        uint32_t deadlineUs) {
+        const int32_t remaining =
+                static_cast<int32_t>(deadlineUs - nowUs);
+        return remaining > 0 ? static_cast<uint32_t>(remaining) : 0;
+}
+
+static MainLoopGateRollingMax* mainLoopGateADCWcet(
+        GateLateAnalogSource source) {
+        switch (source) {
+                case GateLateAnalogSource::ADS8332:
+                        return &main_loop_gate_ads8332_sample_wcet;
+                case GateLateAnalogSource::MCP3208:
+                        return &main_loop_gate_mcp3208_sample_wcet;
+                case GateLateAnalogSource::None:
+                default:
+                        return nullptr;
+        }
+}
+
+static MainLoopGateRollingMax* mainLoopGateADCBurstSetupWcet(
+        GateLateAnalogSource source) {
+        switch (source) {
+                case GateLateAnalogSource::ADS8332:
+                        return &main_loop_gate_ads8332_burst_setup_wcet;
+                case GateLateAnalogSource::MCP3208:
+                        return &main_loop_gate_mcp3208_burst_setup_wcet;
+                case GateLateAnalogSource::None:
+                default:
+                        return nullptr;
+        }
+}
+
+static bool mainLoopGateSchedulingMeasurementsReady() {
+        if (main_loop_gate_final_process_wcet.maximum == 0 ||
+                main_loop_gate_endpoint_arm_wcet.maximum == 0) {
+                return false;
+        }
+        MainLoopGateRollingMax* adcWcet =
+                mainLoopGateADCWcet(main_loop_gate_analog_source);
+        MainLoopGateRollingMax* burstSetupWcet =
+                mainLoopGateADCBurstSetupWcet(main_loop_gate_analog_source);
+        return adcWcet == nullptr ||
+                (adcWcet->maximum != 0 &&
+                 burstSetupWcet != nullptr &&
+                 burstSetupWcet->maximum != 0);
+}
+
+static void resetMainLoopGateMeasurements() {
+        main_loop_gate_ads8332_burst_setup_wcet.reset();
+        main_loop_gate_ads8332_sample_wcet.reset();
+        main_loop_gate_mcp3208_burst_setup_wcet.reset();
+        main_loop_gate_mcp3208_sample_wcet.reset();
+        main_loop_gate_final_process_wcet.reset();
+        main_loop_gate_endpoint_arm_wcet.reset();
+        main_loop_gate_frame_schedule = {};
+        main_loop_gate_sample_age_last_us = 0;
+        main_loop_gate_sample_age_max_us = 0;
+        main_loop_gate_deadline_miss_count = 0;
+        main_loop_gate_phase_mutation_count = 0;
+        main_loop_gate_late_sample_set_count = 0;
+        main_loop_gate_repeated_sample_frame_count = 0;
+        main_loop_gate_frame_without_fresh_sample_count = 0;
+        main_loop_gate_max_sample_sets_per_frame = 0;
+}
+
+void getMainLoopGateStats(MainLoopGateStats* stats) {
+        if (stats == nullptr) {
+                return;
+        }
+        stats->deadlineSchedulingActive =
+                main_loop_gate_state == MainLoopGateState::LOCKED &&
+                main_loop_gate_frame_schedule.valid;
+        stats->analogSource = main_loop_gate_analog_source;
+        stats->stableCompletions = main_loop_gate_stable_completions;
+        stats->phaseMinUs =
+                main_loop_gate_phase_min_us == 0xFFFFFFFFu
+                        ? 0
+                        : main_loop_gate_phase_min_us;
+        stats->phaseMaxUs = main_loop_gate_phase_max_us;
+        stats->ads8332BurstSetupWcetUs =
+                main_loop_gate_ads8332_burst_setup_wcet.maximum;
+        stats->ads8332SampleWcetUs =
+                main_loop_gate_ads8332_sample_wcet.maximum;
+        stats->mcp3208BurstSetupWcetUs =
+                main_loop_gate_mcp3208_burst_setup_wcet.maximum;
+        stats->mcp3208SampleWcetUs =
+                main_loop_gate_mcp3208_sample_wcet.maximum;
+        stats->finalProcessWcetUs =
+                main_loop_gate_final_process_wcet.maximum;
+        stats->endpointArmGuardUs =
+                main_loop_gate_endpoint_arm_wcet.maximum +
+                MAIN_LOOP_GATE_WCET_MARGIN_US +
+                MAIN_LOOP_GATE_ENDPOINT_READY_GUARD_US;
+        stats->sampleAgeLastUs = main_loop_gate_sample_age_last_us;
+        stats->sampleAgeMaxUs = main_loop_gate_sample_age_max_us;
+        stats->deadlineMissCount = main_loop_gate_deadline_miss_count;
+        stats->phaseMutationCount = main_loop_gate_phase_mutation_count;
+        stats->lateSampleSetCount =
+                main_loop_gate_late_sample_set_count;
+        stats->repeatedSampleFrameCount =
+                main_loop_gate_repeated_sample_frame_count;
+        stats->frameWithoutFreshSampleCount =
+                main_loop_gate_frame_without_fresh_sample_count;
+        stats->maxSampleSetsPerFrame =
+                main_loop_gate_max_sample_sets_per_frame;
+        stats->nextTokenEarliestUs =
+                main_loop_gate_frame_schedule.nextTokenEarliestUs;
+        stats->finalizeDeadlineUs =
+                main_loop_gate_frame_schedule.finalizeDeadlineUs;
+}
 
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
@@ -149,27 +352,27 @@ static void resetMainLoopGateTiming() {
 	main_loop_gate_phase_max_us = 0;
 	main_loop_gate_interval_max_us = 0;
 	main_loop_gate_stable_completions = 0;
+        main_loop_gate_frame_schedule = {};
 }
 
-static bool recordMainLoopGateCompletion(
+static MainLoopGateCompletionResult recordMainLoopGateCompletion(
 	const USBMainGamepadGateSnapshot& snapshot) {
 	const uint32_t phaseUs =
 		snapshot.completeTimeUs - snapshot.completeSofTimeUs;
-	if (snapshot.completeSofTimeUs != 0 && phaseUs < 2000u) {
-		if (phaseUs < main_loop_gate_phase_min_us) {
-			main_loop_gate_phase_min_us = phaseUs;
-		}
-		if (phaseUs > main_loop_gate_phase_max_us) {
-			main_loop_gate_phase_max_us = phaseUs;
-		}
-	}
+        const bool phaseValid =
+                snapshot.completeSofTimeUs != 0 &&
+                phaseUs < MAIN_LOOP_GATE_USB_FRAME_US;
 
 	if (!main_loop_gate_have_completion_timing) {
 		main_loop_gate_have_completion_timing = true;
 		main_loop_gate_last_complete_time_us = snapshot.completeTimeUs;
 		main_loop_gate_last_complete_sof_frame =
 			snapshot.completeSofFrame;
-		return true;
+                if (phaseValid) {
+                        main_loop_gate_phase_min_us = phaseUs;
+                        main_loop_gate_phase_max_us = phaseUs;
+                }
+                return MainLoopGateCompletionResult::Baseline;
 	}
 
 	const uint32_t intervalUs =
@@ -184,16 +387,92 @@ static bool recordMainLoopGateCompletion(
 	if (intervalUs > main_loop_gate_interval_max_us) {
 		main_loop_gate_interval_max_us = intervalUs;
 	}
-	if (!normal) {
-		main_loop_gate_stable_completions = 0;
-	} else if (main_loop_gate_stable_completions <
-		MAIN_LOOP_GATE_LOCK_COMPLETIONS) {
-		main_loop_gate_stable_completions++;
-	}
 	main_loop_gate_last_complete_time_us = snapshot.completeTimeUs;
 	main_loop_gate_last_complete_sof_frame =
 		snapshot.completeSofFrame;
-	return normal;
+
+        if (!normal) {
+                main_loop_gate_stable_completions = 0;
+                return MainLoopGateCompletionResult::IntervalMutation;
+        }
+        if (!phaseValid) {
+                main_loop_gate_stable_completions = 0;
+                return MainLoopGateCompletionResult::PhaseMutation;
+        }
+
+        const uint32_t candidateMin =
+                phaseUs < main_loop_gate_phase_min_us
+                        ? phaseUs
+                        : main_loop_gate_phase_min_us;
+        const uint32_t candidateMax =
+                phaseUs > main_loop_gate_phase_max_us
+                        ? phaseUs
+                        : main_loop_gate_phase_max_us;
+        if (main_loop_gate_phase_min_us != 0xFFFFFFFFu &&
+                candidateMax - candidateMin >
+                        MAIN_LOOP_GATE_PHASE_SPREAD_LIMIT_US) {
+                main_loop_gate_phase_min_us = phaseUs;
+                main_loop_gate_phase_max_us = phaseUs;
+                main_loop_gate_stable_completions = 0;
+                return MainLoopGateCompletionResult::PhaseMutation;
+        }
+
+        main_loop_gate_phase_min_us = candidateMin;
+        main_loop_gate_phase_max_us = candidateMax;
+        if (main_loop_gate_stable_completions <
+                MAIN_LOOP_GATE_LOCK_COMPLETIONS) {
+                main_loop_gate_stable_completions++;
+        }
+        return MainLoopGateCompletionResult::Normal;
+}
+
+static void prepareMainLoopGateFrameSchedule(
+        const USBMainGamepadGateSnapshot& snapshot) {
+        main_loop_gate_frame_schedule = {};
+        if (main_loop_gate_state != MainLoopGateState::LOCKED ||
+                !mainLoopGateSchedulingMeasurementsReady() ||
+                snapshot.completeSofTimeUs == 0 ||
+                main_loop_gate_phase_min_us == 0xFFFFFFFFu) {
+                return;
+        }
+
+        const uint32_t finalProcessBoundUs =
+                main_loop_gate_final_process_wcet.maximum +
+                MAIN_LOOP_GATE_WCET_MARGIN_US;
+        const uint32_t endpointArmBoundUs =
+                main_loop_gate_endpoint_arm_wcet.maximum +
+                MAIN_LOOP_GATE_WCET_MARGIN_US;
+        const uint32_t reservedUs =
+                finalProcessBoundUs +
+                endpointArmBoundUs +
+                MAIN_LOOP_GATE_ENDPOINT_READY_GUARD_US;
+        if (reservedUs >= MAIN_LOOP_GATE_USB_FRAME_US) {
+                return;
+        }
+
+        const uint32_t tokenPhaseUs =
+                main_loop_gate_phase_min_us >
+                        MAIN_LOOP_GATE_COMPLETION_TO_TOKEN_GUARD_US
+                        ? main_loop_gate_phase_min_us -
+                                MAIN_LOOP_GATE_COMPLETION_TO_TOKEN_GUARD_US
+                        : 0;
+        const uint32_t nextTokenEarliestUs =
+                snapshot.completeSofTimeUs +
+                MAIN_LOOP_GATE_USB_FRAME_US +
+                tokenPhaseUs;
+        const uint32_t armDeadlineUs =
+                nextTokenEarliestUs -
+                MAIN_LOOP_GATE_ENDPOINT_READY_GUARD_US;
+
+        main_loop_gate_frame_schedule.valid = true;
+        main_loop_gate_frame_schedule.nextTokenEarliestUs =
+                nextTokenEarliestUs;
+        main_loop_gate_frame_schedule.armDeadlineUs =
+                armDeadlineUs;
+        main_loop_gate_frame_schedule.finalizeDeadlineUs =
+                armDeadlineUs -
+                finalProcessBoundUs -
+                endpointArmBoundUs;
 }
 
 static void resetMainLoopGateForSnapshot(
@@ -205,6 +484,7 @@ static void resetMainLoopGateForSnapshot(
 	main_loop_gate_first_in_seen = false;
 	main_loop_suspend_scan_initialized = false;
 	resetMainLoopGateTiming();
+        resetMainLoopGateMeasurements();
 	main_loop_gate_state =
 		(snapshot.mounted && !snapshot.suspended)
 			? MainLoopGateState::BOOTSTRAP_BUILD
@@ -275,6 +555,7 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 
 	switch (main_loop_gate_state) {
 		case MainLoopGateState::BOOTSTRAP_BUILD:
+                        main_loop_gate_frame_schedule = {};
 			return MainLoopGateAction::RunFrame;
 
 		case MainLoopGateState::BOOTSTRAP_SUBMIT:
@@ -286,6 +567,7 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 				recordMainLoopGateCompletion(snapshot);
 				main_loop_gate_first_in_seen = true;
 				main_loop_gate_state = MainLoopGateState::LEARNING;
+                                main_loop_gate_frame_schedule = {};
 				return MainLoopGateAction::RunFrame;
 			}
 			if (!snapshot.reportArmed) {
@@ -298,19 +580,29 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 		case MainLoopGateState::LOCKED:
 			if (snapshot.completeSeq != main_loop_gate_complete_seq) {
 				main_loop_gate_complete_seq = snapshot.completeSeq;
-				const bool normal =
+                                const MainLoopGateCompletionResult result =
 					recordMainLoopGateCompletion(snapshot);
-				if (!normal) {
+                                if (result ==
+                                        MainLoopGateCompletionResult::PhaseMutation) {
+                                        main_loop_gate_phase_mutation_count++;
+                                        resetMainLoopGateTiming();
+                                        main_loop_gate_state =
+                                                MainLoopGateState::RECOVERY;
+                                } else if (result ==
+                                        MainLoopGateCompletionResult::IntervalMutation) {
+                                        resetMainLoopGateTiming();
 					main_loop_gate_state =
 						MainLoopGateState::RECOVERY;
 				} else if (main_loop_gate_stable_completions >=
-					MAIN_LOOP_GATE_LOCK_COMPLETIONS) {
+                                                MAIN_LOOP_GATE_LOCK_COMPLETIONS &&
+                                        mainLoopGateSchedulingMeasurementsReady()) {
 					main_loop_gate_state =
 						MainLoopGateState::LOCKED;
 				} else {
 					main_loop_gate_state =
 						MainLoopGateState::LEARNING;
 				}
+                                prepareMainLoopGateFrameSchedule(snapshot);
 				return MainLoopGateAction::RunFrame;
 			}
 			if (!snapshot.reportArmed) {
@@ -327,6 +619,7 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 				recordMainLoopGateCompletion(snapshot);
 				main_loop_gate_first_in_seen = true;
 				main_loop_gate_state = MainLoopGateState::LEARNING;
+                                main_loop_gate_frame_schedule = {};
 				return MainLoopGateAction::RunFrame;
 			}
 			return snapshot.reportArmed
@@ -341,9 +634,9 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	}
 }
 
-static void mainLoopGateReportAttempted(bool submitted) {
+static bool mainLoopGateReportAttempted(bool submitted) {
 	if (!main_loop_gate_runtime_enabled) {
-		return;
+                return submitted;
 	}
 
 	if (submitted &&
@@ -354,7 +647,7 @@ static void mainLoopGateReportAttempted(bool submitted) {
 			main_loop_gate_state != MainLoopGateState::RECOVERY) {
 			main_loop_gate_state = MainLoopGateState::LEARNING;
 		}
-		return;
+                return true;
 	}
 
 	if (!submitted) {
@@ -373,6 +666,171 @@ static void mainLoopGateReportAttempted(bool submitted) {
 	} else {
 		main_loop_gate_state = MainLoopGateState::RECOVERY;
 	}
+        return false;
+}
+
+static MainLoopGateLateSampleResult sampleMainLoopGateLateAnalog(
+        AddonManager& addons) {
+        MainLoopGateLateSampleResult result;
+        MainLoopGateRollingMax* adcWcet =
+                mainLoopGateADCWcet(main_loop_gate_analog_source);
+        MainLoopGateRollingMax* burstSetupWcet =
+                mainLoopGateADCBurstSetupWcet(main_loop_gate_analog_source);
+        if (adcWcet == nullptr || burstSetupWcet == nullptr) {
+                return result;
+        }
+
+        const bool deadlineMode =
+                main_loop_gate_state == MainLoopGateState::LOCKED &&
+                main_loop_gate_frame_schedule.valid;
+        if (deadlineMode) {
+                const uint32_t burstSetupBoundUs =
+                        burstSetupWcet->maximum +
+                        MAIN_LOOP_GATE_WCET_MARGIN_US;
+                const uint32_t sampleBoundUs =
+                        adcWcet->maximum +
+                        MAIN_LOOP_GATE_WCET_MARGIN_US;
+                if (mainLoopGateTimeRemaining(
+                                time_us_32(),
+                                main_loop_gate_frame_schedule.finalizeDeadlineUs) <
+                        burstSetupBoundUs + sampleBoundUs) {
+                        main_loop_gate_frame_without_fresh_sample_count++;
+                        return result;
+                }
+        }
+
+        const uint32_t burstSetupStartUs = time_us_32();
+        const bool burstStarted = addons.BeginGateLateAnalogBurst();
+        const uint32_t burstSetupEndUs = time_us_32();
+        if (!burstStarted) {
+                main_loop_gate_frame_without_fresh_sample_count++;
+                return result;
+        }
+        uint32_t burstSetupDurationUs =
+                burstSetupEndUs - burstSetupStartUs;
+        if (burstSetupDurationUs == 0) {
+                burstSetupDurationUs = 1;
+        }
+        burstSetupWcet->record(burstSetupDurationUs);
+        result.busTouched = true;
+
+        GateLateAnalogSampleRequest request;
+        request.enforceDeadline = deadlineMode;
+        request.deadlineUs =
+                main_loop_gate_frame_schedule.finalizeDeadlineUs;
+        while (true) {
+                if (deadlineMode) {
+                        const uint32_t sampleBoundUs =
+                                adcWcet->maximum +
+                                MAIN_LOOP_GATE_WCET_MARGIN_US;
+                        const uint32_t nowUs = time_us_32();
+                        if (mainLoopGateTimeRemaining(
+                                        nowUs,
+                                        request.deadlineUs) <
+                                sampleBoundUs) {
+                                result.deadlineOverrun =
+                                        mainLoopGateTimeReached(
+                                                nowUs,
+                                                request.deadlineUs);
+                                break;
+                        }
+                }
+
+                const uint32_t sampleStartUs = time_us_32();
+                const bool sampled =
+                        addons.SampleGateLateAnalog(request);
+                const uint32_t sampleEndUs = time_us_32();
+                uint32_t sampleDurationUs =
+                        sampleEndUs - sampleStartUs;
+                if (sampleDurationUs == 0) {
+                        sampleDurationUs = 1;
+                }
+                adcWcet->record(sampleDurationUs);
+
+                if (!sampled) {
+                        result.deadlineOverrun =
+                                deadlineMode &&
+                                mainLoopGateTimeReached(
+                                        sampleEndUs,
+                                        request.deadlineUs);
+                        break;
+                }
+
+                result.sampleSets++;
+                if (!deadlineMode) {
+                        break;
+                }
+        }
+        addons.EndGateLateAnalogBurst();
+
+        main_loop_gate_late_sample_set_count += result.sampleSets;
+        if (result.sampleSets > 1) {
+                main_loop_gate_repeated_sample_frame_count++;
+        }
+        if (result.sampleSets >
+                main_loop_gate_max_sample_sets_per_frame) {
+                main_loop_gate_max_sample_sets_per_frame =
+                        result.sampleSets;
+        }
+        if (result.sampleSets == 0) {
+                main_loop_gate_frame_without_fresh_sample_count++;
+        }
+        return result;
+}
+
+static void recordMainLoopGateFrameTiming(
+        AddonManager& addons,
+        const MainLoopGateLateSampleResult& lateSample,
+        uint32_t finalProcessStartUs,
+        uint32_t endpointArmStartUs,
+        uint32_t endpointArmEndUs,
+        bool reportArmed) {
+        uint32_t finalProcessDurationUs =
+                endpointArmStartUs - finalProcessStartUs;
+        if (finalProcessDurationUs == 0) {
+                finalProcessDurationUs = 1;
+        }
+        main_loop_gate_final_process_wcet.record(
+                finalProcessDurationUs);
+
+        if (!reportArmed) {
+                return;
+        }
+
+        uint32_t endpointArmDurationUs =
+                endpointArmEndUs - endpointArmStartUs;
+        if (endpointArmDurationUs == 0) {
+                endpointArmDurationUs = 1;
+        }
+        main_loop_gate_endpoint_arm_wcet.record(
+                endpointArmDurationUs);
+
+        const uint32_t sampleCompletedTimeUs =
+                addons.GetGateLateAnalogCompletedTimeUs();
+        if (sampleCompletedTimeUs != 0) {
+                main_loop_gate_sample_age_last_us =
+                        endpointArmEndUs - sampleCompletedTimeUs;
+                if (main_loop_gate_sample_age_last_us >
+                        main_loop_gate_sample_age_max_us) {
+                        main_loop_gate_sample_age_max_us =
+                                main_loop_gate_sample_age_last_us;
+                }
+        }
+
+        const bool missedDeadline =
+                main_loop_gate_frame_schedule.valid &&
+                (lateSample.deadlineOverrun ||
+                 mainLoopGateTimeReached(
+                         finalProcessStartUs,
+                         main_loop_gate_frame_schedule.finalizeDeadlineUs) ||
+                 mainLoopGateTimeReached(
+                         endpointArmEndUs,
+                         main_loop_gate_frame_schedule.armDeadlineUs));
+        if (missedDeadline) {
+                main_loop_gate_deadline_miss_count++;
+                resetMainLoopGateTiming();
+                main_loop_gate_state = MainLoopGateState::RECOVERY;
+        }
 }
 
 static bool mainLoopGateEventPending() {
@@ -601,6 +1059,8 @@ void GP2040::setup() {
 	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
 	addons.LoadAddon(new AxisTiltOverlayInput()); // Must execute after all joystick processing
 	addons.LoadAddon(new InputMacro());
+	main_loop_gate_analog_source =
+			addons.GetGateLateAnalogSource();
 
 	InputMode inputMode = gamepad->getOptions().inputMode;
 	const BootAction bootAction = getBootAction();
@@ -862,7 +1322,7 @@ void GP2040::run() {
 			USBHostManager::getInstance().process();
 			const bool submitted = inputDriver->process(gamepad);
 			// Arm the software epoch before tud_task can dispatch the completion.
-			mainLoopGateReportAttempted(submitted);
+			(void)mainLoopGateReportAttempted(submitted);
 			tud_task();
 			continue;
 		}
@@ -898,10 +1358,13 @@ void GP2040::run() {
 
 		gamepad->process(); // process through MPGS
 
+		MainLoopGateLateSampleResult lateSample;
                 if (splitGateFrame) {
                         // A failed sample leaves the previous complete snapshot published.
-                        (void)addons.SampleGateLateAnalog();
+			lateSample = sampleMainLoopGateLateAnalog(addons);
                 }
+		const uint32_t finalProcessStartUs =
+				splitGateFrame ? time_us_32() : 0;
 
 		// (Post) Process for add-ons
 		addons.ProcessAddons();
@@ -963,9 +1426,26 @@ void GP2040::run() {
 		memcpy(&processedGamepad->state, &gamepad->state, sizeof(GamepadState));
 
 		// Process Input Driver
+		const uint32_t endpointArmStartUs =
+				splitGateFrame ? time_us_32() : 0;
 		bool processed = inputDriver->process(gamepad);
 		// A built frame is not a bootstrap until its main report was queued.
-		mainLoopGateReportAttempted(processed);
+		const bool reportArmed =
+				mainLoopGateReportAttempted(processed);
+		const uint32_t endpointArmEndUs =
+				splitGateFrame ? time_us_32() : 0;
+		if (splitGateFrame) {
+			recordMainLoopGateFrameTiming(
+					addons,
+					lateSample,
+					finalProcessStartUs,
+					endpointArmStartUs,
+					endpointArmEndUs,
+					reportArmed);
+			if (lateSample.busTouched) {
+				LSM6DSRIMUAddon::restoreGateSPIProfile();
+			}
+		}
 		if (composite_hid_enabled) {
 			processCompositeHID(gamepad);
 		}

@@ -4,7 +4,19 @@
 #include "gamepad.h"
 #include "usblistener.h"
 
+#include <cstdint>
 #include <string>
+
+enum class GateLateAnalogSource : uint8_t {
+    None = 0,
+    ADS8332,
+    MCP3208,
+};
+
+struct GateLateAnalogSampleRequest {
+    bool enforceDeadline = false;
+    uint32_t deadlineUs = 0;
+};
 
 class GPAddon
 {
@@ -21,7 +33,16 @@ public:
     // active analog provider immediately before final add-on processing.
     virtual void preprocessGateEarly() { preprocess(); }
     virtual bool isGateLateAnalogProvider() const { return false; }
-    virtual bool sampleGateLateAnalog() { return false; }
+    virtual GateLateAnalogSource gateLateAnalogSource() const {
+        return GateLateAnalogSource::None;
+    }
+    virtual bool beginGateLateAnalogBurst() { return true; }
+    virtual bool sampleGateLateAnalog(
+        const GateLateAnalogSampleRequest&) {
+        return false;
+    }
+    virtual void endGateLateAnalogBurst() {}
+    virtual uint32_t gateLateAnalogCompletedTimeUs() const { return 0; }
 
     /**
      * Reinitialize the addon --- only implement this if it makes sense to, e.g. if this

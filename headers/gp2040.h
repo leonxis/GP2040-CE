@@ -18,6 +18,32 @@
 
 #include "pico/types.h"
 
+struct MainLoopGateStats {
+    bool deadlineSchedulingActive;
+    GateLateAnalogSource analogSource;
+    uint16_t stableCompletions;
+    uint32_t phaseMinUs;
+    uint32_t phaseMaxUs;
+    uint32_t ads8332BurstSetupWcetUs;
+    uint32_t ads8332SampleWcetUs;
+    uint32_t mcp3208BurstSetupWcetUs;
+    uint32_t mcp3208SampleWcetUs;
+    uint32_t finalProcessWcetUs;
+    uint32_t endpointArmGuardUs;
+    uint32_t sampleAgeLastUs;
+    uint32_t sampleAgeMaxUs;
+    uint32_t deadlineMissCount;
+    uint32_t phaseMutationCount;
+    uint32_t lateSampleSetCount;
+    uint32_t repeatedSampleFrameCount;
+    uint32_t frameWithoutFreshSampleCount;
+    uint32_t maxSampleSetsPerFrame;
+    uint32_t nextTokenEarliestUs;
+    uint32_t finalizeDeadlineUs;
+};
+
+void getMainLoopGateStats(MainLoopGateStats* stats);
+
 class GP2040 {
 public:
     GP2040(){}
