@@ -6,6 +6,7 @@
 #ifndef _USBDRIVER_CPP_
 #define _USBDRIVER_CPP_
 
+#include "usbdriver.h"
 #include "tusb.h"
 #include "drivermanager.h"
 #include "storagemanager.h"
@@ -13,6 +14,7 @@
 #include "class/hid/hid.h"
 #include "drivers/shared/CompositeHID.h"
 #include "hardware/sync.h"
+#include "hardware/timer.h"
 #include <string.h>
 
 #define USB_CONFIG_DESC_COPY_SIZE 512
@@ -20,28 +22,24 @@
 #define COMPOSITE_HID_EP_ADDR     0x87
 #define COMPOSITE_HID_INTF_SIZE   25
 
-static bool usb_mounted;
-static bool usb_suspended;
-// Main-loop gate: ISR/driver sets pending; core0 consumes once per gated frame.
-// Total IN-side marks (success + latched not-ready) used for diagnostics and USB warm-up gate bypass.
-static volatile bool usb_main_gamepad_poll_event_pending = false;
-static volatile uint32_t usb_main_gamepad_in_mark_total = 0;
-static volatile bool usb_main_gamepad_not_ready_latched = false;
+static volatile bool usb_mounted;
+static volatile bool usb_suspended;
+static volatile bool usb_main_gamepad_report_armed;
+static volatile uint32_t usb_main_gamepad_epoch;
+static volatile uint32_t usb_main_gamepad_armed_epoch;
+static volatile uint32_t usb_main_gamepad_sof_seq;
+static volatile uint32_t usb_main_gamepad_sof_frame;
+static volatile uint32_t usb_main_gamepad_sof_time_us;
+static volatile uint32_t usb_main_gamepad_submit_seq;
+static volatile uint32_t usb_main_gamepad_submit_time_us;
+static volatile uint32_t usb_main_gamepad_complete_seq;
+static volatile uint32_t usb_main_gamepad_complete_time_us;
+static volatile uint32_t usb_main_gamepad_complete_sof_frame;
+static volatile uint32_t usb_main_gamepad_complete_sof_time_us;
+static volatile uint32_t usb_main_gamepad_failed_seq;
+static volatile uint32_t usb_main_gamepad_failed_time_us;
 
-static constexpr uint32_t MAIN_LOOP_GATE_COLD_START_IN_MARKS = 1000;
 static uint8_t compositeHIDInstance = 0xFF;
-static inline bool shouldCountMainLoopPollDoneEvents() {
-	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-	if (addonOptions.reportRate != 1000u) {
-		return false;
-	}
-	const InputMode mode = DriverManager::getInstance().getInputMode();
-	// Note: SWITCH_PRO (NS PRO) excluded — handshake/feature report phases
-	// do not consistently trigger HID IN completions for gating.
-	return (mode == INPUT_MODE_PS4 || mode == INPUT_MODE_PS4B ||
-	        mode == INPUT_MODE_XINPUT || mode == INPUT_MODE_XINPUTB);
-}
-
 
 // Global variable to track current interface for get_report callback
 // This is used by drivers to determine which interface is being queried
@@ -179,46 +177,134 @@ bool get_usb_suspended(void) {
 	return usb_suspended;
 }
 
-bool usb_main_loop_gate_usb_warmup_active(void) {
-	return usb_main_gamepad_in_mark_total < MAIN_LOOP_GATE_COLD_START_IN_MARKS;
+static void beginMainGamepadUSBEpoch(bool mounted) {
+	uint32_t irqState = save_and_disable_interrupts();
+	usb_mounted = mounted;
+	usb_suspended = false;
+	usb_main_gamepad_report_armed = false;
+	usb_main_gamepad_armed_epoch = 0;
+	usb_main_gamepad_sof_seq = 0;
+	usb_main_gamepad_sof_frame = 0;
+	usb_main_gamepad_sof_time_us = 0;
+	usb_main_gamepad_submit_seq = 0;
+	usb_main_gamepad_submit_time_us = 0;
+	usb_main_gamepad_complete_seq = 0;
+	usb_main_gamepad_complete_time_us = 0;
+	usb_main_gamepad_complete_sof_frame = 0;
+	usb_main_gamepad_complete_sof_time_us = 0;
+	usb_main_gamepad_failed_seq = 0;
+	usb_main_gamepad_failed_time_us = 0;
+	usb_main_gamepad_epoch++;
+	restore_interrupts(irqState);
 }
 
-bool usb_consume_main_gamepad_poll_pending(void) {
+void usb_get_main_gamepad_gate_snapshot(USBMainGamepadGateSnapshot* snapshot) {
+	if (snapshot == nullptr) {
+		return;
+	}
+
 	uint32_t irqState = save_and_disable_interrupts();
-	const bool pending = usb_main_gamepad_poll_event_pending;
-	usb_main_gamepad_poll_event_pending = false;
+	snapshot->mounted = usb_mounted;
+	snapshot->suspended = usb_suspended;
+	snapshot->reportArmed =
+		usb_main_gamepad_report_armed &&
+		(usb_main_gamepad_armed_epoch == usb_main_gamepad_epoch);
+	snapshot->epoch = usb_main_gamepad_epoch;
+	snapshot->sofSeq = usb_main_gamepad_sof_seq;
+	snapshot->sofFrame = usb_main_gamepad_sof_frame;
+	snapshot->sofTimeUs = usb_main_gamepad_sof_time_us;
+	snapshot->submitSeq = usb_main_gamepad_submit_seq;
+	snapshot->submitTimeUs = usb_main_gamepad_submit_time_us;
+	snapshot->completeSeq = usb_main_gamepad_complete_seq;
+	snapshot->completeTimeUs = usb_main_gamepad_complete_time_us;
+	snapshot->completeSofFrame = usb_main_gamepad_complete_sof_frame;
+	snapshot->completeSofTimeUs = usb_main_gamepad_complete_sof_time_us;
+	snapshot->failedSeq = usb_main_gamepad_failed_seq;
+	snapshot->failedTimeUs = usb_main_gamepad_failed_time_us;
 	restore_interrupts(irqState);
-	return pending;
+}
+
+bool usb_mark_main_gamepad_report_submitted(uint32_t expectedEpoch) {
+	uint32_t irqState = save_and_disable_interrupts();
+	const bool canArm =
+		usb_mounted &&
+		!usb_suspended &&
+		!usb_main_gamepad_report_armed &&
+		(usb_main_gamepad_epoch == expectedEpoch);
+	if (canArm) {
+		usb_main_gamepad_armed_epoch = usb_main_gamepad_epoch;
+		usb_main_gamepad_report_armed = true;
+		usb_main_gamepad_submit_seq++;
+		usb_main_gamepad_submit_time_us = time_us_32();
+	}
+	restore_interrupts(irqState);
+	return canArm;
+}
+
+void usb_notify_main_gamepad_submit_failed(uint32_t expectedEpoch) {
+	uint32_t irqState = save_and_disable_interrupts();
+	if (usb_mounted &&
+		!usb_suspended &&
+		!usb_main_gamepad_report_armed &&
+		(usb_main_gamepad_epoch == expectedEpoch)) {
+		usb_main_gamepad_failed_seq++;
+		usb_main_gamepad_failed_time_us = time_us_32();
+	}
+	restore_interrupts(irqState);
+}
+
+void usb_notify_main_gamepad_sof(uint32_t frameNumber) {
+	uint32_t irqState = save_and_disable_interrupts();
+	if (usb_mounted && !usb_suspended) {
+		usb_main_gamepad_sof_frame = frameNumber;
+		usb_main_gamepad_sof_time_us = time_us_32();
+		usb_main_gamepad_sof_seq++;
+	}
+	restore_interrupts(irqState);
+}
+
+void usb_notify_main_gamepad_usb_reset(void) {
+	beginMainGamepadUSBEpoch(false);
+}
+
+void usb_main_gamepad_hid_reset(uint8_t rhport) {
+	hidd_reset(rhport);
+	usb_notify_main_gamepad_usb_reset();
 }
 
 void usb_notify_main_gamepad_poll_done_success(void) {
-	if (!shouldCountMainLoopPollDoneEvents()) {
-		return;
+	uint32_t irqState = save_and_disable_interrupts();
+	if (usb_mounted &&
+		usb_main_gamepad_report_armed &&
+		(usb_main_gamepad_armed_epoch == usb_main_gamepad_epoch)) {
+		usb_main_gamepad_report_armed = false;
+		usb_main_gamepad_complete_seq++;
+		usb_main_gamepad_complete_time_us = time_us_32();
+		usb_main_gamepad_complete_sof_frame =
+			usb_main_gamepad_sof_frame;
+		usb_main_gamepad_complete_sof_time_us =
+			usb_main_gamepad_sof_time_us;
 	}
-	usb_main_gamepad_poll_event_pending = true;
-	usb_main_gamepad_not_ready_latched = false;
-	usb_main_gamepad_in_mark_total++;
+	restore_interrupts(irqState);
 }
 
-void usb_notify_main_gamepad_poll_done_not_ready(void) {
-	if (!shouldCountMainLoopPollDoneEvents()) {
-		return;
+void usb_notify_main_gamepad_poll_done_failed(void) {
+	uint32_t irqState = save_and_disable_interrupts();
+	if (usb_main_gamepad_report_armed &&
+		(usb_main_gamepad_armed_epoch == usb_main_gamepad_epoch)) {
+		usb_main_gamepad_report_armed = false;
+		usb_main_gamepad_failed_seq++;
+		usb_main_gamepad_failed_time_us = time_us_32();
 	}
-	if (usb_main_gamepad_not_ready_latched) {
-		return;
-	}
-	usb_main_gamepad_poll_event_pending = true;
-	usb_main_gamepad_not_ready_latched = true;
-	usb_main_gamepad_in_mark_total++;
-}
-
-void usb_reset_main_gamepad_poll_done_state(void) {
-	usb_main_gamepad_not_ready_latched = false;
-	usb_main_gamepad_poll_event_pending = false;
+	restore_interrupts(irqState);
 }
 
 void usb_notify_main_gamepad_in_xfer_complete_from_xinput(void) {
 	usb_notify_main_gamepad_poll_done_success();
+}
+
+void usb_notify_main_gamepad_in_xfer_failed_from_xinput(void) {
+	usb_notify_main_gamepad_poll_done_failed();
 }
 
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *driver_count) {
@@ -260,24 +346,34 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_
 	if (mode == INPUT_MODE_XINPUT || mode == INPUT_MODE_XINPUTB) {
 		return;
 	}
+	DriverManager::getInstance().getDriver()->onInputReportComplete();
 	usb_notify_main_gamepad_poll_done_success();
+}
+
+void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, uint8_t const* report, uint16_t xferred_bytes) {
+	(void)report;
+	(void)xferred_bytes;
+	if (instance != 0 || report_type != HID_REPORT_TYPE_INPUT) {
+		return;
+	}
+	const InputMode mode = DriverManager::getInstance().getInputMode();
+	if (mode == INPUT_MODE_XINPUT || mode == INPUT_MODE_XINPUTB) {
+		return;
+	}
+	DriverManager::getInstance().getDriver()->onInputReportFailed();
+	usb_notify_main_gamepad_poll_done_failed();
 }
 
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-	usb_mounted = true;
-	usb_suspended = false;
-	usb_main_gamepad_in_mark_total = 0;
-	usb_reset_main_gamepad_poll_done_state();
+	beginMainGamepadUSBEpoch(true);
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-	usb_mounted = false;
-	usb_suspended = false;
-	usb_reset_main_gamepad_poll_done_state();
+	beginMainGamepadUSBEpoch(false);
 }
 
 // Invoked when usb bus is suspended
@@ -285,12 +381,16 @@ void tud_umount_cb(void)
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
 void tud_suspend_cb(bool remote_wakeup_en) {
 	(void)remote_wakeup_en;
+	uint32_t irqState = save_and_disable_interrupts();
 	usb_suspended = true;
+	restore_interrupts(irqState);
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void) {
+	uint32_t irqState = save_and_disable_interrupts();
 	usb_suspended = false;
+	restore_interrupts(irqState);
 }
 
 // Vendor Controlled XFER occured

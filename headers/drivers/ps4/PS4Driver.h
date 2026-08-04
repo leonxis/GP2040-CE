@@ -52,12 +52,17 @@ public:
     virtual const uint8_t * get_descriptor_device_qualifier_cb();
     virtual uint16_t GetJoystickMidValue();
     virtual USBListener * get_usb_auth_listener();
+    virtual void onInputReportComplete();
+    virtual void onInputReportFailed();
     bool getAuthSent() { return authsent;}
     bool getDongleAuthRequired();
 private:
     uint8_t last_report[CFG_TUD_ENDPOINT0_SIZE] = { };
     uint8_t last_report_counter;
+    uint8_t pending_report_counter;
     uint16_t last_axis_counter;
+    uint16_t pending_axis_timing;
+    bool input_report_pending;
     PS4Report ps4Report;
     TouchpadData touchpadData;
     PSSensorData sensorData;

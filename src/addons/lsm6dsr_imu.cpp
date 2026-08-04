@@ -61,6 +61,7 @@ static constexpr float kOneEuroTau = 1.0f / (2.0f * 3.14159265f * LSM6DSR_ONE_EU
 // 按需读取用（网页模式下 preprocess 不运行，API 调用时现场读一次）
 static PeripheralSPI* s_spi = nullptr;
 static int8_t s_csPin = -1;
+static SPIBaudrateProfile s_spiProfile;
 
 static inline int16_t read16LE(const uint8_t* p) {
 	return (int16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
@@ -81,7 +82,7 @@ static inline float lsm6dsr_compute_dt_s(uint64_t nowUs, uint64_t& lastUs) {
 static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
 	// 与逐字节 transfer(0) 等价：首字节 RX 丢弃，后续 len 字节为寄存器数据（IF_INC）
 	if (len == 0 || len > 12) return;
-	spi->setMode(SPI_MODE3);
+        spi->beginTransaction(s_spiProfile, SPI_MSB_FIRST, SPI_MODE0);
 	spi->select(csPin);
 	uint8_t tx[13];
 	uint8_t rx[13];
@@ -93,7 +94,7 @@ static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* 
 }
 
 static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t val) {
-	spi->setMode(SPI_MODE3);
+        spi->beginTransaction(s_spiProfile, SPI_MSB_FIRST, SPI_MODE0);
 	spi->select(csPin);
 	spi->transfer(reg);
 	spi->transfer(val);
@@ -116,6 +117,7 @@ bool LSM6DSRIMUAddon::available() {
 void LSM6DSRIMUAddon::setup() {
 	s_spi = nullptr;
 	s_csPin = -1;
+        s_spiProfile = {};
 
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
 	if (!opts.enabled) {
@@ -130,6 +132,12 @@ void LSM6DSRIMUAddon::setup() {
 		csPin = -1;
 		return;
 	}
+        s_spiProfile = spi->makeBaudrateProfile(LSM6DSR_SPI_HZ);
+        if (!s_spiProfile.valid()) {
+                spi = nullptr;
+                csPin = -1;
+                return;
+        }
 	offsetGyroX = opts.offsetGyroX;
 	offsetGyroY = opts.offsetGyroY;
 	offsetGyroZ = opts.offsetGyroZ;
@@ -163,9 +171,8 @@ void LSM6DSRIMUAddon::setup() {
 	imuHistoryIndex = 0;
 	memset(imuHistory, 0, sizeof(imuHistory));
 
-	// LSM6DSR requires MODE3 on shared SPI.
-	spi->setBaudrate(LSM6DSR_SPI_HZ);
-	spi->setMode(SPI_MODE3);
+        // LSM6DSR and MCP3208 share MODE0; only their baudrate differs.
+        spi->beginTransaction(s_spiProfile, SPI_MSB_FIRST, SPI_MODE0);
 
 	// Disable FIFO (避免延迟), I3C, High Performance, ODR 1666 Hz, 4g acc, 500 dps gyro, BDU+IF_INC
 	// CTRL2_G: 0x84 = ODR 1.66kHz (0b10) + FS 500 dps (0b01) → 17.5 mdps/LSB

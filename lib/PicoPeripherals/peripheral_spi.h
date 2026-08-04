@@ -21,6 +21,17 @@ typedef enum {
   SPI_MODE3 = 3,
 } SPIMode;
 
+struct SPIBaudrateProfile {
+    uint32_t requestedHz = 0;
+    uint32_t actualHz = 0;
+    uint16_t prescale = 0;
+    uint16_t postdiv = 0;
+
+    bool valid() const {
+        return requestedHz != 0 && prescale >= 2 && postdiv >= 1;
+    }
+};
+
 #ifndef SPI0_ENABLED
 #define SPI0_ENABLED 0
 #endif
@@ -71,7 +82,7 @@ public:
     }
 
     bool configured = false;
-    bool initialized = true;
+    bool initialized = false;
 
     spi_inst_t* getController() { return _SPI; }
 
@@ -101,6 +112,11 @@ public:
     // cycle; no need to wrap every single read. endTransaction is optional—the next
     // addon's beginTransaction will set the new frequency.
     void beginTransaction(uint32_t speedMHz, spi_order_t bitOrder, SPIMode spiMode);
+
+    // Precompute the RP2040 CPSR/SCR divisors once, then apply them without the
+    // SDK divider search when switching shared-bus devices in a hot path.
+    SPIBaudrateProfile makeBaudrateProfile(uint32_t hz) const;
+    void beginTransaction(const SPIBaudrateProfile& profile, spi_order_t bitOrder, SPIMode spiMode);
 
     // End a SPI transaction (no-op today; kept for API symmetry).
     void endTransaction();
@@ -140,6 +156,7 @@ private:
     spi_inst_t* _hardwareBlocks[NUM_SPIS] = {spi0,spi1};
 
     void setup();
+    void applyBaudrateProfile(const SPIBaudrateProfile& profile);
 
     inline spi_cpol_t get_cpol(SPIMode mode) {
         switch (mode)

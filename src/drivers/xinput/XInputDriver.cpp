@@ -56,6 +56,9 @@ static void xinput_init(void) {
 
 static void xinput_reset(uint8_t rhport) {
     (void)rhport;
+    endpoint_in = 0;
+    endpoint_out = 0;
+    usb_notify_main_gamepad_usb_reset();
 }
 
 static uint16_t xinput_open(uint8_t rhport, tusb_desc_interface_t const *itf_descriptor, uint16_t max_length) {
@@ -117,8 +120,12 @@ static bool xinput_xfer_callback(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
     (void)rhport;
     (void)xferred_bytes;
 
-    if (ep_addr == endpoint_in && endpoint_in != 0 && result == XFER_RESULT_SUCCESS) {
-        usb_notify_main_gamepad_in_xfer_complete_from_xinput();
+    if (ep_addr == endpoint_in && endpoint_in != 0) {
+        if (result == XFER_RESULT_SUCCESS) {
+            usb_notify_main_gamepad_in_xfer_complete_from_xinput();
+        } else {
+            usb_notify_main_gamepad_in_xfer_failed_from_xinput();
+        }
     }
 
     if (ep_addr == endpoint_out)
@@ -338,15 +345,12 @@ bool XInputDriver::process(Gamepad * gamepad) {
 
     const bool canStartInTransfer = tud_ready() && (endpoint_in != 0) && (!usbd_edpt_busy(0, endpoint_in));
     // Send continuously while endpoint is available so idle rate matches USB poll rate.
-    if (canStartInTransfer) {
-        usbd_edpt_claim(0, endpoint_in);								// Take control of IN endpoint
-        usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport)); // Send report buffer
-        usbd_edpt_release(0, endpoint_in);								// Release control of IN endpoint
-        memcpy(last_report, &xinputReport, sizeof(XInputReport)); // save if we sent it
-        reportSent = true;
-    } else {
-        // NAK-near approximation path: transfer was not started because endpoint/device wasn't ready.
-        usb_notify_main_gamepad_poll_done_not_ready();
+    if (canStartInTransfer && usbd_edpt_claim(0, endpoint_in)) {
+        if (usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport))) {
+            usbd_edpt_release(0, endpoint_in);
+            memcpy(last_report, &xinputReport, sizeof(XInputReport)); // save if we sent it
+            reportSent = true;
+        }
     }
 
     // clear potential initial uncaught data in endpoint_out from before registration of xfer_cb

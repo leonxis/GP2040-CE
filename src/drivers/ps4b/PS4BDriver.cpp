@@ -369,7 +369,7 @@ void PS4BDriver::initialize() {
         .name = "PS4",
     #endif
         .init = hidd_init,
-        .reset = hidd_reset,
+        .reset = usb_main_gamepad_hid_reset,
         .open = hidd_open,
         .control_xfer_cb = hidd_control_xfer_cb,
         .xfer_cb = hidd_xfer_cb,
@@ -377,7 +377,10 @@ void PS4BDriver::initialize() {
     };
 
     last_report_counter = 0; // PS4 Reports
+    pending_report_counter = 0;
     last_axis_counter = 0;
+    pending_axis_timing = 0;
+    input_report_pending = false;
     last_report_timer = to_ms_since_boot(get_absolute_time());
     // PS4B mode doesn't need authentication, so no need to initialize nonce variables
 }
@@ -393,6 +396,23 @@ void PS4BDriver::initializeAux() {
 bool PS4BDriver::getDongleAuthRequired() {
     // PS4B mode uses PC host mode, no dongle authentication required
     return false;
+}
+
+void PS4BDriver::onInputReportComplete() {
+    input_report_pending = false;
+}
+
+void PS4BDriver::onInputReportFailed() {
+    if (!input_report_pending) {
+        return;
+    }
+
+    last_report_counter = pending_report_counter;
+    ps4Report.reportCounter = pending_report_counter;
+    if (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD) {
+        ps4Report.gamepad.axisTiming = pending_axis_timing;
+    }
+    input_report_pending = false;
 }
 
 bool PS4BDriver::process(Gamepad * gamepad) {
@@ -674,6 +694,9 @@ bool PS4BDriver::process(Gamepad * gamepad) {
             ps4Report.gamepad.axisTiming = static_cast<uint16_t>(now & 0xFFFFu);
         }
         if (tud_hid_n_report(GAMEPAD_INTERFACE, 0, report, report_size) == true) {
+            pending_report_counter = prev_counter;
+            pending_axis_timing = prev_axis_timing;
+            input_report_pending = true;
             memcpy(last_report, report, report_size);
             last_report_timer = now;
             reportSent = true;
@@ -684,8 +707,6 @@ bool PS4BDriver::process(Gamepad * gamepad) {
                 ps4Report.gamepad.axisTiming = prev_axis_timing;
             }
         }
-    } else {
-        usb_notify_main_gamepad_poll_done_not_ready();
     }
 
     uint16_t featureSize = sizeof(PS4FeatureOutputReport);

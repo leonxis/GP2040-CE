@@ -65,7 +65,8 @@ private:
     uint8_t preprocess_channel_count_ = 0;
     SamplerStickChannelConfig stick_channels_[2];
     SamplerDividerChannelConfig divider_channels_;
-    // Cached in setup(): LSM6DSR plugin enabled flag; preprocess restores SPI MODE2 when set (LSM6 uses MODE3 after ADS8332 each frame).
+    // Cached in setup(): LSM6DSR plugin enabled flag; preprocess restores
+    // ADS8332 MODE2 after LSM6DSR leaves the shared bus in MODE0.
     bool lsm6dsrActiveCached_ = false;
     uint8_t dividerSampleFrameCounter_ = 0;
     static ADS8332ADCAddon* s_instance_;

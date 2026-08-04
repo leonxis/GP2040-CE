@@ -64,9 +64,11 @@ private:
     void readStickChannels();
     void readSwitchChannels();
     bool readChannel(uint8_t channel);
+    bool prepareSPITransaction();
 
     static MCP3208ADCAddon* s_instance;
     PeripheralSPI* spi_;
+    SPIBaudrateProfile spiProfile_;
     int8_t csPin_;            // Chip select GPIO (硬编码)
     uint16_t adcValues_[8];   // CH0-CH7，仅 0,1,2,5,6,7 有效
     bool spiOk_;

@@ -14,6 +14,9 @@ void SwitchProDriver::initialize() {
     last_report_counter = 0;
     handshakeCounter = 0;
     isReady = false;
+    // PC HID clients may read report 0x30 without sending TOGGLE_IMU first.
+    // Default to enabled; an explicit host command can still disable it.
+    isIMUEnabled = true;
 
     deviceInfo = {
         .majorVersion = 0x04,
@@ -134,7 +137,7 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
     switchReport.inputs.rightStick.setX(std::min(std::max(scaleRightStickX,rightMinX), rightMaxX));
     switchReport.inputs.rightStick.setY(-std::min(std::max(scaleRightStickY,rightMinY), rightMaxY));
 
-    // Follow Switch Pro protocol: only send IMU payload when host enables IMU.
+    // Send local IMU data by default; an explicit host TOGGLE_IMU can disable it.
     if (gamepad->auxState.sensors.switchProImuDataActive && isIMUEnabled) {
         memcpy(switchReport.imuData, gamepad->auxState.sensors.switchProImuData, sizeof(switchReport.imuData));
     } else {

@@ -19,6 +19,7 @@
 #include "addons/unified_voltage_switch.h"
 #include "addons/unified_joystick_travel_key.h"
 #include "addons/ads8332_adc.h"
+#include "addons/mcp3208_adc.h"
 #include "addons/lsm6dsr_imu.h"
 #include "addons/bootsel_button.h"
 #include "addons/focus_mode.h"
@@ -59,10 +60,13 @@ static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 static bool main_loop_gate_enabled = false;
 static bool main_loop_gate_runtime_enabled = false;
-static bool main_loop_gate_bootstrap_pending = false;
 static bool composite_hid_enabled = false;
 static const uint32_t CPU_FREQ_ENHANCED_KHZ = 144000;
 static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
+static const uint32_t MAIN_LOOP_GATE_WAIT_TIMEOUT_US = 1000;
+static const uint32_t MAIN_LOOP_GATE_SUSPEND_SCAN_US = 4000;
+static const uint32_t MAIN_LOOP_GATE_INTERVAL_2MS_US = 1500;
+static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
@@ -87,6 +91,42 @@ enum class RuntimeHotkeyAction {
 	SWITCH_MODE_TRIANGLE,
 };
 
+enum class MainLoopGateState {
+	WAIT_MOUNT,
+	BOOTSTRAP_BUILD,
+	BOOTSTRAP_SUBMIT,
+	WAIT_FIRST_IN,
+	LEARNING,
+	LOCKED,
+	RECOVERY,
+	SUSPENDED_ARMED,
+	SUSPENDED_UNARMED,
+};
+
+enum class MainLoopGateAction {
+	RunFrame,
+	RetrySubmit,
+	WaitUSB,
+	ScanSuspended,
+};
+
+static MainLoopGateState main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
+static uint32_t main_loop_gate_epoch = 0;
+static uint32_t main_loop_gate_complete_seq = 0;
+static uint32_t main_loop_gate_failed_seq = 0;
+static uint32_t main_loop_gate_action_epoch = 0;
+static bool main_loop_gate_first_in_seen = false;
+static bool main_loop_gate_have_completion_timing = false;
+static uint32_t main_loop_gate_last_complete_time_us = 0;
+static uint32_t main_loop_gate_last_complete_sof_frame = 0;
+static uint32_t main_loop_gate_phase_min_us = 0xFFFFFFFFu;
+static uint32_t main_loop_gate_phase_max_us = 0;
+static uint32_t main_loop_gate_interval_max_us = 0;
+static uint16_t main_loop_gate_stable_completions = 0;
+static bool main_loop_suspend_scan_initialized = false;
+static uint32_t main_loop_suspend_last_gpio = 0;
+static absolute_time_t main_loop_suspend_next_scan = nil_time;
+
 extern void processCompositeHID(Gamepad *gamepad);
 
 static inline bool shouldUseMainLoopGate() {
@@ -101,25 +141,253 @@ static inline bool shouldUseMainLoopGate() {
 	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
 }
 
-static inline bool shouldSkipMainLoopFrameForGate(bool configMode) {
+static void resetMainLoopGateTiming() {
+	main_loop_gate_have_completion_timing = false;
+	main_loop_gate_last_complete_time_us = 0;
+	main_loop_gate_last_complete_sof_frame = 0;
+	main_loop_gate_phase_min_us = 0xFFFFFFFFu;
+	main_loop_gate_phase_max_us = 0;
+	main_loop_gate_interval_max_us = 0;
+	main_loop_gate_stable_completions = 0;
+}
+
+static bool recordMainLoopGateCompletion(
+	const USBMainGamepadGateSnapshot& snapshot) {
+	const uint32_t phaseUs =
+		snapshot.completeTimeUs - snapshot.completeSofTimeUs;
+	if (snapshot.completeSofTimeUs != 0 && phaseUs < 2000u) {
+		if (phaseUs < main_loop_gate_phase_min_us) {
+			main_loop_gate_phase_min_us = phaseUs;
+		}
+		if (phaseUs > main_loop_gate_phase_max_us) {
+			main_loop_gate_phase_max_us = phaseUs;
+		}
+	}
+
+	if (!main_loop_gate_have_completion_timing) {
+		main_loop_gate_have_completion_timing = true;
+		main_loop_gate_last_complete_time_us = snapshot.completeTimeUs;
+		main_loop_gate_last_complete_sof_frame =
+			snapshot.completeSofFrame;
+		return true;
+	}
+
+	const uint32_t intervalUs =
+		snapshot.completeTimeUs - main_loop_gate_last_complete_time_us;
+	const uint32_t sofFrameDelta =
+		(snapshot.completeSofFrame -
+		 main_loop_gate_last_complete_sof_frame) & 0x7FFu;
+	const bool normal =
+		(sofFrameDelta == 1u) &&
+		(intervalUs < MAIN_LOOP_GATE_INTERVAL_2MS_US);
+
+	if (intervalUs > main_loop_gate_interval_max_us) {
+		main_loop_gate_interval_max_us = intervalUs;
+	}
+	if (!normal) {
+		main_loop_gate_stable_completions = 0;
+	} else if (main_loop_gate_stable_completions <
+		MAIN_LOOP_GATE_LOCK_COMPLETIONS) {
+		main_loop_gate_stable_completions++;
+	}
+	main_loop_gate_last_complete_time_us = snapshot.completeTimeUs;
+	main_loop_gate_last_complete_sof_frame =
+		snapshot.completeSofFrame;
+	return normal;
+}
+
+static void resetMainLoopGateForSnapshot(
+	const USBMainGamepadGateSnapshot& snapshot) {
+	main_loop_gate_epoch = snapshot.epoch;
+	main_loop_gate_complete_seq = snapshot.completeSeq;
+	main_loop_gate_failed_seq = snapshot.failedSeq;
+	main_loop_gate_action_epoch = snapshot.epoch;
+	main_loop_gate_first_in_seen = false;
+	main_loop_suspend_scan_initialized = false;
+	resetMainLoopGateTiming();
+	main_loop_gate_state =
+		(snapshot.mounted && !snapshot.suspended)
+			? MainLoopGateState::BOOTSTRAP_BUILD
+			: MainLoopGateState::WAIT_MOUNT;
+}
+
+static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	const bool gateEnabledNow = (!configMode && main_loop_gate_enabled);
-	if (gateEnabledNow != main_loop_gate_runtime_enabled) {
-		main_loop_gate_runtime_enabled = gateEnabledNow;
-		// Clear pending marker on each mode transition to avoid stale edge after profile/mode changes.
-		usb_reset_main_gamepad_poll_done_state();
-		main_loop_gate_bootstrap_pending = gateEnabledNow;
+	if (!gateEnabledNow) {
+		main_loop_gate_runtime_enabled = false;
+		main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
+		return MainLoopGateAction::RunFrame;
 	}
 
-	if (!main_loop_gate_runtime_enabled || usb_main_loop_gate_usb_warmup_active()) {
-		return false;
+	USBMainGamepadGateSnapshot snapshot = {};
+	usb_get_main_gamepad_gate_snapshot(&snapshot);
+
+	if (!main_loop_gate_runtime_enabled) {
+		main_loop_gate_runtime_enabled = true;
+		resetMainLoopGateForSnapshot(snapshot);
+	} else if (snapshot.epoch != main_loop_gate_epoch) {
+		resetMainLoopGateForSnapshot(snapshot);
 	}
 
-	const bool pollEventPending = usb_consume_main_gamepad_poll_pending();
-	const bool runFrame = main_loop_gate_bootstrap_pending || pollEventPending;
-	if (runFrame) {
-		main_loop_gate_bootstrap_pending = false;
+	main_loop_gate_action_epoch = snapshot.epoch;
+
+	if (!snapshot.mounted) {
+		main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
+		main_loop_suspend_scan_initialized = false;
+		return MainLoopGateAction::WaitUSB;
 	}
-	return !runFrame;
+
+	if (snapshot.suspended) {
+		if (main_loop_gate_state != MainLoopGateState::SUSPENDED_ARMED &&
+			main_loop_gate_state != MainLoopGateState::SUSPENDED_UNARMED) {
+			main_loop_suspend_scan_initialized = false;
+		}
+		main_loop_gate_state =
+			snapshot.reportArmed
+				? MainLoopGateState::SUSPENDED_ARMED
+				: MainLoopGateState::SUSPENDED_UNARMED;
+		return MainLoopGateAction::ScanSuspended;
+	}
+
+	if (main_loop_gate_state == MainLoopGateState::SUSPENDED_ARMED ||
+		main_loop_gate_state == MainLoopGateState::SUSPENDED_UNARMED) {
+		main_loop_gate_complete_seq = snapshot.completeSeq;
+		main_loop_gate_failed_seq = snapshot.failedSeq;
+		main_loop_gate_first_in_seen = false;
+		main_loop_suspend_scan_initialized = false;
+		resetMainLoopGateTiming();
+		main_loop_gate_state =
+			snapshot.reportArmed
+				? MainLoopGateState::WAIT_FIRST_IN
+				: MainLoopGateState::BOOTSTRAP_SUBMIT;
+	}
+
+	if (snapshot.failedSeq != main_loop_gate_failed_seq) {
+		main_loop_gate_failed_seq = snapshot.failedSeq;
+		main_loop_gate_first_in_seen = false;
+		resetMainLoopGateTiming();
+		main_loop_gate_state = MainLoopGateState::RECOVERY;
+	}
+
+	if (main_loop_gate_state == MainLoopGateState::WAIT_MOUNT) {
+		main_loop_gate_state = MainLoopGateState::BOOTSTRAP_BUILD;
+	}
+
+	switch (main_loop_gate_state) {
+		case MainLoopGateState::BOOTSTRAP_BUILD:
+			return MainLoopGateAction::RunFrame;
+
+		case MainLoopGateState::BOOTSTRAP_SUBMIT:
+			return MainLoopGateAction::RetrySubmit;
+
+		case MainLoopGateState::WAIT_FIRST_IN:
+			if (snapshot.completeSeq != main_loop_gate_complete_seq) {
+				main_loop_gate_complete_seq = snapshot.completeSeq;
+				recordMainLoopGateCompletion(snapshot);
+				main_loop_gate_first_in_seen = true;
+				main_loop_gate_state = MainLoopGateState::LEARNING;
+				return MainLoopGateAction::RunFrame;
+			}
+			if (!snapshot.reportArmed) {
+				main_loop_gate_state = MainLoopGateState::BOOTSTRAP_SUBMIT;
+				return MainLoopGateAction::RetrySubmit;
+			}
+			return MainLoopGateAction::WaitUSB;
+
+		case MainLoopGateState::LEARNING:
+		case MainLoopGateState::LOCKED:
+			if (snapshot.completeSeq != main_loop_gate_complete_seq) {
+				main_loop_gate_complete_seq = snapshot.completeSeq;
+				const bool normal =
+					recordMainLoopGateCompletion(snapshot);
+				if (!normal) {
+					main_loop_gate_state =
+						MainLoopGateState::RECOVERY;
+				} else if (main_loop_gate_stable_completions >=
+					MAIN_LOOP_GATE_LOCK_COMPLETIONS) {
+					main_loop_gate_state =
+						MainLoopGateState::LOCKED;
+				} else {
+					main_loop_gate_state =
+						MainLoopGateState::LEARNING;
+				}
+				return MainLoopGateAction::RunFrame;
+			}
+			if (!snapshot.reportArmed) {
+				main_loop_gate_first_in_seen = false;
+				resetMainLoopGateTiming();
+				main_loop_gate_state = MainLoopGateState::RECOVERY;
+				return MainLoopGateAction::RetrySubmit;
+			}
+			return MainLoopGateAction::WaitUSB;
+
+		case MainLoopGateState::RECOVERY:
+			if (snapshot.completeSeq != main_loop_gate_complete_seq) {
+				main_loop_gate_complete_seq = snapshot.completeSeq;
+				recordMainLoopGateCompletion(snapshot);
+				main_loop_gate_first_in_seen = true;
+				main_loop_gate_state = MainLoopGateState::LEARNING;
+				return MainLoopGateAction::RunFrame;
+			}
+			return snapshot.reportArmed
+				? MainLoopGateAction::WaitUSB
+				: MainLoopGateAction::RetrySubmit;
+
+		case MainLoopGateState::SUSPENDED_ARMED:
+		case MainLoopGateState::SUSPENDED_UNARMED:
+		case MainLoopGateState::WAIT_MOUNT:
+		default:
+			return MainLoopGateAction::WaitUSB;
+	}
+}
+
+static void mainLoopGateReportAttempted(bool submitted) {
+	if (!main_loop_gate_runtime_enabled) {
+		return;
+	}
+
+	if (submitted &&
+		usb_mark_main_gamepad_report_submitted(main_loop_gate_action_epoch)) {
+		if (!main_loop_gate_first_in_seen) {
+			main_loop_gate_state = MainLoopGateState::WAIT_FIRST_IN;
+		} else if (main_loop_gate_state != MainLoopGateState::LOCKED) {
+			main_loop_gate_state = MainLoopGateState::LEARNING;
+		}
+		return;
+	}
+
+	if (!submitted) {
+		usb_notify_main_gamepad_submit_failed(
+			main_loop_gate_action_epoch);
+	}
+	main_loop_gate_first_in_seen = false;
+	resetMainLoopGateTiming();
+
+	USBMainGamepadGateSnapshot snapshot = {};
+	usb_get_main_gamepad_gate_snapshot(&snapshot);
+	if (snapshot.epoch != main_loop_gate_epoch ||
+		!snapshot.mounted ||
+		snapshot.suspended) {
+		resetMainLoopGateForSnapshot(snapshot);
+	} else {
+		main_loop_gate_state = MainLoopGateState::RECOVERY;
+	}
+}
+
+static bool mainLoopGateEventPending() {
+	USBMainGamepadGateSnapshot snapshot = {};
+	usb_get_main_gamepad_gate_snapshot(&snapshot);
+	if (snapshot.epoch != main_loop_gate_epoch) {
+		return true;
+	}
+	if (main_loop_gate_state == MainLoopGateState::WAIT_MOUNT) {
+		return snapshot.mounted;
+	}
+	return !snapshot.mounted ||
+		snapshot.suspended ||
+		snapshot.completeSeq != main_loop_gate_complete_seq ||
+		snapshot.failedSeq != main_loop_gate_failed_seq ||
+		!snapshot.reportArmed;
 }
 
 const static uint32_t rebootDelayMs = 500;
@@ -306,6 +574,7 @@ void GP2040::setup() {
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
 	addons.LoadAddon(new AnalogInput());
 	addons.LoadAddon(new ADS8332ADCAddon());
+	addons.LoadAddon(new MCP3208ADCAddon());
 	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
 	addons.LoadAddon(new UnifiedVoltageSwitchAddon());
 	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon());
@@ -533,6 +802,9 @@ void GP2040::run() {
 
 	// Start the TinyUSB Device functionality
 	tud_init(TUD_OPT_RHPORT);
+	if (main_loop_gate_enabled) {
+		tud_sof_isr_set(usb_notify_main_gamepad_sof);
+	}
 
 	// Initialize our USB manager
 	USBHostManager::getInstance().start();
@@ -544,11 +816,53 @@ void GP2040::run() {
 	while (1) { // LOOP
 		this->getReinitGamepad(gamepad);
 
-		if (shouldSkipMainLoopFrameForGate(configMode)) {
-			// Keep host side polling responsive even when main-loop gate skips this frame.
+		const MainLoopGateAction gateAction =
+			getMainLoopGateAction(configMode);
+		if (gateAction == MainLoopGateAction::WaitUSB) {
 			USBHostManager::getInstance().process();
 			tud_task();
-			sleep_us(0);
+			if (!mainLoopGateEventPending()) {
+				best_effort_wfe_or_timeout(
+					make_timeout_time_us(
+						MAIN_LOOP_GATE_WAIT_TIMEOUT_US));
+			}
+			continue;
+		}
+		if (gateAction == MainLoopGateAction::ScanSuspended) {
+			if (!main_loop_suspend_scan_initialized) {
+				main_loop_suspend_last_gpio =
+					gamepad->debouncedGpio & buttonGpios;
+				main_loop_suspend_next_scan =
+					make_timeout_time_us(
+						MAIN_LOOP_GATE_SUSPEND_SCAN_US);
+				main_loop_suspend_scan_initialized = true;
+			} else if (time_reached(main_loop_suspend_next_scan)) {
+				debounceGpioGetAll();
+				const uint32_t currentGpio =
+					gamepad->debouncedGpio & buttonGpios;
+				if (currentGpio != main_loop_suspend_last_gpio) {
+					main_loop_suspend_last_gpio = currentGpio;
+					tud_remote_wakeup();
+				}
+				main_loop_suspend_next_scan =
+					make_timeout_time_us(
+						MAIN_LOOP_GATE_SUSPEND_SCAN_US);
+			}
+
+			USBHostManager::getInstance().process();
+			tud_task();
+			if (get_usb_suspended()) {
+				best_effort_wfe_or_timeout(
+					main_loop_suspend_next_scan);
+			}
+			continue;
+		}
+		if (gateAction == MainLoopGateAction::RetrySubmit) {
+			USBHostManager::getInstance().process();
+			const bool submitted = inputDriver->process(gamepad);
+			// Arm the software epoch before tud_task can dispatch the completion.
+			mainLoopGateReportAttempted(submitted);
+			tud_task();
 			continue;
 		}
 
@@ -638,6 +952,8 @@ void GP2040::run() {
 
 		// Process Input Driver
 		bool processed = inputDriver->process(gamepad);
+		// A built frame is not a bootstrap until its main report was queued.
+		mainLoopGateReportAttempted(processed);
 		if (composite_hid_enabled) {
 			processCompositeHID(gamepad);
 		}

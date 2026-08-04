@@ -16,9 +16,12 @@ static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
 };
 
 bool MCP3208ADCAddon::available() {
-    const MCP3208Options& opts = Storage::getInstance().getAddonOptions().mcp3208Options;
-    if (!opts.enabled)
+    const AddonOptions& addonOptions =
+        Storage::getInstance().getAddonOptions();
+    if (!addonOptions.mcp3208Options.enabled ||
+        addonOptions.ads8332Options.enabled) {
         return false;
+    }
     return PeripheralManager::getInstance().isSPIEnabled(MCP3208_HW_SPI_BLOCK);
 }
 
@@ -81,6 +84,7 @@ bool MCP3208ADCAddon::getRawDividerForProcessor(
 void MCP3208ADCAddon::setup() {
     s_instance = this;
     spi_ = nullptr;
+    spiProfile_ = {};
     spiOk_ = false;
     csPin_ = -1;
     // Initialize stick channels to center so first frame is neutral.
@@ -99,14 +103,26 @@ void MCP3208ADCAddon::setup() {
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(MCP3208_HW_SPI_BLOCK);
     if (!spi || !spi->configured) return;
     spi_ = spi;
-    spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
-    spi_->setBaudrate(MCP3208_SPI_HZ);
+    spiProfile_ = spi_->makeBaudrateProfile(MCP3208_SPI_HZ);
+    if (!spiProfile_.valid()) return;
+    spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE0);
 
     spiOk_ = true;
     readSwitchChannels();
 }
 
+bool MCP3208ADCAddon::prepareSPITransaction() {
+    if (!spi_ || !spiOk_ || !spiProfile_.valid()) {
+        return false;
+    }
+    spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE0);
+    return true;
+}
+
 void MCP3208ADCAddon::readStickChannels() {
+    if (!prepareSPITransaction()) {
+        return;
+    }
     bool sampled[8] = {};
     for (int stick = 0; stick < MCP3208_STICK_COUNT; stick++) {
         const uint8_t x = stick_channels_[stick].x_channel;
@@ -121,6 +137,9 @@ void MCP3208ADCAddon::readStickChannels() {
 }
 
 void MCP3208ADCAddon::readSwitchChannels() {
+    if (!prepareSPITransaction()) {
+        return;
+    }
     if (divider_channels_.left_channel < 8) {
         (void)readChannel(divider_channels_.left_channel);
     }

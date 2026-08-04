@@ -1,6 +1,25 @@
 #include "peripheral_spi.h"
+#include <hardware/clocks.h>
 
 PeripheralSPI::PeripheralSPI()
+    : configured(false),
+      initialized(false),
+      _RX(0),
+      _TX(0),
+      _SCK(0),
+      _CS(-1),
+      _CSActive(-1),
+      _SPI(nullptr),
+      _Speed(SPI_DEFAULT_SPEED),
+      _SpiMode(SPI_MODE0),
+      _BitOrder(SPI_MSB_FIRST),
+      _Cpol(SPI_CPOL_0),
+      _Cpha(SPI_CPHA_0),
+      _UseDMA(false),
+      _dmaRxChannel(-1),
+      _dmaTxChannel(-1),
+      _dmaRxBuf(nullptr),
+      _dmaTxBuf(nullptr)
 {
 #ifdef PICO_DEFAULT_SPI_INSTANCE
 
@@ -14,7 +33,6 @@ PeripheralSPI::PeripheralSPI()
     _RX = PICO_DEFAULT_SPI_RX_PIN;
     _SCK = PICO_DEFAULT_SPI_SCK_PIN;
     _CS = PICO_DEFAULT_SPI_CSN_PIN;
-    _Speed = SPI_DEFAULT_SPEED;
 #endif
 }
 
@@ -40,6 +58,10 @@ void PeripheralSPI::setup() {
 
     spi_init(_SPI, _Speed);
     initialized = true;
+    _SpiMode = SPI_MODE0;
+    _BitOrder = SPI_MSB_FIRST;
+    _Cpol = SPI_CPOL_0;
+    _Cpha = SPI_CPHA_0;
 
     gpio_set_function(_SCK, GPIO_FUNC_SPI);
     gpio_set_function(_TX, GPIO_FUNC_SPI);
@@ -158,6 +180,7 @@ void PeripheralSPI::beginTransaction(uint32_t speedMHz, spi_order_t bitOrder, SP
 
         if (hasFormatChange) {
             _BitOrder = bitOrder;
+            _SpiMode = spiMode;
             _Cpol = get_cpol(spiMode);
             _Cpha = get_cpha(spiMode);
             spi_set_format(_SPI, 8, _Cpol, _Cpha, _BitOrder);
@@ -166,6 +189,86 @@ void PeripheralSPI::beginTransaction(uint32_t speedMHz, spi_order_t bitOrder, SP
         restore_interrupts(flags);
     }
 
+}
+
+SPIBaudrateProfile PeripheralSPI::makeBaudrateProfile(uint32_t hz) const {
+    SPIBaudrateProfile profile;
+    const uint32_t sourceHz = clock_get_hz(clk_peri);
+    if (hz == 0 || hz > sourceHz) {
+        return profile;
+    }
+
+    uint32_t prescale;
+    for (prescale = 2; prescale <= 254; prescale += 2) {
+        if (sourceHz < prescale * 256ull * hz) {
+            break;
+        }
+    }
+    if (prescale > 254) {
+        return profile;
+    }
+
+    uint32_t postdiv;
+    for (postdiv = 256; postdiv > 1; --postdiv) {
+        if (sourceHz / (prescale * (postdiv - 1)) > hz) {
+            break;
+        }
+    }
+
+    profile.requestedHz = hz;
+    profile.actualHz = sourceHz / (prescale * postdiv);
+    profile.prescale = static_cast<uint16_t>(prescale);
+    profile.postdiv = static_cast<uint16_t>(postdiv);
+    return profile;
+}
+
+void PeripheralSPI::applyBaudrateProfile(const SPIBaudrateProfile& profile) {
+    const uint32_t enableMask =
+        spi_get_hw(_SPI)->cr1 & SPI_SSPCR1_SSE_BITS;
+    hw_clear_bits(&spi_get_hw(_SPI)->cr1, SPI_SSPCR1_SSE_BITS);
+    spi_get_hw(_SPI)->cpsr = profile.prescale;
+    hw_write_masked(
+        &spi_get_hw(_SPI)->cr0,
+        (profile.postdiv - 1u) << SPI_SSPCR0_SCR_LSB,
+        SPI_SSPCR0_SCR_BITS);
+    hw_set_bits(&spi_get_hw(_SPI)->cr1, enableMask);
+    _Speed = profile.requestedHz;
+}
+
+void PeripheralSPI::beginTransaction(
+    const SPIBaudrateProfile& profile,
+    spi_order_t bitOrder,
+    SPIMode spiMode
+) {
+    if (!profile.valid()) {
+        return;
+    }
+
+    const bool speedChange = profile.requestedHz != _Speed;
+    const bool needsFullInit = !initialized;
+    const bool hasFormatChange =
+        bitOrder != _BitOrder || spiMode != _SpiMode;
+    if (!needsFullInit && !speedChange && !hasFormatChange) {
+        return;
+    }
+
+    const uint32_t flags = save_and_disable_interrupts();
+    if (needsFullInit) {
+        (void)spi_init(_SPI, profile.requestedHz);
+        initialized = true;
+        _Speed = profile.requestedHz;
+    } else if (speedChange) {
+        applyBaudrateProfile(profile);
+    }
+
+    if (hasFormatChange) {
+        _BitOrder = bitOrder;
+        _SpiMode = spiMode;
+        _Cpol = get_cpol(spiMode);
+        _Cpha = get_cpha(spiMode);
+        spi_set_format(_SPI, 8, _Cpol, _Cpha, _BitOrder);
+    }
+    restore_interrupts(flags);
 }
 
 void PeripheralSPI::endTransaction() {

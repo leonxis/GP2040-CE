@@ -8,8 +8,8 @@
 
 #define LSM6DSR_IMU_ADDON_NAME "LSM6DSR IMU"
 
-// HML 固定接线：与 ADS8332 共用 SPI0，LSM6 CS=GPIO5；不写入 LSM6DSROptions。
-// 与 ADS8332 共线时，LSM6DSR 使用 MODE3，访问前会切换 SPI 格式。
+// HML 固定接线：与外部 ADC 共用 SPI0，LSM6 CS=GPIO5；不写入 LSM6DSROptions。
+// LSM6DSR 使用 MODE0；与 MCP3208 共线时仅需切换 SPI 频率。
 #define LSM6DSR_SPI_HZ      10000000u
 static constexpr uint8_t LSM6DSR_HW_SPI_BLOCK = 0;
 static constexpr int8_t LSM6DSR_HW_CS_PIN = 5;
