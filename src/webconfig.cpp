@@ -54,6 +54,15 @@ static uint16_t http_post_payload_len = 0;
 
 static int g_apiRequestPresetIndex = -1;
 
+static void setExternalADCSelection(AddonOptions& addonOptions, bool ads8332Enabled) {
+    addonOptions.ads8332Options.enabled = ads8332Enabled;
+    addonOptions.ads8332Options.has_enabled = true;
+    addonOptions.has_ads8332Options = true;
+    addonOptions.mcp3208Options.enabled = !ads8332Enabled;
+    addonOptions.mcp3208Options.has_enabled = true;
+    addonOptions.has_mcp3208Options = true;
+}
+
 static void resetApiRequestPresetIndex() {
     g_apiRequestPresetIndex = -1;
 }
@@ -801,8 +810,10 @@ std::string getADS8332Options() {
 
 std::string setADS8332Options() {
     DynamicJsonDocument doc = get_post_data();
-    ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
+    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    ADS8332Options& opts = addonOptions.ads8332Options;
     docToValue(opts.enabled, doc, "enabled");
+    setExternalADCSelection(addonOptions, opts.enabled);
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -2493,11 +2504,12 @@ std::string setAddonOptions()
     GamepadUSBHostOptions& gamepadUSBHostOptions = Storage::getInstance().getAddonOptions().gamepadUSBHostOptions;
     docToValue(gamepadUSBHostOptions.enabled, doc, "GamepadUSBHostAddonEnabled");
 
-    ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
-    docToValue(ads8332Options.enabled, doc, "ADS8332AddonEnabled");
-
-    MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
-    docToValue(mcp3208Options.enabled, doc, "MCP3208AddonEnabled");
+    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    if (doc.containsKey("ADS8332AddonEnabled")) {
+        setExternalADCSelection(addonOptions, doc["ADS8332AddonEnabled"].as<bool>());
+    } else if (doc.containsKey("MCP3208AddonEnabled")) {
+        setExternalADCSelection(addonOptions, !doc["MCP3208AddonEnabled"].as<bool>());
+    }
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");

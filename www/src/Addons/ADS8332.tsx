@@ -17,16 +17,14 @@ export const ads8332State = {
 	ADS8332AddonEnabled: 0,
 };
 
-const ADS8332 = ({ values, handleCheckbox, setFieldValue }: AddonPropTypes) => {
+const ADS8332 = ({ values, setFieldValue }: AddonPropTypes) => {
 	const { getAvailablePeripherals } = useContext(AppContext);
 	const { t } = useTranslation();
 
-	// ADS8332 和 MCP3208 互斥：启用 ADS8332 时自动禁用 MCP3208
 	const handleADS8332Toggle = () => {
-		handleCheckbox('ADS8332AddonEnabled');
-		if (!values.ADS8332AddonEnabled && values.MCP3208AddonEnabled) {
-			setFieldValue('MCP3208AddonEnabled', 0);
-		}
+                const ads8332Enabled = !Boolean(values.ADS8332AddonEnabled);
+                setFieldValue('ADS8332AddonEnabled', ads8332Enabled ? 1 : 0);
+                setFieldValue('MCP3208AddonEnabled', ads8332Enabled ? 0 : 1);
 	};
 
 	return (

@@ -51,7 +51,7 @@ private:
     SwitchDeviceInfo deviceInfo;
     uint8_t playerID = 0;
     uint8_t inputMode = 0x30;
-    bool isIMUEnabled = true;
+    bool isIMUEnabled = false;
     bool isVibrationEnabled = false;
 
     void sendIdentify();
