@@ -90,7 +90,7 @@
 #define SPI0_PIN_TX 3
 
 // ADS8332 插件默认：启用（SPI0/CS/CONVST 在 ads8332_adc 中硬编码）
-#define ADS8332_DEFAULT_ENABLED 1
+#define ADS8332_DEFAULT_ENABLED 0
 // LSM6 插件默认：关闭（SPI0/CS 在 lsm6dsr_imu 中硬编码）
 #define LSM6DSR_DEFAULT_ENABLED 0
 

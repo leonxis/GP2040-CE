@@ -42,6 +42,7 @@ public:
     virtual USBListener * get_usb_auth_listener() = 0;
     virtual void onInputReportComplete() {}
     virtual void onInputReportFailed() {}
+    virtual void onUSBReset() {}
 protected:
     usbd_class_driver_t class_driver;
 };

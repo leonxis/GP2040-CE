@@ -1,20 +1,12 @@
 #include "drivers/switchpro/SwitchProDriver.h"
 #include "drivers/shared/driverhelper.h"
 #include "storagemanager.h"
+#include "usbdriver.h"
 #include "pico/rand.h"
 #include <cstring>
 
-// force a report to be sent every X ms
-#define SWITCH_PRO_KEEPALIVE_TIMER 5
-
 void SwitchProDriver::initialize() {
     //stdio_init_all();
-
-    playerID = 0;
-    last_report_counter = 0;
-    handshakeCounter = 0;
-    isReady = false;
-    isIMUEnabled = false;
 
     deviceInfo = {
         .majorVersion = 0x04,
@@ -86,12 +78,39 @@ void SwitchProDriver::initialize() {
 		.name = "SWITCHPRO",
 	#endif
 		.init = hidd_init,
-		.reset = hidd_reset,
+                .reset = usb_main_gamepad_hid_reset,
 		.open = hidd_open,
 		.control_xfer_cb = hidd_control_xfer_cb,
 		.xfer_cb = hidd_xfer_cb,
 		.sof = NULL
 	};
+
+    resetProtocolState();
+}
+
+void SwitchProDriver::resetProtocolState() {
+    memset(queuedReport, 0, sizeof(queuedReport));
+    memset(last_report, 0, sizeof(last_report));
+    memset(switchReport.imuData, 0, sizeof(switchReport.imuData));
+    switchReport.timestamp = 0;
+    switchReport.rumbleReport = 0;
+
+    playerID = 0;
+    last_report_counter = 0;
+    last_report_timer = to_ms_since_boot(get_absolute_time());
+    handshakeCounter = 0;
+    inputMode = 0x30;
+    isReady = false;
+    isInitialized = false;
+    isReportQueued = false;
+    queuedReportEnablesInput = false;
+    reportSent = false;
+    isIMUEnabled = false;
+    isVibrationEnabled = false;
+}
+
+void SwitchProDriver::onUSBReset() {
+    resetProtocolState();
 }
 
 bool SwitchProDriver::process(Gamepad * gamepad) {
@@ -149,13 +168,18 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
 		tud_remote_wakeup();
 
     if (isReportQueued) {
-        if ((now - last_report_timer) > SWITCH_PRO_KEEPALIVE_TIMER) {
-            if (tud_hid_ready() && sendReport(queuedReportID, report, 64) == true ) {
-            }
+        if (tud_hid_ready() &&
+            sendReport(0, queuedReport, sizeof(queuedReport))) {
             isReportQueued = false;
+            if (queuedReportEnablesInput) {
+                isReady = true;
+                queuedReportEnablesInput = false;
+            }
             last_report_timer = now;
+            reportSent = true;
         }
-        reportSent = true;
+
+        return reportSent;
     }
 
     Gamepad * processedGamepad = Storage::getInstance().GetProcessedGamepad();
@@ -163,24 +187,23 @@ bool SwitchProDriver::process(Gamepad * gamepad) {
     processedGamepad->auxState.playerID.ledValue = playerID;
     processedGamepad->auxState.playerID.value = playerID;
 
-    if (isReady && !reportSent) {
+    if (isReady &&
+        (now - last_report_timer) >= SWITCH_PRO_KEEPALIVE_TIMER) {
         switchReport.timestamp = last_report_counter;
         void * inputReport = &switchReport;
         uint16_t report_size = sizeof(switchReport);
-        if (tud_hid_ready() && sendReport(0, inputReport, report_size) == true ) {
+        if (tud_hid_ready() && sendReport(0, inputReport, report_size)) {
             memcpy(last_report, inputReport, report_size);
             reportSent = true;
             last_report_timer = now;
         }
-    } else {
-        if (!isInitialized) {
-            // send identification
-            sendIdentify();
-            if (tud_hid_ready() && tud_hid_report(0, report, 64) == true) {
-                isInitialized = true;
-                reportSent = true;
-            }
-
+    } else if (!isReady && !isInitialized) {
+        uint8_t identifyReport[SWITCH_PRO_ENDPOINT_SIZE];
+        buildIdentifyReport(identifyReport);
+        if (tud_hid_ready() &&
+            tud_hid_report(0, identifyReport, sizeof(identifyReport))) {
+            isInitialized = true;
+            reportSent = true;
             last_report_timer = now;
         }
     }
@@ -202,25 +225,26 @@ uint16_t SwitchProDriver::get_report(uint8_t report_id, hid_report_type_t report
         return report_size;
     } else if (report_id == SwitchReportID::REPORT_USB_INPUT_81) {
         // Return identification report
-        sendIdentify();
-        uint16_t report_size = 64;
+        uint8_t identifyReport[SWITCH_PRO_ENDPOINT_SIZE];
+        buildIdentifyReport(identifyReport);
+        uint16_t report_size = sizeof(identifyReport);
         if (report_size > reqlen) report_size = reqlen;
-        memcpy(buffer, report, report_size);
+        memcpy(buffer, identifyReport, report_size);
         return report_size;
     }
 
     return 0;
 }
 
-void SwitchProDriver::sendIdentify() {
-    memset(report, 0x00, 64);
-    report[0] = SwitchReportID::REPORT_USB_INPUT_81;
-    report[1] = SwitchOutputSubtypes::IDENTIFY;
-    report[2] = 0x00;
-    report[3] = deviceInfo.controllerType;
+void SwitchProDriver::buildIdentifyReport(uint8_t* destination) const {
+    memset(destination, 0, SWITCH_PRO_ENDPOINT_SIZE);
+    destination[0] = SwitchReportID::REPORT_USB_INPUT_81;
+    destination[1] = SwitchOutputSubtypes::IDENTIFY;
+    destination[2] = 0x00;
+    destination[3] = deviceInfo.controllerType;
     // MAC address
     for (uint8_t i = 0; i < 6; i++) {
-        report[4+i] = deviceInfo.macAddress[5-i];
+        destination[4+i] = deviceInfo.macAddress[5-i];
     }
 }
 
@@ -230,56 +254,55 @@ void SwitchProDriver::sendSubCommand(uint8_t subCommand) {
 
 bool SwitchProDriver::sendReport(uint8_t reportID, void const* reportData, uint16_t reportLength) {
     bool result = tud_hid_report(reportID, reportData, reportLength);
-    if (last_report_counter < 255) {
-        last_report_counter++;
-    } else {
-        last_report_counter = 0;
+    if (result) {
+        if (last_report_counter < 255) {
+            last_report_counter++;
+        } else {
+            last_report_counter = 0;
+        }
     }
     return result;
 }
 
 void SwitchProDriver::handleConfigReport(uint8_t switchReportID, uint8_t switchReportSubID, const uint8_t *reportData, uint16_t reportLength) {
     bool canSend = false;
+    queuedReportEnablesInput = false;
 
     switch (switchReportSubID) {
         case SwitchOutputSubtypes::IDENTIFY:
             //printf("SwitchProDriver::set_report: IDENTIFY\n");
-            sendIdentify();
+            buildIdentifyReport(queuedReport);
             canSend = true;
             break;
         case SwitchOutputSubtypes::HANDSHAKE:
             //printf("SwitchProDriver::set_report: HANDSHAKE\n");
-            report[0] = SwitchReportID::REPORT_USB_INPUT_81;
-            report[1] = SwitchOutputSubtypes::HANDSHAKE;
+            queuedReport[0] = SwitchReportID::REPORT_USB_INPUT_81;
+            queuedReport[1] = SwitchOutputSubtypes::HANDSHAKE;
             canSend = true;
             break;
         case SwitchOutputSubtypes::BAUD_RATE:
             //printf("SwitchProDriver::set_report: BAUD_RATE\n");
-            report[0] = SwitchReportID::REPORT_USB_INPUT_81;
-            report[1] = SwitchOutputSubtypes::BAUD_RATE;
+            queuedReport[0] = SwitchReportID::REPORT_USB_INPUT_81;
+            queuedReport[1] = SwitchOutputSubtypes::BAUD_RATE;
             canSend = true;
             break;
         case SwitchOutputSubtypes::DISABLE_USB_TIMEOUT:
             //printf("SwitchProDriver::set_report: DISABLE_USB_TIMEOUT\n");
-            report[0] = SwitchReportID::REPORT_OUTPUT_30;
-            report[1] = switchReportSubID;
-            //if (handshakeCounter < 4) {
-            //    handshakeCounter++;
-            //} else {
-                isReady = true;
-            //}
+            queuedReport[0] = SwitchReportID::REPORT_OUTPUT_30;
+            queuedReport[1] = switchReportSubID;
+            queuedReportEnablesInput = true;
             canSend = true;
             break;
         case SwitchOutputSubtypes::ENABLE_USB_TIMEOUT:
             //printf("SwitchProDriver::set_report: ENABLE_USB_TIMEOUT\n");
-            report[0] = SwitchReportID::REPORT_OUTPUT_30;
-            report[1] = switchReportSubID;
+            queuedReport[0] = SwitchReportID::REPORT_OUTPUT_30;
+            queuedReport[1] = switchReportSubID;
             canSend = true;
             break;
         default:
             //printf("SwitchProDriver::set_report: Unknown Sub ID %02x\n", switchReportSubID);
-            report[0] = SwitchReportID::REPORT_OUTPUT_30;
-            report[1] = switchReportSubID;
+            queuedReport[0] = SwitchReportID::REPORT_OUTPUT_30;
+            queuedReport[1] = switchReportSubID;
             canSend = true;
             break;
     }
@@ -292,42 +315,44 @@ void SwitchProDriver::handleFeatureReport(uint8_t switchReportID, uint8_t switch
     uint32_t spiReadAddress = 0;
     uint8_t spiReadSize = 0;
     bool canSend = false;
+    queuedReportEnablesInput = false;
 
     //uint8_t inputReportSize = sizeof(SwitchInputReport);
     //printf("inputReportSize: %d\n", inputReportSize);
 
-    report[0] = SwitchReportID::REPORT_OUTPUT_21;
-    report[1] = last_report_counter;
-    memcpy(report+2,&switchReport.inputs,sizeof(SwitchInputReport));
+    queuedReport[0] = SwitchReportID::REPORT_OUTPUT_21;
+    queuedReport[1] = last_report_counter;
+    memcpy(queuedReport + 2, &switchReport.inputs, sizeof(SwitchInputReport));
 
     switch (commandID) {
         case SwitchCommands::GET_CONTROLLER_STATE:
             //printf("SwitchProDriver::set_report: Rpt 0x01 GET_CONTROLLER_STATE\n");
-            report[13] = 0x80;
-            report[14] = commandID;
-            report[15] = 0x03;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
+            queuedReport[15] = 0x03;
             canSend = true;
             break;
         case SwitchCommands::BLUETOOTH_PAIR_REQUEST:
             //printf("SwitchProDriver::set_report: Rpt 0x01 BLUETOOTH_PAIR_REQUEST\n");
-            report[13] = 0x81;
-            report[14] = commandID;
-            report[15] = 0x03;
+            queuedReport[13] = 0x81;
+            queuedReport[14] = commandID;
+            queuedReport[15] = 0x03;
             canSend = true;
             break;
         case SwitchCommands::REQUEST_DEVICE_INFO:
             //printf("SwitchProDriver::set_report: Rpt 0x01 REQUEST_DEVICE_INFO\n");
-            report[13] = 0x82;
-            report[14] = 0x02;
-            memcpy(&report[15], &deviceInfo, sizeof(deviceInfo));
+            queuedReport[13] = 0x82;
+            queuedReport[14] = 0x02;
+            memcpy(&queuedReport[15], &deviceInfo, sizeof(deviceInfo));
             canSend = true;
             break;
         case SwitchCommands::SET_MODE:
             //printf("SwitchProDriver::set_report: Rpt 0x01 SET_MODE\n");
             inputMode = reportData[11];
-            report[13] = 0x80;
-            report[14] = 0x03;
-            report[15] = inputMode;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = 0x03;
+            queuedReport[15] = inputMode;
+            queuedReportEnablesInput = inputMode == 0x30;
             canSend = true;
             //printf("Input Mode set to ");
             switch (inputMode) {
@@ -365,14 +390,14 @@ void SwitchProDriver::handleFeatureReport(uint8_t switchReportID, uint8_t switch
             break;
         case SwitchCommands::TRIGGER_BUTTONS:
             //printf("SwitchProDriver::set_report: Rpt 0x01 TRIGGER_BUTTONS\n");
-            report[13] = 0x83;
-            report[14] = 0x04;
+            queuedReport[13] = 0x83;
+            queuedReport[14] = 0x04;
             canSend = true;
             break;
         case SwitchCommands::SET_SHIPMENT:
             //printf("SwitchProDriver::set_report: Rpt 0x01 SET_SHIPMENT\n");
-            report[13] = 0x80;
-            report[14] = commandID;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
             canSend = true;
             //for (uint8_t i = 2; i < bufsize; i++) {
             //    //printf("%02x ", reportData[i]);
@@ -384,34 +409,34 @@ void SwitchProDriver::handleFeatureReport(uint8_t switchReportID, uint8_t switch
             spiReadAddress = (reportData[14] << 24) | (reportData[13] << 16) | (reportData[12] << 8) | (reportData[11]);
             spiReadSize = reportData[15];
             //printf("Read From: 0x%08x Size %d\n", spiReadAddress, spiReadSize);
-            report[13] = 0x90;
-            report[14] = reportData[10];
-            report[15] = reportData[11];
-            report[16] = reportData[12];
-            report[17] = reportData[13];
-            report[18] = reportData[14];
-            report[19] = reportData[15];
-            readSPIFlash(&report[20], spiReadAddress, spiReadSize);
+            queuedReport[13] = 0x90;
+            queuedReport[14] = reportData[10];
+            queuedReport[15] = reportData[11];
+            queuedReport[16] = reportData[12];
+            queuedReport[17] = reportData[13];
+            queuedReport[18] = reportData[14];
+            queuedReport[19] = reportData[15];
+            readSPIFlash(&queuedReport[20], spiReadAddress, spiReadSize);
             canSend = true;
             //printf("----------------------------------------------\n");
             break;
         case SwitchCommands::SET_NFC_IR_CONFIG:
             //printf("SwitchProDriver::set_report: Rpt 0x01 SET_NFC_IR_CONFIG\n");
-            report[13] = 0x80;
-            report[14] = commandID;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
             canSend = true;
             break;
         case SwitchCommands::SET_NFC_IR_STATE:
             //printf("SwitchProDriver::set_report: Rpt 0x01 SET_NFC_IR_STATE\n");
-            report[13] = 0x80;
-            report[14] = commandID;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
             canSend = true;
             break;
         case SwitchCommands::SET_PLAYER_LIGHTS:
             //printf("SwitchProDriver::set_report: Rpt 0x01 SET_PLAYER_LIGHTS\n");
             playerID = reportData[11];
-            report[13] = 0x80;
-            report[14] = commandID;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
             canSend = true;
             //printf("Player set to %d\n", playerID);
             //printf("----------------------------------------------\n");
@@ -419,9 +444,9 @@ void SwitchProDriver::handleFeatureReport(uint8_t switchReportID, uint8_t switch
         case SwitchCommands::GET_PLAYER_LIGHTS:
             //printf("SwitchProDriver::set_report: Rpt 0x01 GET_PLAYER_LIGHTS\n");
             playerID = reportData[11];
-            report[13] = 0xB0;
-            report[14] = commandID;
-            report[15] = playerID;
+            queuedReport[13] = 0xB0;
+            queuedReport[14] = commandID;
+            queuedReport[15] = playerID;
             canSend = true;
             //printf("Player is %d\n", playerID);
             //printf("----------------------------------------------\n");
@@ -429,68 +454,68 @@ void SwitchProDriver::handleFeatureReport(uint8_t switchReportID, uint8_t switch
         case SwitchCommands::COMMAND_UNKNOWN_33:
             //printf("SwitchProDriver::set_report: Rpt 0x01 COMMAND_UNKNOWN_33\n");
             // Command typically thrown by Chromium to detect if a Switch controller exists. Can ignore.
-            report[13] = 0x80;
-            report[14] = commandID;
-            report[15] = 0x03;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
+            queuedReport[15] = 0x03;
             canSend = true;
             break;
         case SwitchCommands::SET_HOME_LIGHT:
             //printf("SwitchProDriver::set_report: Rpt 0x01 SET_HOME_LIGHT\n");
             // NYI
-            report[13] = 0x80;
-            report[14] = commandID;
-            report[15] = 0x00;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
+            queuedReport[15] = 0x00;
             canSend = true;
             break;
         case SwitchCommands::TOGGLE_IMU:
             //printf("SwitchProDriver::set_report: Rpt 0x01 TOGGLE_IMU\n");
             isIMUEnabled = reportData[11];
-            report[13] = 0x80;
-            report[14] = commandID;
-            report[15] = 0x00;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
+            queuedReport[15] = 0x00;
             canSend = true;
             //printf("IMU set to %d\n", isIMUEnabled);
             //printf("----------------------------------------------\n");
             break;
         case SwitchCommands::IMU_SENSITIVITY:
             //printf("SwitchProDriver::set_report: Rpt 0x01 IMU_SENSITIVITY\n");
-            report[13] = 0x80;
-            report[14] = commandID;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
             canSend = true;
             break;
         case SwitchCommands::ENABLE_VIBRATION:
             //printf("SwitchProDriver::set_report: Rpt 0x01 ENABLE_VIBRATION\n");
             isVibrationEnabled = reportData[11];
-            report[13] = 0x80;
-            report[14] = commandID;
-            report[15] = 0x00;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
+            queuedReport[15] = 0x00;
             canSend = true;
             //printf("Vibration set to %d\n", isVibrationEnabled);
             //printf("----------------------------------------------\n");
             break;
         case SwitchCommands::READ_IMU:
             //printf("SwitchProDriver::set_report: Rpt 0x01 READ_IMU\n");
-            report[13] = 0xC0;
-            report[14] = commandID;
-            report[15] = reportData[11];
-            report[16] = reportData[12];
+            queuedReport[13] = 0xC0;
+            queuedReport[14] = commandID;
+            queuedReport[15] = reportData[11];
+            queuedReport[16] = reportData[12];
             canSend = true;
             //printf("IMU Addr: %02x, Size: %02x\n", reportData[11], reportData[12]);
             //printf("----------------------------------------------\n");
             break;
         case SwitchCommands::GET_VOLTAGE:
             //printf("SwitchProDriver::set_report: Rpt 0x01 GET_VOLTAGE\n");
-            report[13] = 0xD0;
-            report[14] = 0x50;
-            report[15] = 0x83;
-            report[16] = 0x06;
+            queuedReport[13] = 0xD0;
+            queuedReport[14] = 0x50;
+            queuedReport[15] = 0x83;
+            queuedReport[16] = 0x06;
             canSend = true;
             break;
         default:
             //printf("SwitchProDriver::set_report: Rpt 0x01 Unknown 0x%02x\n", commandID);
-            report[13] = 0x80;
-            report[14] = commandID;
-            report[15] = 0x03;
+            queuedReport[13] = 0x80;
+            queuedReport[14] = commandID;
+            queuedReport[15] = 0x03;
             canSend = true;
             break;
     }
@@ -499,19 +524,22 @@ void SwitchProDriver::handleFeatureReport(uint8_t switchReportID, uint8_t switch
 }
 
 void SwitchProDriver::set_report(uint8_t report_id, hid_report_type_t report_type, const uint8_t *buffer, uint16_t bufsize) {
-    if (report_type != HID_REPORT_TYPE_OUTPUT) return;
-
-    memset(report, 0x00, bufsize);
+    if (report_type != HID_REPORT_TYPE_OUTPUT ||
+        buffer == nullptr ||
+        bufsize < 2) {
+        return;
+    }
 
     uint8_t switchReportID = buffer[0];
     uint8_t switchReportSubID = buffer[1];
     //printf("SwitchProDriver::set_report Rpt: %02x, Type: %d, Len: %d :: SID: %02x, SSID: %02x\n", report_id, report_type, bufsize, switchReportID, switchReportSubID);
     if (switchReportID == SwitchReportID::REPORT_OUTPUT_00) {
     } else if (switchReportID == SwitchReportID::REPORT_FEATURE) {
-        queuedReportID = 0;
+        if (bufsize < 16) return;
+        memset(queuedReport, 0, sizeof(queuedReport));
         handleFeatureReport(switchReportID, switchReportSubID, buffer, bufsize);
     } else if (switchReportID == SwitchReportID::REPORT_CONFIGURATION) {
-        queuedReportID = 0;
+        memset(queuedReport, 0, sizeof(queuedReport));
         handleConfigReport(switchReportID, switchReportSubID, buffer, bufsize);
     } else {
         //printf("SwitchProDriver::set_report Rpt: %02x, Type: %d, Len: %d :: SID: %02x, SSID: %02x\n", report_id, report_type, bufsize, switchReportID, switchReportSubID);

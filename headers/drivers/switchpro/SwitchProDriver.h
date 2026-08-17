@@ -29,8 +29,9 @@ public:
     virtual const uint8_t * get_descriptor_device_qualifier_cb();
     virtual uint16_t GetJoystickMidValue();
     virtual USBListener * get_usb_auth_listener() { return nullptr; }
+    virtual void onUSBReset();
 private:
-    uint8_t report[SWITCH_PRO_ENDPOINT_SIZE] = { };
+    uint8_t queuedReport[SWITCH_PRO_ENDPOINT_SIZE] = { };
     uint8_t last_report[SWITCH_PRO_ENDPOINT_SIZE] = { };
     SwitchProReport switchReport;
     uint8_t last_report_counter;
@@ -38,8 +39,8 @@ private:
     bool isReady = false;
     bool isInitialized = false;
     bool isReportQueued = false;
+    bool queuedReportEnablesInput = false;
     bool reportSent = false;
-    uint8_t queuedReportID = 0;
 
     uint8_t handshakeCounter = 0;
 
@@ -54,7 +55,8 @@ private:
     bool isIMUEnabled = false;
     bool isVibrationEnabled = false;
 
-    void sendIdentify();
+    void resetProtocolState();
+    void buildIdentifyReport(uint8_t* destination) const;
     void sendSubCommand(uint8_t subCommand);
 
     bool sendReport(uint8_t reportID, const void* reportData, uint16_t reportLength);

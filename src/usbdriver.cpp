@@ -267,8 +267,16 @@ void usb_notify_main_gamepad_usb_reset(void) {
 	beginMainGamepadUSBEpoch(false);
 }
 
+static void resetActiveDriverUSBState() {
+        GPDriver* driver = DriverManager::getInstance().getDriver();
+        if (driver != nullptr) {
+                driver->onUSBReset();
+        }
+}
+
 void usb_main_gamepad_hid_reset(uint8_t rhport) {
 	hidd_reset(rhport);
+        resetActiveDriverUSBState();
 	usb_notify_main_gamepad_usb_reset();
 }
 
@@ -374,6 +382,7 @@ void tud_mount_cb(void)
 void tud_umount_cb(void)
 {
 	beginMainGamepadUSBEpoch(false);
+        resetActiveDriverUSBState();
 }
 
 // Invoked when usb bus is suspended
