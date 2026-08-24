@@ -18,6 +18,14 @@ export default {
 	'profile-pins-warning':
 		'Try to avoid changing the buttons and/or directions used for the switch profile hotkeys. Otherwise, it will be difficult to understand what profile is being selected!',
 	'profile-copy-base': 'Copy base profile',
+	'profile-delete-button': 'Delete Profile',
+	'profile-delete-confirm-title': 'Confirm Profile Deletion',
+	'profile-delete-confirm-text':
+		'Deleting this profile will shift all subsequent profiles forward. Please review your profile switch hotkey settings after deletion to avoid mismatches.',
+	'profile-delete-confirm-button': 'Delete',
+	'profile-delete-cancel-button': 'Cancel',
+	'profile-delete-success-message': 'Profile deleted successfully',
+	'profile-delete-error-message': 'Failed to delete profile',
 	actions: {
 		NONE: 'None',
 		RESERVED: 'Reserved',

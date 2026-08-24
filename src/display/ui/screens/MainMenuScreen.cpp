@@ -1,10 +1,9 @@
 #include "MainMenuScreen.h"
 #include "GPGFX_UI_screens.h"
-#include "GPGFX_core.h"
 #include "hardware/watchdog.h"
 #include "system.h"
-#include "storagemanager.h"
-#include "GPRestartEvent.h"
+
+extern uint32_t getMillis();
 
 namespace {
     bool hmlConfigRestartPending = false;
@@ -35,7 +34,21 @@ void MainMenuScreen::clearOpenHMLConfigMenuFlag() {
     shouldOpenHMLConfigMenu = false;
 }
 
-extern uint32_t getMillis();
+void MainMenuScreen::startStickCalibration() {
+    exitToScreen = DisplayMode::STICK_CALIBRATION;
+}
+
+void MainMenuScreen::openBackStickMapping() {
+    exitToScreen = DisplayMode::BACK_STICK_MAPPING;
+}
+
+void MainMenuScreen::openDeadzoneMenu() {
+    exitToScreen = DisplayMode::ANALOG_DEADZONE;
+}
+
+void MainMenuScreen::openDpadSwap() {
+    exitToScreen = DisplayMode::DPAD_SWAP;
+}
 
 void MainMenuScreen::init() {
     getRenderer()->clearScreen();
@@ -81,7 +94,7 @@ void MainMenuScreen::init() {
                 continue;
             }
         }
-
+        
         MenuEntry menuEntry = {menuLabel, NULL, nullptr, std::bind(&MainMenuScreen::currentProfile, this), std::bind(&MainMenuScreen::selectProfile, this), profileCtr+1};
         profilesMenu.push_back(menuEntry);
     }
@@ -104,39 +117,23 @@ void MainMenuScreen::init() {
     changeRequiresSave = false;
     prevInputMode = Storage::getInstance().GetGamepad()->getOptions().inputMode;
     updateInputMode = Storage::getInstance().GetGamepad()->getOptions().inputMode;
-
+    
     prevDpadMode = Storage::getInstance().GetGamepad()->getOptions().dpadMode;
     updateDpadMode = Storage::getInstance().GetGamepad()->getOptions().dpadMode;
-
+    
     prevSocdMode = Storage::getInstance().GetGamepad()->getOptions().socdMode;
     updateSocdMode = Storage::getInstance().GetGamepad()->getOptions().socdMode;
-
+    
     prevProfile = Storage::getInstance().GetGamepad()->getOptions().profileNumber;
     updateProfile = Storage::getInstance().GetGamepad()->getOptions().profileNumber;
-
+    
     prevFocus = Storage::getInstance().getAddonOptions().focusModeOptions.enabled;
     updateFocus = Storage::getInstance().getAddonOptions().focusModeOptions.enabled;
-
+    
     prevTurbo = Storage::getInstance().getAddonOptions().turboOptions.enabled;
     updateTurbo = Storage::getInstance().getAddonOptions().turboOptions.enabled;
 
     setMenuHome();
-
-    // If we should open HML Config menu (e.g., returning from Back stick or Dead Zone screens)
-    if (hasOpenHMLConfigMenuFlag()) {
-        clearOpenHMLConfigMenuFlag();
-        // Find HML Config menu item index
-        for (size_t i = 0; i < mainMenu.size(); i++) {
-            if (mainMenu[i].submenu == &hmlConfigMenu) {
-                previousMenu = currentMenu;
-                currentMenu = &hmlConfigMenu;
-                gpMenu->setMenuData(currentMenu);
-                gpMenu->setMenuTitle("[HML Config]");
-                gpMenu->setIndex(0);
-                break;
-            }
-        }
-    }
 }
 
 void MainMenuScreen::shutdown() {
@@ -151,45 +148,21 @@ void MainMenuScreen::drawScreen() {
     if (!screenIsPrompting) {
 
     } else {
-        if (changeRequiresReboot) {
-            if (hmlConfigRebootPrompt) {
-                // Special prompt for HML Config submenu
-                // [HML Config] - centered on line 0 (same position as menu title)
-                std::string title = "[HML Config]";
-                uint16_t titleX = (21 - title.length()) / 2;  // Same centering calculation as menu title
-                getRenderer()->drawText(titleX, 0, title.c_str());
-                // Empty line (line 1)
-                // Reboot to apply ? - left aligned on line 2
-                getRenderer()->drawText(0, 2, "Reboot to apply ?");
-                // B1: Reboot - left aligned on second to last line (line 6)
-                getRenderer()->drawText(0, 6, "B1: Reboot");
-                // B2: Cancel - left aligned on last line (line 7)
-                getRenderer()->drawText(0, 7, "B2: Cancel");
-            } else {
-                // Standard prompt with Yes/No choice
-            getRenderer()->drawText(1, 1, "Reboot to");
-            getRenderer()->drawText(1, 2, "apply settings");
-
-            if (promptChoice) getRenderer()->drawText(5, 4, CHAR_RIGHT);
-            getRenderer()->drawText(6, 4, "Yes");
-            if (!promptChoice) getRenderer()->drawText(11, 4, CHAR_RIGHT);
-            getRenderer()->drawText(12, 4, "No");
-            }
+        getRenderer()->drawText(1, 1, "Config has changed.");
+        if (changeRequiresSave && !changeRequiresReboot) {
+            getRenderer()->drawText(3, 3, "Would you like");
+            getRenderer()->drawText(6, 4, "to save?");
+        } else if (changeRequiresSave && changeRequiresReboot) {
+            getRenderer()->drawText(3, 3, "Would you like");
+            getRenderer()->drawText(1, 4, "to save & restart?");
         } else {
-            getRenderer()->drawText(1, 1, "Config has changed.");
-            if (changeRequiresSave && !changeRequiresReboot) {
-                getRenderer()->drawText(3, 3, "Would you like");
-                getRenderer()->drawText(6, 4, "to save?");
-            } else if (changeRequiresSave && changeRequiresReboot) {
-                getRenderer()->drawText(3, 3, "Would you like");
-                getRenderer()->drawText(1, 4, "to save & restart?");
-            }
 
-            if (promptChoice) getRenderer()->drawText(5, 6, CHAR_RIGHT);
-            getRenderer()->drawText(6, 6, "Yes");
-            if (!promptChoice) getRenderer()->drawText(11, 6, CHAR_RIGHT);
-            getRenderer()->drawText(12, 6, "No");
         }
+        
+        if (promptChoice) getRenderer()->drawText(5, 6, CHAR_RIGHT);
+        getRenderer()->drawText(6, 6, "Yes");
+        if (!promptChoice) getRenderer()->drawText(11, 6, CHAR_RIGHT);
+        getRenderer()->drawText(12, 6, "No");
     }
 }
 
@@ -203,19 +176,15 @@ void MainMenuScreen::setMenuHome() {
 
     exitToScreen = -1;
     prevValues = Storage::getInstance().GetGamepad()->debouncedGpio;
-    // Initialize prevButtonState with current button state to prevent immediate button press detection
-    // when returning from other screens with a button still pressed
-    prevButtonState = getGamepad()->state.buttons;
-    // Note: prevDpadState is no longer used - we read dpad directly from GPIO instead
     isMenuReady = true;
 }
 
 int8_t MainMenuScreen::update() {
     if (isMenuReady) {
         GamepadOptions & gamepadOptions = Storage::getInstance().getGamepadOptions();
-        Gamepad* gamepad = Storage::getInstance().GetGamepad();
         Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
         uint16_t buttonState = getGamepad()->state.buttons;
+        uint8_t dpadState = getGamepad()->state.dpad;
 
         if (prevValues != values) {
             if (values & mapMenuUp->pinMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_UP);
@@ -231,28 +200,11 @@ int8_t MainMenuScreen::update() {
             }
         }
         if (gamepadOptions.miniMenuGamepadInput == true ) {
-            // For gamepad input, read dpad buttons directly from GPIO to bypass Dpad Swap conversion
-            // This allows navigation to work regardless of dpadMode setting
-            // Only respond to physical dpad buttons, not joystick (even if Dpad Swap is enabled)
-            if (gamepad->mapDpadUp && gamepad->mapDpadDown && 
-                gamepad->mapDpadLeft && gamepad->mapDpadRight) {
-                // Read raw GPIO state for dpad buttons (before Dpad Swap conversion)
-                bool dpadUpPressed = (values & gamepad->mapDpadUp->pinMask) != 0;
-                bool dpadDownPressed = (values & gamepad->mapDpadDown->pinMask) != 0;
-                bool dpadLeftPressed = (values & gamepad->mapDpadLeft->pinMask) != 0;
-                bool dpadRightPressed = (values & gamepad->mapDpadRight->pinMask) != 0;
-                
-                // Check previous state to detect changes
-                bool prevDpadUp = (prevValues & gamepad->mapDpadUp->pinMask) != 0;
-                bool prevDpadDown = (prevValues & gamepad->mapDpadDown->pinMask) != 0;
-                bool prevDpadLeft = (prevValues & gamepad->mapDpadLeft->pinMask) != 0;
-                bool prevDpadRight = (prevValues & gamepad->mapDpadRight->pinMask) != 0;
-                
-                // Trigger navigation on state change (edge detection)
-                if (dpadUpPressed && !prevDpadUp) updateMenuNavigation(GpioAction::MENU_NAVIGATION_UP);
-                else if (dpadDownPressed && !prevDpadDown) updateMenuNavigation(GpioAction::MENU_NAVIGATION_DOWN);
-                else if (dpadLeftPressed && !prevDpadLeft) updateMenuNavigation(GpioAction::MENU_NAVIGATION_LEFT);
-                else if (dpadRightPressed && !prevDpadRight) updateMenuNavigation(GpioAction::MENU_NAVIGATION_RIGHT);
+            if (prevDpadState != dpadState ) {
+                if (dpadState == mapMenuUp->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_UP);
+                else if (dpadState == mapMenuDown->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_DOWN);
+                else if (dpadState == mapMenuLeft->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_LEFT);
+                else if (dpadState == mapMenuRight->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_RIGHT);
             }
             if ( prevButtonState != buttonState ) {
                 if (buttonState == mapMenuSelect->buttonMask) updateMenuNavigation(GpioAction::MENU_NAVIGATION_SELECT);
@@ -261,6 +213,7 @@ int8_t MainMenuScreen::update() {
         }
 
         prevButtonState = buttonState;
+        prevDpadState = dpadState;
         prevValues = values;
 
         // Core0 Event Navigations
@@ -287,150 +240,94 @@ void MainMenuScreen::updateEventMenuNavigation(GpioAction action) {
 }
 
 void MainMenuScreen::updateMenuNavigation(GpioAction action) {
-    if (gpMenu == nullptr || !isMenuReady)
+    if (gpMenu == nullptr)
         return;
 
     uint16_t menuIndex = gpMenu->getIndex();
     uint16_t menuSize = gpMenu->getDataSize();
 
-    if (screenIsPrompting) {
-        switch (action) {
-            case GpioAction::MENU_NAVIGATION_UP:
-            case GpioAction::MENU_NAVIGATION_DOWN:
-            case GpioAction::MENU_NAVIGATION_LEFT:
-            case GpioAction::MENU_NAVIGATION_RIGHT:
-                if (!hmlConfigRebootPrompt) {
-                    // Only toggle choice for standard prompt
-                promptChoice = !promptChoice;
-                }
-                break;
-            case GpioAction::MENU_NAVIGATION_SELECT:
-                if (hmlConfigRebootPrompt) {
-                    // B1 pressed: reboot
-                    saveOptions();
-                    EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
-                    exitToScreen = DisplayMode::BUTTONS;
-                    exitToScreenBeforePrompt = DisplayMode::BUTTONS;
-                } else {
-                    // Standard prompt handling
-                if (promptChoice) {
-                    saveOptions();
-                    EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
-                    exitToScreen = DisplayMode::BUTTONS;
-                    exitToScreenBeforePrompt = DisplayMode::BUTTONS;
-                } else {
-                    screenIsPrompting = false;
+    if (isMenuReady) {
+        if (screenIsPrompting) {
+            switch(action) {
+                case GpioAction::MENU_NAVIGATION_UP:
+                case GpioAction::MENU_NAVIGATION_DOWN:
+                case GpioAction::MENU_NAVIGATION_LEFT:
+                case GpioAction::MENU_NAVIGATION_RIGHT:
+                    promptChoice = !promptChoice;
+                    break;
+                case GpioAction::MENU_NAVIGATION_SELECT:
+                    if (promptChoice) {
+                        saveOptions();
+                    } else {
+                        resetOptions();
+                        exitToScreen = DisplayMode::BUTTONS;
+                        exitToScreenBeforePrompt = DisplayMode::BUTTONS;
                     }
-                }
-                break;
-            case GpioAction::MENU_NAVIGATION_BACK:
-                if (hmlConfigRebootPrompt) {
-                    // B2 pressed: cancel reboot prompt, stay in HML Config menu
-                    // Don't clear restart pending flag - user must reboot eventually
+                    break;
+                case GpioAction::MENU_NAVIGATION_BACK:
+                    // back again goes back to the menu
                     screenIsPrompting = false;
-                    hmlConfigRebootPrompt = false;
-                    changeRequiresReboot = false;
-                    // Ensure we stay in HML Config menu
-                    if (currentMenu != &hmlConfigMenu) {
-                        // Restore HML Config menu if we're not already there
-                        previousMenu = currentMenu;
-                        currentMenu = &hmlConfigMenu;
-                        gpMenu->setMenuData(currentMenu);
-                        gpMenu->setMenuTitle("[HML Config]");
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            switch (action) { 
+                case GpioAction::MENU_NAVIGATION_UP:
+                    if ( menuIndex == 0 ) {
+                        gpMenu->setIndex(menuSize-1);
+                    } else {
+                        gpMenu->setIndex(menuIndex-1);
+                    }
+                    break;
+                case GpioAction::MENU_NAVIGATION_DOWN:
+                    if (menuIndex < menuSize-1) {
+                        gpMenu->setIndex(menuIndex+1);
+                    } else {
                         gpMenu->setIndex(0);
                     }
-                } else {
-                screenIsPrompting = false;
-                }
-                break;
-            default:
-                break;
-        }
-        return;
-    }
-
-    switch (action) {
-        case GpioAction::MENU_NAVIGATION_UP:
-            if (menuSize == 0) break;
-            if (menuIndex == 0) gpMenu->setIndex(menuSize - 1);
-            else gpMenu->setIndex(menuIndex - 1);
-            break;
-        case GpioAction::MENU_NAVIGATION_DOWN:
-            if (menuSize == 0) break;
-            if (menuIndex < menuSize - 1) gpMenu->setIndex(menuIndex + 1);
-            else gpMenu->setIndex(0);
-            break;
-        case GpioAction::MENU_NAVIGATION_LEFT:
-            if ((menuIndex - menuLineSize) > 0) gpMenu->setIndex(menuIndex - menuLineSize);
-            else gpMenu->setIndex(0);
-            break;
-        case GpioAction::MENU_NAVIGATION_RIGHT:
-            if ((menuIndex + menuLineSize) < (menuSize - 1)) gpMenu->setIndex(menuIndex + menuLineSize);
-            else gpMenu->setIndex(menuSize > 0 ? menuSize - 1 : 0);
-            break;
-        case GpioAction::MENU_NAVIGATION_SELECT:
-            if (menuSize == 0) break;
-            if (currentMenu->at(menuIndex).submenu != nullptr) {
-                previousMenu = currentMenu;
-                currentMenu = currentMenu->at(menuIndex).submenu;
-                gpMenu->setMenuData(currentMenu);
-                // Set menu title with brackets for HML Config submenu
-                std::string menuTitle = previousMenu->at(menuIndex).label;
-                if (currentMenu == &hmlConfigMenu) {
-                    menuTitle = "[HML Config]";
-                }
-                gpMenu->setMenuTitle(menuTitle);
-                gpMenu->setIndex(0);
-            } else {
-                currentMenu->at(menuIndex).action();
-            }
-            break;
-        case GpioAction::MENU_NAVIGATION_BACK:
-            if (previousMenu != nullptr) {
-                if (currentMenu == &hmlConfigMenu) {
-                    // Don't change menu state yet if restart is pending
-                    if (hasHMLConfigRestartPending()) {
-                        changeRequiresReboot = true;
-                        screenIsPrompting = true;
-                        hmlConfigRebootPrompt = true;  // Special prompt for HML Config
-                        promptChoice = true;
-                        exitToScreen = -1;
-                        exitToScreenBeforePrompt = DisplayMode::BUTTONS;
+                    break;
+                case GpioAction::MENU_NAVIGATION_LEFT:
+                    if ((menuIndex-menuLineSize) > 0) {
+                        gpMenu->setIndex(menuIndex - menuLineSize);
                     } else {
-                        // Only change menu if no restart pending
+                        gpMenu->setIndex(0);
+                    }
+                    break;
+                case GpioAction::MENU_NAVIGATION_RIGHT:
+                    if ((menuIndex+menuLineSize) < (menuSize-1)) {
+                        gpMenu->setIndex(menuIndex + menuLineSize);
+                    } else {
+                        gpMenu->setIndex(menuSize-1);
+                    }
+                    break;
+                case GpioAction::MENU_NAVIGATION_SELECT:
+                    if (currentMenu->at(menuIndex).submenu != nullptr) {
+                        previousMenu = currentMenu;
+                        currentMenu = currentMenu->at(menuIndex).submenu;
+                        gpMenu->setMenuData(currentMenu);
+                        gpMenu->setMenuTitle(previousMenu->at(menuIndex).label);
+                        gpMenu->setIndex(0);
+                    } else {
+                        currentMenu->at(menuIndex).action();
+                    }
+                    break;
+                case GpioAction::MENU_NAVIGATION_BACK:
+                    if (previousMenu != nullptr) {
                         currentMenu = previousMenu;
                         previousMenu = nullptr;
                         gpMenu->setMenuData(currentMenu);
-                        gpMenu->setMenuSize(18, menuLineSize);
                         gpMenu->setMenuTitle(MAIN_MENU_NAME);
                         gpMenu->setIndex(0);
+                    } else {
+                        exitToScreen = DisplayMode::BUTTONS;
+                        exitToScreenBeforePrompt = DisplayMode::BUTTONS;
                     }
-                } else {
-                    currentMenu = previousMenu;
-                    previousMenu = nullptr;
-                    gpMenu->setMenuData(currentMenu);
-                    gpMenu->setMenuSize(18, menuLineSize);
-                    if (currentMenu == &mainMenu) {
-                        gpMenu->setMenuTitle(MAIN_MENU_NAME);
-                    }
-                    gpMenu->setIndex(0);
-                }
-            } else {
-                if (hasHMLConfigRestartPending()) {
-                    changeRequiresReboot = true;
-                    screenIsPrompting = true;
-                    hmlConfigRebootPrompt = true;  // Special prompt for HML Config
-                    promptChoice = true;
-                    exitToScreen = -1;
-                    exitToScreenBeforePrompt = DisplayMode::BUTTONS;
-                } else {
-                    exitToScreen = DisplayMode::BUTTONS;
-                    exitToScreenBeforePrompt = DisplayMode::BUTTONS;
-                }
+                    break;
+                default:
+                    break;
             }
-            break;
-        default:
-            break;
+        }
     }
 }
 
@@ -439,8 +336,6 @@ void MainMenuScreen::chooseAndReturn() {
         currentMenu = previousMenu;
         previousMenu = nullptr;
         gpMenu->setMenuData(currentMenu);
-        // Restore menu size to default (single column)
-        gpMenu->setMenuSize(18, menuLineSize);
         gpMenu->setMenuTitle(MAIN_MENU_NAME);
         gpMenu->setIndex(0);
     } else {
@@ -527,9 +422,7 @@ void MainMenuScreen::resetOptions() {
 
     changeRequiresSave = false;
     changeRequiresReboot = false;
-    clearHMLConfigRestartPending();
     screenIsPrompting = false;
-    hmlConfigRebootPrompt = false;
 }
 
 void MainMenuScreen::saveOptions() {
@@ -571,13 +464,6 @@ void MainMenuScreen::saveOptions() {
     }
 
     screenIsPrompting = false;
-
-    // Clear restart pending flag when saving (user confirmed reboot)
-    if (hasHMLConfigRestartPending()) {
-        clearHMLConfigRestartPending();
-    }
-
-    hmlConfigRebootPrompt = false;
 
     if (exitToScreenBeforePrompt != -1) {
         exitToScreen = exitToScreenBeforePrompt;
@@ -632,31 +518,3 @@ void MainMenuScreen::selectTurboMode() {
 int32_t MainMenuScreen::currentTurboMode() {
     return updateTurbo;
 }
-
-void MainMenuScreen::startStickCalibration() {
-    // Only allow calibration if analog input is enabled
-    if (!Storage::getInstance().getAddonOptions().analogOptions.enabled) {
-        return;
-    }
-    exitToScreen = DisplayMode::STICK_CALIBRATION;
-    exitToScreenBeforePrompt = DisplayMode::STICK_CALIBRATION;
-}
-
-void MainMenuScreen::openBackStickMapping() {
-    exitToScreen = DisplayMode::BACK_STICK_MAPPING;
-    exitToScreenBeforePrompt = DisplayMode::BACK_STICK_MAPPING;
-}
-
-void MainMenuScreen::openDeadzoneMenu() {
-    if (!Storage::getInstance().getAddonOptions().analogOptions.enabled) {
-        return;
-    }
-    exitToScreen = DisplayMode::ANALOG_DEADZONE;
-    exitToScreenBeforePrompt = DisplayMode::ANALOG_DEADZONE;
-}
-
-void MainMenuScreen::openDpadSwap() {
-    exitToScreen = DisplayMode::DPAD_SWAP;
-    exitToScreenBeforePrompt = DisplayMode::DPAD_SWAP;
-}
-

@@ -13,6 +13,14 @@ export default {
 	'profile-enabled-active-tooltip': '无法禁用当前激活的配置文件，请在设置 > 游戏手柄设置中更改',
 	'profile-pins-warning': '尽量避免更改用于切换配置文件的按键和/或方向键。否则将难以识别当前选择的配置文件！',
 	'profile-copy-base': '复制基础配置文件',
+	'profile-delete-button': '删除预设',
+	'profile-delete-confirm-title': '确认删除预设方案',
+	'profile-delete-confirm-text':
+		'删除此预设方案后，后续所有预设方案将前移。删除后请重新检查预设切换热键设置，避免对应错误。',
+	'profile-delete-confirm-button': '确认删除',
+	'profile-delete-cancel-button': '取消',
+	'profile-delete-success-message': '预设方案已删除',
+	'profile-delete-error-message': '删除预设方案失败',
 	actions: {
 		NONE: '无',
 		RESERVED: '预留引脚',
@@ -78,7 +86,7 @@ export default {
 		MENU_NAVIGATION_RIGHT: '菜单 右',
 		MENU_NAVIGATION_SELECT: '菜单 选择',
 		MENU_NAVIGATION_BACK: '菜单 返回',
-		MENU_NAVIGATION_TOGGLE: '菜单 切换',
+		MENU_NAVIGATION_TOGGLE: '屏幕控制',
 	},
 	'pin-not-modifiable': '不可修改',
 };

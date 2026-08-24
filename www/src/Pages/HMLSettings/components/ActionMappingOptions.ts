@@ -113,7 +113,7 @@ export const BACK_KEY_ALLOWED_ACTIONS = new Set([
 	'BUTTON_PRESS_MACRO_4',
 	'BUTTON_PRESS_MACRO_5',
 	'BUTTON_PRESS_MACRO_6',
-	'MENU_NAVIGATION_BACK',
+	'MENU_NAVIGATION_TOGGLE',
 ]);
 
 export const groupedMappingOptions = [

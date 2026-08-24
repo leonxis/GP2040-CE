@@ -68,6 +68,7 @@ type SaveProfilesAndActivateResult = {
 type Actions = {
 	addProfile: () => void;
 	copyBaseProfile: (profileIndex: number) => void;
+	deleteProfile: (profileIndex: number) => Promise<boolean>;
 	fetchProfiles: () => Promise<boolean>;
 	saveProfiles: () => Promise<void>;
 	saveProfilesAndActivate: (profileIndex: number) => Promise<SaveProfilesAndActivateResult>;
@@ -159,7 +160,7 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 			throw new Error('No profiles loaded');
 		}
 		const [baseProfile, ...alternatives] = profiles;
-		return Promise.all([
+		await Promise.all([
 			WebApi.setPinMappings(baseProfile),
 			WebApi.setProfileOptions(alternatives),
 		]);
@@ -192,6 +193,46 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 			};
 			return { ...state, profiles };
 		}),
+	deleteProfile: async (profileIndex: number) => {
+		const profiles = get().profiles;
+		if (profileIndex <= 0 || profileIndex >= profiles.length) {
+			return false;
+		}
+		const newProfiles = [...profiles];
+		newProfiles.splice(profileIndex, 1);
+		set({ profiles: newProfiles });
+		try {
+			await get().saveProfiles();
+		} catch (error) {
+			console.error('Failed to save after profile deletion:', error);
+			set({ profiles });
+			return false;
+		}
+		const gamepadOptions = await WebApi.getGamepadOptions();
+		if (!gamepadOptions) {
+			return true;
+		}
+		const currentProfileNumber = Number(gamepadOptions.profileNumber ?? 1);
+		const deletedProfileNumber = profileIndex + 1;
+		let newProfileNumber = currentProfileNumber;
+		if (currentProfileNumber === deletedProfileNumber) {
+			newProfileNumber = 1;
+		} else if (currentProfileNumber > deletedProfileNumber) {
+			newProfileNumber = currentProfileNumber - 1;
+		}
+		newProfileNumber = Math.max(1, Math.min(newProfileNumber, newProfiles.length));
+		if (newProfileNumber !== currentProfileNumber) {
+			try {
+				await WebApi.setGamepadOptions({
+					...gamepadOptions,
+					profileNumber: newProfileNumber,
+				});
+			} catch (error) {
+				console.error('Failed to update profileNumber after deletion:', error);
+			}
+		}
+		return true;
+	},
 }));
 
 export default useProfilesStore;

@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Card, Row, Col, Button } from 'react-bootstrap';
+import { Card, Row, Col, Button, Modal } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { omit } from 'lodash';
 import { MultiValue, SingleValue } from 'react-select';
@@ -55,14 +55,23 @@ function clampProfileTabIndex(profileNumber: number, profileCount: number): numb
 	return Math.min(Math.max(profileNumber - 1, 0), profileCount - 1);
 }
 
-function KeySwapSettingsBody({ profileIndex }: { profileIndex: number }) {
-	const { t } = useTranslation();
+function KeySwapSettingsBody({
+	profileIndex,
+	onProfileDeleted,
+}: {
+	profileIndex: number;
+	onProfileDeleted?: () => void;
+}) {
+	const { t } = useTranslation(['SettingsPage', 'Common', 'PinMapping']);
 	const appContext = useContext(AppContext);
 	const profile = useProfilesStore((state) => state.profiles[profileIndex]);
 	const setProfilePin = useProfilesStore((state) => state.setProfilePin);
 	const saveProfilesAndActivate = useProfilesStore((state) => state.saveProfilesAndActivate);
+	const deleteProfile = useProfilesStore((state) => state.deleteProfile);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [deleteMessage, setDeleteMessage] = useState('');
 
 	const pins = useMemo(
 		() =>
@@ -139,6 +148,29 @@ function KeySwapSettingsBody({ profileIndex }: { profileIndex: number }) {
 		}
 	}, [saveProfilesAndActivate, profileIndex, appContext, t]);
 
+	const handleDelete = useCallback(async () => {
+		setDeleteMessage('');
+		setShowDeleteConfirm(false);
+		const deleted = await deleteProfile(profileIndex);
+		if (deleted) {
+			setDeleteMessage(t('PinMapping:profile-delete-success-message'));
+			if (appContext) {
+				const { updateUsedPins } = appContext as AppContextShape;
+				if (updateUsedPins) {
+					try {
+						await updateUsedPins();
+					} catch {
+						// ignore
+					}
+				}
+			}
+			if (onProfileDeleted) onProfileDeleted();
+		} else {
+			setDeleteMessage(t('PinMapping:profile-delete-error-message'));
+		}
+		setTimeout(() => setDeleteMessage(''), 3000);
+	}, [deleteProfile, profileIndex, appContext, onProfileDeleted, t]);
+
 	return (
 		<>
 			<Row className="g-3">
@@ -175,23 +207,53 @@ function KeySwapSettingsBody({ profileIndex }: { profileIndex: number }) {
 				})}
 			</Row>
 			<Row className="mt-3">
-				<Col sm={4}>
+				<Col sm={12} className="d-flex align-items-center gap-3">
 					<Button variant="primary" onClick={handleSave} disabled={isLoading}>
 						{t('Common:button-save-label')}
 					</Button>
-					{saveMessage && (
+					{profileIndex > 0 && (
+						<Button
+							variant="success"
+							onClick={() => setShowDeleteConfirm(true)}
+							disabled={isLoading}
+						>
+							{t('PinMapping:profile-delete-button')}
+						</Button>
+					)}
+					{(saveMessage || deleteMessage) && (
 						<span
 							className={`ms-3 ${
-								saveMessage === t('Common:saved-success-message')
+								saveMessage === t('Common:saved-success-message') ||
+								deleteMessage === t('PinMapping:profile-delete-success-message')
 									? 'text-success'
 									: 'text-danger'
 							}`}
 						>
-							{saveMessage}
+							{saveMessage || deleteMessage}
 						</span>
 					)}
 				</Col>
 			</Row>
+			<Modal
+				show={showDeleteConfirm}
+				onHide={() => setShowDeleteConfirm(false)}
+				centered
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>{t('PinMapping:profile-delete-confirm-title')}</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p className="mb-0">{t('PinMapping:profile-delete-confirm-text')}</p>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>
+						{t('PinMapping:profile-delete-cancel-button')}
+					</Button>
+					<Button variant="danger" onClick={handleDelete}>
+						{t('PinMapping:profile-delete-confirm-button')}
+					</Button>
+				</Modal.Footer>
+			</Modal>
 		</>
 	);
 }
@@ -263,7 +325,10 @@ export default function KeySwapSettings() {
 						<p className="text-muted small mb-3">
 							{t('SettingsPage:hml-key-swap-profile-manage-hint')}
 						</p>
-						<KeySwapSettingsBody profileIndex={profileIndex} />
+						<KeySwapSettingsBody
+							profileIndex={profileIndex}
+							onProfileDeleted={() => setActiveKey('profile-0')}
+						/>
 					</Card.Body>
 				</Card>
 			)}
