@@ -14,6 +14,7 @@ import {
 	Col,
 	Form,
 	FormCheck,
+	Modal,
 	Nav,
 	OverlayTrigger,
 	Row,
@@ -350,13 +351,16 @@ const PinSelectList = memo(function PinSelectList({
 
 const PinSection = memo(function PinSection({
 	profileIndex,
+	onProfileDeleted,
 }: {
 	profileIndex: number;
+	onProfileDeleted?: () => void;
 }) {
 	const { t } = useTranslation('');
 	const copyBaseProfile = useProfilesStore((state) => state.copyBaseProfile);
 	const setProfilePin = useProfilesStore((state) => state.setProfilePin);
 	const saveProfiles = useProfilesStore((state) => state.saveProfiles);
+	const deleteProfile = useProfilesStore((state) => state.deleteProfile);
 	const toggleProfileEnabled = useProfilesStore(
 		(state) => state.toggleProfileEnabled,
 	);
@@ -377,6 +381,26 @@ const PinSection = memo(function PinSection({
 	const buttonNames = omit(CURRENT_BUTTONS, ['label', 'value']);
 
 	const [saveMessage, setSaveMessage] = useState('');
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [deleteMessage, setDeleteMessage] = useState('');
+
+	const handleDelete = useCallback(async () => {
+		setDeleteMessage('');
+		setShowDeleteConfirm(false);
+		const deleted = await deleteProfile(profileIndex);
+		if (deleted) {
+			setDeleteMessage(t('PinMapping:profile-delete-success-message'));
+			try {
+				await updateUsedPins();
+			} catch {
+				// ignore
+			}
+			if (onProfileDeleted) onProfileDeleted();
+		} else {
+			setDeleteMessage(t('PinMapping:profile-delete-error-message'));
+		}
+		setTimeout(() => setDeleteMessage(''), 3000);
+	}, [deleteProfile, profileIndex, updateUsedPins, onProfileDeleted, t]);
 
 	const handleSubmit = useCallback(async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -453,7 +477,7 @@ const PinSection = memo(function PinSection({
 					<hr />
 
 					<PinSelectList profileIndex={profileIndex} />
-					<div className="d-flex gap-3 my-3">
+					<div className="d-flex gap-3 my-3 align-items-center flex-wrap">
 						<CaptureButton
 							labels={Object.values(buttonNames)}
 							onChange={(label, pin) =>
@@ -481,10 +505,46 @@ const PinSection = memo(function PinSection({
 							</Button>
 						)}
 						<Button type="submit">{t('Common:button-save-label')}</Button>
+						{profileIndex > 0 && (
+							<Button
+								variant="success"
+								type="button"
+								onClick={() => setShowDeleteConfirm(true)}
+							>
+								{t('PinMapping:profile-delete-button')}
+							</Button>
+						)}
 					</div>
-					{saveMessage && <Alert variant="info">{saveMessage}</Alert>}
+					{(saveMessage || deleteMessage) && (
+						<Alert variant="info">
+							{saveMessage || deleteMessage}
+						</Alert>
+					)}
 				</Form>
 			</Section>
+			<Modal
+				show={showDeleteConfirm}
+				onHide={() => setShowDeleteConfirm(false)}
+				centered
+			>
+				<Modal.Header closeButton>
+					<Modal.Title>{t('PinMapping:profile-delete-confirm-title')}</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p className="mb-0">{t('PinMapping:profile-delete-confirm-text')}</p>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button
+						variant="secondary"
+						onClick={() => setShowDeleteConfirm(false)}
+					>
+						{t('PinMapping:profile-delete-cancel-button')}
+					</Button>
+					<Button variant="danger" onClick={handleDelete}>
+						{t('PinMapping:profile-delete-confirm-button')}
+					</Button>
+				</Modal.Footer>
+			</Modal>
 		</>
 	);
 });
@@ -496,14 +556,19 @@ export default function PinMapping() {
 	const loadingProfiles = useProfilesStore((state) => state.loadingProfiles);
 
 	const [pressedPin, setPressedPin] = useState<number | null>(null);
+	const [activeTabKey, setActiveTabKey] = useState<string>('profile-0');
 	const { t } = useTranslation('');
 
 	useEffect(() => {
 		fetchProfiles();
 	}, []);
 
+	const handleProfileDeleted = useCallback(() => {
+		setActiveTabKey('profile-0');
+	}, []);
+
 	return (
-		<Tab.Container defaultActiveKey="profile-0">
+		<Tab.Container activeKey={activeTabKey} onSelect={(k) => k && setActiveTabKey(k)}>
 			<Row>
 				<Col md={3}>
 					{loadingProfiles && (
@@ -556,7 +621,10 @@ export default function PinMapping() {
 					<Tab.Content>
 						{profiles.map((_, index) => (
 							<Tab.Pane key={`profile-${index}`} eventKey={`profile-${index}`}>
-								<PinSection profileIndex={index} />
+								<PinSection
+									profileIndex={index}
+									onProfileDeleted={handleProfileDeleted}
+								/>
 							</Tab.Pane>
 						))}
 					</Tab.Content>
