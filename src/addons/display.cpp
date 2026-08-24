@@ -15,6 +15,9 @@
 #include "config.pb.h"
 #include "class/hid/hid.h"
 
+// 跨核标志位定义：Core1 的 DisplayAddon 设置，Core0 的主循环读取。
+volatile bool g_screenOperationActive = false;
+
 bool DisplayAddon::available() {
     const DisplayOptions& options = Storage::getInstance().getDisplayOptions();
     bool result = false;
@@ -209,6 +212,9 @@ void DisplayAddon::setMenuMappings()
 }
 
 void DisplayAddon::process() {
+    // 更新跨核标志位：屏幕操作状态（非 BUTTONS 且非 SPLASH）时禁止 USB 按键输出
+    g_screenOperationActive = (currDisplayMode != BUTTONS && currDisplayMode != SPLASH);
+
     // If GPDisplay is not loaded or we're in standard mode with display power off enabled
     if (gpDisplay->getDriver() == nullptr ||
         (!configMode && isDisplayPowerOff())) {
@@ -244,6 +250,9 @@ void DisplayAddon::process() {
             updateDisplayScreen();
         }
     }
+
+    // 再次更新标志位，反映本帧内 currDisplayMode 的变化
+    g_screenOperationActive = (currDisplayMode != BUTTONS && currDisplayMode != SPLASH);
 }
 
 const DisplayOptions& DisplayAddon::getDisplayOptions() {

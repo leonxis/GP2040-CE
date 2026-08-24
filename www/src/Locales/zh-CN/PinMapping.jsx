@@ -86,7 +86,7 @@ export default {
 		MENU_NAVIGATION_RIGHT: '菜单 右',
 		MENU_NAVIGATION_SELECT: '菜单 选择',
 		MENU_NAVIGATION_BACK: '菜单 返回',
-		MENU_NAVIGATION_TOGGLE: '菜单 切换',
+		MENU_NAVIGATION_TOGGLE: '屏幕控制',
 	},
 	'pin-not-modifiable': '不可修改',
 };

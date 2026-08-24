@@ -135,7 +135,7 @@ export default {
 		'menu-nav-right': '菜单 右',
 		'menu-nav-select': '菜单 选择',
 		'menu-nav-back': '菜单 返回',
-		'menu-nav-toggle': '菜单 切换',
+		'menu-nav-toggle': '屏幕控制',
 		'focus-mode-toggle': '聚焦模式切换',
 		'turbo-count-up': '连发计数增加',
 		'turbo-count-down': '连发计数减少',

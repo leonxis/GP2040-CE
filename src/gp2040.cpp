@@ -56,6 +56,9 @@
 #include "drivermanager.h"
 #include "usbdriver.h"
 
+// 跨核标志位：Core1 的 DisplayAddon 设置，true 时禁止 USB 按键输出
+extern volatile bool g_screenOperationActive;
+
 static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 static bool main_loop_gate_enabled = false;
@@ -1320,7 +1323,25 @@ void GP2040::run() {
 		}
 		if (gateAction == MainLoopGateAction::RetrySubmit) {
 			USBHostManager::getInstance().process();
+			// 屏幕操作状态时禁止 USB 按键输出
+			GamepadState savedUsbState;
+			const bool suppressUsb = g_screenOperationActive;
+			if (suppressUsb) {
+				memcpy(&savedUsbState, &gamepad->state, sizeof(GamepadState));
+				gamepad->state.dpad = 0;
+				gamepad->state.buttons = 0;
+				gamepad->state.aux = 0;
+				gamepad->state.lx = cached_joystick_mid;
+				gamepad->state.ly = cached_joystick_mid;
+				gamepad->state.rx = cached_joystick_mid;
+				gamepad->state.ry = cached_joystick_mid;
+				gamepad->state.lt = 0;
+				gamepad->state.rt = 0;
+			}
 			const bool submitted = inputDriver->process(gamepad);
+			if (suppressUsb) {
+				memcpy(&gamepad->state, &savedUsbState, sizeof(GamepadState));
+			}
 			// Arm the software epoch before tud_task can dispatch the completion.
 			(void)mainLoopGateReportAttempted(submitted);
 			tud_task();
@@ -1425,6 +1446,22 @@ void GP2040::run() {
 		// Copy Processed Gamepad for Core1 (race condition otherwise)
 		memcpy(&processedGamepad->state, &gamepad->state, sizeof(GamepadState));
 
+		// 屏幕操作状态时禁止 USB 按键输出：保存真实状态，清空 USB 相关字段，输出后恢复
+		GamepadState savedUsbState;
+		const bool suppressUsb = g_screenOperationActive;
+		if (suppressUsb) {
+			memcpy(&savedUsbState, &gamepad->state, sizeof(GamepadState));
+			gamepad->state.dpad = 0;
+			gamepad->state.buttons = 0;
+			gamepad->state.aux = 0;
+			gamepad->state.lx = cached_joystick_mid;
+			gamepad->state.ly = cached_joystick_mid;
+			gamepad->state.rx = cached_joystick_mid;
+			gamepad->state.ry = cached_joystick_mid;
+			gamepad->state.lt = 0;
+			gamepad->state.rt = 0;
+		}
+
 		// Process Input Driver
 		const uint32_t endpointArmStartUs =
 				splitGateFrame ? time_us_32() : 0;
@@ -1448,6 +1485,11 @@ void GP2040::run() {
 		}
 		if (composite_hid_enabled) {
 			processCompositeHID(gamepad);
+		}
+
+		// 恢复真实 gamepad 状态，确保后续 PostprocessAddons 等逻辑正确
+		if (suppressUsb) {
+			memcpy(&gamepad->state, &savedUsbState, sizeof(GamepadState));
 		}
 
 		// TinyUSB Task update (run while awake so host IN poll can be serviced; do not sleep after this).

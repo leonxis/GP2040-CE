@@ -185,6 +185,9 @@
 // i2c Display Module
 #define DisplayName "Display"
 
+// 跨核标志位：Core1 设置，Core0 读取。true 表示处于屏幕操作状态，需禁止 USB 按键输出。
+extern volatile bool g_screenOperationActive;
+
 // i2C OLED Display
 class DisplayAddon : public GPAddon
 {
