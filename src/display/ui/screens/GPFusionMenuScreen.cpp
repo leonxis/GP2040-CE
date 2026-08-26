@@ -19,7 +19,7 @@
 #include <cstring>
 #include "pico/stdlib.h"
 
-enum OptType { OPT_ENUM, OPT_BOOL, OPT_INT, OPT_ACTION, OPT_SLIDER, OPT_RESERVED, OPT_DEC };
+enum OptType { OPT_ENUM, OPT_BOOL, OPT_INT, OPT_ACTION, OPT_SLIDER, OPT_RESERVED, OPT_DEC, OPT_SUBMENU };
 
 struct LiteOpt {
   const char* label;
@@ -193,6 +193,83 @@ static void sBackPreset(int v) {
   opts.has_activePreset = true;
 }
 
+// 背键映射枚举：菜单序号 -> GpioAction 枚举值
+// 索引0=无(NONE=-10), 1=上, 2=下, 3=左, 4=右, 5=方块(B3=7), 6=三角(B4=8),
+// 7=圆(B2=6), 8=叉(B1=5), 9=菜单(S1=13), 10=选项(S2=14),
+// 11=L1(=9), 12=L2(=11), 13=R1(=10), 14=R2(=12), 15=L3(=17), 16=R3(=18)
+static const int BACK_ACTION_MAP[] = {-10, 1, 2, 3, 4, 7, 8, 6, 5, 14, 13, 9, 11, 10, 12, 17, 18};
+static const char* const N_BACK_ACTION[] = {
+  "无","上","下","左","右","方块","三角","圆","叉","菜单","选项","L1","L2","R1","R2","L3","R3"
+};
+static const int BACK_ACTION_COUNT = 17;
+static int backActionToIndex(int action) {
+  for (int i = 0; i < BACK_ACTION_COUNT; i++) if (BACK_ACTION_MAP[i] == action) return i;
+  return 0;
+}
+
+// 背键映射读取（从当前活动预设的 BackButtonAddonOptions）
+static int gBackEl() {
+  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
+  return backActionToIndex((int)bb.leftElMapping.action);
+}
+static int gBackEr() {
+  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
+  return backActionToIndex((int)bb.rightErMapping.action);
+}
+static int gBackL1() {
+  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
+  return backActionToIndex((int)bb.leftBack1Mapping.action);
+}
+static int gBackR1() {
+  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
+  return backActionToIndex((int)bb.rightBack1Mapping.action);
+}
+static int gBackL2() {
+  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
+  return backActionToIndex((int)bb.leftBack2Mapping.action);
+}
+static int gBackR2() {
+  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
+  return backActionToIndex((int)bb.rightBack2Mapping.action);
+}
+// 背键映射写入（到当前活动预设）
+static void sBackEl(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.backButton.leftElMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.backButton.leftElMapping.has_action = true;
+  p.backButton.has_leftElMapping = true;
+}
+static void sBackEr(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.backButton.rightErMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.backButton.rightErMapping.has_action = true;
+  p.backButton.has_rightErMapping = true;
+}
+static void sBackL1(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.backButton.leftBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.backButton.leftBack1Mapping.has_action = true;
+  p.backButton.has_leftBack1Mapping = true;
+}
+static void sBackR1(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.backButton.rightBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.backButton.rightBack1Mapping.has_action = true;
+  p.backButton.has_rightBack1Mapping = true;
+}
+static void sBackL2(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.backButton.leftBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.backButton.leftBack2Mapping.has_action = true;
+  p.backButton.has_leftBack2Mapping = true;
+}
+static void sBackR2(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.backButton.rightBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.backButton.rightBack2Mapping.has_action = true;
+  p.backButton.has_rightBack2Mapping = true;
+}
+
 // 按键配置档动态上限：gpioMappingsSets_count + 1（默认配置档1 + 自定义预设数）
 static int gProfileMax() {
   return (int)Storage::getInstance().getProfileOptions().gpioMappingsSets_count + 1;
@@ -280,10 +357,20 @@ static LiteOpt optConfig[] = {
   {"恢复默认", OPT_ACTION, 0, 0, 0, NULL, 0, "", gReset, sReset},
 };
 static LiteOpt optHandle[] = {
+  {"背键映射", OPT_SUBMENU, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
   {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
-  {"背键映射", OPT_RESERVED, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
 };
+// 背键映射子菜单：6 个背键，每个可选 17 种映射
+static LiteOpt optBackMap[] = {
+  {"左背键EL", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackEl, sBackEl},
+  {"右背键ER", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackEr, sBackEr},
+  {"左背键1",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackL1, sBackL1},
+  {"右背键1",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackR1, sBackR1},
+  {"左背键2",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackL2, sBackL2},
+  {"右背键2",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackR2, sBackR2},
+};
+static const int BACK_MAP_COUNT = 6;
 static LiteOpt optStick[] = {
   {"校准", OPT_ACTION, 0, 0, 0, NULL, 0, "", gCalib, sCalib},
   {"左摇杆死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gInnerDz, sInnerDz},
@@ -330,6 +417,10 @@ static bool confirmOpen = false;
 static int confirmChoice = 0;
 static int snap[8];
 static int lastSavedInputMode = -1;
+// 背键映射子菜单状态
+static bool inBackMap = false;
+static bool backMapDirty = false;
+static int backMapSnap[6];
 
 // 保存后按需重启（输入模式/陀螺仪/校准等改动需要重启生效）
 static void maybeRebootIfNeeded() {
@@ -399,21 +490,34 @@ static void snapshot() {
   int pmax = gProfileMax();
   optConfig[1].max = pmax > 0 ? pmax : 1;
   for (int i = 0; i < s.count && i < 8; i++) {
-    if (s.opts[i].type == OPT_ACTION || s.opts[i].type == OPT_RESERVED) { snap[i] = 0; continue; }
+    if (s.opts[i].type == OPT_ACTION || s.opts[i].type == OPT_RESERVED || s.opts[i].type == OPT_SUBMENU) { snap[i] = 0; continue; }
     snap[i] = s.opts[i].get();
   }
 }
 static void restore() {
   LiteSection& s = curSection();
   for (int i = 0; i < s.count && i < 8; i++) {
-    if (s.opts[i].type == OPT_ACTION || s.opts[i].type == OPT_RESERVED) continue;
+    if (s.opts[i].type == OPT_ACTION || s.opts[i].type == OPT_RESERVED || s.opts[i].type == OPT_SUBMENU) continue;
     s.opts[i].set(snap[i]);
   }
 }
 
+// 背键映射子菜单快照/恢复（进入时捕获当前值，取消时回滚）
+static void snapshotBackMap() {
+  for (int i = 0; i < BACK_MAP_COUNT; i++) backMapSnap[i] = optBackMap[i].get();
+}
+static void restoreBackMap() {
+  for (int i = 0; i < BACK_MAP_COUNT; i++) optBackMap[i].set(backMapSnap[i]);
+}
+
 // 撤销校准+清除重启标志（确认对话框取消时调用）
 static void undoCalibAndFlags() {
-  restore();
+  if (inBackMap) {
+    restoreBackMap();
+    restore();  // 同时恢复父级分区选项
+  } else {
+    restore();
+  }
   if (calibDone) {
     AnalogOptions& ao = AOP2().analogOptions;
     ao.joystick_center_x = calibBackup[0];
@@ -579,6 +683,7 @@ static const char* optValueText(const LiteOpt* o) {
   }
   if (o->type == OPT_BOOL) return v ? "开启" : "关闭";
   if (o->type == OPT_RESERVED) return "预留";
+  if (o->type == OPT_SUBMENU) return ">";
   if (o->type == OPT_DEC) snprintf(buf, sizeof(buf), "%d.%d%s", v / 10, v % 10, o->unit);
   else snprintf(buf, sizeof(buf), "%d%s", v, o->unit);
   return buf;
@@ -594,6 +699,7 @@ static void drawSlider(int x, int y, int w, int v, int max, int color) {
 void GPFusionMenuScreen::init() {
   page = 0; level = 0; section = 0; sel = 0; scroll = 0;
   dirty = false; confirmOpen = false; animating = false;
+  inBackMap = false; backMapDirty = false;
   needsReboot = false; calibDone = false;
   resetListAnim();
   lastSavedInputMode = (int)GOP().inputMode;
@@ -617,6 +723,14 @@ static void slideTo(int dir) {
 }
 
 static void backOne() {
+  if (inBackMap) {
+    inBackMap = false;
+    backMapDirty = false;
+    level = 2; sel = 0; scroll = 0;  // 保留 section（父级分区）
+    resetListAnim();
+    dirty = false;
+    return;
+  }
   if (level == 2) {
     LiteSection* secs = currentSections();
     if (secs && page == 0) { level = 1; section = 0; sel = 0; scroll = 0; }
@@ -687,6 +801,51 @@ int8_t GPFusionMenuScreen::update() {
   }
   if (!held) { repeatMask = 0; lastRepeat = 0; }
 
+  // 背键映射子菜单导航
+  if (inBackMap) {
+    int cnt = BACK_MAP_COUNT;
+    if (dEdge & 0x01) { // UP
+      sel = (sel == 0) ? cnt - 1 : sel - 1;
+      int ts = scroll;
+      if (sel < ts) ts = sel;
+      if (sel >= ts + 3) ts = sel - 2;
+      if (ts > cnt - 3) ts = cnt - 3;
+      if (ts < 0) ts = 0;
+      scroll = ts;
+      startListAnim(sel, scroll);
+    }
+    if (dEdge & 0x02) { // DOWN
+      sel = (sel + 1) % cnt;
+      int ts = scroll;
+      if (sel < ts) ts = sel;
+      if (sel >= ts + 3) ts = sel - 2;
+      if (ts > cnt - 3) ts = cnt - 3;
+      if (ts < 0) ts = 0;
+      scroll = ts;
+      startListAnim(sel, scroll);
+    }
+    if (dEdge & 0x0C) { // LEFT/RIGHT 切换枚举
+      LiteOpt* o = &optBackMap[sel];
+      int dir = (dEdge & 0x04) ? -1 : 1;
+      int v = o->get() + dir;
+      if (v < o->min) v = o->min;
+      if (v > o->max) v = o->max;
+      o->set(v);
+      backMapDirty = true;
+      needsReboot = true;
+    }
+    if (bEdge & GAMEPAD_MASK_B2) { // B 退出（有改动则弹保存确认）
+      if (backMapDirty) { confirmOpen = true; confirmChoice = 0; }
+      else {
+        // 无改动直接退出，保留父级 dirty 状态
+        inBackMap = false;
+        level = 2; sel = 0; scroll = 0;
+        resetListAnim();
+      }
+    }
+    return -1;
+  }
+
   if (level == 0) {
     if (dEdge & 0x04) slideTo(-1);   // LEFT
     if (dEdge & 0x08) slideTo(+1);   // RIGHT
@@ -729,7 +888,7 @@ int8_t GPFusionMenuScreen::update() {
     LiteOpt* o = &s.opts[sel];
     if (dEdge & 0x0C) {
       int dir = (dEdge & 0x04) ? -1 : 1;
-      if (o->type != OPT_ACTION && o->type != OPT_RESERVED) {
+      if (o->type != OPT_ACTION && o->type != OPT_RESERVED && o->type != OPT_SUBMENU) {
         int v = o->get() + dir * ((o->type == OPT_INT || o->type == OPT_SLIDER || o->type == OPT_DEC) ? o->step : 1);
         if (v < o->min) v = o->min;
         if (v > o->max) v = o->max;
@@ -739,6 +898,13 @@ int8_t GPFusionMenuScreen::update() {
     }
     if (bEdge & GAMEPAD_MASK_B1) {
       if (o->type == OPT_ACTION) { dirty = (o->get() != 0); }
+      else if (o->type == OPT_SUBMENU) {
+        inBackMap = true;
+        sel = 0; scroll = 0;
+        backMapDirty = false;
+        snapshotBackMap();
+        resetListAnim();
+      }
     }
     if (bEdge & GAMEPAD_MASK_B2) {
       if (dirty) { confirmOpen = true; confirmChoice = 0; }
@@ -788,7 +954,7 @@ static void drawOptions() {
     if (o->type == OPT_SLIDER) {
       drawSlider(70, y + 4, 48, o->get(), o->max, i == sel ? 0 : 1);
     } else {
-      if (o->type == OPT_ACTION) drawAscii(122, y + 2, ">", i == sel ? 0 : 1);
+      if (o->type == OPT_ACTION || o->type == OPT_SUBMENU) drawAscii(122, y + 2, ">", i == sel ? 0 : 1);
       else drawValue(124, y, optValueText(o), i == sel ? 0 : 1);
     }
   }
@@ -796,6 +962,28 @@ static void drawOptions() {
   if (s.count > 3) {
     int th = 40 * 3 / s.count; if (th < 6) th = 6;
     float range = (float)((s.count - 3) * 13);
+    int ty = 13 + (range > 0 ? (int)(scrollPx / range * (39 - th)) : 0);
+    fill(126, 13, 2, 39, 1);
+    fill(126, ty, 2, th, 1);
+  }
+}
+
+// 背键映射子菜单绘制（复用 drawOptions 布局）
+static void drawBackMap() {
+  drawCJK(64, 0, "背键映射", 1, true);
+  fill(0, 13 + (int)(selY - scrollPx), 128, 12, 1);
+  int cnt = BACK_MAP_COUNT;
+  for (int i = 0; i < cnt; i++) {
+    int y = 13 + i * 13 - (int)scrollPx;
+    if (y < 6 || y > 52) continue;
+    LiteOpt* o = &optBackMap[i];
+    drawCJK(2, y, o->label, i == sel ? 0 : 1);
+    drawValue(124, y, optValueText(o), i == sel ? 0 : 1);
+  }
+  // scrollbar
+  if (cnt > 3) {
+    int th = 40 * 3 / cnt; if (th < 6) th = 6;
+    float range = (float)((cnt - 3) * 13);
     int ty = 13 + (range > 0 ? (int)(scrollPx / range * (39 - th)) : 0);
     fill(126, 13, 2, 39, 1);
     fill(126, ty, 2, th, 1);
@@ -821,7 +1009,8 @@ void GPFusionMenuScreen::drawScreen() {
     }
     return;
   }
-  if (level == 0) drawMenuPages();
+  if (inBackMap) drawBackMap();
+  else if (level == 0) drawMenuPages();
   else if (level == 1) drawSections();
   else drawOptions();
 }
