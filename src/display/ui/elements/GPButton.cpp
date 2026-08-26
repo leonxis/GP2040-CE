@@ -20,7 +20,6 @@ void GPButton::draw() {
 
     uint16_t offsetX = ((getRenderer()->getDriver()->getMetrics()->width - (uint16_t)((double)(this->getViewport().right - this->getViewport().left) * scaleX)) / 2);
     uint16_t offsetY = ((getRenderer()->getDriver()->getMetrics()->height - (uint16_t)((double)(this->getViewport().bottom - this->getViewport().top) * scaleY)) / 2);
-    (void)offsetY; // currently unused; keep for future viewport centering
 
     if (scaleX > 0.0f) {
         baseX = ((this->x) * scaleX + this->getViewport().left) + offsetX;
@@ -77,7 +76,7 @@ void GPButton::draw() {
         turboState = (getGamepad()->turboState.buttons & this->_inputMask);
     } else if (_inputType == GP_ELEMENT_DIR_BUTTON) {
         // direction button mask
-        buttonState = getProcessedGamepad()->pressedDpad(this->_inputMask);
+        buttonState = getProcessedGamepad()->state.dpadOriginal & this->_inputMask;
         useMask = true;
 
         if ((this->_inputMask & GAMEPAD_MASK_UP) == GAMEPAD_MASK_UP) {

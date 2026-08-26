@@ -14,6 +14,7 @@
 #include "version.h"
 #include "config.pb.h"
 #include "class/hid/hid.h"
+#include "display/ui/screens/GPFusionMenuScreen.h"
 
 // 跨核标志位定义：Core1 的 DisplayAddon 设置，Core0 的主循环读取。
 volatile bool g_screenOperationActive = false;
@@ -107,7 +108,7 @@ bool DisplayAddon::updateDisplayScreen() {
             gpScreen = new SplashScreen(gpDisplay);
             break;
         case MAIN_MENU:
-            gpScreen = new MainMenuScreen(gpDisplay);
+            gpScreen = new GPFusionMenuScreen(gpDisplay);
             break;
         case BUTTONS:
             gpScreen = new ButtonLayoutScreen(gpDisplay);
@@ -126,18 +127,6 @@ bool DisplayAddon::updateDisplayScreen() {
             break;
         case RESTART:
             gpScreen = new RestartScreen(gpDisplay, bootMode);
-            break;
-        case STICK_CALIBRATION:
-            gpScreen = new StickCalibrationScreen(gpDisplay);
-            break;
-        case BACK_STICK_MAPPING:
-            gpScreen = new BackStickMappingScreen(gpDisplay);
-            break;
-        case ANALOG_DEADZONE:
-            gpScreen = new AnalogDeadzoneScreen(gpDisplay);
-            break;
-        case DPAD_SWAP:
-            gpScreen = new DpadSwapScreen(gpDisplay);
             break;
         default:
             gpScreen = nullptr;
@@ -276,13 +265,17 @@ void DisplayAddon::handleSystemRestart(GPEvent* e) {
 void DisplayAddon::handleMenuNavigation(GPEvent* e) {
     // Swap between main menu and buttons if we press toggle
     if (((GPMenuNavigateEvent*)e)->menuAction == GpioAction::MENU_NAVIGATION_TOGGLE) {
+        // 防抖：300ms 内忽略重复的 TOGGLE 事件，防止按键抖动或多次触发导致快速反复切换
+        uint32_t now = getMillis();
+        if (now - lastMenuToggleTime < 300) {
+            return;
+        }
+        lastMenuToggleTime = now;
         if (currDisplayMode == BUTTONS) {
             nextDisplayMode = MAIN_MENU;
         } else if (currDisplayMode == MAIN_MENU) {
             nextDisplayMode = BUTTONS;
         }
-    } else if (currDisplayMode == MAIN_MENU) {
-        ((MainMenuScreen*)gpScreen)->updateEventMenuNavigation(((GPMenuNavigateEvent*)e)->menuAction);
     }
 }
 

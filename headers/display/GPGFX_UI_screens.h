@@ -10,25 +10,18 @@ enum DisplayMode {
     STATS,
     MAIN_MENU,
     RESTART,
-    SYSTEM_ERROR,
-    STICK_CALIBRATION,
-    BACK_STICK_MAPPING,
-    ANALOG_DEADZONE,
-    DPAD_SWAP
+    SYSTEM_ERROR
 };
 
 #include "ui/screens/ButtonLayoutScreen.h"
 #include "ui/screens/ConfigScreen.h"
 #include "ui/screens/DisplaySaverScreen.h"
-#include "ui/screens/MainMenuScreen.h"
+#include "ui/screens/GPFusionMenuScreen.h"
+#include "ui/screens/LiteCustomLayoutScreen.h"
 #include "ui/screens/PinViewerScreen.h"
 #include "ui/screens/RestartScreen.h"
 #include "ui/screens/SplashScreen.h"
 #include "ui/screens/StatsScreen.h"
-#include "ui/screens/StickCalibrationScreen.h"
-#include "ui/screens/BackStickMappingScreen.h"
-#include "ui/screens/AnalogDeadzoneScreen.h"
-#include "ui/screens/DpadSwapScreen.h"
 #include "ui/screens/SystemErrorScreen.h"
 
 #endif

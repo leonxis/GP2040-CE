@@ -229,6 +229,7 @@ private:
     GamepadButtonMapping *mapMenuToggle;
     GamepadButtonMapping *mapMenuSelect;
     std::string errorMessage;
+    uint32_t lastMenuToggleTime = 0;
 };
 
 #endif
