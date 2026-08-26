@@ -12,11 +12,14 @@
 #include "events/GPStorageSaveEvent.h"
 #include "events/GPRestartEvent.h"
 #include "hml_back_mapping_preset.h"
+#include "addons/analog.h"
+#include "addons/mcp3208_adc.h"
+#include "addons/ads8332_adc.h"
 
 #include <cstring>
 #include "pico/stdlib.h"
 
-enum OptType { OPT_ENUM, OPT_BOOL, OPT_INT, OPT_ACTION, OPT_SLIDER, OPT_RESERVED };
+enum OptType { OPT_ENUM, OPT_BOOL, OPT_INT, OPT_ACTION, OPT_SLIDER, OPT_RESERVED, OPT_DEC };
 
 struct LiteOpt {
   const char* label;
@@ -42,7 +45,11 @@ static AnimationOptions& AOP() { return Storage::getInstance().getAnimationOptio
 static LEDOptions& LOP() { return Storage::getInstance().getLedOptions(); }
 static AddonOptions& AOP2() { return Storage::getInstance().getAddonOptions(); }
 
-static void maybeRebootForInputMode();
+static bool needsReboot = false;
+static bool calibDone = false;
+static uint32_t calibBackup[4] = {0, 0, 0, 0};
+
+static void maybeRebootIfNeeded();
 
 // 输入模式映射表：菜单序号 -> InputMode 枚举值
 static const int INPUT_MAP[] = {
@@ -113,10 +120,63 @@ static void sColor(int v) {
 }
 static int gLedOff() { return LOP().turnOffWhenSuspended ? 1 : 0; }
 static void sLedOff(int v) { LOP().turnOffWhenSuspended = v ? true : false; }
+static int gGyro() { return AOP2().lsm6dsrOptions.enabled ? 1 : 0; }
+static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; needsReboot = true; }
+
+// 摇杆死区/反死区（原始值0-200，对应0.0%-20.0%，0.1%步进）
+static int gInnerDz() { return (int)AOP2().analogOptions.inner_deadzone; }
+static void sInnerDz(int v) { AOP2().analogOptions.inner_deadzone = (uint32_t)v; needsReboot = true; }
+static int gAntiDz() { return (int)AOP2().analogOptions.anti_deadzone; }
+static void sAntiDz(int v) { AOP2().analogOptions.anti_deadzone = (uint32_t)v; needsReboot = true; }
+static int gInnerDz2() { return (int)AOP2().analogOptions.inner_deadzone2; }
+static void sInnerDz2(int v) { AOP2().analogOptions.inner_deadzone2 = (uint32_t)v; needsReboot = true; }
+static int gAntiDz2() { return (int)AOP2().analogOptions.anti_deadzone2; }
+static void sAntiDz2(int v) { AOP2().analogOptions.anti_deadzone2 = (uint32_t)v; needsReboot = true; }
+
+// 读取摇杆原始ADC值（尝试三种源）
+static bool readRawStick(uint8_t stickNum, uint16_t& rawX, uint16_t& rawY) {
+    uint16_t xCenter, yCenter, adcMax;
+    bool xValid, yValid;
+    if (AnalogInput::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
+        return xValid && yValid;
+    if (MCP3208ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
+        return xValid && yValid;
+    if (ADS8332ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
+        return xValid && yValid;
+    return false;
+}
+
+// 摇杆中心校准：连续读取5次取平均，返回1标记需要保存
+static int gCalib() {
+    uint32_t sumLX = 0, sumLY = 0, sumRX = 0, sumRY = 0;
+    uint8_t validCount = 0;
+    for (int i = 0; i < 5; i++) {
+        uint16_t lx, ly, rx, ry;
+        if (readRawStick(0, lx, ly) && readRawStick(1, rx, ry)) {
+            sumLX += lx; sumLY += ly; sumRX += rx; sumRY += ry;
+            validCount++;
+        }
+        busy_wait_us_32(2000);
+    }
+    if (validCount == 0) return 0;
+    AnalogOptions& ao = AOP2().analogOptions;
+    calibBackup[0] = ao.joystick_center_x;
+    calibBackup[1] = ao.joystick_center_y;
+    calibBackup[2] = ao.joystick_center_x2;
+    calibBackup[3] = ao.joystick_center_y2;
+    ao.joystick_center_x = sumLX / validCount;
+    ao.joystick_center_y = sumLY / validCount;
+    ao.joystick_center_x2 = sumRX / validCount;
+    ao.joystick_center_y2 = sumRY / validCount;
+    calibDone = true;
+    needsReboot = true;
+    return 1;
+}
+static void sCalib(int) {}
 static int gSave() {
   // 菜单跑在 core1，保存必须通过事件交给 core0 执行
   EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-  maybeRebootForInputMode();
+  maybeRebootIfNeeded();
   return 0;
 }
 static void sSave(int) {}
@@ -220,11 +280,16 @@ static LiteOpt optConfig[] = {
   {"恢复默认", OPT_ACTION, 0, 0, 0, NULL, 0, "", gReset, sReset},
 };
 static LiteOpt optHandle[] = {
-  {"校准", OPT_RESERVED, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
-  {"死区", OPT_RESERVED, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
-  {"陀螺仪", OPT_RESERVED, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
+  {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
   {"背键映射", OPT_RESERVED, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
+};
+static LiteOpt optStick[] = {
+  {"校准", OPT_ACTION, 0, 0, 0, NULL, 0, "", gCalib, sCalib},
+  {"左摇杆死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gInnerDz, sInnerDz},
+  {"左摇杆反死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gAntiDz, sAntiDz},
+  {"右摇杆死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gInnerDz2, sInnerDz2},
+  {"右摇杆反死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gAntiDz2, sAntiDz2},
 };
 static LiteOpt optFunc[] = {
   {"SOCD模式", OPT_ENUM, 0, 4, 1, N_SOCD, 5, "", gSocd, sSocd},
@@ -245,7 +310,8 @@ static LiteOpt optLed[] = {
 
 static LiteSection secSettings[] = {
   {"配置", optConfig, 5},
-  {"手柄", optHandle, 5},
+  {"手柄", optHandle, 3},
+  {"摇杆", optStick, 5},
   {"功能", optFunc, 5},
 };
 static LiteSection secLed[] = {{"彩灯", optLed, 7}};
@@ -265,11 +331,15 @@ static int confirmChoice = 0;
 static int snap[8];
 static int lastSavedInputMode = -1;
 
-// 输入模式改了：保存后重启应用（USB 描述符需重启生效）
-static void maybeRebootForInputMode() {
+// 保存后按需重启（输入模式/陀螺仪/校准等改动需要重启生效）
+static void maybeRebootIfNeeded() {
   int cur = (int)GOP().inputMode;
   if (cur != lastSavedInputMode) {
     lastSavedInputMode = cur;
+    needsReboot = true;
+  }
+  if (needsReboot) {
+    needsReboot = false;
     EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
   }
 }
@@ -300,7 +370,9 @@ static LiteSection* currentSections() {
 }
 static int sectionCount() {
   LiteSection* s = currentSections();
-  return s ? (page == 0 ? 3 : 1) : 0;
+  if (!s) return 0;
+  if (page == 0) return sizeof(secSettings) / sizeof(secSettings[0]);
+  return 1;
 }
 static LiteSection& curSection() {
   return currentSections()[section];
@@ -337,6 +409,20 @@ static void restore() {
     if (s.opts[i].type == OPT_ACTION || s.opts[i].type == OPT_RESERVED) continue;
     s.opts[i].set(snap[i]);
   }
+}
+
+// 撤销校准+清除重启标志（确认对话框取消时调用）
+static void undoCalibAndFlags() {
+  restore();
+  if (calibDone) {
+    AnalogOptions& ao = AOP2().analogOptions;
+    ao.joystick_center_x = calibBackup[0];
+    ao.joystick_center_y = calibBackup[1];
+    ao.joystick_center_x2 = calibBackup[2];
+    ao.joystick_center_y2 = calibBackup[3];
+    calibDone = false;
+  }
+  needsReboot = false;
 }
 
 // ---- drawing helpers (clipped to 128x64) ----
@@ -493,7 +579,8 @@ static const char* optValueText(const LiteOpt* o) {
   }
   if (o->type == OPT_BOOL) return v ? "开启" : "关闭";
   if (o->type == OPT_RESERVED) return "预留";
-  snprintf(buf, sizeof(buf), "%d%s", v, o->unit);
+  if (o->type == OPT_DEC) snprintf(buf, sizeof(buf), "%d.%d%s", v / 10, v % 10, o->unit);
+  else snprintf(buf, sizeof(buf), "%d%s", v, o->unit);
   return buf;
 }
 
@@ -507,6 +594,7 @@ static void drawSlider(int x, int y, int w, int v, int max, int color) {
 void GPFusionMenuScreen::init() {
   page = 0; level = 0; section = 0; sel = 0; scroll = 0;
   dirty = false; confirmOpen = false; animating = false;
+  needsReboot = false; calibDone = false;
   resetListAnim();
   lastSavedInputMode = (int)GOP().inputMode;
   prevB = 0; prevD = 0;
@@ -574,16 +662,16 @@ int8_t GPFusionMenuScreen::update() {
       confirmOpen = false;
       if (confirmChoice == 0) {
         EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-        maybeRebootForInputMode();
+        maybeRebootIfNeeded();
         dirty = false;
       } else {
-        restore();
+        undoCalibAndFlags();
         dirty = false;
       }
       backOne();
     } else if (bEdge & GAMEPAD_MASK_B2) {
       confirmOpen = false;
-      restore();
+      undoCalibAndFlags();
       dirty = false;
       backOne();
     }
@@ -604,7 +692,7 @@ int8_t GPFusionMenuScreen::update() {
     if (dEdge & 0x08) slideTo(+1);   // RIGHT
     if (bEdge & GAMEPAD_MASK_B1) {   // A enter
       if (sectionCount() > 1) { level = 1; section = 0; sel = 0; scroll = 0; resetListAnim(); }
-      else { level = 2; section = 0; sel = 0; scroll = 0; snapshot(); dirty = false; }
+      else { level = 2; section = 0; sel = 0; scroll = 0; snapshot(); dirty = false; needsReboot = false; calibDone = false; }
     }
     if (bEdge & GAMEPAD_MASK_B2) {   // B exit menu
       return DisplayMode::BUTTONS;
@@ -614,7 +702,7 @@ int8_t GPFusionMenuScreen::update() {
     if (dEdge & 0x01) sel = (sel + cnt - 1) % cnt;   // UP
     if (dEdge & 0x02) sel = (sel + 1) % cnt;         // DOWN
     if (dEdge & 0x03) startListAnim(sel, 0);
-    if (bEdge & GAMEPAD_MASK_B1) { section = sel; level = 2; sel = 0; scroll = 0; resetListAnim(); snapshot(); dirty = false; }
+    if (bEdge & GAMEPAD_MASK_B1) { section = sel; level = 2; sel = 0; scroll = 0; resetListAnim(); snapshot(); dirty = false; needsReboot = false; calibDone = false; }
     if (bEdge & GAMEPAD_MASK_B2) { level = 0; sel = 0; resetListAnim(); }
   } else { // options
     LiteSection& s = curSection();
@@ -642,7 +730,7 @@ int8_t GPFusionMenuScreen::update() {
     if (dEdge & 0x0C) {
       int dir = (dEdge & 0x04) ? -1 : 1;
       if (o->type != OPT_ACTION && o->type != OPT_RESERVED) {
-        int v = o->get() + dir * ((o->type == OPT_INT || o->type == OPT_SLIDER) ? o->step : 1);
+        int v = o->get() + dir * ((o->type == OPT_INT || o->type == OPT_SLIDER || o->type == OPT_DEC) ? o->step : 1);
         if (v < o->min) v = o->min;
         if (v > o->max) v = o->max;
         o->set(v);
@@ -650,7 +738,7 @@ int8_t GPFusionMenuScreen::update() {
       }
     }
     if (bEdge & GAMEPAD_MASK_B1) {
-      if (o->type == OPT_ACTION) { o->get(); dirty = false; }
+      if (o->type == OPT_ACTION) { dirty = (o->get() != 0); }
     }
     if (bEdge & GAMEPAD_MASK_B2) {
       if (dirty) { confirmOpen = true; confirmChoice = 0; }
