@@ -2,6 +2,7 @@
 #include "buttonlayouts.h"
 #include "drivermanager.h"
 #include "drivers/ps4/PS4Driver.h"
+#include "drivers/ps4b/PS4BDriver.h"
 #include "drivers/xbone/XBOneDriver.h"
 #include "drivers/xinput/XInputDriver.h"
 #include "drivers/p5general/P5GeneralDriver.h"
@@ -10,8 +11,6 @@
 
 void ButtonLayoutScreen::init() {
     isInputHistoryEnabled = Storage::getInstance().getDisplayOptions().inputHistoryEnabled;
-    inputHistoryX = Storage::getInstance().getDisplayOptions().inputHistoryRow;
-    inputHistoryY = Storage::getInstance().getDisplayOptions().inputHistoryCol;
     inputHistoryLength = Storage::getInstance().getDisplayOptions().inputHistoryLength;
     bannerDelayStart = getMillis();
     gamepad = Storage::getInstance().GetGamepad();
@@ -25,8 +24,8 @@ void ButtonLayoutScreen::init() {
     historyString = "";
     inputHistory.clear();
 
-    // 输入历史占顶部两行（状态栏 + 历史）：视口从 16 开始，避免文字压进布局
-    setViewport((isInputHistoryEnabled ? 16 : 0), 0, getRenderer()->getDriver()->getMetrics()->height, getRenderer()->getDriver()->getMetrics()->width);
+    // 按键布局使用全屏，状态栏在顶部绘制，输入历史在底部绘制
+    setViewport(0, 0, getRenderer()->getDriver()->getMetrics()->height, getRenderer()->getDriver()->getMetrics()->width);
 
 	// load layout (drawElement pushes element to the display list)
     uint16_t elementCtr = 0;
@@ -186,6 +185,13 @@ void ButtonLayoutScreen::generateHeader() {
                 else
                     statusBar += "   ";
                 break;
+            case INPUT_MODE_PS4B:
+                statusBar += "PS4B";
+                if(((PS4BDriver*)DriverManager::getInstance().getDriver())->getAuthSent() == true )
+                    statusBar += ":AS";
+                else
+                    statusBar += "  ";
+                break;
             case INPUT_MODE_PS5:
                 statusBar += "PS5";
                 if(((PS4Driver*)DriverManager::getInstance().getDriver())->getAuthSent() == true )
@@ -213,6 +219,13 @@ void ButtonLayoutScreen::generateHeader() {
                     statusBar += "B360";
                 else
                     statusBar += "INPUT";
+                break;
+            case INPUT_MODE_XINPUTB:
+                statusBar += "XB";
+                if(((XInputDriver*)DriverManager::getInstance().getDriver())->getAuthSent() == true )
+                    statusBar += "360";
+                else
+                    statusBar += "IN";
                 break;
             case INPUT_MODE_KEYBOARD: statusBar += "HID-KB"; break;
             case INPUT_MODE_CONFIG: statusBar += "CONFIG"; break;
@@ -277,7 +290,9 @@ void ButtonLayoutScreen::drawScreen() {
     } else {
 		getRenderer()->drawText(0, 0, statusBar);
 	}
-    getRenderer()->drawText(0, 7, footer);
+    if (!footer.empty()) {
+        getRenderer()->drawText(0, 7, footer);
+    }
 }
 
 GPLever* ButtonLayoutScreen::addLever(uint16_t startX, uint16_t startY, uint16_t sizeX, uint16_t sizeY, uint16_t strokeColor, uint16_t fillColor, uint16_t inputType) {
@@ -398,6 +413,30 @@ void ButtonLayoutScreen::processInputHistory() {
 		}
 		// Update the last keypress array
 		lastInput = currentInput;
+	}
+
+	// Check extended buttons (E1-E12) via gamepad state — same method as standard buttons
+	std::array<bool, EXTENDED_INPUTS_COUNT> currentExtendedInput = {
+		getProcessedGamepad()->pressedE1(),
+		getProcessedGamepad()->pressedE2(),
+		getProcessedGamepad()->pressedE3(),
+		getProcessedGamepad()->pressedE4(),
+		getProcessedGamepad()->pressedE5(),
+		getProcessedGamepad()->pressedE6(),
+		getProcessedGamepad()->pressedE7(),
+		getProcessedGamepad()->pressedE8(),
+		getProcessedGamepad()->pressedE9(),
+		getProcessedGamepad()->pressedE10(),
+		getProcessedGamepad()->pressedE11(),
+		getProcessedGamepad()->pressedE12(),
+	};
+
+	if (lastExtendedInput != currentExtendedInput) {
+		for (uint8_t x=0; x<EXTENDED_INPUTS_COUNT; x++) {
+			std::string inputChar(extendedDisplayNames[x]);
+			if (currentExtendedInput[x] && (inputChar != "")) pressed.push_back(inputChar);
+		}
+		lastExtendedInput = currentExtendedInput;
 	}
 
 	if (pressed.size() > 0) {
@@ -569,3 +608,4 @@ void ButtonLayoutScreen::trim(std::string &s) {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(),
             [](unsigned char c) { return !std::isspace(c); }));
 }
+

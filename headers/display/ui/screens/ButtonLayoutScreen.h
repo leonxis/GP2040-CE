@@ -16,6 +16,12 @@
 
 #define INPUT_HISTORY_MAX_INPUTS 22
 #define INPUT_HISTORY_MAX_MODES 12
+#define EXTENDED_INPUTS_COUNT 12
+
+// Extended button names (E1-E12, same across all modes)
+static const char * extendedDisplayNames[EXTENDED_INPUTS_COUNT] __attribute__((unused)) = {
+    "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11", "E12"
+};
 
 // Static to ensure memory is never doubled
 static const char * displayNames[INPUT_HISTORY_MAX_MODES][INPUT_HISTORY_MAX_INPUTS] __attribute__((unused)) = {
@@ -131,10 +137,12 @@ class ButtonLayoutScreen : public GPScreen {
             {INPUT_MODE_PS3, 0},
             {INPUT_MODE_SWITCH, 1},
             {INPUT_MODE_XINPUT, 2},
+            {INPUT_MODE_XINPUTB, 2},
             {INPUT_MODE_XBONE, 2},
             {INPUT_MODE_KEYBOARD, 3},
             {INPUT_MODE_CONFIG, 3}, 
             {INPUT_MODE_PS4, 4},
+            {INPUT_MODE_PS4B, 4},
             {INPUT_MODE_PS5, 4},
             {INPUT_MODE_PSCLASSIC, 4},
             {INPUT_MODE_MDMINI, 5},
@@ -152,12 +160,11 @@ class ButtonLayoutScreen : public GPScreen {
         std::string footer{};
 
         bool isInputHistoryEnabled = false;
-        uint16_t inputHistoryX = 0;
-        uint16_t inputHistoryY = 0;
         size_t inputHistoryLength = 0;
         std::string historyString{};
         std::deque<std::string> inputHistory{};
         std::array<bool, INPUT_HISTORY_MAX_INPUTS> lastInput{};
+        std::array<bool, EXTENDED_INPUTS_COUNT> lastExtendedInput{};
 
         bool bannerDisplay = false;
         uint8_t bannerDelay = 2;
@@ -184,7 +191,6 @@ class ButtonLayoutScreen : public GPScreen {
         bool showProfileMode = false;
         void trim(std::string &s);
 
-        uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
         void processInputHistory();
         bool compareCustomLayouts();
         bool pressedUp();
