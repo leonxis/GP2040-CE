@@ -46,8 +46,9 @@ bool XboxOriginalDriver::process(Gamepad * gamepad) {
 
     // analog triggers
 	if (gamepad->hasAnalogTriggers) {
-		xboxOriginalReport.L = gamepad->pressedL2() ? 0xFF : gamepad->state.lt;
-		xboxOriginalReport.R = gamepad->pressedR2() ? 0xFF : gamepad->state.rt;
+		// 有硬件线性扳机时优先输出模拟量；仅当只有数字映射置位而无模拟值时补满压
+		xboxOriginalReport.L = (gamepad->pressedL2() && gamepad->state.lt == 0) ? 0xFF : gamepad->state.lt;
+		xboxOriginalReport.R = (gamepad->pressedR2() && gamepad->state.rt == 0) ? 0xFF : gamepad->state.rt;
 	} else {
 		xboxOriginalReport.L = gamepad->pressedL2() ? 0xFF : 0;
 		xboxOriginalReport.R = gamepad->pressedR2() ? 0xFF : 0;

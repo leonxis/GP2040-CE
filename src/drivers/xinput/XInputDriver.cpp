@@ -308,8 +308,9 @@ bool XInputDriver::process(Gamepad * gamepad) {
 
     if (gamepad->hasAnalogTriggers)
     {
-        xinputReport.lt = gamepad->pressedL2() ? 0xFF : gamepad->state.lt;
-        xinputReport.rt = gamepad->pressedR2() ? 0xFF : gamepad->state.rt;
+        // 有硬件线性扳机时优先输出模拟量；仅当只有数字映射置位而无模拟值时补满压
+        xinputReport.lt = (gamepad->pressedL2() && gamepad->state.lt == 0) ? 0xFF : gamepad->state.lt;
+        xinputReport.rt = (gamepad->pressedR2() && gamepad->state.rt == 0) ? 0xFF : gamepad->state.rt;
     }
     else
     {

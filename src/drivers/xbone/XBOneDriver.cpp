@@ -494,8 +494,9 @@ bool XBOneDriver::process(Gamepad * gamepad) {
 
     if (gamepad->hasAnalogTriggers)
     {
-        newInputReport.leftTrigger = gamepad->pressedL2() ? 0x03FF : gamepad->state.lt;
-        newInputReport.rightTrigger = gamepad->pressedR2() ? 0x03FF : gamepad->state.rt;
+        // 有硬件线性扳机时优先输出模拟量；仅当只有数字映射置位而无模拟值时补满压
+        newInputReport.leftTrigger = (gamepad->pressedL2() && gamepad->state.lt == 0) ? 0x03FF : gamepad->state.lt;
+        newInputReport.rightTrigger = (gamepad->pressedR2() && gamepad->state.rt == 0) ? 0x03FF : gamepad->state.rt;
     }
     else
     {
