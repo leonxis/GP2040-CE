@@ -1055,9 +1055,13 @@ std::string setProfileOptions()
         profileOptions.gpioMappingsSets[altsIndex].profileLabel[profileLabelSize - 1] = '\0';
         profileOptions.gpioMappingsSets[altsIndex].enabled = alt["enabled"];
 
-        profileOptions.gpioMappingsSets_count = ++altsIndex;
+        ++altsIndex;
         if (altsIndex > 4) break;
     }
+
+    // 计数必须在循环外更新：删除最后一个预设时数组为空，循环不执行，
+    // 若在循环内赋值会导致 gpioMappingsSets_count 保持旧值，删除结果不生效
+    profileOptions.gpioMappingsSets_count = altsIndex;
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);

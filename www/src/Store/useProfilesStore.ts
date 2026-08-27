@@ -160,10 +160,10 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 			throw new Error('No profiles loaded');
 		}
 		const [baseProfile, ...alternatives] = profiles;
-		await Promise.all([
-			WebApi.setPinMappings(baseProfile),
-			WebApi.setProfileOptions(alternatives),
-		]);
+		// 必须串行发送：设备端 lwIP HTTP POST 使用单一全局接收缓冲区，
+		// 并发 POST 会互相覆盖导致保存静默失败
+		await WebApi.setPinMappings(baseProfile);
+		await WebApi.setProfileOptions(alternatives);
 	},
 	saveProfilesAndActivate: async (profileIndex: number) => {
 		if (profileIndex < 0 || profileIndex >= get().profiles.length) {
