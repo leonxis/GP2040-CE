@@ -64,7 +64,6 @@ static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 static bool main_loop_gate_enabled = false;
 static bool main_loop_gate_runtime_enabled = false;
 static bool composite_hid_enabled = false;
-static const uint32_t CPU_FREQ_ENHANCED_KHZ = 144000;
 static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static const uint32_t MAIN_LOOP_GATE_WAIT_TIMEOUT_US = 1000;
 static const uint32_t MAIN_LOOP_GATE_SUSPEND_SCAN_US = 4000;
@@ -996,8 +995,17 @@ void GP2040::setup() {
 
 	// Reduce CPU if USB host is enabled
 	PeripheralManager::getInstance().initUSB();
-	// HML performance mode is fixed on: always run at 144MHz.
-	set_sys_clock_khz(CPU_FREQ_ENHANCED_KHZ, true);
+	// 根据持久化配置的超频等级设置 RP2040 系统频率：
+	// 0=普通144MHz, 1=中度156MHz, 2=重度168MHz, 3=发烧180MHz
+	uint32_t cpu_freq_khz = 144000;
+	switch (Storage::getInstance().getAddonOptions().cpuOverclockLevel) {
+		case CPU_OVERCLOCK_MODERATE: cpu_freq_khz = 156000; break;
+		case CPU_OVERCLOCK_HEAVY:    cpu_freq_khz = 168000; break;
+		case CPU_OVERCLOCK_EXTREME:  cpu_freq_khz = 180000; break;
+		case CPU_OVERCLOCK_NORMAL:
+		default:                     cpu_freq_khz = 144000; break;
+	}
+	set_sys_clock_khz(cpu_freq_khz, true);
 
 	// I2C & SPI rely on the system clock
 	PeripheralManager::getInstance().initSPI();

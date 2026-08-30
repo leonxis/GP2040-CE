@@ -1093,6 +1093,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensUD, 1.0f);
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseDeadzone, 12);
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
+    INIT_UNSET_PROPERTY(config.addonOptions, cpuOverclockLevel, (CpuOverclockLevel)CPU_OVERCLOCK_NORMAL);
 
     // HML 背键/FN/触摸三套方案（所有 BoardConfig 构建均编译）
     {

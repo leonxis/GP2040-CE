@@ -324,4 +324,10 @@ export default {
 	'hml-report-rate-2khz': '2KHz',
 	'hml-report-rate-4khz': '4KHz',
 	'hml-report-rate-8khz': '8KHz',
+	'hml-cpu-overclock-label': 'Performance Overclock',
+	'hml-cpu-overclock-hint': 'If the controller behaves abnormally after overclocking, lower the overclock level.',
+	'hml-cpu-overclock-normal': 'Normal (144MHz)',
+	'hml-cpu-overclock-moderate': 'Moderate (156MHz)',
+	'hml-cpu-overclock-heavy': 'Heavy (168MHz)',
+	'hml-cpu-overclock-extreme': 'Extreme (180MHz)',
 };

@@ -741,3 +741,14 @@ enum MouseMovementMode
     MOUSE_MOVEMENT_LEFT_ANALOG = 1;
     MOUSE_MOVEMENT_RIGHT_ANALOG = 2;
 };
+
+// RP2040 CPU 超频等级：普通=144MHz, 中度=156MHz, 重度=168MHz, 发烧=180MHz
+enum CpuOverclockLevel
+{
+    option (nanopb_enumopt).long_names = false;
+
+    CPU_OVERCLOCK_NORMAL = 0;    // 144MHz (default)
+    CPU_OVERCLOCK_MODERATE = 1;  // 156MHz
+    CPU_OVERCLOCK_HEAVY = 2;     // 168MHz
+    CPU_OVERCLOCK_EXTREME = 3;   // 180MHz
+};

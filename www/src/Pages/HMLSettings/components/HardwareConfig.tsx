@@ -54,6 +54,7 @@ export default function HardwareConfig() {
 		enableKey: { action: -10, customButtonMask: 0, customDpadMask: 0 },
 	});
 	const [reportRate, setReportRate] = useState(1000);
+	const [cpuOverclockLevel, setCpuOverclockLevel] = useState(0);
 	const [ledOptions, setLedOptions] = useState({
 		dataPin: -1,
 		ledFormat: 0,
@@ -105,6 +106,11 @@ export default function HardwareConfig() {
 					[250, 500, 1000, 2000, 4000, 8000].includes(Number(addons?.reportRate))
 						? Number(addons.reportRate)
 						: 1000
+				);
+				setCpuOverclockLevel(
+					[0, 1, 2, 3].includes(Number(addons?.cpuOverclockLevel))
+						? Number(addons.cpuOverclockLevel)
+						: 0
 				);
 
 				// 同步显示屏和I2C1的启用状态
@@ -193,7 +199,7 @@ export default function HardwareConfig() {
 				enabled: twoKeyTouchpadOptions.enabled ? 1 : 0,
 				enableKey: twoKeyTouchpadOptions.enableKey,
 			});
-			await WebApi.setAddonsOptions({ reportRate });
+			await WebApi.setAddonsOptions({ reportRate, cpuOverclockLevel });
 			setHostSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setHostSaveMessage(''), 5000);
 		} catch (error) {
@@ -373,6 +379,25 @@ export default function HardwareConfig() {
 							<span className="mb-0">{t('SettingsPage:hml-report-rate-label')}</span>
 							<span className="text-muted">
 								{t('SettingsPage:hml-report-rate-hint')}
+							</span>
+						</div>
+
+						{/* 性能超频：下拉框 → 标题在右侧 → 说明 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Select
+								id="cpu-overclock-select"
+								value={cpuOverclockLevel}
+								onChange={(e) => setCpuOverclockLevel(Number(e.target.value))}
+								style={{ width: '180px' }}
+							>
+								<option value={0}>{t('SettingsPage:hml-cpu-overclock-normal')}</option>
+								<option value={1}>{t('SettingsPage:hml-cpu-overclock-moderate')}</option>
+								<option value={2}>{t('SettingsPage:hml-cpu-overclock-heavy')}</option>
+								<option value={3}>{t('SettingsPage:hml-cpu-overclock-extreme')}</option>
+							</Form.Select>
+							<span className="mb-0">{t('SettingsPage:hml-cpu-overclock-label')}</span>
+							<span className="text-muted">
+								{t('SettingsPage:hml-cpu-overclock-hint')}
 							</span>
 						</div>
 

@@ -987,6 +987,8 @@ message AddonOptions
     optional uint32 reportRate = 36 [default = 1000];
     optional ADS8332Options ads8332Options = 39;
     optional AxisTiltOverlayOptions axisTiltOverlayOptions = 40;
+    // RP2040 CPU 超频等级：0=普通144MHz, 1=中度156MHz, 2=重度168MHz, 3=发烧180MHz
+    optional CpuOverclockLevel cpuOverclockLevel = 41 [default = CPU_OVERCLOCK_NORMAL];
 }
 
 // MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
