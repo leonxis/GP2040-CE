@@ -44,6 +44,7 @@ static DisplayOptions& DOP() { return Storage::getInstance().getDisplayOptions()
 static AnimationOptions& AOP() { return Storage::getInstance().getAnimationOptions(); }
 static LEDOptions& LOP() { return Storage::getInstance().getLedOptions(); }
 static AddonOptions& AOP2() { return Storage::getInstance().getAddonOptions(); }
+static PeripheralOptions& POP() { return Storage::getInstance().getPeripheralOptions(); }
 
 static bool needsReboot = false;
 static bool calibDone = false;
@@ -122,6 +123,10 @@ static int gLedOff() { return LOP().turnOffWhenSuspended ? 1 : 0; }
 static void sLedOff(int v) { LOP().turnOffWhenSuspended = v ? true : false; }
 static int gGyro() { return AOP2().lsm6dsrOptions.enabled ? 1 : 0; }
 static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; needsReboot = true; }
+
+// USB 验证器开关（对应网页配置 GNS设置-硬件配置 中的 USB验证器，即 blockUSB0.enabled）
+static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
+static void sUsbAuth(int v) { POP().blockUSB0.enabled = v ? 1 : 0; needsReboot = true; }
 
 // 摇杆死区/反死区（原始值0-200，对应0.0%-20.0%，0.1%步进）
 static int gInnerDz() { return (int)AOP2().analogOptions.inner_deadzone; }
@@ -359,6 +364,7 @@ static LiteOpt optConfig[] = {
 static LiteOpt optHandle[] = {
   {"背键映射", OPT_SUBMENU, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
   {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
+  {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
 };
 // 背键映射子菜单：6 个背键，每个可选 17 种映射
@@ -397,7 +403,7 @@ static LiteOpt optLed[] = {
 
 static LiteSection secSettings[] = {
   {"配置", optConfig, 5},
-  {"手柄", optHandle, 3},
+  {"手柄", optHandle, 4},
   {"摇杆", optStick, 5},
   {"功能", optFunc, 5},
 };
