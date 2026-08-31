@@ -233,6 +233,9 @@ export default {
 	'hml-usb-authenticator-label': 'USB authenticator',
 	'hml-usb-authenticator-hint':
 		'Enable when using XInput with host USB auth, or PS5 General mode; plug in the authenticator.',
+	'hml-wireless-link-label': 'Wireless Link',
+	'hml-wireless-link-hint':
+		'Enables the UART1 wireless link to ESP32. Save and reboot to take effect.',
 	'hml-display-label': 'Display',
 	'hml-display-hint':
 		'Turns off the display and related interface. For PS5G, disabling the display can help reach 1000 Hz report rate.',

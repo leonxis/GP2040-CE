@@ -293,18 +293,23 @@ export default function HardwareConfig() {
 								label={t('SettingsPage:hml-usb-authenticator-label')}
 								checked={Boolean(peripheralOptions.peripheral?.usb0?.enabled)}
 								onChange={(e) => {
-									setPeripheralOptions((prev) => ({
-										...prev,
-										peripheral: {
-											...prev.peripheral,
-											usb0: {
-												...prev.peripheral?.usb0,
-												enabled: e.target.checked ? 1 : 0,
-											},
+								const checked = e.target.checked ? 1 : 0;
+								setPeripheralOptions((prev) => ({
+									...prev,
+									peripheral: {
+										...prev.peripheral,
+										usb0: {
+											...prev.peripheral?.usb0,
+											enabled: checked,
 										},
-									}));
-								}}
-							/>
+									},
+								}));
+								// 互斥：开启 USB 验证器时自动关闭无线连接（GPIO12/13 复用冲突）
+								if (checked) {
+									setWirelessLinkEnabled(0);
+								}
+							}}
+						/>
 							<span className="text-muted">
 								{t('SettingsPage:hml-usb-authenticator-hint')}
 							</span>
@@ -380,8 +385,22 @@ export default function HardwareConfig() {
 								label={t('SettingsPage:hml-wireless-link-label')}
 								checked={Boolean(wirelessLinkEnabled)}
 								onChange={(e) => {
-									setWirelessLinkEnabled(e.target.checked ? 1 : 0);
-								}}
+								const checked = e.target.checked ? 1 : 0;
+								setWirelessLinkEnabled(checked);
+								// 互斥：开启无线时自动关闭 USB 验证器（GPIO12/13 复用冲突）
+								if (checked) {
+									setPeripheralOptions((prev) => ({
+										...prev,
+										peripheral: {
+											...prev.peripheral,
+											usb0: {
+												...prev.peripheral?.usb0,
+												enabled: 0,
+											},
+										},
+									}));
+								}
+							}}
 							/>
 							<span className="text-muted">
 								{t('SettingsPage:hml-wireless-link-hint')}

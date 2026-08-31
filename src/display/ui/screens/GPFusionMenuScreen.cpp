@@ -126,11 +126,21 @@ static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; nee
 
 // USB 验证器开关（对应网页配置 GNS设置-硬件配置 中的 USB验证器，即 blockUSB0.enabled）
 static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
-static void sUsbAuth(int v) { POP().blockUSB0.enabled = v ? 1 : 0; needsReboot = true; }
+static void sUsbAuth(int v) {
+    POP().blockUSB0.enabled = v ? 1 : 0;
+    // 互斥：开启 USB 验证器时自动关闭无线连接（GPIO12/13 复用冲突）
+    if (v) GOP().wirelessLinkEnabled = false;
+    needsReboot = true;
+}
 
 // 无线连接开关（对应网页 GNS设置-硬件配置 中的 无线连接开关，即 GamepadOptions.wirelessLinkEnabled）
 static int gWireless() { return GOP().wirelessLinkEnabled ? 1 : 0; }
-static void sWireless(int v) { GOP().wirelessLinkEnabled = v ? true : false; needsReboot = true; }
+static void sWireless(int v) {
+    GOP().wirelessLinkEnabled = v ? true : false;
+    // 互斥：开启无线时自动关闭 USB 验证器（GPIO12/13 复用冲突）
+    if (v) POP().blockUSB0.enabled = 0;
+    needsReboot = true;
+}
 
 // 摇杆死区/反死区（原始值0-200，对应0.0%-20.0%，0.1%步进）
 static int gInnerDz() { return (int)AOP2().analogOptions.inner_deadzone; }

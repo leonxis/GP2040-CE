@@ -9,11 +9,11 @@
 #endif
 
 #ifndef UART_LINK_TX_PIN
-#define UART_LINK_TX_PIN 12
+#define UART_LINK_TX_PIN 8
 #endif
 
 #ifndef UART_LINK_RX_PIN
-#define UART_LINK_RX_PIN 13
+#define UART_LINK_RX_PIN 9
 #endif
 
 #ifndef UART_LINK_BAUD
@@ -54,7 +54,7 @@ private:
     // STATUS 帧: 仅 inputMode 真实，其余字段全部固定默认值（协议兼容 ESP32 解析）
     void sendStatusFrame(uint8_t inputMode);
     void handleRxByte(uint8_t b);
-    bool initialized;
+    bool initialized = false;
     uint32_t lastSent;
     uint16_t lastButtons;
     uint8_t lastDpad;

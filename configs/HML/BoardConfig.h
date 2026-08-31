@@ -14,11 +14,11 @@
 // Main pin mapping Configuration
 //                                                  // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
 #define GPIO_PIN_23 GpioAction::BUTTON_PRESS_UP     // UP     | UP     | UP      | UP       | UP     | UP     |
-#define GPIO_PIN_08 GpioAction::BUTTON_PRESS_DOWN   // DOWN   | DOWN   | DOWN    | DOWN     | DOWN   | DOWN   |
+#define GPIO_PIN_06 GpioAction::BUTTON_PRESS_DOWN   // DOWN   | DOWN   | DOWN    | DOWN     | DOWN   | DOWN   |
 #define GPIO_PIN_16 GpioAction::BUTTON_PRESS_LEFT   // LEFT   | LEFT   | LEFT    | LEFT     | LEFT   | LEFT   |
 #define GPIO_PIN_17 GpioAction::BUTTON_PRESS_RIGHT  // RIGHT  | RIGHT  | RIGHT   | RIGHT    | RIGHT  | RIGHT  |
 #define GPIO_PIN_15 GpioAction::BUTTON_PRESS_B1     // B1     | A      | B       | Cross    | 2      | K1     |
-#define GPIO_PIN_09 GpioAction::BUTTON_PRESS_B2     // B2     | B      | A       | Circle   | 3      | K2     |
+#define GPIO_PIN_07 GpioAction::BUTTON_PRESS_B2     // B2     | B      | A       | Circle   | 3      | K2     |
 #define GPIO_PIN_28 GpioAction::BUTTON_PRESS_R2     // R2     | RT     | ZR      | R2       | 8      | K3     |
 #define GPIO_PIN_29 GpioAction::BUTTON_PRESS_L2     // L2     | LT     | ZL      | L2       | 7      | K4     |
 #define GPIO_PIN_13 GpioAction::BUTTON_PRESS_B3     // B3     | X      | Y       | Square   | 1      | P1     |
@@ -28,7 +28,7 @@
 #define GPIO_PIN_18 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
 #define GPIO_PIN_19 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
 #define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
-
+#define GPIO_PIN_00 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
 // Keyboard Mapping Configuration
 //                                            // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
 #define KEY_DPAD_UP     HID_KEY_ARROW_UP      // UP     | UP     | UP      | UP       | UP     | UP     |
@@ -52,14 +52,13 @@
 #define KEY_BUTTON_FN   -1                    // Hotkey Function                                        |
 
 // Setting GPIO pins to assigned by add-on
-#define GPIO_PIN_00 GpioAction::ASSIGNED_TO_ADDON // SPI0 RX
 #define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 CS
 #define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 SCK
 #define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 TX
-#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // CONVST
+#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // SPI0 RX
 #define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON // CS-LSM6（SPI0）
-#define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON //D+
-#define GPIO_PIN_07 GpioAction::ASSIGNED_TO_ADDON //D-
+#define GPIO_PIN_08 GpioAction::ASSIGNED_TO_ADDON //D+
+#define GPIO_PIN_09 GpioAction::ASSIGNED_TO_ADDON //D-
 #define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON //SDA
 #define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON //SCL
 #define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON //LED
@@ -84,11 +83,10 @@
 #ifdef SPI0_PIN_TX
 #undef SPI0_PIN_TX
 #endif
-#define SPI0_PIN_RX 0
 #define SPI0_PIN_CS 1
 #define SPI0_PIN_SCK 2
 #define SPI0_PIN_TX 3
-
+#define SPI0_PIN_RX 4
 // ADS8332 插件默认：启用（SPI0/CS/CONVST 在 ads8332_adc 中硬编码）
 #define ADS8332_DEFAULT_ENABLED 0
 // LSM6 插件默认：关闭（SPI0/CS 在 lsm6dsr_imu 中硬编码）
@@ -170,13 +168,13 @@
 // USB Passthrough
 #define USB_PERIPHERAL_ENABLED 0
 #ifndef USB_PERIPHERAL_PIN_DPLUS
-#define USB_PERIPHERAL_PIN_DPLUS 6
+#define USB_PERIPHERAL_PIN_DPLUS 8
 #endif
 
-// --- UART 无线链路（GPIO12/13 复用 UART1 功能） ---
+// --- UART 无线链路（GPIO08/09 复用 UART1 功能） ---
 #define UART_LINK_ENABLED   1
-#define UART_LINK_TX_PIN    12
-#define UART_LINK_RX_PIN    13
+#define UART_LINK_TX_PIN    8
+#define UART_LINK_RX_PIN    9
 #define UART_LINK_BAUD      921600   // 沿用 GP-combine 原宏名
 
 // --- 无线连接开关默认值（网页/miniled 开关共用） ---

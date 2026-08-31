@@ -26,7 +26,7 @@ bool UARTLinkAddon::available() {
 
 void UARTLinkAddon::setup() {
     if (!initialized) {
-        // UART1: GPIO12(TX)/GPIO13(RX) 硬件功能组，921600 波特率
+        // UART1: GPIO8(TX)/GPIO9(RX)，与 USB0 D+/D- 复用（互斥），921600 波特率
         uart_init(uart1, UART_LINK_BAUD);
         gpio_set_function(UART_LINK_TX_PIN, GPIO_FUNC_UART);
         gpio_set_function(UART_LINK_RX_PIN, GPIO_FUNC_UART);
@@ -159,6 +159,7 @@ void UARTLinkAddon::process() {
 }
 
 void UARTLinkAddon::postprocess(bool sent) {
+    (void)sent;
     if (!initialized) return;
     uint32_t now = to_ms_since_boot(get_absolute_time());
 
@@ -182,7 +183,7 @@ void UARTLinkAddon::postprocess(bool sent) {
     }
 
     // inputMode 变化立即上报 + 1s 心跳，保证 nRF 包 pkt[0] 跟随真实输入模式
-    GamepadOptions options = Storage::getInstance().getGamepadOptions();
+    const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
     uint8_t inputMode = (uint8_t)options.inputMode;
     if (inputMode != lastInputMode || now - lastStatusSent >= 1000) {
         sendStatusFrame(inputMode);

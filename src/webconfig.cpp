@@ -1168,6 +1168,11 @@ std::string setGamepadOptions()
     readDoc(gamepadOptions.usbVendorID, doc, "usbVendorID");
     readDoc(gamepadOptions.usbProductID, doc, "usbProductID");
     readDoc(gamepadOptions.wirelessLinkEnabled, doc, "wirelessLinkEnabled");
+    // 互斥：开启无线连接时强制关闭 USB0 主机（GPIO12/13 复用冲突）
+    if (gamepadOptions.wirelessLinkEnabled) {
+        PeripheralOptions& peripheralOptions = Storage::getInstance().getPeripheralOptions();
+        peripheralOptions.blockUSB0.enabled = 0;
+    }
     readDoc(gamepadOptions.wirelessPaired, doc, "wirelessPaired");
 
 
@@ -1943,6 +1948,12 @@ std::string setPeripheralOptions()
     docToValue(peripheralOptions.blockUSB0.enabled, doc, "peripheral", "usb0", "enabled");
     docToValue(peripheralOptions.blockUSB0.enable5v, doc, "peripheral", "usb0", "enable5v");
     docToValue(peripheralOptions.blockUSB0.order, doc, "peripheral", "usb0", "order");
+
+    // 互斥：开启 USB0 主机时强制关闭无线连接（GPIO12/13 复用冲突）
+    if (peripheralOptions.blockUSB0.enabled) {
+        GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
+        gamepadOptions.wirelessLinkEnabled = false;
+    }
 
     // need to reserve previous/next pin for dp
     GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;
