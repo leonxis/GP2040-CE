@@ -5,23 +5,27 @@
 #include "BoardConfig.h"
 
 // --- 无线接收端引脚配置（由 BoardConfig 提供，此处提供默认值便于非配置编译） ---
+#ifndef WIRELESS_RX_SPI_INST
+#define WIRELESS_RX_SPI_INST spi1
+#endif
+
 #ifndef WIRELESS_RX_CE_PIN
-#define WIRELESS_RX_CE_PIN 6
+#define WIRELESS_RX_CE_PIN 14
 #endif
 #ifndef WIRELESS_RX_CSN_PIN
-#define WIRELESS_RX_CSN_PIN 5
+#define WIRELESS_RX_CSN_PIN 9
 #endif
 #ifndef WIRELESS_RX_SCK_PIN
-#define WIRELESS_RX_SCK_PIN 2
+#define WIRELESS_RX_SCK_PIN 10
 #endif
 #ifndef WIRELESS_RX_MOSI_PIN
-#define WIRELESS_RX_MOSI_PIN 3
+#define WIRELESS_RX_MOSI_PIN 11
 #endif
 #ifndef WIRELESS_RX_MISO_PIN
-#define WIRELESS_RX_MISO_PIN 4
+#define WIRELESS_RX_MISO_PIN 12
 #endif
 #ifndef WIRELESS_RX_LED_PIN
-#define WIRELESS_RX_LED_PIN 25
+#define WIRELESS_RX_LED_PIN 16
 #endif
 #ifndef WIRELESS_RX_RGB_LED_PIN
 #define WIRELESS_RX_RGB_LED_PIN -1   // >=0 时用单颗 WS2812；接收端精简板必须保持 -1（与 USB0 PIO-USB 主机冲突）

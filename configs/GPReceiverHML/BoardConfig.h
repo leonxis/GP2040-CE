@@ -39,57 +39,57 @@
 
 // ============================================================
 // GPIO 引脚标记：nRF24 SPI0 + USB0 主机 + 状态灯
-#define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // nRF24 SPI0 SCK
-#define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // nRF24 SPI0 MOSI
-#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // nRF24 SPI0 MISO
-#define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON // nRF24 SPI0 CSN
-#define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON // nRF24 CE
-#define GPIO_PIN_12 GpioAction::ASSIGNED_TO_ADDON // USB0 D+ (PIO-USB host)
-#define GPIO_PIN_13 GpioAction::ASSIGNED_TO_ADDON // USB0 D- (PIO-USB host, order=D++1)
+#define GPIO_PIN_09 GpioAction::ASSIGNED_TO_ADDON // nRF24 SPI0 SCK
+#define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON // nRF24 SPI0 MOSI
+#define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON // nRF24 SPI0 MISO
+#define GPIO_PIN_12 GpioAction::ASSIGNED_TO_ADDON // nRF24 SPI0 CSN
+#define GPIO_PIN_14 GpioAction::ASSIGNED_TO_ADDON // nRF24 CE
+#define GPIO_PIN_07 GpioAction::ASSIGNED_TO_ADDON // USB0 D+ (PIO-USB host)
+#define GPIO_PIN_08 GpioAction::ASSIGNED_TO_ADDON // USB0 D- (PIO-USB host, order=D++1)
 #define GPIO_PIN_16 GpioAction::ASSIGNED_TO_ADDON // 无线连接状态 LED
 
 // ============================================================
-// SPI0: 开启，RX=GPIO0, CS=GPIO1, SCK=GPIO2, TX=GPIO3
-#ifdef SPI0_ENABLED
-#undef SPI0_ENABLED
+// SPI1: 开启，SCK=GPIO10, MOSI(TX)=GPIO11, MISO(RX)=GPIO12, CS=GPIO9
+#ifdef SPI1_ENABLED
+#undef SPI1_ENABLED
 #endif
-#define SPI0_ENABLED 1
+#define SPI1_ENABLED 1
 
-#ifdef SPI0_PIN_RX
-#undef SPI0_PIN_RX
+#ifdef SPI1_PIN_RX
+#undef SPI1_PIN_RX
 #endif
-#ifdef SPI0_PIN_CS
-#undef SPI0_PIN_CS
+#ifdef SPI1_PIN_CS
+#undef SPI1_PIN_CS
 #endif
-#ifdef SPI0_PIN_SCK
-#undef SPI0_PIN_SCK
+#ifdef SPI1_PIN_SCK
+#undef SPI1_PIN_SCK
 #endif
-#ifdef SPI0_PIN_TX
-#undef SPI0_PIN_TX
+#ifdef SPI1_PIN_TX
+#undef SPI1_PIN_TX
 #endif
-#define SPI0_PIN_CS 5
-#define SPI0_PIN_SCK 2
-#define SPI0_PIN_TX 3
-#define SPI0_PIN_RX 4
+#define SPI1_PIN_CS 9
+#define SPI1_PIN_SCK 10
+#define SPI1_PIN_TX 11
+#define SPI1_PIN_RX 12
 
-// nRF24L01+ 引脚定义（WirelessReceiverAddon 使用）
-#define NRF24_SPI_INST    spi0
-#define NRF24_CE_PIN      6
-#define NRF24_CSN_PIN     5
-#define NRF24_SCK_PIN     2
-#define NRF24_MOSI_PIN    3
-#define NRF24_MISO_PIN    4
+// nRF24L01+ 引脚定义（WirelessReceiverAddon 使用，宏名与 wireless_receiver.h 一致）
+#define WIRELESS_RX_SPI_INST  spi1
+#define WIRELESS_RX_CE_PIN    14
+#define WIRELESS_RX_CSN_PIN   9
+#define WIRELESS_RX_SCK_PIN   10
+#define WIRELESS_RX_MOSI_PIN  11
+#define WIRELESS_RX_MISO_PIN  12
 
 // ============================================================
 // 无线接收端状态灯
-// GPIO LED (GPIO25)：指示配对/连接状态
-// RGB LED 强制关闭：USB0 主机(D+12/D-13)使用 PIO-USB 占用 pio1，
-// 与 WS2812(NeoPico) 驱动冲突，仅使用 GPIO 单灯指示
-#define WIRELESS_RX_LED_PIN        16
-#define WIRELESS_RX_RGB_LED_PIN    -1
+// WS2812 RGB LED (GPIO16)：指示配对/连接状态
+// 使用 PIO0 驱动 WS2812，与 USB0 PIO-USB 主机(PIO1)分离避免冲突
+// NeoPicoLEDAddon 保持禁用(BOARD_LEDS_PIN=-1)，避免与无线状态灯争抢 PIO0
+#define WIRELESS_RX_LED_PIN        -1
+#define WIRELESS_RX_RGB_LED_PIN    16
 
 // ============================================================
-// LED 配置（BOARD_LEDS_PIN 禁用，因为 RGB 与 PIO-USB 冲突）
+// LED 配置（NeoPicoLEDAddon 禁用，BOARD_LEDS_PIN=-1 避免与无线状态灯争抢 PIO0）
 #define BOARD_LEDS_PIN -1
 #define LED_BRIGHTNESS_MAXIMUM 0
 #define CASE_RGB_TYPE  CASE_RGB_TYPE_AMBIENT
@@ -112,10 +112,10 @@
 #endif
 
 // ============================================================
-// USB0 主机（PIO-USB）：D+ = GPIO12，D- = GPIO13（order +1）
+// USB0 主机（PIO-USB）：D+ = GPIO7，D- = GPIO8（order +1）
 #define USB_PERIPHERAL_ENABLED 1
 #ifndef USB_PERIPHERAL_PIN_DPLUS
-#define USB_PERIPHERAL_PIN_DPLUS 12
+#define USB_PERIPHERAL_PIN_DPLUS 7
 #endif
 
 // ============================================================

@@ -27,11 +27,11 @@ bool WirelessReceiverAddon::available() {
 }
 
 void WirelessReceiverAddon::setup() {
-    // SPI0 pins for the radio
+    // SPI1 pins for the radio
     gpio_set_function(WIRELESS_RX_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(WIRELESS_RX_MOSI_PIN, GPIO_FUNC_SPI);
     gpio_set_function(WIRELESS_RX_MISO_PIN, GPIO_FUNC_SPI);
-    radio.begin(spi0, WIRELESS_RX_CSN_PIN, WIRELESS_RX_CE_PIN);
+    radio.begin(WIRELESS_RX_SPI_INST, WIRELESS_RX_CSN_PIN, WIRELESS_RX_CE_PIN);
 
     paired = Storage::getInstance().getGamepadOptions().wirelessPaired;
     rxButtons = 0;
@@ -47,8 +47,8 @@ void WirelessReceiverAddon::setup() {
     radio.startListening();
 
 #if WIRELESS_RX_RGB_LED_PIN >= 0
-    // WS2812 状态灯（pio1，注意：与本板 USB0 PIO-USB 主机冲突时禁止使用）
-    rxNeo.Setup(WIRELESS_RX_RGB_LED_PIN, 1, LED_FORMAT_GRB, pio1, 0);
+    // WS2812 状态灯（pio0，与 USB0 PIO-USB 主机(pio1)分离，避免冲突）
+    rxNeo.Setup(WIRELESS_RX_RGB_LED_PIN, 1, LED_FORMAT_GRB, pio0, 0);
     rxNeo.Off();
 #else
     gpio_init(WIRELESS_RX_LED_PIN);
@@ -121,7 +121,7 @@ void WirelessReceiverAddon::preprocess() {
     uint32_t now = to_ms_since_boot(get_absolute_time());
     if (!got && now - lastPacketTime > 1000 && now - lastRadioReinit > 3000) {
         lastRadioReinit = now;
-        radio.begin(spi0, WIRELESS_RX_CSN_PIN, WIRELESS_RX_CE_PIN);
+        radio.begin(WIRELESS_RX_SPI_INST, WIRELESS_RX_CSN_PIN, WIRELESS_RX_CE_PIN);
         radio.startListening();
     }
     // 重新注入缓存输入；1000ms 无包自动释放
