@@ -10,12 +10,10 @@
 #include "BoardConfig.h"
 #include "GamepadConfig.h"
 #include "version.h"
-#include "addons/analog.h"
 #include "addons/bootsel_button.h"
 #include "addons/buzzerspeaker.h"
 #include "addons/dualdirectional.h"
-#include "addons/axis_tilt_overlay.h"
-#include "addons/tilt.h"
+#include "addons/reverse.h"
 #include "addons/focus_mode.h"
 #include "addons/display.h"
 #include "addons/keyboard_host.h"
@@ -28,16 +26,11 @@
 #include "addons/wiiext.h"
 #include "addons/snes_input.h"
 #include "addons/input_macro.h"
-#include "hml_back_mapping_preset.h"
 #include "addons/rotaryencoder.h"
 #include "addons/i2c_gpio_pcf8575.h"
 #include "addons/drv8833_rumble.h"
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
-#include "addons/linear_trigger.h"
-#include "addons/ads8332_adc.h"
-#include "addons/mcp3208_adc.h"
-#include "addons/lsm6dsr_imu.h"
 #include "addons/tg16_input.h"
 
 #include "CRC32.h"
@@ -616,26 +609,8 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.bootselButtonOptions, enabled, !!BOOTSEL_BUTTON_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.bootselButtonOptions, buttonMap, BOOTSEL_BUTTON_MASK);
 
-    // addonOptions.analogOptions
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, enabled, !!ANALOG_INPUT_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc1PinX, ANALOG_ADC_1_VRX);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc1PinY, ANALOG_ADC_1_VRY);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc1Mode, ANALOG_ADC_1_MODE);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc1Invert, ANALOG_ADC_1_INVERT);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2PinX, ANALOG_ADC_2_VRX);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2PinY, ANALOG_ADC_2_VRY);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2Mode, ANALOG_ADC_2_MODE);
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2Invert, ANALOG_ADC_2_INVERT);
-    // forced_circularity removed - replaced by range calibration
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone, DEFAULT_INNER_DEADZONE);
-    // outer_deadzone removed - replaced by range calibration
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone, DEFAULT_ANTI_DEADZONE);
+    // addonOptions.analogOptions (analog.cpp 已删除：BoardConfig ANALOG_ADC_* 宏与 defaults 不再需要)
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, fixed_anti_deadzone, false);
-    // Auto calibration removed - deprecated field ignored
-    // EMA smoothing removed - no longer used
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone2, DEFAULT_INNER_DEADZONE2);
-    // outer_deadzone2 removed - replaced by range calibration
-    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone2, DEFAULT_ANTI_DEADZONE2);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, fixed_anti_deadzone2, false);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_action, GpioAction::NONE);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_custom_dpad_mask, 0);
@@ -697,42 +672,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.dualDirectionalOptions, dpadMode, static_cast<DpadMode>(DUAL_DIRECTIONAL_STICK_MODE));
     INIT_UNSET_PROPERTY(config.addonOptions.dualDirectionalOptions, combineMode, DualDirectionalCombinationMode::MIXED_MODE);
     INIT_UNSET_PROPERTY(config.addonOptions.dualDirectionalOptions, fourWayMode, false);
-
-	// addonOptions.tiltOptions
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, enabled, !!TILT_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tilt1Pin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, factorTilt1LeftX, TILT1_FACTOR_LEFT_X);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, factorTilt1LeftY, TILT1_FACTOR_LEFT_Y);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, factorTilt1RightX, TILT1_FACTOR_RIGHT_X);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, factorTilt1RightY, TILT1_FACTOR_RIGHT_Y);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tilt2Pin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, factorTilt2LeftX, TILT2_FACTOR_LEFT_X);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, factorTilt2LeftY, TILT2_FACTOR_LEFT_Y);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, factorTilt2RightX, TILT2_FACTOR_RIGHT_X);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, factorTilt2RightY, TILT2_FACTOR_RIGHT_Y);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltLeftAnalogDownPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltLeftAnalogUpPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltLeftAnalogLeftPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltLeftAnalogRightPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltRightAnalogDownPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltRightAnalogUpPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltRightAnalogLeftPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltRightAnalogRightPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.tiltOptions, tiltSOCDMode, TILT_SOCD_MODE);
-
-    // addonOptions.axisTiltOverlayOptions (right stick Y overlay only)
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, pressEnabled, !!AXIS_TILT_OVERLAY_PRESS_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYTriggerButtonMask, AXIS_TILT_OVERLAY_RIGHT_Y_TRIGGER_BUTTON_MASK);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYPercent1, AXIS_TILT_OVERLAY_RIGHT_Y_PERCENT1);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYPercent2, AXIS_TILT_OVERLAY_RIGHT_Y_PERCENT2);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYPercent3, AXIS_TILT_OVERLAY_RIGHT_Y_PERCENT3);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rightYActivePreset, AXIS_TILT_OVERLAY_RIGHT_Y_ACTIVE_PRESET);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainEnabled, false);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainTriggerButtonMask, 0u);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved1, AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved2, AXIS_TILT_OVERLAY_RC_GAIN_RESERVED2_DEFAULT);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainReserved3, AXIS_TILT_OVERLAY_RC_GAIN_RESERVED3_DEFAULT);
-    INIT_UNSET_PROPERTY(config.addonOptions.axisTiltOverlayOptions, rcGainAlwaysOn, false);
 
     // addonOptions.buzzerOptions
     INIT_UNSET_PROPERTY(config.addonOptions.buzzerOptions, enabled, !!BUZZER_ENABLED);
@@ -1043,82 +982,8 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 
     // reminder that this must be set or else nanopb won't retain anything
     config.addonOptions.heTriggerOptions.triggers_count = HETRIGGER_COUNT;
-
-#ifdef LINEAR_TRIGGER_ENABLED
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, enabled, LINEAR_TRIGGER_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerDeadzone, 5);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerDeadzone, 5);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerTravel, 95);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerTravel, 95);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerReleasedRaw, 4095);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerReleasedRaw, 4095);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerMaxRaw, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerMaxRaw, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerInvert, false);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerInvert, false);
-#endif
-    if (!config.addonOptions.ads8332Options.has_enabled &&
-        config.addonOptions.mcp3208Options.has_enabled) {
-        config.addonOptions.ads8332Options.enabled =
-            !config.addonOptions.mcp3208Options.enabled;
-        config.addonOptions.ads8332Options.has_enabled = true;
-    }
-#if defined(ADS8332_DEFAULT_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, ADS8332_DEFAULT_ENABLED);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, 0);
-#endif
-    config.addonOptions.has_ads8332Options = true;
-    config.addonOptions.mcp3208Options.enabled =
-        !config.addonOptions.ads8332Options.enabled;
-    config.addonOptions.mcp3208Options.has_enabled = true;
-    config.addonOptions.has_mcp3208Options = true;
-#if defined(LSM6DSR_DEFAULT_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, 0);
-#endif
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, outputMode, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroX, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroY, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroZ, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelX, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelY, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelZ, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, calibrateGyroRequested, false);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, engageMode, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseMapMode, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseInvert, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensLR, 1.0f);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensUD, 1.0f);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseDeadzone, 12);
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
     INIT_UNSET_PROPERTY(config.addonOptions, cpuOverclockLevel, (CpuOverclockLevel)CPU_OVERCLOCK_NORMAL);
-
-    // HML 背键/FN/触摸三套方案（所有 BoardConfig 构建均编译）
-    {
-        HmlBackMappingPresetOptions& presetOpts = getHmlBackMappingPresetOptions(config.addonOptions);
-        if (presetOpts.presets_count == 0) {
-            INIT_UNSET_PROPERTY(presetOpts, activePreset, 0u);
-            initHmlBackMappingPresetScheme1FromBoardConfig(presetOpts.presets[0]);
-            initHmlBackMappingPresetNone(presetOpts.presets[1]);
-            initHmlBackMappingPresetNone(presetOpts.presets[2]);
-            presetOpts.presets_count = 3;
-        } else {
-            ensureHmlBackMappingPresetSlots(presetOpts, 3);
-        }
-    }
-
-#if defined(HML_TWOKEY_TOUCHPAD_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, HML_TWOKEY_TOUCHPAD_ENABLED);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, 0);
-#endif
-    if (!config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping) {
-        config.addonOptions.twoKeyTouchpadOptions.enableKeyMapping = config.gpioMappings.pins[12];
-        config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping = true;
-    }
-    config.addonOptions.has_twoKeyTouchpadOptions = true;
 
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, enabled, KEYBOARD_HOST_ENABLED);
@@ -1208,7 +1073,6 @@ void gpioMappingsMigrationCore(Config& config)
     PSPassthroughOptions& psPassthroughOptions = config.addonOptions.psPassthroughOptions;
     TurboOptions& turboOptions = config.addonOptions.turboOptions;
     (void)turboOptions;
-    TiltOptions& tiltOptions = config.addonOptions.tiltOptions;
     FocusModeOptions& focusModeOptions = config.addonOptions.focusModeOptions;
     ReverseOptions& reverseOptions = config.addonOptions.reverseOptions;
 
@@ -1414,29 +1278,6 @@ void gpioMappingsMigrationCore(Config& config)
         fromProtoBuf(reverseOptions.has_buttonPin, &reverseOptions.buttonPin, GpioAction::BUTTON_PRESS_INPUT_REVERSE);
     }
 
-    // verify that tilt factors are not set to -1
-    if (tiltOptions.enabled) {
-        if (tiltOptions.factorTilt1LeftX == -1) tiltOptions.factorTilt1LeftX = TILT1_FACTOR_LEFT_X;
-        if (tiltOptions.factorTilt1LeftY == -1) tiltOptions.factorTilt1LeftY = TILT1_FACTOR_LEFT_Y;
-        if (tiltOptions.factorTilt1RightX == -1) tiltOptions.factorTilt1RightX = TILT1_FACTOR_RIGHT_X;
-        if (tiltOptions.factorTilt1RightY == -1) tiltOptions.factorTilt1RightY = TILT1_FACTOR_RIGHT_Y;
-        if (tiltOptions.factorTilt2LeftX == -1) tiltOptions.factorTilt2LeftX = TILT2_FACTOR_LEFT_X;
-        if (tiltOptions.factorTilt2LeftY == -1) tiltOptions.factorTilt2LeftY = TILT2_FACTOR_LEFT_Y;
-        if (tiltOptions.factorTilt2RightX == -1) tiltOptions.factorTilt2RightX = TILT2_FACTOR_RIGHT_X;
-        if (tiltOptions.factorTilt2RightY == -1) tiltOptions.factorTilt2RightY = TILT2_FACTOR_RIGHT_Y;
-
-        fromProtoBuf(tiltOptions.has_tilt1Pin, &tiltOptions.tilt1Pin, GpioAction::ANALOG_DIRECTION_MOD_LOW);
-        fromProtoBuf(tiltOptions.has_tilt2Pin, &tiltOptions.tilt2Pin, GpioAction::ANALOG_DIRECTION_MOD_HIGH);
-        fromProtoBuf(tiltOptions.has_tiltLeftAnalogUpPin, &tiltOptions.tiltLeftAnalogUpPin, GpioAction::ANALOG_DIRECTION_LS_Y_NEG);
-        fromProtoBuf(tiltOptions.has_tiltLeftAnalogDownPin, &tiltOptions.tiltLeftAnalogDownPin, GpioAction::ANALOG_DIRECTION_LS_Y_POS);
-        fromProtoBuf(tiltOptions.has_tiltLeftAnalogLeftPin, &tiltOptions.tiltLeftAnalogLeftPin, GpioAction::ANALOG_DIRECTION_LS_X_NEG);
-        fromProtoBuf(tiltOptions.has_tiltLeftAnalogRightPin, &tiltOptions.tiltLeftAnalogRightPin, GpioAction::ANALOG_DIRECTION_LS_X_POS);
-        fromProtoBuf(tiltOptions.has_tiltRightAnalogUpPin, &tiltOptions.tiltRightAnalogUpPin, GpioAction::ANALOG_DIRECTION_RS_Y_NEG);
-        fromProtoBuf(tiltOptions.has_tiltRightAnalogDownPin, &tiltOptions.tiltRightAnalogDownPin, GpioAction::ANALOG_DIRECTION_RS_Y_POS);
-        fromProtoBuf(tiltOptions.has_tiltRightAnalogLeftPin, &tiltOptions.tiltRightAnalogLeftPin, GpioAction::ANALOG_DIRECTION_RS_X_NEG);
-        fromProtoBuf(tiltOptions.has_tiltRightAnalogRightPin, &tiltOptions.tiltRightAnalogRightPin, GpioAction::ANALOG_DIRECTION_RS_X_POS);
-    }
-
     // Assign all potential board config pins
     GpioAction boardConfig[NUM_BANK0_GPIOS] = {GPIO_PIN_00, GPIO_PIN_01, GPIO_PIN_02,
 											   GPIO_PIN_03, GPIO_PIN_04, GPIO_PIN_05,
@@ -1452,12 +1293,6 @@ void gpioMappingsMigrationCore(Config& config)
     // If we didn't import from protobuf, import from boardconfig
     for(unsigned int i = 0; i < NUM_BANK0_GPIOS; i++) {
         fromBoardConfig(i, boardConfig[i]);
-    }
-
-    // Linear trigger uses fixed pins: GPIO28 = R2, GPIO29 = L2. When on → 28/29 = ASSIGNED_TO_ADDON. When off, leave 28/29 as in loaded config.
-    if (config.addonOptions.linearTriggerOptions.enabled) {
-        markAddonPinIfUsed(LINEAR_R2_PIN);
-        markAddonPinIfUsed(LINEAR_L2_PIN);
     }
 
     // 2-key touchpad uses I2C1 SDA/SCL as left/right inputs, and GPIO12 as dedicated enable key.
@@ -1645,15 +1480,6 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed(config.addonOptions.heTriggerOptions.selectPin3);
     }
 
-    if (config.addonOptions.ads8332Options.enabled) {
-        markAddonPinIfUsed((Pin_t)ADS8332_HW_CS_PIN);
-        markAddonPinIfUsed((Pin_t)ADS8332_HW_CONVST_PIN);
-    } else if (config.addonOptions.mcp3208Options.enabled) {
-        markAddonPinIfUsed((Pin_t)MCP3208_HW_CS_PIN);
-    }
-    if (config.addonOptions.lsm6dsrOptions.enabled) {
-        markAddonPinIfUsed((Pin_t)LSM6DSR_HW_CS_PIN);
-    }
 
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
         config.gpioMappings.pins[pin].action = actions[pin];

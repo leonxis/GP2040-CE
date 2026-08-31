@@ -24,11 +24,10 @@ else()
   set(PICO_PLATFORM rp2040 CACHE STRING "Board platform")
 endif()
 
-if(DEFINED ENV{GP2040_BOARDCONFIG})
-  set(GP2040_BOARDCONFIG $ENV{GP2040_BOARDCONFIG})
-elseif(NOT DEFINED GP2040_BOARDCONFIG)
-  set(GP2040_BOARDCONFIG Pico)
-endif()
+# 接收端专用分支：强制锁定 GPReceiverHML 版型。
+# 忽略环境变量/命令行/cache 传入的 GP2040_BOARDCONFIG（终端可能残留 HML），
+# 防止 re-configure 时用错 BoardConfig 引发 rndis/引脚映射等编译异常。
+set(GP2040_BOARDCONFIG GPReceiverHML CACHE STRING "Locked board config for wireless-rx receiver" FORCE)
 
 # check for existing cmake files in the event of changing PICO_BOARD or PICO_PLATFORM
 if (GP2040_BOARDCONFIG)
@@ -96,7 +95,7 @@ endif()
 if(DEFINED ENV{SKIP_WEBBUILD})
   set(SKIP_WEBBUILD $ENV{SKIP_WEBBUILD})
 elseif(NOT DEFINED SKIP_WEBBUILD)
-  set(SKIP_WEBBUILD FALSE)
+  set(SKIP_WEBBUILD TRUE)   # 接收端分支：默认跳过网页前端构建
 endif()
 
 
@@ -163,6 +162,11 @@ add_compile_options(-Wall
         -Wno-unused-function # we have some for the docs that aren't called
         )
 
+# GPReceiverHML 接收端：关闭 tinyusb ECM/RNDIS 网卡设备类（不再使用 Web Config/RNDIS，避免 rndis_protocol.h 缺失）
+if(GP2040_BOARDCONFIG STREQUAL "GPReceiverHML")
+  add_compile_definitions(CFG_TUD_ECM_RNDIS=0)
+endif()
+
 include(compile_proto.cmake)
 compile_proto()
 
@@ -208,7 +212,6 @@ src/drivers/hid/HIDDriver.cpp
 src/drivers/keyboard/KeyboardDriver.cpp
 src/drivers/mdmini/MDMiniDriver.cpp
 src/drivers/neogeo/NeoGeoDriver.cpp
-src/drivers/net/NetDriver.cpp
 src/drivers/pcengine/PCEngineDriver.cpp
 src/drivers/ps3/PS3Driver.cpp
 src/drivers/ps4/PS4Auth.cpp
@@ -247,8 +250,6 @@ src/display/ui/elements/GPShape.cpp
 src/display/ui/elements/GPSprite.cpp
 src/display/ui/screens/ButtonLayoutScreen.cpp
 src/display/ui/screens/ConfigScreen.cpp
-src/display/ui/screens/GPFusionMenuScreen.cpp
-src/display/ui/screens/LiteCustomLayoutScreen.cpp
 src/display/ui/screens/PinViewerScreen.cpp
 src/display/ui/screens/RestartScreen.cpp
 src/display/ui/screens/StatsScreen.cpp
@@ -267,23 +268,9 @@ src/usbdriver.cpp
 src/usbhostmanager.cpp
 src/config_legacy.cpp
 src/config_utils.cpp
-src/hml_back_mapping_preset.cpp
-src/webconfig.cpp
-src/addons/analog.cpp
-src/addons/unified_analog_processor.cpp
-src/addons/action_mapping_common.cpp
-src/addons/unified_voltage_switch.cpp
-src/addons/unified_joystick_travel_key.cpp
-src/addons/analog_utils.cpp
 src/addons/bootsel_button.cpp
 src/addons/focus_mode.cpp
 src/addons/he_trigger.cpp
-src/addons/linear_trigger.cpp
-src/addons/two_key_touchpad.cpp
-src/addons/back_button_divider.cpp
-src/addons/ads8332_adc.cpp
-src/addons/mcp3208_adc.cpp
-src/addons/lsm6dsr_imu.cpp
 src/addons/buzzerspeaker.cpp
 src/addons/dualdirectional.cpp
 src/addons/keyboard_host.cpp
@@ -293,6 +280,7 @@ src/addons/display.cpp
 src/addons/neopicoleds.cpp
 src/addons/playerleds.cpp
 src/addons/reactiveleds.cpp
+src/addons/wireless_receiver.cpp
 src/addons/rotaryencoder.cpp
 src/addons/reverse.cpp
 src/addons/drv8833_rumble.cpp
@@ -301,8 +289,6 @@ src/addons/slider_socd.cpp
 src/addons/wiiext.cpp
 src/addons/input_macro.cpp
 src/addons/snes_input.cpp
-src/addons/tilt.cpp
-src/addons/axis_tilt_overlay.cpp
 src/addons/gamepad_usb_host.cpp
 src/addons/gamepad_usb_host_listener.cpp
 src/addons/tg16_input.cpp
@@ -327,13 +313,13 @@ target_link_libraries(${PROJECT_NAME}
 pico_stdlib
 pico_bootsel_via_double_reset
 tinyusb_host
+tinyusb_device
 tinyusb_pico_pio_usb
 CRC32
 FlashPROM
 NeoPico
 OneBitDisplay
 ArduinoJson
-rndis
 hardware_adc
 hardware_pwm
 PicoPeripherals

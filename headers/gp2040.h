@@ -58,18 +58,6 @@ private:
     Mask_t buttonGpios;
     uint32_t gpioDebounceTime[NUM_BANK0_GPIOS];
 
-    struct RebootHotkeys {
-        RebootHotkeys();
-        void process(bool configMode);
-
-        bool active;
-        bool waitForHotkeyRelease;
-
-        absolute_time_t noButtonsPressedTimeout;
-        absolute_time_t rebootHotkeysHoldTimeout;
-    };
-    RebootHotkeys rebootHotkeys;
-
     enum class BootAction {
         NONE,
         ENTER_WEBCONFIG_MODE,

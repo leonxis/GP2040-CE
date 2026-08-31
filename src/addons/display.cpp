@@ -14,7 +14,6 @@
 #include "version.h"
 #include "config.pb.h"
 #include "class/hid/hid.h"
-#include "display/ui/screens/GPFusionMenuScreen.h"
 
 // 跨核标志位定义：Core1 的 DisplayAddon 设置，Core0 的主循环读取。
 volatile bool g_screenOperationActive = false;
@@ -108,7 +107,8 @@ bool DisplayAddon::updateDisplayScreen() {
             gpScreen = new SplashScreen(gpDisplay);
             break;
         case MAIN_MENU:
-            gpScreen = new GPFusionMenuScreen(gpDisplay);
+            // 接收端无菜单屏：MainMenuScreen 依赖与 proto 分叉的枚举宏，且 DisplayAddon 无屏不激活
+            gpScreen = nullptr;
             break;
         case BUTTONS:
             gpScreen = new ButtonLayoutScreen(gpDisplay);

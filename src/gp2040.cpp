@@ -7,25 +7,15 @@
 #include "build_info.h"
 #include "peripheralmanager.h"
 #include "storagemanager.h"
-#include "hml_back_mapping_preset.h"
 #include "addonmanager.h"
 #include "config.pb.h"
 #include "types.h"
 #include "usbhostmanager.h"
 
 // Inputs for Core0
-#include "addons/analog.h"
-#include "addons/unified_analog_processor.h"
-#include "addons/unified_voltage_switch.h"
-#include "addons/unified_joystick_travel_key.h"
-#include "addons/ads8332_adc.h"
-#include "addons/mcp3208_adc.h"
-#include "addons/lsm6dsr_imu.h"
-#include "addons/bootsel_button.h"
 #include "addons/focus_mode.h"
+#include "addons/bootsel_button.h"
 #include "addons/dualdirectional.h"
-#include "addons/axis_tilt_overlay.h"
-#include "addons/tilt.h"
 #include "addons/keyboard_host.h"
 #include "addons/reverse.h"
 #include "addons/turbo.h"
@@ -37,17 +27,13 @@
 #include "addons/i2c_gpio_pcf8575.h"
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
-#include "addons/linear_trigger.h"
-#include "addons/two_key_touchpad.h"
-#include "addons/back_button_divider.h"
 #include "addons/tg16_input.h"
+#include "addons/wireless_receiver.h"
 
 // Pico includes
 #include "pico/bootrom.h"
 #include "pico/time.h"
 #include "hardware/adc.h"
-
-#include "rndis.h"
 
 // TinyUSB
 #include "tusb.h"
@@ -59,8 +45,6 @@
 // 跨核标志位：Core1 的 DisplayAddon 设置，true 时禁止 USB 按键输出
 extern volatile bool g_screenOperationActive;
 
-static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
-static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 static bool main_loop_gate_enabled = false;
 static bool main_loop_gate_runtime_enabled = false;
 static bool composite_hid_enabled = false;
@@ -78,26 +62,6 @@ static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
-static const uint8_t WEBCONFIG_BOOT_GPIO = 19; //修改为GPIO19
-static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_A = 18;
-static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_B = 19;
-static const uint8_t RUNTIME_HOTKEY_WEBCONFIG_GPIO = 21;
-static const uint8_t RUNTIME_HOTKEY_USB_BOOT_GPIO = 22;
-static const uint8_t RUNTIME_HOTKEY_MODE_X_GPIO = 15;
-static const uint8_t RUNTIME_HOTKEY_MODE_O_GPIO = 9;
-static const uint8_t RUNTIME_HOTKEY_MODE_SQUARE_GPIO = 13;
-static const uint8_t RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO = 14;
-
-enum class RuntimeHotkeyAction {
-	NONE,
-	INVALID,
-	TOGGLE_WEBCONFIG,
-	ENTER_USB_BOOTLOADER,
-	SWITCH_MODE_X,
-	SWITCH_MODE_O,
-	SWITCH_MODE_SQUARE,
-	SWITCH_MODE_TRIANGLE,
-};
 
 enum class MainLoopGateState {
 	WAIT_MOUNT,
@@ -194,10 +158,6 @@ static uint32_t main_loop_gate_interval_max_us = 0;
 static uint16_t main_loop_gate_stable_completions = 0;
 static GateLateAnalogSource main_loop_gate_analog_source =
         GateLateAnalogSource::None;
-static MainLoopGateRollingMax main_loop_gate_ads8332_burst_setup_wcet;
-static MainLoopGateRollingMax main_loop_gate_ads8332_sample_wcet;
-static MainLoopGateRollingMax main_loop_gate_mcp3208_burst_setup_wcet;
-static MainLoopGateRollingMax main_loop_gate_mcp3208_sample_wcet;
 static MainLoopGateRollingMax main_loop_gate_final_process_wcet;
 static MainLoopGateRollingMax main_loop_gate_endpoint_arm_wcet;
 static MainLoopGateFrameSchedule main_loop_gate_frame_schedule;
@@ -232,10 +192,6 @@ static inline uint32_t mainLoopGateTimeRemaining(
 static MainLoopGateRollingMax* mainLoopGateADCWcet(
         GateLateAnalogSource source) {
         switch (source) {
-                case GateLateAnalogSource::ADS8332:
-                        return &main_loop_gate_ads8332_sample_wcet;
-                case GateLateAnalogSource::MCP3208:
-                        return &main_loop_gate_mcp3208_sample_wcet;
                 case GateLateAnalogSource::None:
                 default:
                         return nullptr;
@@ -245,10 +201,6 @@ static MainLoopGateRollingMax* mainLoopGateADCWcet(
 static MainLoopGateRollingMax* mainLoopGateADCBurstSetupWcet(
         GateLateAnalogSource source) {
         switch (source) {
-                case GateLateAnalogSource::ADS8332:
-                        return &main_loop_gate_ads8332_burst_setup_wcet;
-                case GateLateAnalogSource::MCP3208:
-                        return &main_loop_gate_mcp3208_burst_setup_wcet;
                 case GateLateAnalogSource::None:
                 default:
                         return nullptr;
@@ -271,10 +223,6 @@ static bool mainLoopGateSchedulingMeasurementsReady() {
 }
 
 static void resetMainLoopGateMeasurements() {
-        main_loop_gate_ads8332_burst_setup_wcet.reset();
-        main_loop_gate_ads8332_sample_wcet.reset();
-        main_loop_gate_mcp3208_burst_setup_wcet.reset();
-        main_loop_gate_mcp3208_sample_wcet.reset();
         main_loop_gate_final_process_wcet.reset();
         main_loop_gate_endpoint_arm_wcet.reset();
         main_loop_gate_frame_schedule = {};
@@ -302,14 +250,6 @@ void getMainLoopGateStats(MainLoopGateStats* stats) {
                         ? 0
                         : main_loop_gate_phase_min_us;
         stats->phaseMaxUs = main_loop_gate_phase_max_us;
-        stats->ads8332BurstSetupWcetUs =
-                main_loop_gate_ads8332_burst_setup_wcet.maximum;
-        stats->ads8332SampleWcetUs =
-                main_loop_gate_ads8332_sample_wcet.maximum;
-        stats->mcp3208BurstSetupWcetUs =
-                main_loop_gate_mcp3208_burst_setup_wcet.maximum;
-        stats->mcp3208SampleWcetUs =
-                main_loop_gate_mcp3208_sample_wcet.maximum;
         stats->finalProcessWcetUs =
                 main_loop_gate_final_process_wcet.maximum;
         stats->endpointArmGuardUs =
@@ -854,142 +794,6 @@ static bool mainLoopGateEventPending() {
 const static uint32_t rebootDelayMs = 500;
 static absolute_time_t rebootDelayTimeout = nil_time;
 
-static bool isGPIOHeldLow(uint8_t pin) {
-	return gpio_get(pin) == 0;
-}
-
-static bool isWebConfigBootGPIOPressed() {
-	return isGPIOHeldLow(WEBCONFIG_BOOT_GPIO);
-}
-
-static RuntimeHotkeyAction getRuntimeHotkeyAction() {
-	if (!isGPIOHeldLow(RUNTIME_HOTKEY_SHARED_GPIO_A) || !isGPIOHeldLow(RUNTIME_HOTKEY_SHARED_GPIO_B)) {
-		return RuntimeHotkeyAction::NONE;
-	}
-
-	const bool webConfigPressed = isGPIOHeldLow(RUNTIME_HOTKEY_WEBCONFIG_GPIO);
-	const bool usbBootPressed = isGPIOHeldLow(RUNTIME_HOTKEY_USB_BOOT_GPIO);
-	const bool modeXPressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_X_GPIO);
-	const bool modeOPressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_O_GPIO);
-	const bool modeSquarePressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_SQUARE_GPIO);
-	const bool modeTrianglePressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO);
-
-	const uint8_t thirdPinPressedCount =
-		static_cast<uint8_t>(webConfigPressed) +
-		static_cast<uint8_t>(usbBootPressed) +
-		static_cast<uint8_t>(modeXPressed) +
-		static_cast<uint8_t>(modeOPressed) +
-		static_cast<uint8_t>(modeSquarePressed) +
-		static_cast<uint8_t>(modeTrianglePressed);
-
-	if (thirdPinPressedCount == 0) {
-		return RuntimeHotkeyAction::NONE;
-	}
-
-	// Runtime hotkeys only trigger with one third-pin pressed to avoid collisions.
-	if (thirdPinPressedCount > 1) {
-		return RuntimeHotkeyAction::INVALID;
-	}
-
-	if (webConfigPressed) {
-		return RuntimeHotkeyAction::TOGGLE_WEBCONFIG;
-	}
-	if (usbBootPressed) {
-		return RuntimeHotkeyAction::ENTER_USB_BOOTLOADER;
-	}
-	if (modeXPressed) {
-		return RuntimeHotkeyAction::SWITCH_MODE_X;
-	}
-	if (modeOPressed) {
-		return RuntimeHotkeyAction::SWITCH_MODE_O;
-	}
-	if (modeSquarePressed) {
-		return RuntimeHotkeyAction::SWITCH_MODE_SQUARE;
-	}
-	return RuntimeHotkeyAction::SWITCH_MODE_TRIANGLE;
-}
-
-static bool isRuntimeSwitchableInputMode(int32_t inputMode) {
-	switch (inputMode) {
-		case INPUT_MODE_XINPUT:
-		case INPUT_MODE_XINPUTB:
-		case INPUT_MODE_SWITCH:
-		case INPUT_MODE_SWITCH_PRO:
-		case INPUT_MODE_KEYBOARD:
-		case INPUT_MODE_GENERIC:
-		case INPUT_MODE_PS3:
-		case INPUT_MODE_PS4:
-		case INPUT_MODE_PS4B:
-		case INPUT_MODE_PS5:
-		case INPUT_MODE_P5GENERAL:
-		case INPUT_MODE_NEOGEO:
-		case INPUT_MODE_MDMINI:
-		case INPUT_MODE_PCEMINI:
-		case INPUT_MODE_EGRET:
-		case INPUT_MODE_ASTRO:
-		case INPUT_MODE_PSCLASSIC:
-		case INPUT_MODE_XBOXORIGINAL:
-		case INPUT_MODE_XBONE:
-			return true;
-		default:
-			return false;
-	}
-}
-
-static bool applyRuntimeInputModeSwitch(RuntimeHotkeyAction action) {
-	GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
-	int32_t targetInputMode = -1;
-
-	switch (action) {
-		case RuntimeHotkeyAction::SWITCH_MODE_X:
-			targetInputMode = gamepadOptions.runtimeModeHotkeyX;
-			break;
-		case RuntimeHotkeyAction::SWITCH_MODE_O:
-			targetInputMode = gamepadOptions.runtimeModeHotkeyO;
-			break;
-		case RuntimeHotkeyAction::SWITCH_MODE_SQUARE:
-			targetInputMode = gamepadOptions.runtimeModeHotkeySquare;
-			break;
-		case RuntimeHotkeyAction::SWITCH_MODE_TRIANGLE:
-			targetInputMode = gamepadOptions.runtimeModeHotkeyTriangle;
-			break;
-		default:
-			return false;
-	}
-
-	if (!isRuntimeSwitchableInputMode(targetInputMode)) {
-		return false;
-	}
-
-	if (gamepadOptions.inputMode == targetInputMode) {
-		return false;
-	}
-
-	// Reuse boot-time mode switch logic on next reboot.
-	System::setPendingInputMode(targetInputMode);
-	System::reboot(System::BootMode::DEFAULT);
-	return true;
-}
-
-static void configureWebConfigHotkeyGPIOs() {
-	const uint8_t pins[] = {
-		WEBCONFIG_BOOT_GPIO,
-		RUNTIME_HOTKEY_SHARED_GPIO_A,
-		RUNTIME_HOTKEY_SHARED_GPIO_B,
-		RUNTIME_HOTKEY_WEBCONFIG_GPIO,
-		RUNTIME_HOTKEY_USB_BOOT_GPIO,
-		RUNTIME_HOTKEY_MODE_X_GPIO,
-		RUNTIME_HOTKEY_MODE_O_GPIO,
-		RUNTIME_HOTKEY_MODE_SQUARE_GPIO,
-		RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO,
-	};
-	for (uint8_t i = 0; i < count_of(pins); i++) {
-		gpio_init(pins[i]);
-		gpio_set_dir(pins[i], GPIO_IN);
-		gpio_pull_up(pins[i]);
-	}
-}
-
 void GP2040::setup() {
 	Storage::getInstance().init();
 
@@ -1029,12 +833,10 @@ void GP2040::setup() {
 
 	// Initialize last reinit profile to current so we don't reinit on first loop
 	gamepad->lastReinitProfileNumber = Storage::getInstance().getGamepadOptions().profileNumber;
-	gamepad->lastReinitHmlBackPreset = getHmlBackMappingActivePresetIndex(Storage::getInstance().getAddonOptions());
 
 	// now we can load the latest configured profile, which will map the
 	// new set of GPIOs to use...
 	this->initializeStandardGpio();
-	configureWebConfigHotkeyGPIOs();
 
 	// Initialize our ADC (various add-ons)
 	adc_init();
@@ -1042,33 +844,21 @@ void GP2040::setup() {
 	// Setup Add-ons
 	addons.LoadUSBAddon(new KeyboardHostAddon());
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
-	addons.LoadAddon(new AnalogInput());
-	addons.LoadAddon(new ADS8332ADCAddon());
-	addons.LoadAddon(new MCP3208ADCAddon());
-	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
-	addons.LoadAddon(new UnifiedVoltageSwitchAddon());
-	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon());
-	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
-	addons.LoadAddon(new TwoKeyTouchpadAddon());
-	addons.LoadAddon(new BackButtonDividerAddon());
-	// 须在背键/触摸板/FN 电压映射之后：preprocess 内合并 ADC 与映射的 L2/R2（含 lt/rt）
-	addons.LoadAddon(new LinearTriggerAddon());
 	addons.LoadAddon(new BootselButtonAddon());
 	addons.LoadAddon(new DualDirectionalInput());
 	addons.LoadAddon(new FocusModeAddon());
 	addons.LoadAddon(new WiiExtensionInput());
 	addons.LoadAddon(new SNESpadInput());
 	addons.LoadAddon(new SliderSOCDInput());
-	addons.LoadAddon(new TiltInput());
 	addons.LoadAddon(new RotaryEncoderInput());
 	addons.LoadAddon(new PCF8575Addon());
 	addons.LoadAddon(new TG16padInput());
+	addons.LoadAddon(new WirelessReceiverAddon());
 
 	// Input override addons
 	addons.LoadAddon(new ReverseInput());
 	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
-	addons.LoadAddon(new AxisTiltOverlayInput()); // Must execute after all joystick processing
 	addons.LoadAddon(new InputMacro());
 	main_loop_gate_analog_source =
 			addons.GetGateLateAnalogSource();
@@ -1077,7 +867,7 @@ void GP2040::setup() {
 	const BootAction bootAction = getBootAction();
 	switch (bootAction) {
 		case BootAction::ENTER_WEBCONFIG_MODE:
-			inputMode = INPUT_MODE_CONFIG;
+			// Receiver build: no RNDIS/webconfig backend, ignore entry hotkey.
 			break;
 		case BootAction::ENTER_USB_MODE:
 			reset_usb_boot(0, 0);
@@ -1146,13 +936,6 @@ void GP2040::setup() {
 
 	// Setup USB Driver
 	DriverManager::getInstance().setup(inputMode);
-	if (inputMode == INPUT_MODE_CONFIG) {
-		const AnimationOptions& animationOptions = Storage::getInstance().getAnimationOptions();
-		if (animationOptions.has_webConfigAmbientHintEnabled &&
-				animationOptions.webConfigAmbientHintEnabled) {
-			Storage::getInstance().prepareAmbientWebConfigOverride();
-		}
-	}
 	main_loop_gate_enabled = shouldUseMainLoopGate();
 	composite_hid_enabled = (inputMode == INPUT_MODE_XINPUTB || inputMode == INPUT_MODE_PS4B);
 	if (DriverManager::getInstance().getDriver() != nullptr) {
@@ -1161,17 +944,10 @@ void GP2040::setup() {
 	{
 		// Cache profile/config-derived analog swap parameters once at boot.
 		const GamepadOptions& options = gamepad->getOptions();
-		const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 
 		cached_dpad_deadzone = 0.1f;
 		if (options.dpadDeadzone > 0 && options.dpadDeadzone <= 90) {
 			cached_dpad_deadzone = options.dpadDeadzone / 100.0f;
-		} else if (addonOptions.analogOptions.enabled) {
-			const float idzNorm =
-				analogDeadzoneNormFromRaw(addonOptions.analogOptions.inner_deadzone);
-			if (idzNorm > 0.0f) {
-				cached_dpad_deadzone = idzNorm;
-			}
 		}
 
 		cached_dpad_threshold = 0.1f;
@@ -1281,10 +1057,6 @@ void GP2040::run() {
 	// Initialize our USB manager
 	USBHostManager::getInstance().start();
 
-	if (configMode == true ) {
-		rndis_init(WEB_CONFIG_HOSTNAME);
-	}
-
 	while (1) { // LOOP
 		this->getReinitGamepad(gamepad);
 
@@ -1371,7 +1143,6 @@ void GP2040::run() {
 		// Config Loop (Web-Config skips Core0 add-ons)
 		if (configMode == true) {
 			inputDriver->process(gamepad);
-			rebootHotkeys.process(configMode);
 			checkSaveRebootState();
 			continue;
 		}
@@ -1399,7 +1170,6 @@ void GP2040::run() {
 		addons.ProcessAddons();
 
 		gamepad->hotkey(); 	// check for MPGS hotkeys
-		rebootHotkeys.process(configMode);
 
 		// Perform bidirectional swap for analog modes (after addons process)
 		// This ensures we use physical joystick values updated by the unified analog processor.
@@ -1443,12 +1213,6 @@ void GP2040::run() {
 			}
 		}
 
-		// Apply Y-axis overlay after all joystick transforms are complete.
-		AxisTiltOverlayInput* axisTiltOverlay = (AxisTiltOverlayInput*)addons.GetAddon(AxisTiltOverlayName);
-		if (axisTiltOverlay != nullptr) {
-			axisTiltOverlay->applyFinalProcess(gamepad);
-		}
-
 		checkProcessedState(processedGamepad->state, gamepad->state);
 
 		// Copy Processed Gamepad for Core1 (race condition otherwise)
@@ -1487,9 +1251,6 @@ void GP2040::run() {
 					endpointArmStartUs,
 					endpointArmEndUs,
 					reportArmed);
-			if (lateSample.busTouched) {
-				LSM6DSRIMUAddon::restoreGateSPIProfile();
-			}
 		}
 		if (composite_hid_enabled) {
 			processCompositeHID(gamepad);
@@ -1530,8 +1291,7 @@ void GP2040::getReinitGamepad(Gamepad * gamepad) {
 		Storage::getInstance().setFunctionalPinMappings();
 
 		// ...and initialize the pins again
-		this->initializeStandardGpio();
-		configureWebConfigHotkeyGPIOs();
+	this->initializeStandardGpio();
 
 		// now we can tell the gamepad that the new mappings are in place
 		// and ready to use, and the pins are ready, so it should reinitialize itself
@@ -1548,11 +1308,6 @@ void GP2040::getReinitGamepad(Gamepad * gamepad) {
 		EventManager::getInstance().triggerEvent(new GPProfileChangeEvent(previousProfile, currentProfile));
 	}
 
-	const uint32_t activeHmlBackPreset = getHmlBackMappingActivePresetIndex(Storage::getInstance().getAddonOptions());
-	if (gamepad->lastReinitHmlBackPreset != activeHmlBackPreset) {
-		addons.ReinitializeAddons();
-		gamepad->lastReinitHmlBackPreset = activeHmlBackPreset;
-	}
 }
 
 GP2040::BootAction GP2040::getBootAction() {
@@ -1590,9 +1345,7 @@ GP2040::BootAction GP2040::getBootAction() {
 
 				if (gamepad->pressedS1() && gamepad->pressedS2() && gamepad->pressedUp()) {
 					return BootAction::ENTER_USB_MODE;
-				} else if (isWebConfigBootGPIOPressed()) {
-					return BootAction::ENTER_WEBCONFIG_MODE;
-                }
+				}
 
 				break;
 			}
@@ -1643,71 +1396,6 @@ GP2040::BootAction GP2040::bootActionFromInputMode(int32_t inputMode) {
 			return BootAction::SET_INPUT_MODE_SWITCH_PRO;
 		default:
 			return BootAction::NONE;
-	}
-}
-
-GP2040::RebootHotkeys::RebootHotkeys() :
-	active(false),
-	waitForHotkeyRelease(false),
-	noButtonsPressedTimeout(nil_time),
-	rebootHotkeysHoldTimeout(nil_time) {
-}
-
-void GP2040::RebootHotkeys::process(bool configMode) {
-	// We only allow the hotkey to trigger after we observed no buttons pressed for a certain period of time.
-	// We do this to avoid detecting buttons that are held during the boot process. In particular we want to avoid
-	// oscillating between webconfig and default mode when the user keeps holding the hotkey buttons.
-	const RuntimeHotkeyAction runtimeHotkeyAction = getRuntimeHotkeyAction();
-	const bool runtimeHotkeyPressed = (runtimeHotkeyAction != RuntimeHotkeyAction::NONE);
-
-	if (!active) {
-		if (!runtimeHotkeyPressed) {
-			if (is_nil_time(noButtonsPressedTimeout)) {
-				noButtonsPressedTimeout = make_timeout_time_us(REBOOT_HOTKEY_ACTIVATION_TIME_MS);
-			}
-
-			if (time_reached(noButtonsPressedTimeout)) {
-				active = true;
-			}
-		} else {
-			noButtonsPressedTimeout = nil_time;
-		}
-	} else {
-		// Do not retrigger until the full combo is released.
-		if (waitForHotkeyRelease) {
-			if (!runtimeHotkeyPressed) {
-				waitForHotkeyRelease = false;
-			}
-			rebootHotkeysHoldTimeout = nil_time;
-			return;
-		}
-
-		if (runtimeHotkeyAction == RuntimeHotkeyAction::TOGGLE_WEBCONFIG ||
-			runtimeHotkeyAction == RuntimeHotkeyAction::ENTER_USB_BOOTLOADER ||
-			runtimeHotkeyAction == RuntimeHotkeyAction::SWITCH_MODE_X ||
-			runtimeHotkeyAction == RuntimeHotkeyAction::SWITCH_MODE_O ||
-			runtimeHotkeyAction == RuntimeHotkeyAction::SWITCH_MODE_SQUARE ||
-			runtimeHotkeyAction == RuntimeHotkeyAction::SWITCH_MODE_TRIANGLE) {
-			if (is_nil_time(rebootHotkeysHoldTimeout)) {
-				rebootHotkeysHoldTimeout = make_timeout_time_ms(REBOOT_HOTKEY_HOLD_TIME_MS);
-			}
-
-			if (time_reached(rebootHotkeysHoldTimeout)) {
-				waitForHotkeyRelease = true;
-				if (runtimeHotkeyAction == RuntimeHotkeyAction::TOGGLE_WEBCONFIG) {
-					// If we are in webconfig mode we go to gamepad mode and vice versa
-					System::reboot(configMode ? System::BootMode::GAMEPAD : System::BootMode::WEBCONFIG);
-				} else if (runtimeHotkeyAction == RuntimeHotkeyAction::ENTER_USB_BOOTLOADER) {
-					System::reboot(System::BootMode::USB);
-				} else if (!applyRuntimeInputModeSwitch(runtimeHotkeyAction)) {
-					// Unsupported/disabled input mode target. Require release before retry.
-					rebootHotkeysHoldTimeout = nil_time;
-				}
-			}
-		} else {
-			// Either no runtime hotkey combo is held or the combo is invalid (multiple third-pins).
-			rebootHotkeysHoldTimeout = nil_time;
-		}
 	}
 }
 
