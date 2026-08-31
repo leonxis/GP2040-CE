@@ -73,6 +73,7 @@ export default function HardwareConfig() {
 		alBreathBrightnessCustomX: 1,
 		ambientLightBreathSpeed: 0.1,
 	});
+	const [wirelessLinkEnabled, setWirelessLinkEnabled] = useState(0);
 
 	const [hostSaveMessage, setHostSaveMessage] = useState('');
 	const [ledSaveMessage, setLedSaveMessage] = useState('');
@@ -83,7 +84,7 @@ export default function HardwareConfig() {
 	useEffect(() => {
 		async function fetchData() {
 			try {
-				const [peripheral, display, twoKeyTouchpad, led, ambient, addons] =
+				const [peripheral, display, twoKeyTouchpad, led, ambient, addons, gamepad] =
 					await Promise.all([
 						WebApi.getPeripheralOptions(),
 						WebApi.getDisplayOptions(),
@@ -91,6 +92,7 @@ export default function HardwareConfig() {
 						WebApi.getLedOptions(),
 						WebApi.getAmbientOptions(),
 						WebApi.getAddonsOptions(),
+						WebApi.getGamepadOptions(),
 					]);
 				setPeripheralOptions(peripheral);
 				setDisplayOptions(display);
@@ -162,6 +164,8 @@ export default function HardwareConfig() {
 						),
 					),
 				});
+				// 无线连接开关：默认关闭（无值为 0）
+				setWirelessLinkEnabled(Number(gamepad?.wirelessLinkEnabled) ? 1 : 0);
 			} catch (error) {
 				console.error('Failed to fetch hardware config:', error);
 			} finally {
@@ -200,6 +204,13 @@ export default function HardwareConfig() {
 				enableKey: twoKeyTouchpadOptions.enableKey,
 			});
 			await WebApi.setAddonsOptions({ reportRate, cpuOverclockLevel });
+			// 无线连接开关：写入 GamepadOptions（先读取当前选项再合并，避免其他 gamepad 设置被置空）
+			const currentGamepad = (await WebApi.getGamepadOptions()) ?? {};
+			const gamepadToSave = {
+				...currentGamepad,
+				wirelessLinkEnabled: wirelessLinkEnabled ? 1 : 0,
+			};
+			await WebApi.setGamepadOptions(gamepadToSave);
 			setHostSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setHostSaveMessage(''), 5000);
 		} catch (error) {
@@ -360,6 +371,22 @@ export default function HardwareConfig() {
 							{t('SettingsPage:hml-two-key-touchpad-hint')}
 						</span>
 					</div>
+
+						{/* 无线连接开关 */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Check
+								type="switch"
+								id="wireless-link-switch"
+								label={t('SettingsPage:hml-wireless-link-label')}
+								checked={Boolean(wirelessLinkEnabled)}
+								onChange={(e) => {
+									setWirelessLinkEnabled(e.target.checked ? 1 : 0);
+								}}
+							/>
+							<span className="text-muted">
+								{t('SettingsPage:hml-wireless-link-hint')}
+							</span>
+						</div>
 
 						{/* 回报率：下拉框 → 标题在右侧 → 说明 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

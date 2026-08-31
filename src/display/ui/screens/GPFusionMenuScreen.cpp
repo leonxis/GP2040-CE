@@ -128,6 +128,10 @@ static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; nee
 static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
 static void sUsbAuth(int v) { POP().blockUSB0.enabled = v ? 1 : 0; needsReboot = true; }
 
+// 无线连接开关（对应网页 GNS设置-硬件配置 中的 无线连接开关，即 GamepadOptions.wirelessLinkEnabled）
+static int gWireless() { return GOP().wirelessLinkEnabled ? 1 : 0; }
+static void sWireless(int v) { GOP().wirelessLinkEnabled = v ? true : false; needsReboot = true; }
+
 // 摇杆死区/反死区（原始值0-200，对应0.0%-20.0%，0.1%步进）
 static int gInnerDz() { return (int)AOP2().analogOptions.inner_deadzone; }
 static void sInnerDz(int v) { AOP2().analogOptions.inner_deadzone = (uint32_t)v; needsReboot = true; }
@@ -365,6 +369,7 @@ static LiteOpt optHandle[] = {
   {"背键映射", OPT_SUBMENU, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
   {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
   {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
+  {"无线连接", OPT_BOOL, 0, 1, 1, NULL, 0, "", gWireless, sWireless},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
 };
 // 背键映射子菜单：6 个背键，每个可选 17 种映射
@@ -403,7 +408,7 @@ static LiteOpt optLed[] = {
 
 static LiteSection secSettings[] = {
   {"配置", optConfig, 5},
-  {"手柄", optHandle, 4},
+  {"手柄", optHandle, 5},
   {"摇杆", optStick, 5},
   {"功能", optFunc, 5},
 };

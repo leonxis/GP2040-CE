@@ -1167,6 +1167,8 @@ std::string setGamepadOptions()
     readDoc(gamepadOptions.usbOverrideID, doc, "usbOverrideID");
     readDoc(gamepadOptions.usbVendorID, doc, "usbVendorID");
     readDoc(gamepadOptions.usbProductID, doc, "usbProductID");
+    readDoc(gamepadOptions.wirelessLinkEnabled, doc, "wirelessLinkEnabled");
+    readDoc(gamepadOptions.wirelessPaired, doc, "wirelessPaired");
 
 
     HotkeyOptions& hotkeyOptions = Storage::getInstance().getHotkeyOptions();
@@ -1223,6 +1225,8 @@ std::string getGamepadOptions()
     writeDoc(doc, "usbDescVersion", gamepadOptions.usbDescVersion);
     writeDoc(doc, "usbOverrideID", gamepadOptions.usbOverrideID);
     writeDoc(doc, "miniMenuGamepadInput", gamepadOptions.miniMenuGamepadInput);
+    writeDoc(doc, "wirelessLinkEnabled", gamepadOptions.wirelessLinkEnabled ? 1 : 0);
+    writeDoc(doc, "wirelessPaired", gamepadOptions.wirelessPaired ? 1 : 0);
     // Write USB Vendor ID and Product ID as 4 character hex strings with 0 padding
     char usbVendorStr[5];
     snprintf(usbVendorStr, 5, "%04X", (unsigned int)gamepadOptions.usbVendorID);

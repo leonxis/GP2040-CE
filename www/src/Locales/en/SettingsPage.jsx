@@ -238,6 +238,8 @@ export default {
 		'Turns off the display and related interface. For PS5G, disabling the display can help reach 1000 Hz report rate.',
 	'hml-two-key-touchpad-label': '2-key touchpad',
 	'hml-two-key-touchpad-hint': 'Same as 4-key touchpad; disables the display.',
+	'hml-wireless-link-label': 'Wireless link',
+	'hml-wireless-link-hint': 'Enable UART1 wireless link to ESP32. Save then reboot to take effect.',
 	'hml-report-rate-label': 'Report rate',
 	'hml-report-rate-hint': 'Host connection report rate. Enabling gyro may reduce the effective rate.',
 	'hml-screen-customization-button': 'Screen customization',

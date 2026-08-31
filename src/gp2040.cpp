@@ -32,6 +32,7 @@
 #include "addons/slider_socd.h"
 #include "addons/wiiext.h"
 #include "addons/input_macro.h"
+#include "addons/uart_link.h"
 #include "addons/snes_input.h"
 #include "addons/rotaryencoder.h"
 #include "addons/i2c_gpio_pcf8575.h"
@@ -1070,6 +1071,7 @@ void GP2040::setup() {
 	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
 	addons.LoadAddon(new AxisTiltOverlayInput()); // Must execute after all joystick processing
 	addons.LoadAddon(new InputMacro());
+	addons.LoadAddon(new UARTLinkAddon());
 	main_loop_gate_analog_source =
 			addons.GetGateLateAnalogSource();
 

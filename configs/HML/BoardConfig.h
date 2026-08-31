@@ -173,6 +173,15 @@
 #define USB_PERIPHERAL_PIN_DPLUS 6
 #endif
 
+// --- UART 无线链路（GPIO12/13 复用 UART1 功能） ---
+#define UART_LINK_ENABLED   1
+#define UART_LINK_TX_PIN    12
+#define UART_LINK_RX_PIN    13
+#define UART_LINK_BAUD      921600   // 沿用 GP-combine 原宏名
+
+// --- 无线连接开关默认值（网页/miniled 开关共用） ---
+#define DEFAULT_WIRELESS_LINK_ENABLED 0   // 默认关闭；旧配置无值也默认关闭
+
 // PS AUTH
 #define DEFAULT_PS4CONTROLLER_TYPE PS4_CONTROLLER
 #define DEFAULT_PS4_ID_MODE PS4_ID_CONSOLE

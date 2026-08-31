@@ -300,6 +300,7 @@ src/addons/turbo.cpp
 src/addons/slider_socd.cpp
 src/addons/wiiext.cpp
 src/addons/input_macro.cpp
+src/addons/uart_link.cpp
 src/addons/snes_input.cpp
 src/addons/tilt.cpp
 src/addons/axis_tilt_overlay.cpp

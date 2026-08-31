@@ -217,6 +217,8 @@ export default {
 	'hml-display-hint': '将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率',
 	'hml-two-key-touchpad-label': '2键触摸板',
 	'hml-two-key-touchpad-hint': '启用后将禁用显示屏',
+	'hml-wireless-link-label': '无线连接开关',
+	'hml-wireless-link-hint': '开启后启动与 ESP32 的 UART1 无线链路，保存并重启后生效',
 	'hml-report-rate-label': '回报率',
 	'hml-report-rate-hint': '调整主机连接回报率，若开启陀螺仪可能造成回报率降低。',
 	'hml-screen-customization-button': '屏幕个性化',
