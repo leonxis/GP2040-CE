@@ -1,0 +1,2 @@
+set(PICO_BOARD HML2354)
+set(PICO_PLATFORM rp2350-arm-s)

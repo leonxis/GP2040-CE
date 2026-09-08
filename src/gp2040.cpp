@@ -797,7 +797,6 @@ static absolute_time_t rebootDelayTimeout = nil_time;
 void GP2040::setup() {
 	Storage::getInstance().init();
 
-	// Reduce CPU if USB host is enabled
 	PeripheralManager::getInstance().initUSB();
 	// 根据持久化配置的超频等级设置 RP2040 系统频率：
 	// 0=普通144MHz, 1=中度156MHz, 2=重度168MHz, 3=发烧180MHz
