@@ -57,6 +57,7 @@ void WirelessReceiverAddon::setup() {
 #endif
     lastLedToggle = 0;
     ledOn = false;
+    ledState = 0;   // 强制 process() 首轮即按真实链路点灯（避免上电后 5s 无灯）
 }
 
 void WirelessReceiverAddon::handlePacket(const uint8_t *pkt) {
@@ -140,25 +141,54 @@ void WirelessReceiverAddon::preprocess() {
 
 void WirelessReceiverAddon::process() {
     uint32_t now = to_ms_since_boot(get_absolute_time());
+    // paired 是写入 flash 的持久标志（配对一次后永不清除），不能代表实时连接；
+    // 绿灯必须由"1s 内确实收到 nRF 包"驱动，否则发射端关机/超距/切 BLE 时会假常亮。
+    //   未配对            -> 红色快闪 300ms（等待首次配对）
+    //   已配对 + 收包正常  -> 绿色常亮（5s 周期刷新保持）
+    //   已配对 + 链路丢失  -> 红色慢闪 1s（发射端关机/超距/切 BLE 停发 nRF）
+    bool linkActive = paired && lastPacketTime != 0 && (now - lastPacketTime < 1000);
 #if WIRELESS_RX_RGB_LED_PIN >= 0
-    if (now - lastLedToggle >= (paired ? 5000 : 300)) {
+    // ledState: 0=未知/灭, 1=红(闪烁), 2=绿(常亮)
+    uint8_t wantState;
+    uint32_t interval;
+    if (linkActive) {
+        wantState = 2;
+        interval  = 5000;                 // 绿色常亮
+    } else if (paired) {
+        wantState = 1;
+        interval  = 1000;                 // 红慢闪：已配对但链路丢失
+    } else {
+        wantState = 1;
+        interval  = 300;                  // 红快闪：从未配对
+    }
+
+    bool stateChanged = (wantState != ledState);
+    if (stateChanged || now - lastLedToggle >= interval) {
         lastLedToggle = now;
-        if (paired) {
-            rxNeoSetColor(0, 200, 0);      // 已配对：常亮
+        ledState = wantState;
+        if (wantState == 2) {
+            ledOn = true;
+            rxNeoSetColor(0, 200, 0);     // 绿色常亮
         } else {
-            ledOn = !ledOn;
+            // 状态切入闪烁态时先点亮一次（从绿灯切入立即变红），其余按周期翻转
+            ledOn = stateChanged ? true : !ledOn;
             if (ledOn) {
-                rxNeoSetColor(200, 0, 0);  // 未配对：闪烁
+                rxNeoSetColor(200, 0, 0);
             } else {
                 rxNeo.Off();
             }
         }
     }
 #else
-    if (now - lastLedToggle >= (paired ? 5000 : 300)) {
+    uint32_t interval = linkActive ? 5000 : (paired ? 1000 : 300);
+    if (now - lastLedToggle >= interval) {
         lastLedToggle = now;
-        ledOn = !ledOn;
-        gpio_put(WIRELESS_RX_LED_PIN, paired ? 1 : ledOn);
+        if (linkActive) {
+            gpio_put(WIRELESS_RX_LED_PIN, 1);
+        } else {
+            ledOn = !ledOn;
+            gpio_put(WIRELESS_RX_LED_PIN, ledOn ? 1 : 0);
+        }
     }
 #endif
 }

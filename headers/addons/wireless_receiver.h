@@ -51,6 +51,7 @@ private:
     uint32_t lastLedToggle;
     uint32_t lastRadioReinit;
     bool ledOn;
+    uint8_t ledState;   // LED 当前态：0=未知/灭, 1=红(闪烁), 2=绿(常亮)
 };
 
 #endif
