@@ -63,7 +63,7 @@ void WirelessReceiverAddon::handlePacket(const uint8_t *pkt) {
     uint8_t mode = pkt[0];
     GamepadOptions &opts = Storage::getInstance().getGamepadOptions();
 
-    if (mode != 0xFF && mode > 16) {
+    if (mode != 0xFF && mode > 18) {
         return;
     }
 
