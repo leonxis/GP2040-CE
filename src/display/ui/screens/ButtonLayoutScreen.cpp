@@ -227,6 +227,7 @@ void ButtonLayoutScreen::generateHeader() {
                 else
                     statusBar += "IN";
                 break;
+            case INPUT_MODE_BLE:      statusBar += "Bluetooth"; break;
             case INPUT_MODE_KEYBOARD: statusBar += "HID-KB"; break;
             case INPUT_MODE_CONFIG: statusBar += "CONFIG"; break;
         }

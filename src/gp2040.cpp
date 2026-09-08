@@ -503,16 +503,19 @@ static void resetMainLoopGateForSnapshot(
 			: MainLoopGateState::WAIT_MOUNT;
 }
 
-// 预留：蓝牙链路开关（功能待后续落实，当前恒为 false）。
-// 语义：任一无线输出链路（UART 无线 / 蓝牙）启用即视为无线链路激活。
-static constexpr bool BLUETOOTH_LINK_ENABLED = false;
+// 蓝牙链路开关（门控预留）：输入模式选择“蓝牙连接”(INPUT_MODE_BLE) 时为真，
+// 其余模式恒为假。蓝牙模式即门控逻辑中预留的 BLUETOOTH_LINK_ENABLED。
+static inline bool bluetoothLinkEnabled(const GamepadOptions& o) {
+	return o.inputMode == INPUT_MODE_BLE;
+}
 
 // 无线链路是否激活：无线开关（config_utils 初始化时已写入板级默认值）
-// 或蓝牙开关任一启用即激活。
+// 或蓝牙模式任一启用即激活。
+// 语义：任一无线输出链路（UART 无线 / 蓝牙）启用即视为无线链路激活。
 // 仅在 setup() 中调用一次，结果缓存至 main_loop_wireless_link_active。
 static inline bool wirelessLinkActive() {
 	const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
-	return o.wirelessLinkEnabled || BLUETOOTH_LINK_ENABLED;
+	return o.wirelessLinkEnabled || bluetoothLinkEnabled(o);
 }
 
 static MainLoopGateAction getMainLoopGateAction(bool configMode) {

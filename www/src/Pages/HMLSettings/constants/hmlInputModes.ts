@@ -51,6 +51,7 @@ export const HML_INPUT_MODES = [
 	{ labelKey: 'input-mode-options.nintendo-switch-pro', value: 15 },
 	{ labelKey: 'input-mode-options.keyboard', value: 3 },
 	{ labelKey: 'input-mode-options.generic', value: 14 },
+	{ labelKey: 'input-mode-options.ble', value: 19 },
 ];
 
 export const AUTHENTICATION_TYPES = [

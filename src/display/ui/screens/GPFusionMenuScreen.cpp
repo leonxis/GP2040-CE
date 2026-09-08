@@ -72,11 +72,13 @@ static const int INPUT_MAP[] = {
   11,  // Playstation Classic
   12,  // Original Xbox
   14,  // Generic HID
+  19,  // BLE 蓝牙连接
 };
-static const int INPUT_MAP_COUNT = 18;
+static const int INPUT_MAP_COUNT = 19;
 static const char* const N_INPUT[] = {
   "XInput","XInput PC","PS4","PS4 PC","SW PRO","P5","XB1","PS3","PS5","KBD",
-  "MD Mini","NEOGEO","PCE Mini","EGRET II","ASTRO","PS Classic","XB Orig","HID"
+  "MD Mini","NEOGEO","PCE Mini","EGRET II","ASTRO","PS Classic","XB Orig","HID",
+  "Bluetooth"
 };
 static const char* const N_SOCD[] = {"UP","NEU","2ND","1ST","BYP"};
 static const char* const N_DPAD[] = {"十字键","左摇杆","右摇杆"};
@@ -369,7 +371,7 @@ static int gReserved() { return 0; }
 static void sReserved(int) {}
 
 static LiteOpt optConfig[] = {
-  {"输入模式", OPT_ENUM, 0, 17, 1, N_INPUT, 18, "", gInput, sInput},
+  {"输入模式", OPT_ENUM, 0, 18, 1, N_INPUT, 19, "", gInput, sInput},
   {"按键配置档", OPT_INT, 1, 1, 1, NULL, 0, "", gProfile, sProfile},
   {"背键配置档", OPT_INT, 1, 3, 1, NULL, 0, "", gBackPreset, sBackPreset},
   {"保存设置", OPT_ACTION, 0, 0, 0, NULL, 0, "", gSave, sSave},

@@ -27,6 +27,7 @@ export default {
 		psclassic: 'Playstation Classic',
 		xboxoriginal: 'Original Xbox',
 		xbone: 'Xbox One',
+		ble: 'Bluetooth',
 	},
 	'input-mode-group': {
 		primary: 'Primary Input Modes',
