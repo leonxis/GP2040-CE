@@ -177,11 +177,11 @@
 #define UART_LINK_RX_PIN    9
 #define UART_LINK_BAUD      921600   // 沿用 GP-combine 原宏名
 
-// --- 无线连接开关板级默认值（网页/miniled 开关共用） ---
-// HML 板默认开启无线链路，与 GP-combine 行为一致。
+// --- 无线连接开关板级默认值为关闭（网页/miniled 开关共用） ---
+// HML 板默认关闭无线链路。
 // 首次刷机/旧配置无此字段时由 config_utils 的 INIT_UNSET_PROPERTY 写入此值。
 // 运行时开关仍可通过网页/miniled 显式关闭。
-#define DEFAULT_WIRELESS_LINK_ENABLED 1
+#define DEFAULT_WIRELESS_LINK_ENABLED 0
 
 // PS AUTH
 #define DEFAULT_PS4CONTROLLER_TYPE PS4_CONTROLLER

@@ -90,7 +90,7 @@ static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_B = 19;
 static const uint8_t RUNTIME_HOTKEY_WEBCONFIG_GPIO = 21;
 static const uint8_t RUNTIME_HOTKEY_USB_BOOT_GPIO = 22;
 static const uint8_t RUNTIME_HOTKEY_MODE_X_GPIO = 15;
-static const uint8_t RUNTIME_HOTKEY_MODE_O_GPIO = 9;
+static const uint8_t RUNTIME_HOTKEY_MODE_O_GPIO = 7;
 static const uint8_t RUNTIME_HOTKEY_MODE_SQUARE_GPIO = 13;
 static const uint8_t RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO = 14;
 
