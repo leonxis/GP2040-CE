@@ -8,6 +8,10 @@
 #define UART_LINK_ENABLED 0
 #endif
 
+#ifndef DEFAULT_WIRELESS_LINK_ENABLED
+#define DEFAULT_WIRELESS_LINK_ENABLED 0
+#endif
+
 #ifndef UART_LINK_TX_PIN
 #define UART_LINK_TX_PIN 8
 #endif

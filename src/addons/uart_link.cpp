@@ -15,13 +15,12 @@ static uint16_t crc16_update(uint16_t crc, uint8_t b) {
     return crc;
 }
 
-// available() 由存储字段 wirelessLinkEnabled 驱动（网页/miniled 菜单"无线连接"开关），
-// 旧配置无值时取 BoardConfig 默认（默认关闭），重启后生效。
+// available() 由存储字段 wirelessLinkEnabled 驱动（网页/miniled 菜单"无线连接"开关）。
+// config_utils 初始化时已通过 INIT_UNSET_PROPERTY 写入板级默认值并置 has_ 标志，
+// 此处直接读取值即可。
 bool UARTLinkAddon::available() {
     if (!UART_LINK_ENABLED) return false;
-    const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
-    return o.has_wirelessLinkEnabled ? o.wirelessLinkEnabled
-                                     : DEFAULT_WIRELESS_LINK_ENABLED;
+    return Storage::getInstance().getGamepadOptions().wirelessLinkEnabled;
 }
 
 void UARTLinkAddon::setup() {

@@ -64,6 +64,11 @@ static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 static bool main_loop_gate_enabled = false;
 static bool main_loop_gate_runtime_enabled = false;
+// 初始化时缓存一次：无线输出链路（UART 无线 / 蓝牙）是否激活。模式切换
+// 必然重启重新枚举，无需每轮循环重判。用途：
+// 1) USB Device 未挂载时主循环门控降级为无门控运行；
+// 2) 激活时按键抑制向 USB Device 输出（复用 miniled 菜单的清零上报机制）。
+static bool main_loop_wireless_link_active = false;
 static bool composite_hid_enabled = false;
 static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static const uint32_t MAIN_LOOP_GATE_WAIT_TIMEOUT_US = 1000;
@@ -344,6 +349,10 @@ static inline bool shouldUseMainLoopGate() {
 	const bool supportedMode =
 		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B ||
 		 inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
+	// 门控仅依赖 USB Device（连 PC 的原生 USB）的挂载/IN 轮询状态，与
+	// 验证器 PIO USB Host（USB0/GPIO8/9）无关。无线链路启用会互斥关闭
+	// USB0，但不影响门控启用判断；USB Device 未挂载时由
+	// getMainLoopGateAction() 降级为无门控运行，保证 UART 无线输出。
 	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
 }
 
@@ -494,6 +503,18 @@ static void resetMainLoopGateForSnapshot(
 			: MainLoopGateState::WAIT_MOUNT;
 }
 
+// 预留：蓝牙链路开关（功能待后续落实，当前恒为 false）。
+// 语义：任一无线输出链路（UART 无线 / 蓝牙）启用即视为无线链路激活。
+static constexpr bool BLUETOOTH_LINK_ENABLED = false;
+
+// 无线链路是否激活：无线开关（config_utils 初始化时已写入板级默认值）
+// 或蓝牙开关任一启用即激活。
+// 仅在 setup() 中调用一次，结果缓存至 main_loop_wireless_link_active。
+static inline bool wirelessLinkActive() {
+	const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
+	return o.wirelessLinkEnabled || BLUETOOTH_LINK_ENABLED;
+}
+
 static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	const bool gateEnabledNow = (!configMode && main_loop_gate_enabled);
 	if (!gateEnabledNow) {
@@ -505,6 +526,19 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	USBMainGamepadGateSnapshot snapshot = {};
 	usb_get_main_gamepad_gate_snapshot(&snapshot);
 
+	// USB Device（连 PC 的原生 USB）未挂载：无线链路激活时属于正常状态
+	// （输出走无线链路），门控降级为无门控运行，确保 PostprocessAddons
+	// （UART 发送）执行；纯有线时保持原有 WaitUSB 等待枚举行为。
+	// 该检查置于 runtime 初始化之前，避免降级状态下每轮循环重复 reset。
+	if (!snapshot.mounted) {
+		main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
+		main_loop_suspend_scan_initialized = false;
+		if (main_loop_wireless_link_active) {
+			main_loop_gate_runtime_enabled = false;
+			return MainLoopGateAction::RunFrame;
+		}
+	}
+
 	if (!main_loop_gate_runtime_enabled) {
 		main_loop_gate_runtime_enabled = true;
 		resetMainLoopGateForSnapshot(snapshot);
@@ -515,8 +549,6 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	main_loop_gate_action_epoch = snapshot.epoch;
 
 	if (!snapshot.mounted) {
-		main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
-		main_loop_suspend_scan_initialized = false;
 		return MainLoopGateAction::WaitUSB;
 	}
 
@@ -1156,6 +1188,7 @@ void GP2040::setup() {
 		}
 	}
 	main_loop_gate_enabled = shouldUseMainLoopGate();
+	main_loop_wireless_link_active = wirelessLinkActive();
 	composite_hid_enabled = (inputMode == INPUT_MODE_XINPUTB || inputMode == INPUT_MODE_PS4B);
 	if (DriverManager::getInstance().getDriver() != nullptr) {
 		cached_joystick_mid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
@@ -1333,9 +1366,12 @@ void GP2040::run() {
 		}
 		if (gateAction == MainLoopGateAction::RetrySubmit) {
 			USBHostManager::getInstance().process();
-			// 屏幕操作状态时禁止 USB 按键输出
+			// 抑制 USB 按键输出：miniled 菜单操作中，或无线链路激活时
+			// （真实按键仅走无线，PC 端输入恒为零值；报文照常构建上报，
+			// 不影响枚举/轮询/认证与门控时序）
+			const bool suppressUsb =
+				g_screenOperationActive || main_loop_wireless_link_active;
 			GamepadState savedUsbState;
-			const bool suppressUsb = g_screenOperationActive;
 			if (suppressUsb) {
 				memcpy(&savedUsbState, &gamepad->state, sizeof(GamepadState));
 				gamepad->state.dpad = 0;
@@ -1456,9 +1492,12 @@ void GP2040::run() {
 		// Copy Processed Gamepad for Core1 (race condition otherwise)
 		memcpy(&processedGamepad->state, &gamepad->state, sizeof(GamepadState));
 
-		// 屏幕操作状态时禁止 USB 按键输出：保存真实状态，清空 USB 相关字段，输出后恢复
+		// 抑制 USB 按键输出：miniled 菜单操作中，或无线链路激活时
+		// （真实按键仅走无线，PC 端输入恒为零值；报文照常构建上报，
+		// 不影响枚举/轮询/认证与门控时序）
 		GamepadState savedUsbState;
-		const bool suppressUsb = g_screenOperationActive;
+		const bool suppressUsb =
+			g_screenOperationActive || main_loop_wireless_link_active;
 		if (suppressUsb) {
 			memcpy(&savedUsbState, &gamepad->state, sizeof(GamepadState));
 			gamepad->state.dpad = 0;
