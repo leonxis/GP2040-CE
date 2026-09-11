@@ -327,8 +327,8 @@ static void bleApplyState(uint16_t btns, uint8_t dpad,
     blePad->setLeftTrigger ((uint16_t)((uint32_t)ltV * XBOX_TRIGGER_MAX / 255));
     blePad->setRightTrigger((uint16_t)((uint32_t)rtV * XBOX_TRIGGER_MAX / 255));
 
-    blePad->setLeftThumb ((int16_t)((int32_t)lx - 0x8000), (int16_t)(0x7FFF - ly));
-    blePad->setRightThumb((int16_t)((int32_t)rx - 0x8000), (int16_t)(0x7FFF - ry));
+    blePad->setLeftThumb ((int16_t)((int32_t)lx - 0x8000), (int16_t)((int32_t)ly - 0x8000));
+    blePad->setRightThumb((int16_t)((int32_t)rx - 0x8000), (int16_t)((int32_t)ry - 0x8000));
 }
 
 // 让 BLE 公开地址相对出厂 BT MAC 只置位"本地管理位(LAA)"：
