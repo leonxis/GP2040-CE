@@ -638,11 +638,24 @@ void setup() {
 
     xTaskCreatePinnedToCore(radioTask, "radio", 4096, NULL, 1, NULL, 0); // 发送跑在核0
     xTaskCreatePinnedToCore(bleTask, "ble", 8192, NULL, 1, NULL, 0);     // BLE 任务常驻核0
+
+    // LED 独立任务最后创建：pin 核1，优先级 2 高于 loopTask。
+    // loop 在 UART 处理路径可能被饿死/阻塞，updateLed 不放 loop 里。
+    xTaskCreatePinnedToCore(ledTask, "led", 2560, NULL, 2, NULL, 1);
+}
+
+// 独立 LED 任务：优先级 2（高于 loop/radio/ble 的 1），即便 loopTask 被 UART
+// 处理路径饿死或阻塞，本任务仍能被调度；neopixelWrite 由此任务独占，杜绝与 loop
+// 并发访问 RMT。节拍 20ms，updateLed 内部另有 100ms 节流。
+void ledTask(void *) {
+    for (;;) {
+        updateLed();
+        vTaskDelay(20 / portTICK_PERIOD_MS);
+    }
 }
 
 void loop() {
     while (LINK_SERIAL.available()) {
         handleRxByte((uint8_t)LINK_SERIAL.read());
     }
-    updateLed();
 }
