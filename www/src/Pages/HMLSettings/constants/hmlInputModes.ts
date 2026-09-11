@@ -51,7 +51,7 @@ export const HML_INPUT_MODES = [
 	{ labelKey: 'input-mode-options.nintendo-switch-pro', value: 15 },
 	{ labelKey: 'input-mode-options.keyboard', value: 3 },
 	{ labelKey: 'input-mode-options.generic', value: 14 },
-	{ labelKey: 'input-mode-options.ble', value: 19 },
+	// 蓝牙不再是输入模式（编号 19 已废弃），改为硬件配置中的独立“蓝牙模式”开关
 ];
 
 export const AUTHENTICATION_TYPES = [

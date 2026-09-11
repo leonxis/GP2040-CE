@@ -206,7 +206,6 @@ export default {
 	'hml-xinputb-mode-hint': 'XINPUT电脑模式：支持XInput手柄与复合HID键鼠，不支持主机认证',
 	'hml-p5general-mode-hint':
 		'使用P5General验证器选择本模式，需要在硬件配置中开启USB验证器，并在手柄内置USB接口插入P5General验证器',
-	'hml-ble-mode-hint': '蓝牙模式需要在硬件配置中开启无线连接开关。',
 	'hml-error-app-context': '应用上下文未初始化',
 	'hml-error-gamepad-options': '无法获取游戏手柄选项数据',
 	'hml-error-gamepad-options-detail': '获取游戏手柄选项失败，请刷新页面重试',
@@ -218,8 +217,12 @@ export default {
 	'hml-display-hint': '将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率',
 	'hml-two-key-touchpad-label': '2键触摸板',
 	'hml-two-key-touchpad-hint': '启用后将禁用显示屏',
-	'hml-wireless-link-label': '无线连接开关',
-	'hml-wireless-link-hint': '开启后启动与 ESP32 的 UART1 无线链路，保存并重启后生效',
+	'hml-wireless-link-label': '2.4G无线',
+	'hml-wireless-link-hint':
+		'启动2.4G无线连接，需要在电脑或主机插入接收器。',
+	'hml-bluetooth-link-label': '蓝牙无线',
+	'hml-bluetooth-link-hint':
+		'启用蓝牙连接，支持XINPUT、DSE、NSPRO模式连接',
 	'hml-report-rate-label': '回报率',
 	'hml-report-rate-hint': '调整主机连接回报率，若开启陀螺仪可能造成回报率降低。',
 	'hml-screen-customization-button': '屏幕个性化',

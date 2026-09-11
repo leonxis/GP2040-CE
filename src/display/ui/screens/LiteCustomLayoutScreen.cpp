@@ -91,7 +91,6 @@ static const char* modeName() {
         case INPUT_MODE_SWITCH_PRO: return "SWPR";
         case INPUT_MODE_KEYBOARD: return "HID-KB";
         case INPUT_MODE_GENERIC: return "USBHID";
-        case INPUT_MODE_BLE: return "Bluetooth";
         default: return "?";
     }
 }

@@ -1168,9 +1168,14 @@ std::string setGamepadOptions()
     readDoc(gamepadOptions.usbVendorID, doc, "usbVendorID");
     readDoc(gamepadOptions.usbProductID, doc, "usbProductID");
     readDoc(gamepadOptions.wirelessLinkEnabled, doc, "wirelessLinkEnabled");
-    // 互斥：开启无线连接时强制关闭 USB0 主机（GPIO12/13 复用冲突）
+    readDoc(gamepadOptions.bluetoothLinkEnabled, doc, "bluetoothLinkEnabled");
+    // 三开关硬件互斥（GPIO8/9 复用：无线/蓝牙 UART1 与 USB0 D+/D- 冲突）。
+    // 优先级：无线连接 > 蓝牙模式 > USB 验证器。
+    PeripheralOptions& peripheralOptions = Storage::getInstance().getPeripheralOptions();
     if (gamepadOptions.wirelessLinkEnabled) {
-        PeripheralOptions& peripheralOptions = Storage::getInstance().getPeripheralOptions();
+        gamepadOptions.bluetoothLinkEnabled = false;
+        peripheralOptions.blockUSB0.enabled = 0;
+    } else if (gamepadOptions.bluetoothLinkEnabled) {
         peripheralOptions.blockUSB0.enabled = 0;
     }
     readDoc(gamepadOptions.wirelessPaired, doc, "wirelessPaired");
@@ -1231,6 +1236,7 @@ std::string getGamepadOptions()
     writeDoc(doc, "usbOverrideID", gamepadOptions.usbOverrideID);
     writeDoc(doc, "miniMenuGamepadInput", gamepadOptions.miniMenuGamepadInput);
     writeDoc(doc, "wirelessLinkEnabled", gamepadOptions.wirelessLinkEnabled ? 1 : 0);
+    writeDoc(doc, "bluetoothLinkEnabled", gamepadOptions.bluetoothLinkEnabled ? 1 : 0);
     writeDoc(doc, "wirelessPaired", gamepadOptions.wirelessPaired ? 1 : 0);
     // Write USB Vendor ID and Product ID as 4 character hex strings with 0 padding
     char usbVendorStr[5];
@@ -1949,10 +1955,11 @@ std::string setPeripheralOptions()
     docToValue(peripheralOptions.blockUSB0.enable5v, doc, "peripheral", "usb0", "enable5v");
     docToValue(peripheralOptions.blockUSB0.order, doc, "peripheral", "usb0", "order");
 
-    // 互斥：开启 USB0 主机时强制关闭无线连接（GPIO12/13 复用冲突）
+    // 互斥：开启 USB0 主机时强制关闭无线连接与蓝牙模式（GPIO8/9 复用冲突）
     if (peripheralOptions.blockUSB0.enabled) {
         GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
         gamepadOptions.wirelessLinkEnabled = false;
+        gamepadOptions.bluetoothLinkEnabled = false;
     }
 
     // need to reserve previous/next pin for dp

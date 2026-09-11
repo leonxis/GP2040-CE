@@ -72,13 +72,11 @@ static const int INPUT_MAP[] = {
   11,  // Playstation Classic
   12,  // Original Xbox
   14,  // Generic HID
-  19,  // BLE 蓝牙连接
 };
-static const int INPUT_MAP_COUNT = 19;
+static const int INPUT_MAP_COUNT = 18;
 static const char* const N_INPUT[] = {
   "XInput","XInput PC","PS4","PS4 PC","SW PRO","P5","XB1","PS3","PS5","KBD",
-  "MD Mini","NEOGEO","PCE Mini","EGRET II","ASTRO","PS Classic","XB Orig","HID",
-  "Bluetooth"
+  "MD Mini","NEOGEO","PCE Mini","EGRET II","ASTRO","PS Classic","XB Orig","HID"
 };
 static const char* const N_SOCD[] = {"UP","NEU","2ND","1ST","BYP"};
 static const char* const N_DPAD[] = {"十字键","左摇杆","右摇杆"};
@@ -130,17 +128,35 @@ static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; nee
 static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
 static void sUsbAuth(int v) {
     POP().blockUSB0.enabled = v ? 1 : 0;
-    // 互斥：开启 USB 验证器时自动关闭无线连接（GPIO12/13 复用冲突）
-    if (v) GOP().wirelessLinkEnabled = false;
+    // 三互斥：开启 USB 验证器时自动关闭无线连接与蓝牙模式（GPIO8/9 复用冲突）
+    if (v) {
+        GOP().wirelessLinkEnabled = false;
+        GOP().bluetoothLinkEnabled = false;
+    }
     needsReboot = true;
 }
 
-// 无线连接开关（对应网页 GNS设置-硬件配置 中的 无线连接开关，即 GamepadOptions.wirelessLinkEnabled）
+// 无线连接开关（nRF24 输出路径，对应网页 硬件配置 中的 无线连接开关）
 static int gWireless() { return GOP().wirelessLinkEnabled ? 1 : 0; }
 static void sWireless(int v) {
     GOP().wirelessLinkEnabled = v ? true : false;
-    // 互斥：开启无线时自动关闭 USB 验证器（GPIO12/13 复用冲突）
-    if (v) POP().blockUSB0.enabled = 0;
+    // 三互斥：开启无线时自动关闭蓝牙模式与 USB 验证器（GPIO8/9 复用冲突）
+    if (v) {
+        GOP().bluetoothLinkEnabled = false;
+        POP().blockUSB0.enabled = 0;
+    }
+    needsReboot = true;
+}
+
+// 蓝牙模式开关（BLE 输出路径，对应网页 硬件配置 中的 蓝牙模式开关）
+static int gBle() { return GOP().bluetoothLinkEnabled ? 1 : 0; }
+static void sBle(int v) {
+    GOP().bluetoothLinkEnabled = v ? true : false;
+    // 三互斥：开启蓝牙时自动关闭无线连接与 USB 验证器（GPIO8/9 复用冲突）
+    if (v) {
+        GOP().wirelessLinkEnabled = false;
+        POP().blockUSB0.enabled = 0;
+    }
     needsReboot = true;
 }
 
@@ -382,6 +398,7 @@ static LiteOpt optHandle[] = {
   {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
   {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
   {"无线连接", OPT_BOOL, 0, 1, 1, NULL, 0, "", gWireless, sWireless},
+  {"蓝牙模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gBle, sBle},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
 };
 // 背键映射子菜单：6 个背键，每个可选 17 种映射

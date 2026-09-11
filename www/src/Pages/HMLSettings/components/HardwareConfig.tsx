@@ -74,6 +74,7 @@ export default function HardwareConfig() {
 		ambientLightBreathSpeed: 0.1,
 	});
 	const [wirelessLinkEnabled, setWirelessLinkEnabled] = useState(0);
+	const [bluetoothLinkEnabled, setBluetoothLinkEnabled] = useState(0);
 
 	const [hostSaveMessage, setHostSaveMessage] = useState('');
 	const [ledSaveMessage, setLedSaveMessage] = useState('');
@@ -164,8 +165,9 @@ export default function HardwareConfig() {
 						),
 					),
 				});
-				// 无线连接开关：默认关闭（无值为 0）
+				// 无线连接 / 蓝牙模式开关：默认关闭（无值为 0）
 				setWirelessLinkEnabled(Number(gamepad?.wirelessLinkEnabled) ? 1 : 0);
+				setBluetoothLinkEnabled(Number(gamepad?.bluetoothLinkEnabled) ? 1 : 0);
 			} catch (error) {
 				console.error('Failed to fetch hardware config:', error);
 			} finally {
@@ -209,6 +211,7 @@ export default function HardwareConfig() {
 			const gamepadToSave = {
 				...currentGamepad,
 				wirelessLinkEnabled: wirelessLinkEnabled ? 1 : 0,
+				bluetoothLinkEnabled: bluetoothLinkEnabled ? 1 : 0,
 			};
 			await WebApi.setGamepadOptions(gamepadToSave);
 			setHostSaveMessage(t('SettingsPage:hml-save-success-reboot'));
@@ -293,23 +296,25 @@ export default function HardwareConfig() {
 								label={t('SettingsPage:hml-usb-authenticator-label')}
 								checked={Boolean(peripheralOptions.peripheral?.usb0?.enabled)}
 								onChange={(e) => {
-								const checked = e.target.checked ? 1 : 0;
-								setPeripheralOptions((prev) => ({
-									...prev,
-									peripheral: {
-										...prev.peripheral,
-										usb0: {
-											...prev.peripheral?.usb0,
-											enabled: checked,
+									const checked = e.target.checked ? 1 : 0;
+									setPeripheralOptions((prev) => ({
+										...prev,
+										peripheral: {
+											...prev.peripheral,
+											usb0: {
+												...prev.peripheral?.usb0,
+												enabled: checked,
+											},
 										},
-									},
-								}));
-								// 互斥：开启 USB 验证器时自动关闭无线连接（GPIO12/13 复用冲突）
-								if (checked) {
-									setWirelessLinkEnabled(0);
-								}
-							}}
-						/>
+									}));
+									// 互斥（优先级 2.4G无线 > 蓝牙无线 > USB验证器）：开启 USB 验证器时
+									// 自动关闭 2.4G 无线与蓝牙无线（UART1 GPIO8/9 与 USB0 D+/D- 复用冲突）
+									if (checked) {
+										setWirelessLinkEnabled(0);
+										setBluetoothLinkEnabled(0);
+									}
+								}}
+							/>
 							<span className="text-muted">
 								{t('SettingsPage:hml-usb-authenticator-hint')}
 							</span>
@@ -377,7 +382,7 @@ export default function HardwareConfig() {
 						</span>
 					</div>
 
-						{/* 无线连接开关 */}
+						{/* 2.4G无线开关（nRF24 输出路径） */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 							<Form.Check
 								type="switch"
@@ -385,25 +390,59 @@ export default function HardwareConfig() {
 								label={t('SettingsPage:hml-wireless-link-label')}
 								checked={Boolean(wirelessLinkEnabled)}
 								onChange={(e) => {
-								const checked = e.target.checked ? 1 : 0;
-								setWirelessLinkEnabled(checked);
-								// 互斥：开启无线时自动关闭 USB 验证器（GPIO12/13 复用冲突）
-								if (checked) {
-									setPeripheralOptions((prev) => ({
-										...prev,
-										peripheral: {
-											...prev.peripheral,
-											usb0: {
-												...prev.peripheral?.usb0,
-												enabled: 0,
+									const checked = e.target.checked ? 1 : 0;
+									setWirelessLinkEnabled(checked);
+									// 互斥（优先级 2.4G无线 > 蓝牙无线 > USB验证器）：开启 2.4G 无线时
+									// 自动关闭蓝牙模式与 USB 验证器（UART1 GPIO8/9 与 USB0 D+/D- 复用冲突）
+									if (checked) {
+										setBluetoothLinkEnabled(0);
+										setPeripheralOptions((prev) => ({
+											...prev,
+											peripheral: {
+												...prev.peripheral,
+												usb0: {
+													...prev.peripheral?.usb0,
+													enabled: 0,
+												},
 											},
-										},
-									}));
-								}
-							}}
+										}));
+									}
+								}}
 							/>
 							<span className="text-muted">
 								{t('SettingsPage:hml-wireless-link-hint')}
+							</span>
+						</div>
+
+						{/* 蓝牙无线开关（BLE 输出路径） */}
+						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+							<Form.Check
+								type="switch"
+								id="bluetooth-link-switch"
+								label={t('SettingsPage:hml-bluetooth-link-label')}
+								checked={Boolean(bluetoothLinkEnabled)}
+								onChange={(e) => {
+									const checked = e.target.checked ? 1 : 0;
+									setBluetoothLinkEnabled(checked);
+									// 互斥（优先级 2.4G无线 > 蓝牙无线 > USB验证器）：开启蓝牙时
+									// 自动关闭 2.4G 无线与 USB 验证器（UART1 GPIO8/9 与 USB0 D+/D- 复用冲突）
+									if (checked) {
+										setWirelessLinkEnabled(0);
+										setPeripheralOptions((prev) => ({
+											...prev,
+											peripheral: {
+												...prev.peripheral,
+												usb0: {
+													...prev.peripheral?.usb0,
+													enabled: 0,
+												},
+											},
+										}));
+									}
+								}}
+							/>
+							<span className="text-muted">
+								{t('SettingsPage:hml-bluetooth-link-hint')}
 							</span>
 						</div>
 

@@ -84,12 +84,6 @@ void DriverManager::setup(InputMode mode) {
         case INPUT_MODE_SWITCH_PRO:
             driver = new SwitchProDriver();
             break;
-        case INPUT_MODE_BLE:
-            // 蓝牙连接模式：实际 HID 报文由对端（ESP32）经 BLE 链路输出；
-            // Pico 侧仍需一个可用 USB 驱动以维持枚举/轮询/配置与门控时序
-            // （无线链路激活时 USB 按键输出被门控抑制，真实按键仅走无线）。
-            driver = new HIDDriver();
-            break;
         default:
             return;
     }

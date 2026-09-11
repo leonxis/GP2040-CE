@@ -244,21 +244,6 @@ export default function ModeSettings() {
 		);
 	};
 
-	// 蓝牙连接模式特定配置：提示需在硬件配置中开启无线连接开关
-	const bleModeSpecifics = () => {
-		return (
-			<div>
-				<Row className="mb-3">
-					<Col sm={10}>
-						<span className="text-warning">
-							{t('SettingsPage:hml-ble-mode-hint')}
-						</span>
-					</Col>
-				</Row>
-			</div>
-		);
-	};
-
 	// 键盘模式特定配置
 	const keyboardModeSpecifics = () => {
 		return (
@@ -326,8 +311,6 @@ export default function ModeSettings() {
 				return xinputbModeSpecifics();
 			case 'input-mode-options.p5general':
 				return p5generalModeSpecifics();
-			case 'input-mode-options.ble':
-				return bleModeSpecifics();
 			default:
 				return null;
 		}

@@ -149,7 +149,7 @@ enum InputMode
     INPUT_MODE_P5GENERAL = 16;
     INPUT_MODE_PS4B = 17;
     INPUT_MODE_XINPUTB = 18;
-    INPUT_MODE_BLE = 19;
+    // 19 为已废弃的 INPUT_MODE_BLE 编号，蓝牙现由 bluetoothLinkEnabled 开关控制，编号不再复用
     INPUT_MODE_CONFIG = 255;
 }
 

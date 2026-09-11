@@ -183,6 +183,10 @@
 // 运行时开关仍可通过网页/miniled 显式关闭。
 #define DEFAULT_WIRELESS_LINK_ENABLED 0
 
+// --- 蓝牙模式开关板级默认值为关闭（网页/miniled 开关共用） ---
+// 开启后 UART 链路 STATUS 帧通知 ESP32 走 BLE 输出路径；与无线连接、USB 验证器三互斥。
+#define DEFAULT_BLUETOOTH_LINK_ENABLED 0
+
 // PS AUTH
 #define DEFAULT_PS4CONTROLLER_TYPE PS4_CONTROLLER
 #define DEFAULT_PS4_ID_MODE PS4_ID_CONSOLE

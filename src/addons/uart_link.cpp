@@ -15,12 +15,14 @@ static uint16_t crc16_update(uint16_t crc, uint8_t b) {
     return crc;
 }
 
-// available() 由存储字段 wirelessLinkEnabled 驱动（网页/miniled 菜单"无线连接"开关）。
+// available() 由两个互斥开关驱动（网页/miniled）：wirelessLinkEnabled 走 nRF24 路径，
+// bluetoothLinkEnabled 走 BLE 蓝牙路径；任一开启即启用 UART 链路。
 // config_utils 初始化时已通过 INIT_UNSET_PROPERTY 写入板级默认值并置 has_ 标志，
 // 此处直接读取值即可。
 bool UARTLinkAddon::available() {
     if (!UART_LINK_ENABLED) return false;
-    return Storage::getInstance().getGamepadOptions().wirelessLinkEnabled;
+    const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
+    return o.wirelessLinkEnabled || o.bluetoothLinkEnabled;
 }
 
 void UARTLinkAddon::setup() {
@@ -31,13 +33,14 @@ void UARTLinkAddon::setup() {
         gpio_set_function(UART_LINK_RX_PIN, GPIO_FUNC_UART);
         gpio_set_pulls(UART_LINK_RX_PIN, true, false);
 
-        lastSent = 0;
+        lastSentUs = 0;
         lastButtons = 0;
         lastDpad = 0;
         lastLx = 0; lastLy = 0; lastRx = 0; lastRy = 0;
         lastLt = 0; lastRt = 0;
-        lastStatusSent = 0;
+        lastStatusSentUs = 0;
         lastInputMode = 0xFF;
+        lastLinkMode = 0xFF;
         rxState = 0;
         rxType = 0;
         rxLen = 0;
@@ -76,15 +79,16 @@ void UARTLinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
     uart_write_blocking(uart1, frame, sizeof(frame));
 }
 
-void UARTLinkAddon::sendStatusFrame(uint8_t inputMode) {
-    // 仅 inputMode 真实——它是 nRF 包 pkt[0] 的唯一来源；
+void UARTLinkAddon::sendStatusFrame(uint8_t inputMode, uint8_t linkMode) {
+    // inputMode 真实——nRF 包 pkt[0] 来源 + BLE 设备类型选择依据；
+    // linkMode 真实——0=nRF24 路径，1=BLE 路径，ESP32 据此切换输出通道；
     // 其余字段全部固定默认值（不读取设置），ESP32 仅显示用。
     // LED/电池: 灯效用 GP2040-CE 自有配置，ESP32 显示 USB 供电满电。
-    const uint8_t frame[24] = {
+    const uint8_t frame[25] = {
         LINK_FRAME_MAGIC,
         LINK_FRAME_VERSION,
         LINK_FRAME_TYPE_STATUS,
-        18,             // gamepad + LED + battery status
+        19,             // gamepad + LED + battery status + linkMode
         0,              // socdMode: 默认(UPRIGHT)
         0,              // dpadMode: 默认(DIGITAL)
         inputMode,      // inputMode: 真实值
@@ -99,14 +103,15 @@ void UARTLinkAddon::sendStatusFrame(uint8_t inputMode) {
         0, 0,           // flowCycle: 0
         (uint8_t)(4200 & 0xFF), (uint8_t)(4200 >> 8),  // battMv: 4200 满电
         0x03,           // battFlags: valid + USB 供电
+        linkMode,       // payload[18]: 0=nRF24, 1=BLE
         0, 0            // CRC 占位
     };
-    uint8_t out[24];
+    uint8_t out[25];
     memcpy(out, frame, sizeof(out));
     uint16_t crc = 0xFFFF;
-    for (int i = 1; i <= 21; i++) crc = crc16_update(crc, out[i]);
-    out[22] = (uint8_t)(crc & 0xFF);
-    out[23] = (uint8_t)(crc >> 8);
+    for (int i = 1; i <= 22; i++) crc = crc16_update(crc, out[i]);
+    out[23] = (uint8_t)(crc & 0xFF);
+    out[24] = (uint8_t)(crc >> 8);
     uart_write_blocking(uart1, out, sizeof(out));
 }
 
@@ -160,7 +165,9 @@ void UARTLinkAddon::process() {
 void UARTLinkAddon::postprocess(bool sent) {
     (void)sent;
     if (!initialized) return;
-    uint32_t now = to_ms_since_boot(get_absolute_time());
+    // 微秒计时：整数毫秒在 960~1000Hz 循环抖动下会产生同毫秒双跳过（帧间隔~2ms），
+    // 微秒粒度保证 nRF radio 每个 2ms 窗口必有新鲜帧。
+    uint32_t now = to_us_since_boot(get_absolute_time());
 
     Gamepad* g = Storage::getInstance().GetProcessedGamepad();
     if (g == nullptr) return;
@@ -170,23 +177,38 @@ void UARTLinkAddon::postprocess(bool sent) {
     uint16_t lx = (uint16_t)g->state.lx, ly = (uint16_t)g->state.ly;
     uint16_t rx = (uint16_t)g->state.rx, ry = (uint16_t)g->state.ry;
     uint8_t lt = (uint8_t)g->state.lt, rt = (uint8_t)g->state.rt;
-    if (buttons != lastButtons || dpad != lastDpad ||
-        lx != lastLx || ly != lastLy || rx != lastRx || ry != lastRy ||
-        lt != lastLt || rt != lastRt || now - lastSent >= 50) {
+
+    // 混合发送策略：
+    //  - 数字键(buttons/dpad)变化立即发，零额外延迟（边沿事件天然稀疏）；
+    //  - 模拟量连续变化时限 900us（门控模式循环 1.0~1.04ms 每轮必满足，
+    //    蓝牙自由跑模式上限约 1111 帧/s，防止死区失效时 ADC 噪声洪泛 UART）；
+    //  - 50ms 心跳保底同步/抗丢帧。
+    bool digitalChanged = (buttons != lastButtons || dpad != lastDpad);
+    bool analogChanged  = (lx != lastLx || ly != lastLy ||
+                           rx != lastRx || ry != lastRy ||
+                           lt != lastLt || rt != lastRt);
+    if (digitalChanged ||
+        (analogChanged && now - lastSentUs >= UART_INPUT_ANALOG_MIN_US) ||
+        now - lastSentUs >= UART_INPUT_HEARTBEAT_US) {
         sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt);
         lastButtons = buttons;
         lastDpad = dpad;
         lastLx = lx; lastLy = ly; lastRx = rx; lastRy = ry;
         lastLt = lt; lastRt = rt;
-        lastSent = now;
+        lastSentUs = now;
     }
 
-    // inputMode 变化立即上报 + 1s 心跳，保证 nRF 包 pkt[0] 跟随真实输入模式
+    // inputMode/linkMode 变化立即上报 + 1s 心跳：
+    // inputMode 保证 nRF 包 pkt[0] 跟随真实输入模式、供 BLE 选设备类型；
+    // linkMode 告知 ESP32 输出路径（0=nRF24, 1=BLE）。
     const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
     uint8_t inputMode = (uint8_t)options.inputMode;
-    if (inputMode != lastInputMode || now - lastStatusSent >= 1000) {
-        sendStatusFrame(inputMode);
+    uint8_t linkMode  = options.bluetoothLinkEnabled ? 1 : 0;
+    if (inputMode != lastInputMode || linkMode != lastLinkMode ||
+        now - lastStatusSentUs >= UART_STATUS_HEARTBEAT_US) {
+        sendStatusFrame(inputMode, linkMode);
         lastInputMode = inputMode;
-        lastStatusSent = now;
+        lastLinkMode = linkMode;
+        lastStatusSentUs = now;
     }
 }

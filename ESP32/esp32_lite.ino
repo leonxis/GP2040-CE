@@ -4,11 +4,13 @@
 //   1. UART 接收发射端 Pico（uart_link.cpp）的 INPUT/STATUS 帧
 //   2. 将手柄状态经 nRF24 定频转发给接收端（15 字节定长包，与正式版一致）
 //   3. 板载 WS2812（GPIO21）状态指示灯
-//   4. nRF / BLE 输出后端互斥切换：STATUS 帧 inputMode==BLE_INPUT_MODE(19)
-//      时切蓝牙（关 nRF），其余模式（含未知 0xFF）按无线模式传输
+//   4. nRF / BLE 输出后端互斥切换：STATUS 帧 linkMode(payload[18])==1 时切蓝牙
+//      （关 nRF），linkMode==0（或未收到 STATUS）按 nRF24 无线模式传输；
+//      inputMode(payload[2]) 始终是真实手柄模式：nRF 包 pkt[0] + BLE 设备类型选择
 //
-// BLE 蓝牙手柄：模拟 Xbox Series X 蓝牙手柄（ESP32-BLE-CompositeHID + NimBLE，必需库），
-//             实现见 bleBegin/bleStop/bleTask
+// BLE 蓝牙手柄：按 inputMode 选择设备类型（当前仅 Xbox Series X 实现，
+//             不支持的模式退化 Xbox；DualSense/NS PRO 预留），
+//             ESP32-BLE-CompositeHID + NimBLE，实现见 bleBegin/bleStop/bleTask
 // 协议：0xAA + version + type + len + payload + CRC16/CCITT-FALSE
 //       与 GP-combine esp32.ino / Pico 侧 uart_link.cpp 逐字节一致
 // ============================================================================
@@ -66,15 +68,35 @@ void ledWrite(uint8_t r, uint8_t g, uint8_t b) {
 #define FRAME_VERSION     1
 #define FRAME_TYPE_INPUT  0x01   // Pico -> ESP32: 手柄输入
 #define FRAME_TYPE_ACK    0x02   // ESP32 -> Pico: 输入确认（Pico 链路指示依赖此帧）
-#define FRAME_TYPE_STATUS 0x03   // Pico -> ESP32: 模式状态（仅取 inputMode 字段）
-
-// 蓝牙模式标识：与 wireless-tx 分支 proto/enums.proto 后续新增的 INPUT_MODE_BLE = 19
-// 保持一致（当前枚举最大 INPUT_MODE_XINPUTB = 18，CONFIG = 255）
-#define BLE_INPUT_MODE 19
+#define FRAME_TYPE_STATUS 0x03   // Pico -> ESP32: 模式状态（inputMode + linkMode）
 
 // ---- 输出后端互斥切换 ----
 enum OutputBackend : uint8_t { OUTPUT_NRF = 0, OUTPUT_BLE = 1 };
-volatile uint8_t outputMode = OUTPUT_NRF;  // 初始无线；inputMode 未知(0xFF)也按无线处理
+volatile uint8_t outputMode = OUTPUT_NRF;  // 初始无线；未收到 STATUS 也按无线处理
+
+// ---- BLE 设备类型（按 Pico inputMode 选择；当前仅 Xbox 实现，其余退化 Xbox）----
+enum BlePadType : uint8_t { BLE_PAD_XBOX = 0, BLE_PAD_DUALSENSE = 1, BLE_PAD_NSPRO = 2 };
+
+// GP2040 InputMode 编号（proto/enums.proto）→ BLE 设备类型。
+// DUALSENSE/NSPRO 为预留分支：CompositeHID 库补齐对应设备后只需在此构造，
+// 未实现前所有非 Xbox 模式一律退化 Xbox Series X。
+// 返回 BlePadType 值；用 uint8_t 而非枚举类型作返回值：Arduino 预处理器会把
+// 自动原型插到本文件枚举定义之前，原型引用枚举会编译失败（enum does not name a type）。
+static uint8_t blePadTypeForInputMode(uint8_t mode) {
+    switch (mode) {
+        // 预留：PS4(4)/PS4B(17)/PS5(13)/P5GENERAL(16) → DualSense/DualShock 系列
+        // case INPUT_MODE_PS4: case INPUT_MODE_PS4B:
+        // case INPUT_MODE_PS5: case INPUT_MODE_P5GENERAL: return BLE_PAD_DUALSENSE;
+        // 预留：SWITCH_PRO(15) → NS PRO
+        // case INPUT_MODE_SWITCH_PRO: return BLE_PAD_NSPRO;
+        case 0:   // XINPUT
+        case 18:  // XINPUTB
+        case 5:   // XBONE
+        default:  // 其余模式（键盘/PS3/GENERIC/各 mini 主机等）退化 Xbox
+            return (uint8_t)BLE_PAD_XBOX;
+    }
+}
+volatile uint8_t stBlePadType = BLE_PAD_XBOX;  // STATUS 输入模式对应的 BLE 类型
 
 // ---- nRF24 无线状态 ----
 NRF24 radio;
@@ -93,9 +115,10 @@ volatile uint8_t lastDpad = 0;
 volatile uint16_t lastLX = 0x8000, lastLY = 0x8000, lastRX = 0x8000, lastRY = 0x8000;
 volatile uint8_t lastLT = 0, lastRT = 0;
 
-// ---- STATUS 帧解析（仅 inputMode）----
+// ---- STATUS 帧解析（payload[2]=inputMode，payload[18]=linkMode）----
 volatile uint8_t stInputMode = 0;
-volatile bool stInputModeValid = false;
+volatile uint8_t stLinkMode = 0;       // 0=nRF24，1=BLE；默认 0
+volatile bool stStatusValid = false;   // 收到过完整 STATUS 帧
 
 // ---- WS2812 状态灯 ----
 uint8_t ledR = 0, ledG = 0, ledB = 0;   // 当前已写颜色缓存
@@ -119,7 +142,7 @@ volatile bool bleConnected = false;
 volatile bool bleDesired = false;
 // 连接间隔是否已达高速（<=6 unit≈133Hz 容量）：bleTask 治理循环维护，供 LED 显示。
 volatile bool bleIntervalFast = false;
-void bleBegin();
+void bleBegin(uint8_t padType);
 void bleStop();
 
 static BleCompositeHID   *bleHid = nullptr;
@@ -127,6 +150,7 @@ static XboxGamepadDevice *blePad = nullptr;
 static bool      bleStackStarted = false;   // NimBLE 栈是否已 begin()
 static uint32_t  bleStackStartMs = 0;       // begin() 时刻（用于避开初始化竞态）
 static bool      bleForceSend    = true;    // （重）连接/恢复后强制发一帧
+static uint8_t   activeBlePadType = 0xFF;   // 当前栈内已构造的 BLE 设备类型
 
 // ============================================================================
 // CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF) — 与 uart_link.cpp 一致
@@ -179,10 +203,10 @@ void onInputFrame(uint8_t *payload, uint8_t len) {
 }
 
 // ============================================================================
-// 输出后端互斥切换：inputMode==19 切蓝牙，否则切无线
+// 输出后端互斥切换：STATUS linkMode==1 切蓝牙，否则切无线
 // ============================================================================
 void applyOutputMode() {
-    uint8_t desired = (stInputModeValid && stInputMode == BLE_INPUT_MODE)
+    uint8_t desired = (stStatusValid && stLinkMode == 1)
                           ? OUTPUT_BLE : OUTPUT_NRF;
     if (desired == outputMode) return;
 
@@ -211,12 +235,15 @@ void applyOutputMode() {
 }
 
 // ============================================================================
-// UART RX：STATUS 帧 → 仅取 inputMode，触发模式切换
+// UART RX：STATUS 帧 → 取 inputMode(payload[2]) 与 linkMode(payload[18])，
+// 触发输出路径切换。新协议帧 len=19，不做旧帧（无 linkMode）兼容。
 // ============================================================================
 void onStatusFrame(uint8_t *payload, uint8_t len) {
-    if (len < 3) return;    // payload[2] = inputMode
+    if (len < 19) return;           // payload[2]=inputMode, payload[18]=linkMode
     stInputMode = payload[2];
-    stInputModeValid = true;
+    stBlePadType = blePadTypeForInputMode(stInputMode);
+    stLinkMode = payload[18] ? 1 : 0;
+    stStatusValid = true;
     applyOutputMode();
 }
 
@@ -229,7 +256,7 @@ void radioTask(void *) {
     for (;;) {
         if (outputMode == OUTPUT_NRF && radioUp) {
             uint8_t pkt[15];
-            uint8_t mode = stInputModeValid ? stInputMode : 0xFF; // 0xFF=模式未知
+            uint8_t mode = stStatusValid ? stInputMode : 0xFF; // 0xFF=模式未知
             uint16_t btns = lastButtons;
             uint8_t dpad = lastDpad;
             uint16_t lx = lastLX, ly = lastLY, rx = lastRX, ry = lastRY;
@@ -349,21 +376,43 @@ static void bleSetUniqueAddress() {
     esp_base_mac_addr_set(base);
 }
 
-void bleBegin() {
+// 按类型构造 BLE HID 设备并加入 CompositeHID。当前仅 BLE_PAD_XBOX 实现，
+// DUALSENSE/NSPRO 预留：选择器对未实现类型已统一返回 XBOX，故此处不会收到。
+static XboxGamepadDevice *buildBlePad(uint8_t padType, BLEHostConfiguration &hostCfg,
+                                      const char *&devName, const char *&mfrName) {
+    switch (padType) {
+        // 预留：CompositeHID 库补齐 DualSenseDevice/NSProDevice 后在此构造，
+        // 对应 VID/PID、HID 描述符、按键映射 bleBtnTable 一并扩展。
+        case BLE_PAD_DUALSENSE:
+        case BLE_PAD_NSPRO:
+        case BLE_PAD_XBOX:
+        default: {
+            // Xbox Series X：VID=0x045E / PID=0x0B13 / BCD=0x0509，
+            // Windows 10/11 原生识别为 Xbox 手柄。
+            auto *cfg = new XboxSeriesXControllerDeviceConfiguration();
+            hostCfg = cfg->getIdealHostConfiguration();
+            cfg->setAutoReport(false);                 // 由我们按 on-change 手动 send
+            devName = "Xbox Wireless Controller";      // 对齐真手柄 GAP Device Name
+            mfrName = "Microsoft Corporation";
+            return new XboxGamepadDevice(cfg);
+        }
+    }
+}
+
+void bleBegin(uint8_t padType) {
     if (!bleStackStarted) {
         bleSetUniqueAddress();   // 必须在 NimBLE init 前改变身份地址
-        // 首次进入：模拟 Xbox Series X 蓝牙手柄（CompositeHID + NimBLE）。
-        auto *cfg = new XboxSeriesXControllerDeviceConfiguration();
-        BLEHostConfiguration hostCfg = cfg->getIdealHostConfiguration();
-        // Series X：VID=0x045E / PID=0x0B13 / BCD=0x0509，Windows 10/11 原生识别。
-        cfg->setAutoReport(false);                 // 由我们按 on-change 手动 send
-        blePad = new XboxGamepadDevice(cfg);
-        // 设备名/厂商名对齐真 Xbox Series X 蓝牙手柄：Windows 各层（蓝牙设置、
-        // HID product、测试工具）显示的设备名来自 GAP Device Name，名为
-        // "GP2040-CE-BLE" 时会显示成 XINPUT IG/Standard Gamepad 等通用节点。
-        bleHid = new BleCompositeHID("Xbox Wireless Controller", "Microsoft Corporation", 100);
+        BLEHostConfiguration hostCfg;
+        const char *devName = nullptr;
+        const char *mfrName = nullptr;
+        blePad = buildBlePad(padType, hostCfg, devName, mfrName);
+        // 设备名/厂商名对齐真手柄：Windows 各层（蓝牙设置、HID product、测试工具）
+        // 显示的设备名来自 GAP Device Name，名为 "GP2040-CE-BLE" 时会显示成
+        // XINPUT IG/Standard Gamepad 等通用节点。
+        bleHid = new BleCompositeHID(devName, mfrName, 100);
         bleHid->addDevice(blePad);
         bleHid->begin(hostCfg);
+        activeBlePadType = padType;
         bleStackStarted = true;
         bleStackStartMs = millis();
         bleForceSend = true;
@@ -420,10 +469,16 @@ void bleTask(void *) {
     uint16_t sBtns = 0xFFFF, sLX = 0xFFFF, sLY = 0xFFFF, sRX = 0xFFFF, sRY = 0xFFFF;
     uint8_t  sDpad = 0xFF, sLT = 0xFF, sRT = 0xFF;
     for (;;) {
+        // 运行中 BLE 设备类型变化：GATT 服务/HID 描述符在 NimBLE init 时一次定型，
+        // 栈内热重建不稳定；Pico 切换手柄模式本身会重启，这里同样以自重启收敛。
+        // 当前选择器对所有模式均返回 XBOX，实际不会触发；非 Xbox 类型实现后生效。
+        if (bleRunning && bleDesired && stBlePadType != activeBlePadType) {
+            ESP.restart();
+        }
         // 状态收敛：NimBLE 栈的启停一律在本任务(core0)上下文执行。
         if (bleDesired != bleRunning) {
             if (bleDesired) {
-                bleBegin();
+                bleBegin(stBlePadType);
                 bleRunning = true;
             } else {
                 bleStop();
@@ -634,7 +689,7 @@ void setup() {
     radio.begin(nrfSpi, NRF_CSN, NRF_CE);
 
     LINK_SERIAL.begin(UART_BAUD, SERIAL_8N1, ESP_RX, ESP_TX);
-    radioUp = true;  // 默认无线模式；收到 STATUS inputMode=19 后切蓝牙
+    radioUp = true;  // 默认无线模式；收到 STATUS linkMode=1 后切蓝牙
 
     xTaskCreatePinnedToCore(radioTask, "radio", 4096, NULL, 1, NULL, 0); // 发送跑在核0
     xTaskCreatePinnedToCore(bleTask, "ble", 8192, NULL, 1, NULL, 0);     // BLE 任务常驻核0

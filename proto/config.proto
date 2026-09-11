@@ -38,6 +38,7 @@ message GamepadOptions
     optional int32 runtimeModeHotkeyTriangle = 39;
     optional bool wirelessLinkEnabled = 40;   // 发射端使用（UARTLinkAddon 开关）；接收端闲置
     optional bool wirelessPaired = 41;        // 接收端使用（配对标志）；发射端闲置
+    optional bool bluetoothLinkEnabled = 42;  // 发射端蓝牙输出路径开关；与无线连接/USB验证器互斥
 }
 
 message KeyboardMapping
