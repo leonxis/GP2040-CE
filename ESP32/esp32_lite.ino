@@ -558,19 +558,13 @@ void bleTask(void *) {
                 uint16_t lx = lastLX, ly = lastLY, rx = lastRX, ry = lastRY;
                 uint8_t  lt = lastLT, rt = lastRT;
 
-                // on-change 发送：状态变化或强制发时才调 sendGamepadReport
-                if (bleForceSend || btns != sBtns || dpad != sDpad ||
-                    lx != sLX || ly != sLY || rx != sRX || ry != sRY ||
-                    lt != sLT || rt != sRT) {
-                    bleApplyState(btns, dpad, lx, ly, rx, ry, lt, rt);
-                    blePad->sendGamepadReport();
-                    sBtns = btns; sDpad = dpad;
-                    sLX = lx; sLY = ly; sRX = rx; sRY = ry;
-                    sLT = lt; sRT = rt;
-                    bleForceSend = false;
-                }
-                // 发送节拍 5ms：on-change 模式下大部分时间无变化不发包，
-                // 但 5ms 轮询保证变化后延迟 <=5ms 即发出。
+                // 5ms 固定发送：每 5ms 发送一次 HID report，保证稳定回报率
+                bleApplyState(btns, dpad, lx, ly, rx, ry, lt, rt);
+                blePad->sendGamepadReport();
+                sBtns = btns; sDpad = dpad;
+                sLX = lx; sLY = ly; sRX = rx; sRY = ry;
+                sLT = lt; sRT = rt;
+                bleForceSend = false;
                 vTaskDelay(5 / portTICK_PERIOD_MS);
             } else {
                 vTaskDelay(50 / portTICK_PERIOD_MS);
