@@ -262,10 +262,7 @@ void XboxGamepadDevice::releaseDPad() {
 
 bool XboxGamepadDevice::isDPadPressed(uint8_t direction) {
     std::lock_guard<std::mutex> lock(_mutex);
-    // Serial.print("Internal hat value:");
-    // Serial.println(_inputReport.hat, HEX);
     return _inputReport.hat == direction;
-    //return (bool)((_inputReport.hat & direction) == direction);
 }
 
 bool XboxGamepadDevice::isDPadPressedFlag(XboxDpadFlags direction) {
