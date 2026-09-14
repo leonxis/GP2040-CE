@@ -87,7 +87,8 @@ void WirelessReceiverAddon::handlePacket(const uint8_t *pkt) {
         paired = true;
         opts.inputMode = (InputMode)mode;
         Storage::getInstance().save(true);
-        sleep_ms(400);
+        tud_disconnect();   // 显式断开 D+ 上拉，让主机看到 USB 拔出
+        sleep_ms(500);      // 给主机足够时间处理断连 + flash 落盘
         System::reboot(System::BootMode::DEFAULT);
         return;
     }
@@ -95,7 +96,8 @@ void WirelessReceiverAddon::handlePacket(const uint8_t *pkt) {
     if (mode != (uint8_t)opts.inputMode) {
         opts.inputMode = (InputMode)mode;
         Storage::getInstance().save(true);
-        sleep_ms(400);
+        tud_disconnect();   // 显式断开 D+ 上拉，让主机看到 USB 拔出
+        sleep_ms(500);      // 给主机足够时间处理断连 + flash 落盘
         System::reboot(System::BootMode::DEFAULT);
         return;
     }

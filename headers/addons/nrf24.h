@@ -34,6 +34,8 @@ public:
     writeReg(0x0A, addr, 5);         // RX_ADDR_P0 (auto-ack pipe)
     writeReg(0x11, NRF24_PAYLOAD);   // RX_PW_P0
     writeReg(0x07, 0x70);            // clear STATUS
+    flushTx();                        // 清空 TX FIFO（watchdog 复位后 nRF24 不掉电，旧数据残留）
+    flushRx();                        // 清空 RX FIFO（同上，防止旧包触发重复 reboot）
     writeReg(0x00, 0x0F);            // PWR_UP | PRIM_RX | 2字节CRC
     gpio_put(_ce, 1);
     sleep_us(150);
@@ -71,6 +73,7 @@ public:
 
   void startListening() {
     writeReg(0x00, 0x0F); // PWR_UP | PRIM_RX | 2字节CRC
+    flushRx();             // 清空 RX FIFO，防止旧包残留导致状态异常
     gpio_put(_ce, 1);
     busy_wait_us(130);
   }
@@ -115,6 +118,12 @@ private:
   }
   void flushTx() {
     uint8_t cmd = 0xE1;
+    gpio_put(_csn, 0);
+    spi_write_blocking(_spi, &cmd, 1);
+    gpio_put(_csn, 1);
+  }
+  void flushRx() {
+    uint8_t cmd = 0xE2;
     gpio_put(_csn, 0);
     spi_write_blocking(_spi, &cmd, 1);
     gpio_put(_csn, 1);
