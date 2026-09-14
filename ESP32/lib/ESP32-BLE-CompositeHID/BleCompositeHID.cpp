@@ -300,15 +300,23 @@ void BleCompositeHID::taskServer(void *pvParameter)
     // Start BLE advertisement
     NimBLEAdvertising *pAdvertising = pServer->getAdvertising();
     // appearance 来自设备配置：Xbox 配置为 HID_GAMEPAD(0x03C4)。
-    // 与真实 Xbox 手柄一致 Windows 才会按游戏手柄分类并匹配 Xbox 驱动友好名；
-    // 硬编码 GENERIC_HID(0x03C0) 会显示成通用 "XINPUT IG"/未知设备。
     pAdvertising->setAppearance(hidType);
-    pAdvertising->addServiceUUID(BleCompositeHIDInstance->_hid->getHidService()->getUUID());
-    // NimBLE 2.1.2 传统广播不会自动把 GAP 设备名放进广播/扫描响应，
-    // 不显式 setName 时主机在“搜索列表”阶段读不到名字，只能按
-    // appearance/service 猜测类别（Windows 常显示为通用的 "media"）。
-    // 显式写入设备名（adv 包放不下时 NimBLE 自动转入 scan response）。
-    pAdvertising->setName(BleCompositeHIDInstance->deviceName);
+
+    // NimBLE 2.x 默认不启用 scan response，安卓需要 SCAN_RSP PDU 才能上报设备
+    // （Espressif AR2024-001），仅 ADV PDU 会被安卓扫描器丢弃。
+    // 手动配置 ADV 数据（Flags + Service UUID + Appearance）和
+    // Scan Response（设备名），确保安卓能发现设备。
+    NimBLEAdvertisementData advData;
+    advData.setFlags(BLE_HS_ADV_F_DISC_GEN);  // LE General Discoverable
+    advData.addServiceUUID(BleCompositeHIDInstance->_hid->getHidService()->getUUID());
+    advData.setAppearance(hidType);
+    pAdvertising->setAdvertisementData(advData);
+
+    NimBLEAdvertisementData scanResp;
+    scanResp.setName(BleCompositeHIDInstance->deviceName);
+    pAdvertising->setScanResponseData(scanResp);
+    pAdvertising->enableScanResponse(true);
+
     pAdvertising->start();
     ESP_LOGD(LOG_TAG, "Advertising started!");
 
