@@ -237,7 +237,7 @@ export const AppContextProvider = ({ children, ...props }) => {
 				(hasValue && value <= boardDefinition.maxPin && (usedPins || []).indexOf(value) === -1);
 			return isValid;
 		};
-	}, [usedPins, setUsedPins]);
+	}, [boardDefinition.maxPin, usedPins]);
 
 	useEffect(() => {}, [expansionPins, setExpansionPins, HETriggerOptions, setHETriggerOptions]);
 

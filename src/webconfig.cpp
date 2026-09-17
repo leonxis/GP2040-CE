@@ -3456,7 +3456,7 @@ std::string getHeldPins()
 
     std::set<uint> heldPinsSet;
     uint32_t startTime = getMillis();
-    uint32_t oldState = ~gpio_get_all();
+    Mask_t oldState = ~gpio_get_all64();
     uint32_t debounceTime = 0;
     bool isAnyPinHeld = false;
 
@@ -3464,14 +3464,14 @@ std::string getHeldPins()
     while (!_abortGetHeldPins && (isAnyPinHeld || (getMillis() - startTime) < 5000)) {
         rndis_task();
 
-        uint32_t newState = ~gpio_get_all();
+        Mask_t newState = ~gpio_get_all64();
         if (isAnyPinHeld && newState == oldState) break; // Pins released
 
-        uint32_t changedPins = newState ^ oldState;
+        Mask_t changedPins = newState ^ oldState;
         uint32_t currentTime = getMillis();
 
         for (uint32_t pin = 0; pin < NUM_BANK0_GPIOS; pin++) {
-            if ((changedPins & (1 << pin)) &&
+            if ((changedPins & (Mask_t{1} << pin)) &&
                 gpio_get_function(pin) == GPIO_FUNC_SIO &&
                 !gpio_is_dir_out(pin)) {
 

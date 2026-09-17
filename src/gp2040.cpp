@@ -1241,7 +1241,7 @@ void GP2040::initializeStandardGpio() {
 			gpio_set_dir(pin, GPIO_IN);        // Set as INPUT
 			gpio_pull_up(pin);                 // Set as PULLUP
 			gpio_set_input_enabled(pin, true); // Ensure digital input buffer is enabled (may be disabled by adc_gpio_init)
-			buttonGpios |= 1 << pin;           // mark this pin as mattering for GPIO debouncing
+			buttonGpios |= Mask_t{1} << pin;   // mark this pin as mattering for GPIO debouncing
 		}
 	}
 }
@@ -1272,7 +1272,7 @@ void GP2040::deinitializeStandardGpio() {
  * instead, if you don't want debounced data.
  */
 void GP2040::debounceGpioGetAll() {
-	Mask_t raw_gpio = ~gpio_get_all();
+	Mask_t raw_gpio = ~gpio_get_all64();
 	Gamepad* gamepad = Storage::getInstance().GetGamepad();
 	// return if state isn't different than the actual
 	if (gamepad->debouncedGpio == (raw_gpio & buttonGpios)) return;
@@ -1287,7 +1287,7 @@ void GP2040::debounceGpioGetAll() {
 	uint32_t now = getMillis();
 	// check each button use case GPIO for state
 	for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
-		Mask_t pin_mask = 1 << pin;
+		Mask_t pin_mask = Mask_t{1} << pin;
 		if (buttonGpios & pin_mask) {
 			// Allow debouncer to change state if button state changed and debounce delay threshold met
 			if ((gamepad->debouncedGpio & pin_mask) != \

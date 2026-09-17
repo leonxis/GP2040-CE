@@ -7,7 +7,7 @@
 
 #define ADC_MAX ((1 << 12) - 1)
 #define ADC_MAX_HALF (ADC_MAX * 0.5f)
-#define ADC_PIN_OFFSET 26
+#define ADC_PIN_OFFSET ADC_BASE_PIN
 
 AnalogInput* AnalogInput::s_instance_ = nullptr;
 
