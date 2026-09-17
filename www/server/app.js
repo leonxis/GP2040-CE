@@ -13,24 +13,6 @@ import { DEFAULT_KEYBOARD_MAPPING } from '../src/Data/Keyboard.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const { pico: picoController } = JSON.parse(
-	readFileSync(path.resolve(__dirname, '../src/Data/Controllers.json'), 'utf8'),
-);
-
-// Structure pin mappings to include masks and profile label
-const createPinMappings = ({ profileLabel = 'Profile', enabled = true }) => {
-	let pinMappings = { profileLabel, enabled };
-
-	for (const [key, value] of Object.entries(picoController)) {
-		pinMappings[key] = {
-			action: value,
-			customButtonMask: 0,
-			customDpadMask: 0,
-		};
-	}
-	return pinMappings;
-};
-
 const port = process.env.PORT || 8080;
 
 const app = express();
@@ -41,8 +23,30 @@ app.use((req, res, next) => {
 	next();
 });
 
+app.get('/api/getBoardDefinition', (req, res) => {
+	return res.send(readFileSync(path.resolve(__dirname, '../src/Data/Boards.json'), 'utf8'));
+});
+
+const { pico: picoController } = JSON.parse(
+	readFileSync(path.resolve(__dirname, '../src/Data/Boards.json'), 'utf8')
+);
+
+// Structure pin mappings to include masks and profile label
+const createPinMappings = ({ profileLabel = 'Profile', enabled = true }) => {
+	let pinMappings = { profileLabel, enabled };
+
+	for (const [key, value] of Object.entries(picoController.usedPins)) {
+		pinMappings[key] = {
+			action: value,
+			customButtonMask: 0,
+			customDpadMask: 0,
+		};
+	}
+	return pinMappings;
+};
+
 app.get('/api/getUsedPins', (req, res) => {
-	return res.send({ usedPins: Object.values(picoController) });
+	return res.send({ usedPins: Object.values(picoController.usedPins) });
 });
 
 app.get('/api/resetSettings', (req, res) => {
@@ -577,7 +581,7 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		tg16PadDataPin3: -1,
 		TG16padAddonEnabled: 1,
 		HETriggerEnabled: 1,
-		usedPins: Object.values(picoController),
+		usedPins: Object.values(picoController.usedPins),
 	});
 });
 
