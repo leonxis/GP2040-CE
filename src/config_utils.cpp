@@ -59,6 +59,20 @@
 #define PREPROCESSOR_JOIN2(x, y) x ## y
 #define PREPROCESSOR_JOIN(x, y) PREPROCESSOR_JOIN2(x, y)
 
+// Analog deadzone defaults may be board-specific; fall back for boards without them
+#ifndef DEFAULT_INNER_DEADZONE
+    #define DEFAULT_INNER_DEADZONE 0
+#endif
+#ifndef DEFAULT_ANTI_DEADZONE
+    #define DEFAULT_ANTI_DEADZONE 0
+#endif
+#ifndef DEFAULT_INNER_DEADZONE2
+    #define DEFAULT_INNER_DEADZONE2 0
+#endif
+#ifndef DEFAULT_ANTI_DEADZONE2
+    #define DEFAULT_ANTI_DEADZONE2 0
+#endif
+
 #define INIT_UNSET_PROPERTY(parent, property, value) \
     if (!parent.PREPROCESSOR_JOIN(has_, property)) \
     { \
