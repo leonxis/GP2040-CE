@@ -17,17 +17,6 @@ pico_board_cmake_set(PICO_PLATFORM, rp2350)
 // 0 = RP2350B/RP2354B (48 GPIO, QFN-80)
 #define PICO_RP2350A 0
 
-// --- UART ---
-#ifndef PICO_DEFAULT_UART
-#define PICO_DEFAULT_UART 0
-#endif
-#ifndef PICO_DEFAULT_UART_TX_PIN
-#define PICO_DEFAULT_UART_TX_PIN 0
-#endif
-#ifndef PICO_DEFAULT_UART_RX_PIN
-#define PICO_DEFAULT_UART_RX_PIN 1
-#endif
-
 // --- FLASH ---
 // RP2354B: 2MB stacked flash on the QSPI bus
 #define PICO_BOOT_STAGE2_CHOOSE_W25Q080 1

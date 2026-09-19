@@ -13,22 +13,24 @@
 
 // Main pin mapping Configuration
 //                                                  // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
-#define GPIO_PIN_23 GpioAction::BUTTON_PRESS_UP     // UP     | UP     | UP      | UP       | UP     | UP     |
-#define GPIO_PIN_06 GpioAction::BUTTON_PRESS_DOWN   // DOWN   | DOWN   | DOWN    | DOWN     | DOWN   | DOWN   |
-#define GPIO_PIN_16 GpioAction::BUTTON_PRESS_LEFT   // LEFT   | LEFT   | LEFT    | LEFT     | LEFT   | LEFT   |
-#define GPIO_PIN_17 GpioAction::BUTTON_PRESS_RIGHT  // RIGHT  | RIGHT  | RIGHT   | RIGHT    | RIGHT  | RIGHT  |
-#define GPIO_PIN_15 GpioAction::BUTTON_PRESS_B1     // B1     | A      | B       | Cross    | 2      | K1     |
+#define GPIO_PIN_22 GpioAction::BUTTON_PRESS_UP     // UP     | UP     | UP      | UP       | UP     | UP     |
+#define GPIO_PIN_23 GpioAction::BUTTON_PRESS_DOWN   // DOWN   | DOWN   | DOWN    | DOWN     | DOWN   | DOWN   |
+#define GPIO_PIN_21 GpioAction::BUTTON_PRESS_LEFT   // LEFT   | LEFT   | LEFT    | LEFT     | LEFT   | LEFT   |
+#define GPIO_PIN_20 GpioAction::BUTTON_PRESS_RIGHT  // RIGHT  | RIGHT  | RIGHT   | RIGHT    | RIGHT  | RIGHT  |
+#define GPIO_PIN_10 GpioAction::BUTTON_PRESS_B1     // B1     | A      | B       | Cross    | 2      | K1     |
 #define GPIO_PIN_07 GpioAction::BUTTON_PRESS_B2     // B2     | B      | A       | Circle   | 3      | K2     |
-#define GPIO_PIN_28 GpioAction::BUTTON_PRESS_R2     // R2     | RT     | ZR      | R2       | 8      | K3     |
-#define GPIO_PIN_29 GpioAction::BUTTON_PRESS_L2     // L2     | LT     | ZL      | L2       | 7      | K4     |
-#define GPIO_PIN_13 GpioAction::BUTTON_PRESS_B3     // B3     | X      | Y       | Square   | 1      | P1     |
-#define GPIO_PIN_14 GpioAction::BUTTON_PRESS_B4     // B4     | Y      | X       | Triangle | 4      | P2     |
-#define GPIO_PIN_21 GpioAction::BUTTON_PRESS_R1     // R1     | RB     | R       | R1       | 6      | P3     |
-#define GPIO_PIN_22 GpioAction::BUTTON_PRESS_L1     // L1     | LB     | L       | L1       | 5      | P4     |
-#define GPIO_PIN_18 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
-#define GPIO_PIN_19 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
-#define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
-#define GPIO_PIN_00 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
+#define GPIO_PIN_42 GpioAction::BUTTON_PRESS_R2     // R2     | RT     | ZR      | R2       | 8      | K3     |
+#define GPIO_PIN_41 GpioAction::BUTTON_PRESS_L2     // L2     | LT     | ZL      | L2       | 7      | K4     |
+#define GPIO_PIN_15 GpioAction::BUTTON_PRESS_B3     // B3     | X      | Y       | Square   | 1      | P1     |
+#define GPIO_PIN_05 GpioAction::BUTTON_PRESS_B4     // B4     | Y      | X       | Triangle | 4      | P2     |
+#define GPIO_PIN_26 GpioAction::BUTTON_PRESS_R1     // R1     | RB     | R       | R1       | 6      | P3     |
+#define GPIO_PIN_17 GpioAction::BUTTON_PRESS_L1     // L1     | LB     | L       | L1       | 5      | P4     |
+#define GPIO_PIN_27 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
+#define GPIO_PIN_32 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
+#define GPIO_PIN_37 GpioAction::BUTTON_PRESS_R3     // R3     | RS     | RS      | R3       | 12     | RS     |
+#define GPIO_PIN_06 GpioAction::BUTTON_PRESS_L3     // L3     | LS     | LS      | L3       | 11     | LS     |
+#define GPIO_PIN_24 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
+#define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
 // Keyboard Mapping Configuration
 //                                            // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
 #define KEY_DPAD_UP     HID_KEY_ARROW_UP      // UP     | UP     | UP      | UP       | UP     | UP     |
@@ -52,24 +54,27 @@
 #define KEY_BUTTON_FN   -1                    // Hotkey Function                                        |
 
 // Setting GPIO pins to assigned by add-on
-#define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 CS
-#define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 SCK
-#define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 TX
-#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // SPI0 RX
-#define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON // CS-LSM6（SPI0）
-#define GPIO_PIN_08 GpioAction::ASSIGNED_TO_ADDON //D+
-#define GPIO_PIN_09 GpioAction::ASSIGNED_TO_ADDON //D-
-#define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON //SDA
-#define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON //SCL
-#define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON //LED
-#define GPIO_PIN_24 GpioAction::ASSIGNED_TO_ADDON // 右背键 ER
-#define GPIO_PIN_25 GpioAction::ASSIGNED_TO_ADDON // 左背键 EL
+#define GPIO_PIN_00 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-CE
+#define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-CS
+#define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-SCK
+#define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-TX
+#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-RX
+#define GPIO_PIN_08 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-RX
+#define GPIO_PIN_09 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-CS
+#define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-TX
+#define GPIO_PIN_13 GpioAction::ASSIGNED_TO_ADDON // SPI1 LSM-CS
+#define GPIO_PIN_14 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-SCK
+#define GPIO_PIN_16 GpioAction::ASSIGNED_TO_ADDON // I2C1 SDA
+#define GPIO_PIN_25 GpioAction::ASSIGNED_TO_ADDON // I2C1 SCL
+#define GPIO_PIN_18 GpioAction::ASSIGNED_TO_ADDON // D+/UART0-TX
+#define GPIO_PIN_19 GpioAction::ASSIGNED_TO_ADDON // D-/UART0-RX
+#define GPIO_PIN_29 GpioAction::ASSIGNED_TO_ADDON //LED
 
-// SPI0: 开启，RX=GPIO0, CS=GPIO1, SCK=GPIO2, TX=GPIO3
+// SPI0: nrf关闭，RX=GPIO4, CS=GPIO1, SCK=GPIO2, TX=GPIO3, CE=GPIO0
 #ifdef SPI0_ENABLED
 #undef SPI0_ENABLED
 #endif
-#define SPI0_ENABLED 1
+#define SPI0_ENABLED 0
 
 #ifdef SPI0_PIN_RX
 #undef SPI0_PIN_RX
@@ -83,36 +88,62 @@
 #ifdef SPI0_PIN_TX
 #undef SPI0_PIN_TX
 #endif
+#define SPI0_PIN_CE 0
 #define SPI0_PIN_CS 1
 #define SPI0_PIN_SCK 2
 #define SPI0_PIN_TX 3
 #define SPI0_PIN_RX 4
-// ADS8332 插件默认：启用（SPI0/CS/CONVST 在 ads8332_adc 中硬编码）
-#define ADS8332_DEFAULT_ENABLED 0
-// LSM6 插件默认：关闭（SPI0/CS 在 lsm6dsr_imu 中硬编码）
+
+// SPI1: MCP3208+LSM6DSRTR开启，RX=GPIO8, MCP-CS=GPIO9, LSM-CS=GPIO13, SCK=GPIO14, TX=GPIO11
+#ifdef SPI1_ENABLED
+#undef SPI1_ENABLED
+#endif
+#define SPI1_ENABLED 1
+
+#ifdef SPI1_PIN_RX
+#undef SPI1_PIN_RX
+#endif
+#ifdef SPI1_PIN_CS
+#undef SPI1_PIN_CS
+#endif
+#ifdef SPI1_PIN_SCK
+#undef SPI1_PIN_SCK
+#endif
+#ifdef SPI1_PIN_TX
+#undef SPI1_PIN_TX
+#endif
+#define SPI1_PIN_CS1 13
+#define SPI1_PIN_CS 9
+#define SPI1_PIN_SCK 14
+#define SPI1_PIN_TX 11
+#define SPI1_PIN_RX 8
+
+// 摇杆插件默认：启用（不在插件硬编码）
+#define ADS8332_DEFAULT_ENABLED 1
+// LSM6 插件默认：关闭（CS1不在插件硬编码）
 #define LSM6DSR_DEFAULT_ENABLED 0
 
-// 背键/FN/触摸左右键：仅用于首次初始化「背键方案1」(hmlBackMappingPresetOptions.presets[0])；方案2/3 出厂为 NONE
+// 背键/FN/触摸左右键：2354B 版型 GPIO 充足，背键为独立数字键，直接映射进主 GPIO 表
+// （RP2040 版的 ADC 分压背键插件在 RP2350 平台已禁用，数字背键插件待后续实现）
+// 以下为出厂预留直连映射；将来数字背键插件就绪后改为 ASSIGNED_TO_ADDON + 逻辑映射
 // 2键触摸板硬件开关（全局，与方案无关）：0=关闭
 #define HML_TWOKEY_TOUCHPAD_ENABLED 0
 #define HML_TWOKEY_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
 #define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
-// FN/MT 键映射（config_utils 在未设置时写入背键方案1）
-#define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_L1
-#define HML_RIGHT_FN_ACTION GpioAction::BUTTON_PRESS_R1
-#define HML_LEFT_MT_ACTION  GpioAction::BUTTON_PRESS_FN
-#define HML_RIGHT_MT_ACTION GpioAction::BUTTON_PRESS_A1
-#define HML_EXT_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
-#define HML_EXT_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
+// FN/MT 键（GPIO 直连预留）
+#define GPIO_PIN_38 GpioAction::BUTTON_PRESS_L1 //RMT
+#define GPIO_PIN_39 GpioAction::BUTTON_PRESS_R1 //RFN
+#define GPIO_PIN_45 GpioAction::BUTTON_PRESS_FN //LFN
+#define GPIO_PIN_47 GpioAction::BUTTON_PRESS_A1 //LMT
 
-// 背键设置插件：逻辑背键映射默认值（仅背键方案1，与 GPIO 解耦）
-#define HML_BACK_L1_ACTION GpioAction::BUTTON_PRESS_B1  // 左背键1
-#define HML_BACK_R1_ACTION GpioAction::BUTTON_PRESS_B2  // 右背键1
-#define HML_BACK_L2_ACTION GpioAction::BUTTON_PRESS_B3 // 左背键2
-#define HML_BACK_R2_ACTION GpioAction::BUTTON_PRESS_B4  // 右背键2
-#define HML_BACK_EL_ACTION GpioAction::BUTTON_PRESS_B1  // 左背键 EL (GPIO25)
-#define HML_BACK_ER_ACTION GpioAction::BUTTON_PRESS_B2  // 右背键 ER (GPIO24)
+// 背键（GPIO 直连预留）
+#define GPIO_PIN_30 GpioAction::BUTTON_PRESS_B1 // 右背键1
+#define GPIO_PIN_31 GpioAction::BUTTON_PRESS_B2 // 左背键1
+#define GPIO_PIN_33 GpioAction::BUTTON_PRESS_B3 // 左背键2
+#define GPIO_PIN_34 GpioAction::BUTTON_PRESS_B4 // 右背键2
+#define GPIO_PIN_35 GpioAction::BUTTON_PRESS_A1 // 左背键3
+#define GPIO_PIN_36 GpioAction::BUTTON_PRESS_A2 // 右背键3
 
 // 摇杆叠加 RC 增益：首次写入存储时的默认值（RC 抖动强度 / 抖动幅度 / 衰减范围，单位 %）
 #define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT 100.0f
@@ -120,7 +151,7 @@
 #define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED3_DEFAULT 3.0f
 
 // LED Configuration
-#define BOARD_LEDS_PIN 20
+#define BOARD_LEDS_PIN 29
 #define LED_BRIGHTNESS_MAXIMUM 35
 #define CASE_RGB_TYPE  CASE_RGB_TYPE_AMBIENT
 #define CASE_RGB_INDEX 0
@@ -157,10 +188,10 @@
 #define I2C1_ENABLED 0
 #endif
 #ifndef I2C1_PIN_SDA
-#define I2C1_PIN_SDA 10
+#define I2C1_PIN_SDA 16
 #endif
 #ifndef I2C1_PIN_SCL
-#define I2C1_PIN_SCL 11
+#define I2C1_PIN_SCL 25
 #endif
 #define SPLASH_MODE SPLASH_MODE_STATIC
 #define SPLASH_DURATION 1000
@@ -168,24 +199,20 @@
 // USB Passthrough
 #define USB_PERIPHERAL_ENABLED 0
 #ifndef USB_PERIPHERAL_PIN_DPLUS
-#define USB_PERIPHERAL_PIN_DPLUS 8
+#define USB_PERIPHERAL_PIN_DPLUS 18
 #endif
 
-// --- UART 无线链路（GPIO08/09 复用 UART1 功能） ---
-#define UART_LINK_ENABLED   1
-#define UART_LINK_TX_PIN    8
-#define UART_LINK_RX_PIN    9
-#define UART_LINK_BAUD      921600   // 沿用 GP-combine 原宏名
-
-// --- 无线连接开关板级默认值为关闭（网页/miniled 开关共用） ---
-// HML 板默认关闭无线链路。
-// 首次刷机/旧配置无此字段时由 config_utils 的 INIT_UNSET_PROPERTY 写入此值。
-// 运行时开关仍可通过网页/miniled 显式关闭。
-#define DEFAULT_WIRELESS_LINK_ENABLED 0
-
+// --- UART 无线链路（GPIO18/19 复用 UART0 功能）（复用蓝牙模式连接开关，使其同开通关） ---
 // --- 蓝牙模式开关板级默认值为关闭（网页/miniled 开关共用） ---
 // 开启后 UART 链路 STATUS 帧通知 ESP32 走 BLE 输出路径；与无线连接、USB 验证器三互斥。
 #define DEFAULT_BLUETOOTH_LINK_ENABLED 0
+#define UART_LINK_TX_PIN    18
+#define UART_LINK_RX_PIN    19
+#define UART_LINK_BAUD      921600
+
+// --- 无线连接开关板级默认值为关闭（与UART链路开关复用） ---
+// 运行时开关仍可通过网页/miniled 显式关闭。
+#define DEFAULT_WIRELESS_LINK_ENABLED 0
 
 // PS AUTH
 #define DEFAULT_PS4CONTROLLER_TYPE PS4_CONTROLLER

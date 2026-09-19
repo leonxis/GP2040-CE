@@ -122,9 +122,9 @@ void LinearTriggerAddon::preprocess() {
         return;
     }
 
-    adc_select_input(LINEAR_L2_PIN - 26);  // GPIO29 = ADC channel 3 = L2
+    adc_select_input(LINEAR_L2_PIN - ADC_BASE_PIN);
     uint16_t rawL2 = adc_read();
-    adc_select_input(LINEAR_R2_PIN - 26);  // GPIO28 = ADC channel 2 = R2
+    adc_select_input(LINEAR_R2_PIN - ADC_BASE_PIN);
     uint16_t rawR2 = adc_read();
 
     const uint8_t hwLt = invertL

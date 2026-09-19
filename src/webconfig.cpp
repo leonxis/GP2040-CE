@@ -2210,11 +2210,11 @@ std::string getHETriggerCalibration()
         return serialize_json(doc);
     }
 
-    if ( adcSelectPin < 26 || adcSelectPin > 29) {
+    if ( adcSelectPin < ADC_BASE_PIN || adcSelectPin > ADC_BASE_PIN + NUM_ADC_CHANNELS - 2) {
         doc["error"] = "adc pin out of range";
         return serialize_json(doc);
     }
-    adc_select_input(adcSelectPin-26);
+    adc_select_input(adcSelectPin-ADC_BASE_PIN);
     // Web-Config triggers getHECalibration every 50ms, game controller triggers <1ms
     if ( calibrationSmoothing ) {
         uint16_t read;
@@ -3320,9 +3320,9 @@ std::string getTriggerAdcValues()
     DynamicJsonDocument doc(JSON_OBJECT_SIZE(4));
     adc_gpio_init(LINEAR_L2_PIN);
     adc_gpio_init(LINEAR_R2_PIN);
-    adc_select_input(LINEAR_L2_PIN - 26);
+    adc_select_input(LINEAR_L2_PIN - ADC_BASE_PIN);
     uint16_t leftRaw = adc_read();
-    adc_select_input(LINEAR_R2_PIN - 26);
+    adc_select_input(LINEAR_R2_PIN - ADC_BASE_PIN);
     uint16_t rightRaw = adc_read();
     doc["leftTriggerRaw"] = leftRaw;
     doc["rightTriggerRaw"] = rightRaw;

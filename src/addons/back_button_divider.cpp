@@ -37,8 +37,14 @@ enum BackMapIndex : uint8_t {
 };
 
 bool BackButtonDividerAddon::available() {
+#if defined(BACK_BUTTON_DIVIDER_DISABLED) || defined(PICO_RP2350)
+    // RP2350(A/B) 的 ADC 位于 GPIO40+，本插件分压接线（ADC@GPIO26/27、EL/ER@GPIO24/25）
+    // 为 RP2040 HML 版型专属；48-pin 版型（如 RP2354B）改用 GPIO 直连数字背键。
+    return false;
+#else
     // 始终可用：由是否设置了背键映射决定是否实际输出
     return true;
+#endif
 }
 
 void BackButtonDividerAddon::buildMappings() {
