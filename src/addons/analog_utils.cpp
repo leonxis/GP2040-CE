@@ -1,55 +1,15 @@
 #include "addons/analog_utils.h"
-#include "addons/analog.h"  // For ADC_PIN_OFFSET definition
-#include "addons/ads8332_adc.h"
 #include "addons/mcp3208_adc.h"
 #include "storagemanager.h"
 #include "eventmanager.h"
-#include "hardware/adc.h"
-#include "helper.h"
 
-// Use ADC_PIN_OFFSET from analog.cpp
-// Note: This is defined in analog.cpp, but we need it here
-// We'll use the same value to maintain consistency
-#ifndef ADC_PIN_OFFSET
-#define ADC_PIN_OFFSET 26
-#endif
-
+// 仅支持 MCP3208 外置 ADC 作为摇杆数据源（RP2354B 片上 ADC 基址为 GPIO40，
+// 不再提供片上 ADC 回落路径）
 bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {
     x = 0;
     y = 0;
     adcMax = 0;
-
-    // Match Core0 addon write priority for stick fields:
-    // ADS8332 -> MCP3208 -> Onboard ADC
-    if (ADS8332ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
-        return true;
-    }
-    if (MCP3208ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
-        return true;
-    }
-
-    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-    if (!analogOptions.enabled) {
-        return false;
-    }
-
-    adc_init();
-    Pin_t xPin = (stickNum == 0) ? analogOptions.analogAdc1PinX : analogOptions.analogAdc2PinX;
-    Pin_t yPin = (stickNum == 0) ? analogOptions.analogAdc1PinY : analogOptions.analogAdc2PinY;
-
-    if (isValidPin(xPin)) {
-        adc_gpio_init(xPin);
-        adc_select_input(xPin - ADC_PIN_OFFSET);
-        x = adc_read();
-    }
-    if (isValidPin(yPin)) {
-        adc_gpio_init(yPin);
-        adc_select_input(yPin - ADC_PIN_OFFSET);
-        y = adc_read();
-    }
-
-    adcMax = 4095u;
-    return true;
+    return MCP3208ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax);
 }
 
 void calculateCalibrationCenter(const uint16_t values[8], uint32_t& avgX, uint32_t& avgY) {
@@ -62,15 +22,15 @@ void calculateCalibrationCenter(const uint16_t values[8], uint32_t& avgX, uint32
 
 void saveCalibrationValues(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2) {
     AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
-    
+
     // Save calibration values
     analogOptions.joystick_center_x = x1;
     analogOptions.joystick_center_y = y1;
     analogOptions.joystick_center_x2 = x2;
     analogOptions.joystick_center_y2 = y2;
-    
+
     // Auto calibration removed - manual calibration values are always used
-    
+
     // Save to flash
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true, false));
 }

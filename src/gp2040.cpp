@@ -16,9 +16,7 @@
 // Inputs for Core0
 #include "addons/analog.h"
 #include "addons/unified_analog_processor.h"
-#include "addons/unified_voltage_switch.h"
 #include "addons/unified_joystick_travel_key.h"
-#include "addons/ads8332_adc.h"
 #include "addons/mcp3208_adc.h"
 #include "addons/lsm6dsr_imu.h"
 #include "addons/bootsel_button.h"
@@ -40,7 +38,7 @@
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
 #include "addons/two_key_touchpad.h"
-#include "addons/back_button_divider.h"
+#include "addons/hml_back_key.h"
 #include "addons/tg16_input.h"
 
 // Pico includes
@@ -199,8 +197,6 @@ static uint32_t main_loop_gate_interval_max_us = 0;
 static uint16_t main_loop_gate_stable_completions = 0;
 static GateLateAnalogSource main_loop_gate_analog_source =
         GateLateAnalogSource::None;
-static MainLoopGateRollingMax main_loop_gate_ads8332_burst_setup_wcet;
-static MainLoopGateRollingMax main_loop_gate_ads8332_sample_wcet;
 static MainLoopGateRollingMax main_loop_gate_mcp3208_burst_setup_wcet;
 static MainLoopGateRollingMax main_loop_gate_mcp3208_sample_wcet;
 static MainLoopGateRollingMax main_loop_gate_final_process_wcet;
@@ -237,8 +233,6 @@ static inline uint32_t mainLoopGateTimeRemaining(
 static MainLoopGateRollingMax* mainLoopGateADCWcet(
         GateLateAnalogSource source) {
         switch (source) {
-                case GateLateAnalogSource::ADS8332:
-                        return &main_loop_gate_ads8332_sample_wcet;
                 case GateLateAnalogSource::MCP3208:
                         return &main_loop_gate_mcp3208_sample_wcet;
                 case GateLateAnalogSource::None:
@@ -250,8 +244,6 @@ static MainLoopGateRollingMax* mainLoopGateADCWcet(
 static MainLoopGateRollingMax* mainLoopGateADCBurstSetupWcet(
         GateLateAnalogSource source) {
         switch (source) {
-                case GateLateAnalogSource::ADS8332:
-                        return &main_loop_gate_ads8332_burst_setup_wcet;
                 case GateLateAnalogSource::MCP3208:
                         return &main_loop_gate_mcp3208_burst_setup_wcet;
                 case GateLateAnalogSource::None:
@@ -276,8 +268,6 @@ static bool mainLoopGateSchedulingMeasurementsReady() {
 }
 
 static void resetMainLoopGateMeasurements() {
-        main_loop_gate_ads8332_burst_setup_wcet.reset();
-        main_loop_gate_ads8332_sample_wcet.reset();
         main_loop_gate_mcp3208_burst_setup_wcet.reset();
         main_loop_gate_mcp3208_sample_wcet.reset();
         main_loop_gate_final_process_wcet.reset();
@@ -307,10 +297,6 @@ void getMainLoopGateStats(MainLoopGateStats* stats) {
                         ? 0
                         : main_loop_gate_phase_min_us;
         stats->phaseMaxUs = main_loop_gate_phase_max_us;
-        stats->ads8332BurstSetupWcetUs =
-                main_loop_gate_ads8332_burst_setup_wcet.maximum;
-        stats->ads8332SampleWcetUs =
-                main_loop_gate_ads8332_sample_wcet.maximum;
         stats->mcp3208BurstSetupWcetUs =
                 main_loop_gate_mcp3208_burst_setup_wcet.maximum;
         stats->mcp3208SampleWcetUs =
@@ -1027,15 +1013,15 @@ void GP2040::setup() {
 	Storage::getInstance().init();
 
 	PeripheralManager::getInstance().initUSB();
-	// 根据持久化配置的超频等级设置 RP2040 系统频率：
-	// 0=普通144MHz, 1=中度156MHz, 2=重度168MHz, 3=发烧180MHz
-	uint32_t cpu_freq_khz = 144000;
+	// 根据持久化配置的超频等级设置系统频率：
+	// 0=普通180MHz, 1=中度204MHz, 2=重度240MHz, 3=发烧288MHz
+	uint32_t cpu_freq_khz = 180000;
 	switch (Storage::getInstance().getAddonOptions().cpuOverclockLevel) {
-		case CPU_OVERCLOCK_MODERATE: cpu_freq_khz = 156000; break;
-		case CPU_OVERCLOCK_HEAVY:    cpu_freq_khz = 168000; break;
-		case CPU_OVERCLOCK_EXTREME:  cpu_freq_khz = 180000; break;
+		case CPU_OVERCLOCK_MODERATE: cpu_freq_khz = 204000; break;
+		case CPU_OVERCLOCK_HEAVY:    cpu_freq_khz = 240000; break;
+		case CPU_OVERCLOCK_EXTREME:  cpu_freq_khz = 288000; break;
 		case CPU_OVERCLOCK_NORMAL:
-		default:                     cpu_freq_khz = 144000; break;
+		default:                     cpu_freq_khz = 180000; break;
 	}
 	set_sys_clock_khz(cpu_freq_khz, true);
 
@@ -1075,15 +1061,13 @@ void GP2040::setup() {
 	addons.LoadUSBAddon(new KeyboardHostAddon());
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
 	addons.LoadAddon(new AnalogInput());
-	addons.LoadAddon(new ADS8332ADCAddon());
 	addons.LoadAddon(new MCP3208ADCAddon());
 	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
-	addons.LoadAddon(new UnifiedVoltageSwitchAddon());
 	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon());
 	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new TwoKeyTouchpadAddon());
-	addons.LoadAddon(new BackButtonDividerAddon());
+	addons.LoadAddon(new HmlBackKeyAddon());
 	// 须在背键/触摸板/FN 电压映射之后：preprocess 内合并 ADC 与映射的 L2/R2（含 lt/rt）
 	addons.LoadAddon(new LinearTriggerAddon());
 	addons.LoadAddon(new BootselButtonAddon());

@@ -525,7 +525,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		TurboInputEnabled: 1,
 		WiiExtensionAddonEnabled: 1,
 		SNESpadAddonEnabled: 1,
-		ADS8332AddonEnabled: 0,
 		LSM6DSRAddonEnabled: 0,
 		lsm6dsrOutputMode: 0,
 		lsm6dsrOffsetGyroX: 0,
@@ -913,60 +912,6 @@ app.get('/api/calibrateLSM6DSRAccel', (req, res) => {
 
 const emptyMapping = { action: 0, customButtonMask: 0, customDpadMask: 0 };
 
-const hmlBackPresetStubs = [
-	{
-		leftBack1: emptyMapping,
-		rightBack1: emptyMapping,
-		leftBack2: emptyMapping,
-		rightBack2: emptyMapping,
-		leftEl: emptyMapping,
-		rightEr: emptyMapping,
-	},
-	{
-		leftBack1: { action: 23, customButtonMask: 0, customDpadMask: 0 },
-		rightBack1: emptyMapping,
-		leftBack2: emptyMapping,
-		rightBack2: emptyMapping,
-		leftEl: emptyMapping,
-		rightEr: emptyMapping,
-	},
-	{
-		leftBack1: emptyMapping,
-		rightBack1: emptyMapping,
-		leftBack2: emptyMapping,
-		rightBack2: emptyMapping,
-		leftEl: emptyMapping,
-		rightEr: emptyMapping,
-	},
-];
-
-const hmlFnPresetStubs = [
-	{
-		leftFn: emptyMapping,
-		rightFn: emptyMapping,
-		leftMt: emptyMapping,
-		rightMt: emptyMapping,
-		extLeftTrigger: emptyMapping,
-		extRightTrigger: emptyMapping,
-	},
-	{
-		leftFn: { action: 27, customButtonMask: 0, customDpadMask: 0 },
-		rightFn: emptyMapping,
-		leftMt: emptyMapping,
-		rightMt: emptyMapping,
-		extLeftTrigger: emptyMapping,
-		extRightTrigger: emptyMapping,
-	},
-	{
-		leftFn: emptyMapping,
-		rightFn: emptyMapping,
-		leftMt: emptyMapping,
-		rightMt: emptyMapping,
-		extLeftTrigger: emptyMapping,
-		extRightTrigger: emptyMapping,
-	},
-];
-
 const hmlTwoKeyPresetStubs = [
 	{ leftKey: emptyMapping, rightKey: emptyMapping },
 	{
@@ -1030,44 +975,6 @@ app.post('/api/setTwoKeyTouchpadGlobalOptions', (req, res) => {
 	return sendGlobalTwoKey(res);
 });
 
-app.get('/api/getBackButtonAddonOptions', (req, res) => {
-	const presetIndex = parsePresetIndex(req) ?? 0;
-	return res.send({
-		...hmlBackPresetStubs[presetIndex],
-		activePreset: hmlActivePreset,
-	});
-});
-
-app.get('/api/getBackButtonAddonOptions/:presetIndex', (req, res) => {
-	const presetIndex = Number(req.params.presetIndex);
-	if (!Number.isInteger(presetIndex) || presetIndex < 0 || presetIndex > 2) {
-		return res.status(400).send({ error: 'invalid presetIndex' });
-	}
-	return res.send({
-		...hmlBackPresetStubs[presetIndex],
-		activePreset: hmlActivePreset,
-	});
-});
-
-app.get('/api/getFnKeyMappingOptions', (req, res) => {
-	const presetIndex = parsePresetIndex(req) ?? 0;
-	return res.send({
-		...hmlFnPresetStubs[presetIndex],
-		activePreset: hmlActivePreset,
-	});
-});
-
-app.get('/api/getFnKeyMappingOptions/:presetIndex', (req, res) => {
-	const presetIndex = Number(req.params.presetIndex);
-	if (!Number.isInteger(presetIndex) || presetIndex < 0 || presetIndex > 2) {
-		return res.status(400).send({ error: 'invalid presetIndex' });
-	}
-	return res.send({
-		...hmlFnPresetStubs[presetIndex],
-		activePreset: hmlActivePreset,
-	});
-});
-
 app.post('/api/setTwoKeyTouchpadOptions', (req, res) => {
 	const body = req.body || {};
 	if (body.presetIndex === undefined && body.section === undefined) {
@@ -1093,44 +1000,6 @@ app.post('/api/setTwoKeyTouchpadOptions', (req, res) => {
 		body.section === undefined
 	) {
 		return sendGlobalTwoKey(res);
-	}
-	return res.send(body);
-});
-
-app.post('/api/setBackButtonAddonOptions', (req, res) => {
-	const body = req.body || {};
-	const index = Number(body.presetIndex);
-	if (Number.isInteger(index) && index >= 0 && index <= 2) {
-		hmlBackPresetStubs[index] = {
-			leftBack1: body.leftBack1 || emptyMapping,
-			rightBack1: body.rightBack1 || emptyMapping,
-			leftBack2: body.leftBack2 || emptyMapping,
-			rightBack2: body.rightBack2 || emptyMapping,
-			leftEl: body.leftEl || emptyMapping,
-			rightEr: body.rightEr || emptyMapping,
-		};
-		if (body.setActive !== false) {
-			hmlActivePreset = index;
-		}
-	}
-	return res.send(body);
-});
-
-app.post('/api/setFnKeyMappingOptions', (req, res) => {
-	const body = req.body || {};
-	const index = Number(body.presetIndex);
-	if (Number.isInteger(index) && index >= 0 && index <= 2) {
-		hmlFnPresetStubs[index] = {
-			leftFn: body.leftFn || emptyMapping,
-			rightFn: body.rightFn || emptyMapping,
-			leftMt: body.leftMt || emptyMapping,
-			rightMt: body.rightMt || emptyMapping,
-			extLeftTrigger: body.extLeftTrigger || emptyMapping,
-			extRightTrigger: body.extRightTrigger || emptyMapping,
-		};
-		if (body.setActive !== false) {
-			hmlActivePreset = index;
-		}
 	}
 	return res.send(body);
 });

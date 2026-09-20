@@ -35,7 +35,6 @@
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
-#include "addons/ads8332_adc.h"
 #include "addons/mcp3208_adc.h"
 #include "addons/lsm6dsr_imu.h"
 #include "addons/tg16_input.h"
@@ -1127,20 +1126,8 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerInvert, false);
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerInvert, false);
 #endif
-    if (!config.addonOptions.ads8332Options.has_enabled &&
-        config.addonOptions.mcp3208Options.has_enabled) {
-        config.addonOptions.ads8332Options.enabled =
-            !config.addonOptions.mcp3208Options.enabled;
-        config.addonOptions.ads8332Options.has_enabled = true;
-    }
-#if defined(ADS8332_DEFAULT_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, ADS8332_DEFAULT_ENABLED);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, 0);
-#endif
-    config.addonOptions.has_ads8332Options = true;
-    config.addonOptions.mcp3208Options.enabled =
-        !config.addonOptions.ads8332Options.enabled;
+    // MCP3208 ADC is always enabled (no user-facing toggle).
+    config.addonOptions.mcp3208Options.enabled = true;
     config.addonOptions.mcp3208Options.has_enabled = true;
     config.addonOptions.has_mcp3208Options = true;
 #if defined(LSM6DSR_DEFAULT_ENABLED)
@@ -1733,12 +1720,8 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed(config.addonOptions.heTriggerOptions.selectPin3);
     }
 
-    if (config.addonOptions.ads8332Options.enabled) {
-        markAddonPinIfUsed((Pin_t)ADS8332_HW_CS_PIN);
-        markAddonPinIfUsed((Pin_t)ADS8332_HW_CONVST_PIN);
-    } else if (config.addonOptions.mcp3208Options.enabled) {
-        markAddonPinIfUsed((Pin_t)MCP3208_HW_CS_PIN);
-    }
+    // MCP3208 ADC is always enabled; its fixed SPI CS pin is addon-reserved.
+    markAddonPinIfUsed((Pin_t)MCP3208_HW_CS_PIN);
     if (config.addonOptions.lsm6dsrOptions.enabled) {
         markAddonPinIfUsed((Pin_t)LSM6DSR_HW_CS_PIN);
     }

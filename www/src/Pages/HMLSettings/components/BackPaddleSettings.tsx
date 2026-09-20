@@ -19,7 +19,6 @@ import {
 } from './ActionMappingOptions';
 import MappingPresetShell, { PRESET_TAB_KEYS, PresetTabKey } from './MappingPresetShell';
 import {
-	defaultPinData,
 	getMultiValue,
 	getPayloadFromSelected,
 	toMaskPayload,
@@ -31,66 +30,69 @@ type AppContextShape = {
 };
 
 type PresetBundle = {
-	back: Record<string, MaskPayload>;
-	fn: Record<string, MaskPayload>;
 	twoKey: Record<string, MaskPayload>;
+	backKeys: Record<string, MaskPayload>;
 };
 
-const emptyBack = (): Record<string, MaskPayload> => ({
-	leftEl: { ...defaultPinData },
-	rightEr: { ...defaultPinData },
-	leftBack1: { ...defaultPinData },
-	rightBack1: { ...defaultPinData },
-	leftBack2: { ...defaultPinData },
-	rightBack2: { ...defaultPinData },
+const nonePayload = (): MaskPayload => ({
+	action: BUTTON_ACTIONS.NONE as PinActionValues,
+	customButtonMask: 0,
+	customDpadMask: 0,
 });
 
-const emptyFn = (): Record<string, MaskPayload> => ({
-	leftFn: { ...defaultPinData },
-	rightFn: { ...defaultPinData },
-	leftMt: { ...defaultPinData },
-	rightMt: { ...defaultPinData },
-	extLeftTrigger: { ...defaultPinData },
-	extRightTrigger: { ...defaultPinData },
-});
+// 背键映射 10 项，顺序即界面行序（一行两个）
+const BACK_KEY_FIELDS = [
+	'leftBack1',
+	'rightBack1',
+	'leftBack2',
+	'rightBack2',
+	'leftBack3',
+	'rightBack3',
+	'leftFn',
+	'rightFn',
+	'leftMt',
+	'rightMt',
+] as const;
+
+const BACK_KEY_LABELS: Record<string, string> = {
+	leftBack1: 'hml-back-left1',
+	rightBack1: 'hml-back-right1',
+	leftBack2: 'hml-back-left2',
+	rightBack2: 'hml-back-right2',
+	leftBack3: 'hml-back-left3',
+	rightBack3: 'hml-back-right3',
+	leftFn: 'hml-back-leftfn',
+	rightFn: 'hml-back-rightfn',
+	leftMt: 'hml-back-leftmt',
+	rightMt: 'hml-back-rightmt',
+};
 
 const emptyTwoKey = (): Record<string, MaskPayload> => ({
-	leftKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
-	rightKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+	leftKey: nonePayload(),
+	rightKey: nonePayload(),
 });
+
+const emptyBackKeys = (): Record<string, MaskPayload> =>
+	Object.fromEntries(BACK_KEY_FIELDS.map((k) => [k, nonePayload()]));
 
 const cloneBundle = (b: PresetBundle): PresetBundle => ({
-	back: Object.fromEntries(Object.entries(b.back).map(([k, v]) => [k, { ...v }])),
-	fn: Object.fromEntries(Object.entries(b.fn).map(([k, v]) => [k, { ...v }])),
 	twoKey: Object.fromEntries(Object.entries(b.twoKey).map(([k, v]) => [k, { ...v }])),
+	backKeys: Object.fromEntries(Object.entries(b.backKeys).map(([k, v]) => [k, { ...v }])),
 });
 
-const parseBack = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
-	leftEl: toMaskPayload(data.leftEl),
-	rightEr: toMaskPayload(data.rightEr),
-	leftBack1: toMaskPayload(data.leftBack1),
-	rightBack1: toMaskPayload(data.rightBack1),
-	leftBack2: toMaskPayload(data.leftBack2),
-	rightBack2: toMaskPayload(data.rightBack2),
-});
+type MappingData = Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>;
 
-const parseFn = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
-	leftFn: toMaskPayload(data.leftFn),
-	rightFn: toMaskPayload(data.rightFn),
-	leftMt: toMaskPayload(data.leftMt),
-	rightMt: toMaskPayload(data.rightMt),
-	extLeftTrigger: toMaskPayload(data.extLeftTrigger),
-	extRightTrigger: toMaskPayload(data.extRightTrigger),
-});
-
-const parseTwoKey = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
-	leftKey: data.leftKey
-		? toMaskPayload(data.leftKey)
-		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
-	rightKey: data.rightKey
-		? toMaskPayload(data.rightKey)
-		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
-});
+const parseMappingGroup = (
+	data: MappingData,
+	fields: readonly string[],
+	empty: () => Record<string, MaskPayload>,
+): Record<string, MaskPayload> => {
+	const result = empty();
+	for (const key of fields) {
+		result[key] = data[key] ? toMaskPayload(data[key]) : nonePayload();
+	}
+	return result;
+};
 
 function BackPaddleSettingsBody({
 	presetIndex,
@@ -110,9 +112,8 @@ function BackPaddleSettingsBody({
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isSaving, setIsSaving] = useState(false);
 
-	const backAddonOptions = bundle.back;
-	const fnOptions = bundle.fn;
 	const twoKeyOptions = bundle.twoKey;
+	const backKeyOptions = bundle.backKeys;
 
 	const buttonNames = useMemo(() => {
 		const defaultButtons = getButtonLabels('gp2040', false);
@@ -136,48 +137,35 @@ function BackPaddleSettingsBody({
 		[buttonNames, t],
 	);
 
-	const patchBack = (key: string, payload: MaskPayload) =>
-		onBundleChange({ ...bundle, back: { ...bundle.back, [key]: payload } });
-	const patchFn = (key: string, payload: MaskPayload) =>
-		onBundleChange({ ...bundle, fn: { ...bundle.fn, [key]: payload } });
 	const patchTwoKey = (key: string, payload: MaskPayload) =>
 		onBundleChange({ ...bundle, twoKey: { ...bundle.twoKey, [key]: payload } });
 
+	const patchBackKey = (key: string, payload: MaskPayload) =>
+		onBundleChange({ ...bundle, backKeys: { ...bundle.backKeys, [key]: payload } });
+
 	const handleSaveAll = useCallback(async () => {
-		const { back, fn, twoKey } = bundle;
+		const { twoKey, backKeys } = bundle;
 		setSaveMessage('');
 		setIsSaving(true);
 		try {
-			const backReq = WebApi.setBackButtonAddonOptions({
-				presetIndex,
-				setActive: true,
-				leftEl: back.leftEl,
-				rightEr: back.rightEr,
-				leftBack1: back.leftBack1,
-				rightBack1: back.rightBack1,
-				leftBack2: back.leftBack2,
-				rightBack2: back.rightBack2,
-			});
-			const fnReq = WebApi.setFnKeyMappingOptions({
-				presetIndex,
-				setActive: true,
-				leftFn: fn.leftFn,
-				rightFn: fn.rightFn,
-				leftMt: fn.leftMt,
-				rightMt: fn.rightMt,
-				extLeftTrigger: fn.extLeftTrigger,
-				extRightTrigger: fn.extRightTrigger,
-			});
-			const twoKeyReq = WebApi.setTwoKeyTouchpadOptions({
-				presetIndex,
-				setActive: true,
-				section: 'twoKey',
-				leftKey: twoKey.leftKey,
-				rightKey: twoKey.rightKey,
-			});
-			const [backOk, fnOk, twoKeyResult] = await Promise.all([backReq, fnReq, twoKeyReq]);
+			const requests: Promise<unknown>[] = [
+				WebApi.setTwoKeyTouchpadOptions({
+					presetIndex,
+					setActive: true,
+					section: 'twoKey',
+					leftKey: twoKey.leftKey,
+					rightKey: twoKey.rightKey,
+				}),
+				WebApi.setTwoKeyTouchpadOptions({
+					presetIndex,
+					setActive: true,
+					section: 'backKeys',
+					...backKeys,
+				}),
+			];
+			const results = await Promise.all(requests);
 			// WebApi setters return false/null on failure instead of throwing
-			if (backOk !== true || fnOk !== true || twoKeyResult == null) {
+			if (results.some((r) => r == null)) {
 				setSaveMessage(t('Common:saved-error-message'));
 				setTimeout(() => setSaveMessage(''), 3000);
 				return;
@@ -190,22 +178,13 @@ function BackPaddleSettingsBody({
 			setSaveMessage(t('Common:saved-success-message'));
 			setTimeout(() => setSaveMessage(''), 3000);
 		} catch (error) {
-			console.error('Failed to save HML paddle / touchpad / Fn mappings:', error);
+			console.error('Failed to save HML back key mapping:', error);
 			setSaveMessage(t('Common:saved-error-message'));
 			setTimeout(() => setSaveMessage(''), 3000);
 		} finally {
 			setIsSaving(false);
 		}
 	}, [appContext, bundle, onSaved, presetIndex, t]);
-
-	const backMappingRows = [
-		{ key: 'leftEl', labelKey: 'hml-paddle-left-el' },
-		{ key: 'rightEr', labelKey: 'hml-paddle-right-er' },
-		{ key: 'leftBack1', labelKey: 'hml-paddle-left-1' },
-		{ key: 'rightBack1', labelKey: 'hml-paddle-right-1' },
-		{ key: 'leftBack2', labelKey: 'hml-paddle-left-2' },
-		{ key: 'rightBack2', labelKey: 'hml-paddle-right-2' },
-	];
 
 	const selectRow = (
 		labelKey: string,
@@ -242,37 +221,14 @@ function BackPaddleSettingsBody({
 				<Card.Header>{t('SettingsPage:hml-tab-back-buttons')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{backMappingRows.map(({ key, labelKey }) =>
-							selectRow(labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`),
+						{BACK_KEY_FIELDS.map((field) =>
+							selectRow(
+								BACK_KEY_LABELS[field],
+								backKeyOptions[field],
+								(p) => patchBackKey(field, p),
+								`bk-${field}`,
+							),
 						)}
-					</Row>
-				</Card.Body>
-			</Card>
-
-			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
-				<Card.Body>
-					{twoKeyTouchpadEnabled ? (
-						<Row className="g-3">
-							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
-							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
-						</Row>
-					) : (
-						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
-					)}
-				</Card.Body>
-			</Card>
-
-			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
-				<Card.Body>
-					<Row className="g-3">
-						{selectRow('hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l')}
-						{selectRow('hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r')}
-						{selectRow('hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l')}
-						{selectRow('hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r')}
-						{selectRow('hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l')}
-						{selectRow('hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r')}
 					</Row>
 					<Row className="mt-3">
 						<Col sm={4}>
@@ -294,6 +250,20 @@ function BackPaddleSettingsBody({
 					</Row>
 				</Card.Body>
 			</Card>
+
+			<Card style={{ marginBottom: '1rem' }}>
+				<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
+				<Card.Body>
+					{twoKeyTouchpadEnabled ? (
+						<Row className="g-3">
+							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
+							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
+						</Row>
+					) : (
+						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
+					)}
+				</Card.Body>
+			</Card>
 		</div>
 	);
 }
@@ -302,14 +272,14 @@ export default function BackPaddleSettings() {
 	const [selectedTab, setSelectedTab] = useState<PresetTabKey>('preset-0');
 	const [twoKeyTouchpadEnabled, setTwoKeyTouchpadEnabled] = useState(false);
 	const [presets, setPresets] = useState<PresetBundle[]>([
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+		{ twoKey: emptyTwoKey(), backKeys: emptyBackKeys() },
+		{ twoKey: emptyTwoKey(), backKeys: emptyBackKeys() },
+		{ twoKey: emptyTwoKey(), backKeys: emptyBackKeys() },
 	]);
 	const snapshotRef = useRef<PresetBundle[]>([
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+		{ twoKey: emptyTwoKey(), backKeys: emptyBackKeys() },
+		{ twoKey: emptyTwoKey(), backKeys: emptyBackKeys() },
+		{ twoKey: emptyTwoKey(), backKeys: emptyBackKeys() },
 	]);
 
 	useEffect(() => {
@@ -322,15 +292,11 @@ export default function BackPaddleSettings() {
 			}
 			const loaded: PresetBundle[] = [];
 			for (let i = 0; i < 3; i++) {
-				const [back, fn, twoKey] = await Promise.all([
-					WebApi.getBackButtonAddonOptions(i),
-					WebApi.getFnKeyMappingOptions(i),
-					WebApi.getTwoKeyTouchpadOptions(i),
-				]);
+				const data = await WebApi.getTwoKeyTouchpadOptions(i);
+				const mappingData = (data ?? {}) as Parameters<typeof parseMappingGroup>[0];
 				loaded.push({
-					back: back ? parseBack(back as Parameters<typeof parseBack>[0]) : emptyBack(),
-					fn: fn ? parseFn(fn as Parameters<typeof parseFn>[0]) : emptyFn(),
-					twoKey: twoKey ? parseTwoKey(twoKey as Parameters<typeof parseTwoKey>[0]) : emptyTwoKey(),
+					twoKey: parseMappingGroup(mappingData, ['leftKey', 'rightKey'], emptyTwoKey),
+					backKeys: parseMappingGroup(mappingData, BACK_KEY_FIELDS, emptyBackKeys),
 				});
 			}
 			setPresets(loaded);

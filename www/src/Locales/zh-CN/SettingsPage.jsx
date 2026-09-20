@@ -307,8 +307,8 @@ export default {
 	'hml-report-rate-8khz': '8KHz',
 	'hml-cpu-overclock-label': '性能超频',
 	'hml-cpu-overclock-hint': '如果超频后手柄不正常，请降低超频档次。',
-	'hml-cpu-overclock-normal': '普通（144MHz）',
-	'hml-cpu-overclock-moderate': '中度（156MHz）',
-	'hml-cpu-overclock-heavy': '重度（168MHz）',
-	'hml-cpu-overclock-extreme': '发烧（180MHz）',
+	'hml-cpu-overclock-normal': '普通（180MHz）',
+	'hml-cpu-overclock-moderate': '中度（204MHz）',
+	'hml-cpu-overclock-heavy': '重度（240MHz）',
+	'hml-cpu-overclock-extreme': '发烧（288MHz）',
 };

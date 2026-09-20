@@ -31,23 +31,30 @@ type AppContextShape = {
 	buttonLabels?: { buttonLabelType?: string; swapTpShareLabels?: boolean };
 };
 
+// 引脚与 HML2354 BoardConfig 保持一致：
+// Share=S1(GPIO27) Options=S2(GPIO32) PS=A1(GPIO12) 触摸板=A2(GPIO24)
+// 左右鼠标键=2键触摸板 I2C1 SDA=16/SCL=25
+// UP=22 DOWN=23 Circle=B2=7 Cross=B1=10 Triangle=B4=5 Square=B3=15
+// L1=17 R1=26 L2=41 R2=42 左摇杆=L3=6 右摇杆=R3=37
 const SWAP_GPIO_ROWS: SwapPinRow[] = [
-	{ rowId: '18', labelKey: 'hml-pin-share', pinKey: getPinKey(18) },
-	{ rowId: '19', labelKey: 'hml-pin-options', pinKey: getPinKey(19) },
-	{ rowId: 'ps', labelKey: 'hml-pin-ps', selectDisabled: true },
-	{ rowId: '12', labelKey: 'hml-pin-touchpad', pinKey: getPinKey(12) },
+	{ rowId: '27', labelKey: 'hml-pin-share', pinKey: getPinKey(27) },
+	{ rowId: '32', labelKey: 'hml-pin-options', pinKey: getPinKey(32) },
+	{ rowId: '12', labelKey: 'hml-pin-ps', pinKey: getPinKey(12) },
+	{ rowId: '24', labelKey: 'hml-pin-touchpad', pinKey: getPinKey(24) },
 	{ rowId: '16', labelKey: 'hml-pin-mouse-left', pinKey: getPinKey(16) },
-	{ rowId: '17', labelKey: 'hml-pin-mouse-right', pinKey: getPinKey(17) },
-	{ rowId: '23', labelKey: 'hml-pin-up', pinKey: getPinKey(23) },
-	{ rowId: '8', labelKey: 'hml-pin-down', pinKey: getPinKey(8) },
-	{ rowId: '9', labelKey: 'hml-pin-circle', pinKey: getPinKey(9) },
-	{ rowId: '15', labelKey: 'hml-pin-cross', pinKey: getPinKey(15) },
-	{ rowId: '14', labelKey: 'hml-pin-triangle', pinKey: getPinKey(14) },
-	{ rowId: '13', labelKey: 'hml-pin-square', pinKey: getPinKey(13) },
-	{ rowId: '22', labelKey: 'hml-pin-l1', pinKey: getPinKey(22) },
-	{ rowId: '21', labelKey: 'hml-pin-r1', pinKey: getPinKey(21) },
-	{ rowId: '29', labelKey: 'hml-pin-l2', pinKey: getPinKey(29) },
-	{ rowId: '28', labelKey: 'hml-pin-r2', pinKey: getPinKey(28) },
+	{ rowId: '25', labelKey: 'hml-pin-mouse-right', pinKey: getPinKey(25) },
+	{ rowId: '22', labelKey: 'hml-pin-up', pinKey: getPinKey(22) },
+	{ rowId: '23', labelKey: 'hml-pin-down', pinKey: getPinKey(23) },
+	{ rowId: '7', labelKey: 'hml-pin-circle', pinKey: getPinKey(7) },
+	{ rowId: '10', labelKey: 'hml-pin-cross', pinKey: getPinKey(10) },
+	{ rowId: '5', labelKey: 'hml-pin-triangle', pinKey: getPinKey(5) },
+	{ rowId: '15', labelKey: 'hml-pin-square', pinKey: getPinKey(15) },
+	{ rowId: '17', labelKey: 'hml-pin-l1', pinKey: getPinKey(17) },
+	{ rowId: '26', labelKey: 'hml-pin-r1', pinKey: getPinKey(26) },
+	{ rowId: '41', labelKey: 'hml-pin-l2', pinKey: getPinKey(41) },
+	{ rowId: '42', labelKey: 'hml-pin-r2', pinKey: getPinKey(42) },
+	{ rowId: '6', labelKey: 'hml-pin-left-stick', pinKey: getPinKey(6) },
+	{ rowId: '37', labelKey: 'hml-pin-right-stick', pinKey: getPinKey(37) },
 ];
 
 function clampProfileTabIndex(profileNumber: number, profileCount: number): number {

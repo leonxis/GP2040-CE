@@ -24,8 +24,6 @@ struct MainLoopGateStats {
     uint16_t stableCompletions;
     uint32_t phaseMinUs;
     uint32_t phaseMaxUs;
-    uint32_t ads8332BurstSetupWcetUs;
-    uint32_t ads8332SampleWcetUs;
     uint32_t mcp3208BurstSetupWcetUs;
     uint32_t mcp3208SampleWcetUs;
     uint32_t finalProcessWcetUs;

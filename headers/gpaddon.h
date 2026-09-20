@@ -9,7 +9,6 @@
 
 enum class GateLateAnalogSource : uint8_t {
     None = 0,
-    ADS8332,
     MCP3208,
 };
 

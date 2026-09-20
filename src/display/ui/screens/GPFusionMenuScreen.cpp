@@ -14,7 +14,6 @@
 #include "hml_back_mapping_preset.h"
 #include "addons/analog.h"
 #include "addons/mcp3208_adc.h"
-#include "addons/ads8332_adc.h"
 
 #include <cstring>
 #include "pico/stdlib.h"
@@ -170,15 +169,13 @@ static void sInnerDz2(int v) { AOP2().analogOptions.inner_deadzone2 = (uint32_t)
 static int gAntiDz2() { return (int)AOP2().analogOptions.anti_deadzone2; }
 static void sAntiDz2(int v) { AOP2().analogOptions.anti_deadzone2 = (uint32_t)v; needsReboot = true; }
 
-// 读取摇杆原始ADC值（尝试三种源）
+// 读取摇杆原始ADC值（尝试两种源）
 static bool readRawStick(uint8_t stickNum, uint16_t& rawX, uint16_t& rawY) {
     uint16_t xCenter, yCenter, adcMax;
     bool xValid, yValid;
     if (AnalogInput::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
         return xValid && yValid;
     if (MCP3208ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
-        return xValid && yValid;
-    if (ADS8332ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
         return xValid && yValid;
     return false;
 }
@@ -220,6 +217,10 @@ static void sSave(int) {}
 static int gReset() { Storage::getInstance().ResetSettings(); Storage::getInstance().save(); return 0; }
 static void sReset(int) {}
 
+// 子菜单占位读写（OPT_SUBMENU 项不使用数值）
+static int gReserved() { return 0; }
+static void sReserved(int) {}
+
 // 背键配置档 (1-3显示, 0-2存储)
 static int gBackPreset() {
   return (int)getHmlBackMappingActivePresetIndex(AOP2()) + 1;
@@ -244,67 +245,97 @@ static int backActionToIndex(int action) {
   return 0;
 }
 
-// 背键映射读取（从当前活动预设的 BackButtonAddonOptions）
-static int gBackEl() {
-  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
-  return backActionToIndex((int)bb.leftElMapping.action);
+// 背键映射读取（从当前活动预设的 HmlBackMappingPreset）
+static int gBackLB1() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack1Mapping.action);
 }
-static int gBackEr() {
-  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
-  return backActionToIndex((int)bb.rightErMapping.action);
+static int gBackRB1() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack1Mapping.action);
 }
-static int gBackL1() {
-  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
-  return backActionToIndex((int)bb.leftBack1Mapping.action);
+static int gBackLB2() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack2Mapping.action);
 }
-static int gBackR1() {
-  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
-  return backActionToIndex((int)bb.rightBack1Mapping.action);
+static int gBackRB2() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack2Mapping.action);
 }
-static int gBackL2() {
-  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
-  return backActionToIndex((int)bb.leftBack2Mapping.action);
+static int gBackLB3() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack3Mapping.action);
 }
-static int gBackR2() {
-  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
-  return backActionToIndex((int)bb.rightBack2Mapping.action);
+static int gBackRB3() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack3Mapping.action);
+}
+static int gBackLFN() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftFnMapping.action);
+}
+static int gBackRFN() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightFnMapping.action);
+}
+static int gBackLMT() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftMtMapping.action);
+}
+static int gBackRMT() {
+  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightMtMapping.action);
 }
 // 背键映射写入（到当前活动预设）
-static void sBackEl(int v) {
+static void sBackLB1(int v) {
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
-  p.backButton.leftElMapping.action = (GpioAction)BACK_ACTION_MAP[v];
-  p.backButton.leftElMapping.has_action = true;
-  p.backButton.has_leftElMapping = true;
+  p.leftBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.leftBack1Mapping.has_action = true;
+  p.has_leftBack1Mapping = true;
 }
-static void sBackEr(int v) {
+static void sBackRB1(int v) {
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
-  p.backButton.rightErMapping.action = (GpioAction)BACK_ACTION_MAP[v];
-  p.backButton.rightErMapping.has_action = true;
-  p.backButton.has_rightErMapping = true;
+  p.rightBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.rightBack1Mapping.has_action = true;
+  p.has_rightBack1Mapping = true;
 }
-static void sBackL1(int v) {
+static void sBackLB2(int v) {
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
-  p.backButton.leftBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
-  p.backButton.leftBack1Mapping.has_action = true;
-  p.backButton.has_leftBack1Mapping = true;
+  p.leftBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.leftBack2Mapping.has_action = true;
+  p.has_leftBack2Mapping = true;
 }
-static void sBackR1(int v) {
+static void sBackRB2(int v) {
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
-  p.backButton.rightBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
-  p.backButton.rightBack1Mapping.has_action = true;
-  p.backButton.has_rightBack1Mapping = true;
+  p.rightBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.rightBack2Mapping.has_action = true;
+  p.has_rightBack2Mapping = true;
 }
-static void sBackL2(int v) {
+static void sBackLB3(int v) {
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
-  p.backButton.leftBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
-  p.backButton.leftBack2Mapping.has_action = true;
-  p.backButton.has_leftBack2Mapping = true;
+  p.leftBack3Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.leftBack3Mapping.has_action = true;
+  p.has_leftBack3Mapping = true;
 }
-static void sBackR2(int v) {
+static void sBackRB3(int v) {
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
-  p.backButton.rightBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
-  p.backButton.rightBack2Mapping.has_action = true;
-  p.backButton.has_rightBack2Mapping = true;
+  p.rightBack3Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.rightBack3Mapping.has_action = true;
+  p.has_rightBack3Mapping = true;
+}
+static void sBackLFN(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.leftFnMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.leftFnMapping.has_action = true;
+  p.has_leftFnMapping = true;
+}
+static void sBackRFN(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.rightFnMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.rightFnMapping.has_action = true;
+  p.has_rightFnMapping = true;
+}
+static void sBackLMT(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.leftMtMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.leftMtMapping.has_action = true;
+  p.has_leftMtMapping = true;
+}
+static void sBackRMT(int v) {
+  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+  p.rightMtMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+  p.rightMtMapping.has_action = true;
+  p.has_rightMtMapping = true;
 }
 
 // 按键配置档动态上限：gpioMappingsSets_count + 1（默认配置档1 + 自定义预设数）
@@ -382,10 +413,6 @@ static void sBreathSpd(int v) {
   AOP().ambientLightBreathSpeed = (float)v / 100.0f;
 }
 
-// 预留项的空 getter/setter
-static int gReserved() { return 0; }
-static void sReserved(int) {}
-
 static LiteOpt optConfig[] = {
   {"输入模式", OPT_ENUM, 0, 18, 1, N_INPUT, 19, "", gInput, sInput},
   {"按键配置档", OPT_INT, 1, 1, 1, NULL, 0, "", gProfile, sProfile},
@@ -401,16 +428,20 @@ static LiteOpt optHandle[] = {
   {"蓝牙模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gBle, sBle},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
 };
-// 背键映射子菜单：6 个背键，每个可选 17 种映射
+// 背键映射子菜单：10 个背键/FN/MT，每个可选 17 种映射
 static LiteOpt optBackMap[] = {
-  {"左背键EL", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackEl, sBackEl},
-  {"右背键ER", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackEr, sBackEr},
-  {"左背键1",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackL1, sBackL1},
-  {"右背键1",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackR1, sBackR1},
-  {"左背键2",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackL2, sBackL2},
-  {"右背键2",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackR2, sBackR2},
+  {"左背键1", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLB1, sBackLB1},
+  {"右背键1", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRB1, sBackRB1},
+  {"左背键2", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLB2, sBackLB2},
+  {"右背键2", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRB2, sBackRB2},
+  {"左背键3", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLB3, sBackLB3},
+  {"右背键3", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRB3, sBackRB3},
+  {"左FN键",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLFN, sBackLFN},
+  {"右FN键",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRFN, sBackRFN},
+  {"左MT键",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLMT, sBackLMT},
+  {"右MT键",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRMT, sBackRMT},
 };
-static const int BACK_MAP_COUNT = 6;
+static const int BACK_MAP_COUNT = 10;
 static LiteOpt optStick[] = {
   {"校准", OPT_ACTION, 0, 0, 0, NULL, 0, "", gCalib, sCalib},
   {"左摇杆死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gInnerDz, sInnerDz},
@@ -460,7 +491,7 @@ static int lastSavedInputMode = -1;
 // 背键映射子菜单状态
 static bool inBackMap = false;
 static bool backMapDirty = false;
-static int backMapSnap[6];
+static int backMapSnap[10];
 
 // 保存后按需重启（输入模式/陀螺仪/校准等改动需要重启生效）
 static void maybeRebootIfNeeded() {

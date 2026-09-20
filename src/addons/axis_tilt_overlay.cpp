@@ -45,7 +45,8 @@ bool AxisTiltOverlayInput::available() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const AxisTiltOverlayOptions& options = addonOptions.axisTiltOverlayOptions;
 
-	if (!addonOptions.ads8332Options.enabled || addonOptions.analogOptions.enabled) {
+	// External MCP3208 ADC is always enabled; onboard analog uses a different path.
+	if (addonOptions.analogOptions.enabled) {
 		return false;
 	}
 
@@ -83,8 +84,7 @@ void AxisTiltOverlayInput::refreshCachedOptions() {
 		(rightYPercent3Cached != 0.0f);
 	pressFeatureEnabled = options.pressEnabled && anyPressPercent;
 	rcGainFeatureEnabled = options.rcGainEnabled;
-	runtimeEnabled = addonOptions.ads8332Options.enabled &&
-		!addonOptions.analogOptions.enabled &&
+	runtimeEnabled = !addonOptions.analogOptions.enabled &&
 		(pressFeatureEnabled || rcGainFeatureEnabled);
 }
 

@@ -26,7 +26,6 @@ private:
     static constexpr int STICK_COUNT = 2;
     enum class StickSource : uint8_t {
         None = 0,
-        ADS8332,
         MCP3208,
         OnboardADC,
     };

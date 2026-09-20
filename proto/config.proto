@@ -988,21 +988,14 @@ message AddonOptions
     optional TwoKeyTouchpadOptions twoKeyTouchpadOptions = 37;
     // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz
     optional uint32 reportRate = 36 [default = 1000];
-    optional ADS8332Options ads8332Options = 39;
     optional AxisTiltOverlayOptions axisTiltOverlayOptions = 40;
     // RP2040 CPU 超频等级：0=普通144MHz, 1=中度156MHz, 2=重度168MHz, 3=发烧180MHz
     optional CpuOverclockLevel cpuOverclockLevel = 41 [default = CPU_OVERCLOCK_NORMAL];
 }
 
-// MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
+// MCP3208 ADC: 摇杆采样 CH0/CH1/CH6/CH7，0.82V 固定 L3/R3
+// 插件恒启用（固件 mcp3208_adc 中硬编码 SPI/CS），enabled 字段仅为兼容旧配置保留并强制为 true。
 message MCP3208Options {
-    optional bool enabled = 1 [default = false];
-}
-
-// ADS8332 ADC: 仅实现基础摇杆输出（CH0/CH1/CH6/CH7 -> LX/LY/RY/RX）
-// SPI 块与 CS/CONVST GPIO 在固件 ads8332_adc 中硬编码。
-message ADS8332Options
-{
     optional bool enabled = 1 [default = false];
 }
 
@@ -1034,17 +1027,6 @@ message LSM6DSROptions
     optional int32 gyroMouseDeadzone = 24 [default = 12]; // 鼠标死区（LSB，建议 0~80）
 }
 
-message FnKeyMappingOptions
-{
-    // 左FN/右FN、左MT/右MT、Ext左/右扳机 由外部分压电压档位（如 ADS8332 经 UnifiedVoltageSwitch）决定，无独立 GPIO 引脚
-    optional GpioMappingInfo leftFnMapping = 1;
-    optional GpioMappingInfo rightFnMapping = 2;
-    optional GpioMappingInfo leftMtMapping = 3;
-    optional GpioMappingInfo rightMtMapping = 4;
-    optional GpioMappingInfo leftExtTriggerMapping = 5;
-    optional GpioMappingInfo rightExtTriggerMapping = 6;
-}
-
 message TwoKeyTouchpadOptions
 {
     optional bool enabled = 1 [default = false];
@@ -1053,24 +1035,22 @@ message TwoKeyTouchpadOptions
     optional GpioMappingInfo enableKeyMapping = 4;
 }
 
-// 背键设置插件使用的逻辑背键映射（与具体 GPIO 解耦，仅持久化映射值）
-message BackButtonAddonOptions
-{
-    optional GpioMappingInfo leftBack1Mapping = 1;
-    optional GpioMappingInfo rightBack1Mapping = 2;
-    optional GpioMappingInfo leftBack2Mapping = 3;
-    optional GpioMappingInfo rightBack2Mapping = 4;
-    optional GpioMappingInfo leftElMapping = 5;   // GPIO25 左背键 EL
-    optional GpioMappingInfo rightErMapping = 6;  // GPIO24 右背键 ER
-}
-
-// 背键/FN/触摸左右键三套可切换方案（field 33）；activePreset 为当前启用索引 0..2
+// 背键/触摸左右键三套可切换方案（field 33）；activePreset 为当前启用索引 0..2
+// 5-14 为 GPIO 数字背键：左/右背键1-3 + 左/右FN + 左/右MT
 message HmlBackMappingPreset
 {
-    optional BackButtonAddonOptions backButton = 1;
-    optional FnKeyMappingOptions fnKey = 2;
     optional GpioMappingInfo leftKeyMapping = 3;
     optional GpioMappingInfo rightKeyMapping = 4;
+    optional GpioMappingInfo leftBack1Mapping = 5;
+    optional GpioMappingInfo rightBack1Mapping = 6;
+    optional GpioMappingInfo leftBack2Mapping = 7;
+    optional GpioMappingInfo rightBack2Mapping = 8;
+    optional GpioMappingInfo leftBack3Mapping = 9;
+    optional GpioMappingInfo rightBack3Mapping = 10;
+    optional GpioMappingInfo leftFnMapping = 11;
+    optional GpioMappingInfo rightFnMapping = 12;
+    optional GpioMappingInfo leftMtMapping = 13;
+    optional GpioMappingInfo rightMtMapping = 14;
 }
 
 message HmlBackMappingPresetOptions

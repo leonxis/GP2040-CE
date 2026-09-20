@@ -297,8 +297,8 @@ export default {
 	'hml-report-rate-8khz': '8KHz',
 	'hml-cpu-overclock-label': 'パフォーマンスオーバークロック',
 	'hml-cpu-overclock-hint': 'オーバークロック後にコントローラーが正常に動作しない場合は、オーバークロックレベルを下げてください。',
-	'hml-cpu-overclock-normal': '通常 (144MHz)',
-	'hml-cpu-overclock-moderate': '中程度 (156MHz)',
-	'hml-cpu-overclock-heavy': '高 (168MHz)',
-	'hml-cpu-overclock-extreme': '最大 (180MHz)',
+	'hml-cpu-overclock-normal': '通常 (180MHz)',
+	'hml-cpu-overclock-moderate': '中程度 (204MHz)',
+	'hml-cpu-overclock-heavy': '高 (240MHz)',
+	'hml-cpu-overclock-extreme': '最大 (288MHz)',
 };

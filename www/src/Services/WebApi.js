@@ -243,7 +243,7 @@ async function setTwoKeyTouchpadOptions(options) {
 		const isPreset =
 			options?.presetIndex !== undefined &&
 			options?.presetIndex !== null &&
-			options?.section === 'twoKey';
+			(options?.section === 'twoKey' || options?.section === 'backKeys');
 		const url = isPreset
 			? `${baseUrl}/api/setTwoKeyTouchpadOptions`
 			: `${baseUrl}/api/setTwoKeyTouchpadGlobalOptions`;
@@ -252,46 +252,6 @@ async function setTwoKeyTouchpadOptions(options) {
 	} catch (error) {
 		console.error(error);
 		return null;
-	}
-}
-
-async function getBackButtonAddonOptions(presetIndex) {
-	try {
-		const url = `${baseUrl}/api/getBackButtonAddonOptions/${presetIndex ?? 0}`;
-		const response = await Http.get(url);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
-}
-
-async function setBackButtonAddonOptions(options) {
-	try {
-		await Http.post(`${baseUrl}/api/setBackButtonAddonOptions`, options);
-		return true;
-	} catch (error) {
-		console.error(error);
-		return false;
-	}
-}
-
-async function getFnKeyMappingOptions(presetIndex) {
-	try {
-		const url = `${baseUrl}/api/getFnKeyMappingOptions/${presetIndex ?? 0}`;
-		const response = await Http.get(url);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
-}
-
-async function setFnKeyMappingOptions(options) {
-	try {
-		await Http.post(`${baseUrl}/api/setFnKeyMappingOptions`, options);
-		return true;
-	} catch (error) {
-		console.error(error);
-		return false;
 	}
 }
 
@@ -894,10 +854,6 @@ export default {
 	setDisplayOptions,
 	getTwoKeyTouchpadOptions,
 	setTwoKeyTouchpadOptions,
-	getBackButtonAddonOptions,
-	setBackButtonAddonOptions,
-	getFnKeyMappingOptions,
-	setFnKeyMappingOptions,
 	getGamepadOptions,
 	setGamepadOptions,
 	getLedOptions,

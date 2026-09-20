@@ -87,9 +87,20 @@
 #define SPI0_PIN_SCK 2
 #define SPI0_PIN_TX 3
 #define SPI0_PIN_RX 4
-// ADS8332 插件默认：启用（SPI0/CS/CONVST 在 ads8332_adc 中硬编码）
-#define ADS8332_DEFAULT_ENABLED 0
-// LSM6 插件默认：关闭（SPI0/CS 在 lsm6dsr_imu 中硬编码）
+
+// SPI1: RP2040 版不启用（MCP3208/LSM6DSR 仅在 RP2350 HML2354 上使用 SPI1）。
+// 提供 CS 引脚宏以避免插件头文件编译失败（constexpr 引用 SPI1_PIN_CS / SPI1_PIN_CS1）。
+#ifndef SPI1_ENABLED
+#define SPI1_ENABLED 0
+#endif
+#ifndef SPI1_PIN_CS
+#define SPI1_PIN_CS 9
+#endif
+#ifndef SPI1_PIN_CS1
+#define SPI1_PIN_CS1 13
+#endif
+// MCP3208 摇杆 ADC 插件恒启用（SPI1/CS 由 BoardConfig 提供）
+// LSM6 插件默认：关闭（SPI1/CS1 由 BoardConfig 提供）
 #define LSM6DSR_DEFAULT_ENABLED 0
 
 // 背键/FN/触摸左右键：仅用于首次初始化「背键方案1」(hmlBackMappingPresetOptions.presets[0])；方案2/3 出厂为 NONE

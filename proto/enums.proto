@@ -748,8 +748,8 @@ enum CpuOverclockLevel
 {
     option (nanopb_enumopt).long_names = false;
 
-    CPU_OVERCLOCK_NORMAL = 0;    // 144MHz (default)
-    CPU_OVERCLOCK_MODERATE = 1;  // 156MHz
-    CPU_OVERCLOCK_HEAVY = 2;     // 168MHz
-    CPU_OVERCLOCK_EXTREME = 3;   // 180MHz
+    CPU_OVERCLOCK_NORMAL = 0;    // 180MHz (default)
+    CPU_OVERCLOCK_MODERATE = 1;  // 204MHz
+    CPU_OVERCLOCK_HEAVY = 2;     // 240MHz
+    CPU_OVERCLOCK_EXTREME = 3;   // 288MHz
 };

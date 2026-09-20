@@ -1,18 +1,12 @@
 #include "addons/mcp3208_adc.h"
-#include "config.pb.h"
-#include "storagemanager.h"
 #include "peripheralmanager.h"
 
 #include "pico/time.h"
 
-static const uint8_t CH25_SAMPLE_DIVIDER = 4;    // CH2/CH5 降采样：每 N 帧读取一次
-
-static const uint8_t MCP3208_CHANNELS[MCP3208_READ_CHANNELS] = {0, 1, 2, 5, 6, 7};
+static const uint8_t MCP3208_CHANNELS[MCP3208_READ_CHANNELS] = {0, 1, 6, 7};
 static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
     {0x06, 0x00, 0x00}, // CH0
     {0x06, 0x40, 0x00}, // CH1
-    {0x06, 0x80, 0x00}, // CH2
-    {0x07, 0x40, 0x00}, // CH5
     {0x07, 0x80, 0x00}, // CH6
     {0x07, 0xC0, 0x00}, // CH7
 };
@@ -26,12 +20,8 @@ static inline bool gateDeadlineReached(
 }
 
 bool MCP3208ADCAddon::available() {
-    const AddonOptions& addonOptions =
-        Storage::getInstance().getAddonOptions();
-    if (!addonOptions.mcp3208Options.enabled ||
-        addonOptions.ads8332Options.enabled) {
-        return false;
-    }
+    // Always enabled: no persisted user toggle. Only activates when the
+    // fixed SPI peripheral is provided by the board configuration.
     return PeripheralManager::getInstance().isSPIEnabled(MCP3208_HW_SPI_BLOCK);
 }
 
@@ -88,24 +78,6 @@ bool MCP3208ADCAddon::getRawStickForProcessor(
     return true;
 }
 
-bool MCP3208ADCAddon::getRawDividerForProcessor(
-    uint16_t& leftValue,
-    uint16_t& rightValue,
-    uint16_t& adcMax,
-    bool& leftValid,
-    bool& rightValid
-) {
-    if (s_instance == nullptr || !s_instance->spiOk_) {
-        return false;
-    }
-    leftValue = s_instance->adcValues_[s_instance->divider_channels_.left_channel];
-    rightValue = s_instance->adcValues_[s_instance->divider_channels_.right_channel];
-    adcMax = MCP3208_ADC_MAX;
-    leftValid = true;
-    rightValid = true;
-    return true;
-}
-
 void MCP3208ADCAddon::setup() {
     s_instance = this;
     spi_ = nullptr;
@@ -115,7 +87,6 @@ void MCP3208ADCAddon::setup() {
     csPin_ = -1;
     // Initialize stick channels to center so first frame is neutral.
     const uint16_t center = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
-    for (int i = 0; i < 8; i++) adcValues_[i] = 0;
     for (StickSnapshot& snapshot : stickSnapshots_) {
         for (uint8_t stick = 0; stick < MCP3208_STICK_COUNT; stick++) {
             snapshot.x[stick] = center;
@@ -125,14 +96,12 @@ void MCP3208ADCAddon::setup() {
         snapshot.completedTimeUs = 0;
     }
     publishedStickSnapshot_.store(0, std::memory_order_relaxed);
-    ch25_sample_counter_ = 0;
     // Semantic mapping aligned with AnalogInput contract:
     // stick0 -> ANALOG_ADC_1_VRX/VRY, stick1 -> ANALOG_ADC_2_VRX/VRY.
     stick_channels_[0] = {0, 1}; // stick0: CH0/CH1 (VRX/VRY)
     stick_channels_[1] = {7, 6}; // stick1: CH7/CH6 (VRX/VRY)
-    divider_channels_ = {2, 5};  // divider left/right: CH2/CH5
 
-    // Fixed CS wiring shared with the ADS8332 option.
+    // Fixed HML wiring: SPI1 / CS from BoardConfig SPI1_PIN_CS.
     csPin_ = MCP3208_HW_CS_PIN;
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(MCP3208_HW_SPI_BLOCK);
     if (!spi || !spi->configured) return;
@@ -142,7 +111,6 @@ void MCP3208ADCAddon::setup() {
     spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE0);
 
     spiOk_ = true;
-    (void)sampleSwitchChannels();
 }
 
 bool MCP3208ADCAddon::prepareSPITransaction() {
@@ -172,25 +140,6 @@ bool MCP3208ADCAddon::sampleStickSnapshot(
         }
     }
     return publishStickSnapshot(xValues, yValues, request);
-}
-
-bool MCP3208ADCAddon::sampleSwitchChannels() {
-    if (!prepareSPITransaction()) {
-        return false;
-    }
-
-    uint16_t leftValue = 0;
-    uint16_t rightValue = 0;
-    if (divider_channels_.left_channel >= 8 ||
-        divider_channels_.right_channel >= 8 ||
-        !readChannel(divider_channels_.left_channel, leftValue) ||
-        !readChannel(divider_channels_.right_channel, rightValue)) {
-        return false;
-    }
-
-    adcValues_[divider_channels_.left_channel] = leftValue;
-    adcValues_[divider_channels_.right_channel] = rightValue;
-    return true;
 }
 
 bool MCP3208ADCAddon::readChannel(
@@ -244,20 +193,6 @@ bool MCP3208ADCAddon::publishStickSnapshot(
 void MCP3208ADCAddon::preprocess() {
     if (!spiOk_) return;
     (void)sampleStickSnapshot();
-    if (++ch25_sample_counter_ >= CH25_SAMPLE_DIVIDER) {
-        ch25_sample_counter_ = 0;
-        (void)sampleSwitchChannels();
-    }
-}
-
-void MCP3208ADCAddon::preprocessGateEarly() {
-    if (!spiOk_) {
-        return;
-    }
-    if (++ch25_sample_counter_ >= CH25_SAMPLE_DIVIDER) {
-        ch25_sample_counter_ = 0;
-        (void)sampleSwitchChannels();
-    }
 }
 
 bool MCP3208ADCAddon::beginGateLateAnalogBurst() {
@@ -286,8 +221,7 @@ void MCP3208ADCAddon::process() {
 }
 
 void MCP3208ADCAddon::reinit() {
-    ch25_sample_counter_ = 0;
     if (spiOk_) {
-        (void)sampleSwitchChannels();
+        (void)sampleStickSnapshot();
     }
 }

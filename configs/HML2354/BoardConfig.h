@@ -118,32 +118,45 @@
 #define SPI1_PIN_TX 11
 #define SPI1_PIN_RX 8
 
-// 摇杆插件默认：启用（不在插件硬编码）
-#define ADS8332_DEFAULT_ENABLED 1
-// LSM6 插件默认：关闭（CS1不在插件硬编码）
+// MCP3208 摇杆 ADC 插件恒启用（SPI1/CS 由 BoardConfig SPI1_PIN_CS 提供）
+// LSM6 插件默认：关闭（SPI1/CS1 由 BoardConfig SPI1_PIN_CS1 提供）
 #define LSM6DSR_DEFAULT_ENABLED 0
 
-// 背键/FN/触摸左右键：2354B 版型 GPIO 充足，背键为独立数字键，直接映射进主 GPIO 表
-// （RP2040 版的 ADC 分压背键插件在 RP2350 平台已禁用，数字背键插件待后续实现）
-// 以下为出厂预留直连映射；将来数字背键插件就绪后改为 ASSIGNED_TO_ADDON + 逻辑映射
+// 线性扳机 ADC 引脚：RP2350 ADC 基址=GPIO40，GPIO41=ch1(L2)，GPIO42=ch2(R2)
+#define LINEAR_L2_PIN 41
+#define LINEAR_R2_PIN 42
+
+// 背键/FN/触摸左右键：2354B 版型 GPIO 充足，背键为独立数字键
+// 背键由 HmlBackKeyAddon 插件读取（低电平有效），输出走 ActionMappingCommon 统一映射，
+// 映射存储于 HmlBackMappingPreset 左/右背键1-3 + FN/MT 字段
 // 2键触摸板硬件开关（全局，与方案无关）：0=关闭
 #define HML_TWOKEY_TOUCHPAD_ENABLED 0
 #define HML_TWOKEY_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
 #define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
-// FN/MT 键（GPIO 直连预留）
-#define GPIO_PIN_38 GpioAction::BUTTON_PRESS_L1 //RMT
-#define GPIO_PIN_39 GpioAction::BUTTON_PRESS_R1 //RFN
-#define GPIO_PIN_45 GpioAction::BUTTON_PRESS_FN //LFN
-#define GPIO_PIN_47 GpioAction::BUTTON_PRESS_A1 //LMT
+// 背键/FN/MT 引脚（低电平有效，独立于主 GPIO 表）
+#define HML_BACK_KEY_LB1_PIN 31 // 左背键1
+#define HML_BACK_KEY_RB1_PIN 30 // 右背键1
+#define HML_BACK_KEY_LB2_PIN 33 // 左背键2
+#define HML_BACK_KEY_RB2_PIN 34 // 右背键2
+#define HML_BACK_KEY_LB3_PIN 35 // 左背键3
+#define HML_BACK_KEY_RB3_PIN 36 // 右背键3
+#define HML_BACK_KEY_LFN_PIN 45 // 左FN
+#define HML_BACK_KEY_RFN_PIN 39 // 右FN
+#define HML_BACK_KEY_LMT_PIN 47 // 左MT
+#define HML_BACK_KEY_RMT_PIN 38 // 右MT
 
-// 背键（GPIO 直连预留）
-#define GPIO_PIN_30 GpioAction::BUTTON_PRESS_B1 // 右背键1
-#define GPIO_PIN_31 GpioAction::BUTTON_PRESS_B2 // 左背键1
-#define GPIO_PIN_33 GpioAction::BUTTON_PRESS_B3 // 左背键2
-#define GPIO_PIN_34 GpioAction::BUTTON_PRESS_B4 // 右背键2
-#define GPIO_PIN_35 GpioAction::BUTTON_PRESS_A1 // 左背键3
-#define GPIO_PIN_36 GpioAction::BUTTON_PRESS_A2 // 右背键3
+// 背键/FN/MT GPIO 归插件管理，不参与主 GPIO 表与按键预设
+#define GPIO_PIN_38 GpioAction::ASSIGNED_TO_ADDON // 右MT (RMT)
+#define GPIO_PIN_39 GpioAction::ASSIGNED_TO_ADDON // 右FN (RFN)
+#define GPIO_PIN_45 GpioAction::ASSIGNED_TO_ADDON // 左FN (LFN)
+#define GPIO_PIN_47 GpioAction::ASSIGNED_TO_ADDON // 左MT (LMT)
+#define GPIO_PIN_30 GpioAction::ASSIGNED_TO_ADDON // 右背键1
+#define GPIO_PIN_31 GpioAction::ASSIGNED_TO_ADDON // 左背键1
+#define GPIO_PIN_33 GpioAction::ASSIGNED_TO_ADDON // 左背键2
+#define GPIO_PIN_34 GpioAction::ASSIGNED_TO_ADDON // 右背键2
+#define GPIO_PIN_35 GpioAction::ASSIGNED_TO_ADDON // 左背键3
+#define GPIO_PIN_36 GpioAction::ASSIGNED_TO_ADDON // 右背键3
 
 // 摇杆叠加 RC 增益：首次写入存储时的默认值（RC 抖动强度 / 抖动幅度 / 衰减范围，单位 %）
 #define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT 100.0f

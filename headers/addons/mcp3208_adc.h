@@ -9,14 +9,14 @@
 
 #define MCP3208_ADC_ADDON_NAME "MCP3208 ADC"
 
-// HML fixed wiring: shares SPI0 and CS GPIO1 with the ADS8332 option.
-static constexpr uint8_t MCP3208_HW_SPI_BLOCK = 0;
-static constexpr int8_t MCP3208_HW_CS_PIN = 1;
+// HML fixed wiring: SPI1 (SCK/TX/RX from webconfig), CS from BoardConfig SPI1_PIN_CS.
+static constexpr uint8_t MCP3208_HW_SPI_BLOCK = 1;
+static constexpr int8_t MCP3208_HW_CS_PIN = SPI1_PIN_CS;
 
 #define MCP3208_SPI_HZ          1500000u
 
-// 通道：CH0=左X, CH1=左Y, CH6=右Y, CH7=右X；CH2/CH5=四档开关；CH3/CH4 悬空不读
-#define MCP3208_READ_CHANNELS    6   // 0,1,2,5,6,7
+// 通道：CH0=左X, CH1=左Y, CH6=右Y, CH7=右X；CH3/CH4 悬空不读
+#define MCP3208_READ_CHANNELS    4   // 0,1,6,7
 #define MCP3208_ADC_MAX         4095
 #define MCP3208_ADC_MAX_HALF    (MCP3208_ADC_MAX * 0.5f)
 #define MCP3208_STICK_COUNT     2
@@ -39,20 +39,12 @@ public:
         bool& yValid,
         uint16_t& adcMax
     );
-    static bool getRawDividerForProcessor(
-        uint16_t& leftValue,
-        uint16_t& rightValue,
-        uint16_t& adcMax,
-        bool& leftValid,
-        bool& rightValid
-    );
 
     virtual bool available();
     virtual void setup();
     virtual void preprocess();
     virtual void process();
     virtual void postprocess(bool) {}
-    virtual void preprocessGateEarly();
     virtual bool isGateLateAnalogProvider() const { return true; }
     virtual GateLateAnalogSource gateLateAnalogSource() const {
         return GateLateAnalogSource::MCP3208;
@@ -71,11 +63,6 @@ private:
         uint8_t y_channel;
     };
 
-    struct SamplerDividerChannelConfig {
-        uint8_t left_channel;
-        uint8_t right_channel;
-    };
-
     struct StickSnapshot {
         uint16_t x[MCP3208_STICK_COUNT];
         uint16_t y[MCP3208_STICK_COUNT];
@@ -85,7 +72,6 @@ private:
 
     bool sampleStickSnapshot(
         const GateLateAnalogSampleRequest& request = {});
-    bool sampleSwitchChannels();
     bool readChannel(uint8_t channel, uint16_t& value);
     bool prepareSPITransaction();
     bool publishStickSnapshot(
@@ -97,12 +83,8 @@ private:
     PeripheralSPI* spi_;
     SPIBaudrateProfile spiProfile_;
     int8_t csPin_;            // Chip select GPIO (硬编码)
-    uint16_t adcValues_[8];   // Auxiliary CH2/CH5 cache; sticks use published snapshots.
     bool spiOk_;
     SamplerStickChannelConfig stick_channels_[MCP3208_STICK_COUNT];
-    SamplerDividerChannelConfig divider_channels_;
-    // CH2/CH5 采样降频计数器：仅控制 raw 采样频率，不承担映射/防抖状态
-    uint8_t ch25_sample_counter_;
     bool gateLateBurstActive_ = false;
     StickSnapshot stickSnapshots_[2] = {};
     std::atomic<uint8_t> publishedStickSnapshot_ { 0 };

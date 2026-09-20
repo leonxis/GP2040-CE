@@ -13,10 +13,10 @@
 // Fixed ADC pins: RP2040 GPIO28/29 = ADC2/3 (R2/L2)
 // RP2350(A/B) 板如需启用须由 BoardConfig 覆盖为 GPIO40-47 区间
 #ifndef LINEAR_R2_PIN
-#define LINEAR_R2_PIN 28
+#define LINEAR_R2_PIN 42
 #endif
 #ifndef LINEAR_L2_PIN
-#define LINEAR_L2_PIN 29
+#define LINEAR_L2_PIN 41
 #endif
 
 class LinearTriggerAddon : public GPAddon {

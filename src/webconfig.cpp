@@ -54,15 +54,6 @@ static uint16_t http_post_payload_len = 0;
 
 static int g_apiRequestPresetIndex = -1;
 
-static void setExternalADCSelection(AddonOptions& addonOptions, bool ads8332Enabled) {
-    addonOptions.ads8332Options.enabled = ads8332Enabled;
-    addonOptions.ads8332Options.has_enabled = true;
-    addonOptions.has_ads8332Options = true;
-    addonOptions.mcp3208Options.enabled = !ads8332Enabled;
-    addonOptions.mcp3208Options.has_enabled = true;
-    addonOptions.has_mcp3208Options = true;
-}
-
 static void resetApiRequestPresetIndex() {
     g_apiRequestPresetIndex = -1;
 }
@@ -101,8 +92,6 @@ static bool parseApiRequestPresetIndex(const char* name, int& outPresetIndex) {
 
     static const char* presetApiPaths[] = {
         "/api/getTwoKeyTouchpadOptions",
-        "/api/getBackButtonAddonOptions",
-        "/api/getFnKeyMappingOptions",
     };
     for (const char* apiPath : presetApiPaths) {
         if (parsePresetIndexFromPathSuffix(name, apiPath, outPresetIndex)) {
@@ -717,12 +706,23 @@ std::string getTwoKeyTouchpadOptions() {
     }
 
     AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    const size_t capacity = JSON_OBJECT_SIZE(8) + 2 * (JSON_OBJECT_SIZE(3) + 10);
+    const size_t capacity = JSON_OBJECT_SIZE(16) + 12 * (JSON_OBJECT_SIZE(3) + 10);
     DynamicJsonDocument doc(capacity);
     const HmlBackMappingPreset& preset =
         getHmlBackPresetAt(addonOptions, (uint32_t)g_apiRequestPresetIndex);
     writeMapping(doc, "leftKey", preset.leftKeyMapping);
     writeMapping(doc, "rightKey", preset.rightKeyMapping);
+    // 背键/FN/MT 映射（与触摸键同属一套三档预设）
+    writeMapping(doc, "leftBack1", preset.leftBack1Mapping);
+    writeMapping(doc, "rightBack1", preset.rightBack1Mapping);
+    writeMapping(doc, "leftBack2", preset.leftBack2Mapping);
+    writeMapping(doc, "rightBack2", preset.rightBack2Mapping);
+    writeMapping(doc, "leftBack3", preset.leftBack3Mapping);
+    writeMapping(doc, "rightBack3", preset.rightBack3Mapping);
+    writeMapping(doc, "leftFn", preset.leftFnMapping);
+    writeMapping(doc, "rightFn", preset.rightFnMapping);
+    writeMapping(doc, "leftMt", preset.leftMtMapping);
+    writeMapping(doc, "rightMt", preset.rightMtMapping);
     writeActivePresetDoc(doc, addonOptions);
     return serialize_json(doc);
 }
@@ -735,7 +735,7 @@ std::string setTwoKeyTouchpadOptions() {
         return serialize_json(doc);
     }
     const char* section = doc["section"] | "";
-    if (strcmp(section, "twoKey") != 0) {
+    if (strcmp(section, "twoKey") != 0 && strcmp(section, "backKeys") != 0) {
         return serialize_json(doc);
     }
     const int presetIndex = doc["presetIndex"].as<int>();
@@ -744,76 +744,34 @@ std::string setTwoKeyTouchpadOptions() {
     }
 
     HmlBackMappingPreset& preset = getHmlBackPresetAt(addonOptions, (uint32_t)presetIndex);
-    readMapping(preset.leftKeyMapping, doc, "leftKey");
-    readMapping(preset.rightKeyMapping, doc, "rightKey");
-    preset.has_leftKeyMapping = preset.has_rightKeyMapping = true;
-    preset.leftKeyMapping.has_action = preset.rightKeyMapping.has_action = true;
-    applyHmlBackActivePresetFromDoc(doc, addonOptions);
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
-std::string getBackButtonAddonOptions() {
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    const uint32_t presetIndexU = (uint32_t)presetIndexFromRequestOrDefault();
-    const size_t capacity = JSON_OBJECT_SIZE(40);
-    DynamicJsonDocument doc(capacity);
-    const BackButtonAddonOptions& opts = getHmlBackPresetAt(addonOptions, presetIndexU).backButton;
-    writeMapping(doc, "leftBack1", opts.leftBack1Mapping);
-    writeMapping(doc, "rightBack1", opts.rightBack1Mapping);
-    writeMapping(doc, "leftBack2", opts.leftBack2Mapping);
-    writeMapping(doc, "rightBack2", opts.rightBack2Mapping);
-    writeMapping(doc, "leftEl", opts.leftElMapping);
-    writeMapping(doc, "rightEr", opts.rightErMapping);
-    writeActivePresetDoc(doc, addonOptions);
-    return serialize_json(doc);
-}
-
-std::string setBackButtonAddonOptions() {
-    DynamicJsonDocument doc = get_post_data();
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    if (!doc.containsKey("presetIndex")) {
-        return serialize_json(doc);
+    if (strcmp(section, "twoKey") == 0) {
+        readMapping(preset.leftKeyMapping, doc, "leftKey");
+        readMapping(preset.rightKeyMapping, doc, "rightKey");
+        preset.has_leftKeyMapping = preset.has_rightKeyMapping = true;
+        preset.leftKeyMapping.has_action = preset.rightKeyMapping.has_action = true;
+    } else { // backKeys
+        readMapping(preset.leftBack1Mapping, doc, "leftBack1");
+        readMapping(preset.rightBack1Mapping, doc, "rightBack1");
+        readMapping(preset.leftBack2Mapping, doc, "leftBack2");
+        readMapping(preset.rightBack2Mapping, doc, "rightBack2");
+        readMapping(preset.leftBack3Mapping, doc, "leftBack3");
+        readMapping(preset.rightBack3Mapping, doc, "rightBack3");
+        readMapping(preset.leftFnMapping, doc, "leftFn");
+        readMapping(preset.rightFnMapping, doc, "rightFn");
+        readMapping(preset.leftMtMapping, doc, "leftMt");
+        readMapping(preset.rightMtMapping, doc, "rightMt");
+        preset.has_leftBack1Mapping = preset.has_rightBack1Mapping = true;
+        preset.has_leftBack2Mapping = preset.has_rightBack2Mapping = true;
+        preset.has_leftBack3Mapping = preset.has_rightBack3Mapping = true;
+        preset.has_leftFnMapping = preset.has_rightFnMapping = true;
+        preset.has_leftMtMapping = preset.has_rightMtMapping = true;
+        preset.leftBack1Mapping.has_action = preset.rightBack1Mapping.has_action = true;
+        preset.leftBack2Mapping.has_action = preset.rightBack2Mapping.has_action = true;
+        preset.leftBack3Mapping.has_action = preset.rightBack3Mapping.has_action = true;
+        preset.leftFnMapping.has_action = preset.rightFnMapping.has_action = true;
+        preset.leftMtMapping.has_action = preset.rightMtMapping.has_action = true;
     }
-    const int presetIndex = doc["presetIndex"].as<int>();
-    if (presetIndex < 0 || presetIndex > 2) {
-        return serialize_json(doc);
-    }
-    BackButtonAddonOptions& opts = getHmlBackPresetAt(addonOptions, (uint32_t)presetIndex).backButton;
-    readMapping(opts.leftBack1Mapping, doc, "leftBack1");
-    readMapping(opts.rightBack1Mapping, doc, "rightBack1");
-    readMapping(opts.leftBack2Mapping, doc, "leftBack2");
-    readMapping(opts.rightBack2Mapping, doc, "rightBack2");
-    readMapping(opts.leftElMapping, doc, "leftEl");
-    readMapping(opts.rightErMapping, doc, "rightEr");
-    opts.leftBack1Mapping.has_action = true;
-    opts.rightBack1Mapping.has_action = true;
-    opts.leftBack2Mapping.has_action = true;
-    opts.rightBack2Mapping.has_action = true;
-    opts.leftElMapping.has_action = true;
-    opts.rightErMapping.has_action = true;
-    opts.has_leftBack1Mapping = opts.has_rightBack1Mapping = true;
-    opts.has_leftBack2Mapping = opts.has_rightBack2Mapping = true;
-    opts.has_leftElMapping = opts.has_rightErMapping = true;
     applyHmlBackActivePresetFromDoc(doc, addonOptions);
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
-std::string getADS8332Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(2);
-    DynamicJsonDocument doc(capacity);
-    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
-    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    return serialize_json(doc);
-}
-
-std::string setADS8332Options() {
-    DynamicJsonDocument doc = get_post_data();
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    ADS8332Options& opts = addonOptions.ads8332Options;
-    docToValue(opts.enabled, doc, "enabled");
-    setExternalADCSelection(addonOptions, opts.enabled);
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -940,52 +898,6 @@ std::string setLSM6DSROptions() {
             opts.gyroEngageKeys[i] = (int32_t)arr[i].as<int>();
         }
     }
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
-std::string getFnKeyMappingOptions() {
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    const uint32_t presetIndexU = (uint32_t)presetIndexFromRequestOrDefault();
-    const size_t capacity = JSON_OBJECT_SIZE(52);
-    DynamicJsonDocument doc(capacity);
-    const FnKeyMappingOptions& fn = getHmlBackPresetAt(addonOptions, presetIndexU).fnKey;
-    writeMapping(doc, "leftFn", fn.leftFnMapping);
-    writeMapping(doc, "rightFn", fn.rightFnMapping);
-    writeMapping(doc, "leftMt", fn.leftMtMapping);
-    writeMapping(doc, "rightMt", fn.rightMtMapping);
-    writeMapping(doc, "extLeftTrigger", fn.leftExtTriggerMapping);
-    writeMapping(doc, "extRightTrigger", fn.rightExtTriggerMapping);
-    writeActivePresetDoc(doc, addonOptions);
-    return serialize_json(doc);
-}
-
-std::string setFnKeyMappingOptions() {
-    DynamicJsonDocument doc = get_post_data();
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    if (!doc.containsKey("presetIndex")) {
-        return serialize_json(doc);
-    }
-    const int presetIndex = doc["presetIndex"].as<int>();
-    if (presetIndex < 0 || presetIndex > 2) {
-        return serialize_json(doc);
-    }
-    FnKeyMappingOptions& fn = getHmlBackPresetAt(addonOptions, (uint32_t)presetIndex).fnKey;
-    readMapping(fn.leftFnMapping, doc, "leftFn");
-    readMapping(fn.rightFnMapping, doc, "rightFn");
-    readMapping(fn.leftMtMapping, doc, "leftMt");
-    readMapping(fn.rightMtMapping, doc, "rightMt");
-    readMapping(fn.leftExtTriggerMapping, doc, "extLeftTrigger");
-    readMapping(fn.rightExtTriggerMapping, doc, "extRightTrigger");
-    fn.leftFnMapping.has_action = true;
-    fn.rightFnMapping.has_action = true;
-    fn.leftMtMapping.has_action = true;
-    fn.rightMtMapping.has_action = true;
-    fn.leftExtTriggerMapping.has_action = true;
-    fn.rightExtTriggerMapping.has_action = true;
-    fn.has_leftFnMapping = fn.has_rightFnMapping = fn.has_leftMtMapping = fn.has_rightMtMapping = true;
-    fn.has_leftExtTriggerMapping = fn.has_rightExtTriggerMapping = true;
-    applyHmlBackActivePresetFromDoc(doc, addonOptions);
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
 }
@@ -1281,23 +1193,9 @@ std::string getGamepadOptions()
         };
 
         const HmlBackMappingPreset& activePreset = getActiveHmlBackPreset(addonOptions);
-        const BackButtonAddonOptions& bb = activePreset.backButton;
-        const FnKeyMappingOptions& fn = activePreset.fnKey;
         if (
-            hasFnAction(bb.leftBack1Mapping) ||
-            hasFnAction(bb.rightBack1Mapping) ||
-            hasFnAction(bb.leftBack2Mapping) ||
-            hasFnAction(bb.rightBack2Mapping) ||
-            hasFnAction(bb.leftElMapping) ||
-            hasFnAction(bb.rightErMapping) ||
             hasFnAction(activePreset.leftKeyMapping) ||
-            hasFnAction(activePreset.rightKeyMapping) ||
-            hasFnAction(fn.leftFnMapping) ||
-            hasFnAction(fn.rightFnMapping) ||
-            hasFnAction(fn.leftMtMapping) ||
-            hasFnAction(fn.rightMtMapping) ||
-            hasFnAction(fn.leftExtTriggerMapping) ||
-            hasFnAction(fn.rightExtTriggerMapping)
+            hasFnAction(activePreset.rightKeyMapping)
         ) {
             fnButtonPin = 0; // virtual FN source exists; UI only checks for -1 sentinel
         }
@@ -2578,13 +2476,6 @@ std::string setAddonOptions()
     GamepadUSBHostOptions& gamepadUSBHostOptions = Storage::getInstance().getAddonOptions().gamepadUSBHostOptions;
     docToValue(gamepadUSBHostOptions.enabled, doc, "GamepadUSBHostAddonEnabled");
 
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    if (doc.containsKey("ADS8332AddonEnabled")) {
-        setExternalADCSelection(addonOptions, doc["ADS8332AddonEnabled"].as<bool>());
-    } else if (doc.containsKey("MCP3208AddonEnabled")) {
-        setExternalADCSelection(addonOptions, !doc["MCP3208AddonEnabled"].as<bool>());
-    }
-
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
     docToValue(lsm6dsrOptions.outputMode, doc, "lsm6dsrOutputMode");
@@ -3089,10 +2980,6 @@ std::string getAddonOptions()
     }
     // EMA smoothing removed - no longer used
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
-    const ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
-    writeDoc(doc, "ADS8332AddonEnabled", ads8332Options.enabled ? 1 : 0);
-    const MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
-    writeDoc(doc, "MCP3208AddonEnabled", mcp3208Options.enabled ? 1 : 0);
     const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
     writeDoc(doc, "lsm6dsrOutputMode", lsm6dsrOptions.outputMode);
@@ -3695,10 +3582,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setDisplayOptions", setDisplayOptions },
     { "/api/setTwoKeyTouchpadOptions", setTwoKeyTouchpadOptions },
     { "/api/setTwoKeyTouchpadGlobalOptions", setTwoKeyTouchpadGlobalOptions },
-    { "/api/setBackButtonAddonOptions", setBackButtonAddonOptions },
-    { "/api/setADS8332Options", setADS8332Options },
     { "/api/setLSM6DSROptions", setLSM6DSROptions },
-    { "/api/setFnKeyMappingOptions", setFnKeyMappingOptions },
     { "/api/setPreviewDisplayOptions", setPreviewDisplayOptions },
     { "/api/setGamepadOptions", setGamepadOptions },
     { "/api/setLedOptions", setLedOptions },
@@ -3729,13 +3613,10 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getDisplayOptions", getDisplayOptions },
     { "/api/getTwoKeyTouchpadOptions", getTwoKeyTouchpadOptions },
     { "/api/getTwoKeyTouchpadGlobalOptions", getTwoKeyTouchpadGlobalOptions },
-    { "/api/getBackButtonAddonOptions", getBackButtonAddonOptions },
-    { "/api/getADS8332Options", getADS8332Options },
     { "/api/getLSM6DSROptions", getLSM6DSROptions },
     { "/api/getLSM6DSRImuData", getLSM6DSRImuData },
     { "/api/calibrateLSM6DSRGyro", calibrateLSM6DSRGyro },
     { "/api/calibrateLSM6DSRAccel", calibrateLSM6DSRAccel },
-    { "/api/getFnKeyMappingOptions", getFnKeyMappingOptions },
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },
     { "/api/getButtonLayouts", getButtonLayouts },

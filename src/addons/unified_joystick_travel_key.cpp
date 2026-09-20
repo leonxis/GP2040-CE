@@ -1,6 +1,5 @@
 #include "addons/unified_joystick_travel_key.h"
 
-#include "addons/ads8332_adc.h"
 #include "addons/analog.h"
 #include "addons/mcp3208_adc.h"
 #include "config.pb.h"
@@ -15,14 +14,7 @@ bool UnifiedJoystickTravelKeyAddon::available() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const AnalogOptions& analogOptions = addonOptions.analogOptions;
 
-    const bool hasSamplingSource =
-        addonOptions.ads8332Options.enabled ||
-        addonOptions.mcp3208Options.enabled ||
-        analogOptions.enabled;
-    if (!hasSamplingSource) {
-        return false;
-    }
-
+    // MCP3208 ADC is always enabled, so a sampling source always exists.
     const bool leftEnabled = (analogOptions.joystick_travel_button_threshold > 0u) &&
         (analogOptions.joystick_travel_button_action != GpioAction::NONE);
     const bool rightEnabled = (analogOptions.joystick_travel_button_threshold2 > 0u) &&
@@ -47,20 +39,8 @@ void UnifiedJoystickTravelKeyAddon::reinit() {
 }
 
 void UnifiedJoystickTravelKeyAddon::resolveSource() {
-    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    if (addonOptions.ads8332Options.enabled) {
-        source_ = StickSource::ADS8332;
-        return;
-    }
-    if (addonOptions.mcp3208Options.enabled) {
-        source_ = StickSource::MCP3208;
-        return;
-    }
-    if (addonOptions.analogOptions.enabled) {
-        source_ = StickSource::OnboardADC;
-        return;
-    }
-    source_ = StickSource::None;
+    // MCP3208 is the fixed external ADC provider and is always enabled.
+    source_ = StickSource::MCP3208;
 }
 
 uint64_t UnifiedJoystickTravelKeyAddon::getThresholdSquared(uint16_t adcMax, uint32_t thresholdPercent) {
@@ -94,13 +74,7 @@ void UnifiedJoystickTravelKeyAddon::buildMapsAndThresholds() {
         );
     }
 
-    uint16_t adcMax = 0;
-    if (source_ == StickSource::ADS8332) {
-        adcMax = 65535u;
-    } else if (source_ == StickSource::MCP3208 ||
-        source_ == StickSource::OnboardADC) {
-        adcMax = 4095u;
-    }
+    uint16_t adcMax = 4095u;
 
     const ActionMappingCommon::ActionMappingEntry* leftEntry = entries_.at(0);
     const ActionMappingCommon::ActionMappingEntry* rightEntry = entries_.at(1);
@@ -119,8 +93,6 @@ bool UnifiedJoystickTravelKeyAddon::readRawStick(uint8_t stickNum, uint16_t& raw
     // Unified sampler contract:
     // stick0 => ANALOG_ADC_1_VRX/VRY, stick1 => ANALOG_ADC_2_VRX/VRY.
     switch (source_) {
-        case StickSource::ADS8332:
-            return ADS8332ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, centerX, centerY, xValid, yValid, adcMax) && xValid && yValid;
         case StickSource::MCP3208:
             return MCP3208ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, centerX, centerY, xValid, yValid, adcMax) && xValid && yValid;
         case StickSource::OnboardADC:

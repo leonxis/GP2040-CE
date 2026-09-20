@@ -6,7 +6,7 @@
 
 // ADC utility functions for joystick calibration
 // These functions provide a unified interface for reading ADC values
-// from joystick pins, used by both webconfig and miniLED calibration screens
+// from the MCP3208 external ADC, used by the webconfig calibration screens
 
 /**
  * Read raw ADC values for a specific joystick stick
@@ -14,7 +14,7 @@
  * @param x Output parameter for X-axis ADC value
  * @param y Output parameter for Y-axis ADC value
  * @param adcMax Output parameter for raw ADC max of the current source
- * @return true if successful, false if analog input is not enabled or pins are invalid
+ * @return true if successful, false if the MCP3208 snapshot is not available
  */
 bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax);
 
