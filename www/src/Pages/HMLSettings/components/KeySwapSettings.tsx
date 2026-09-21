@@ -33,7 +33,7 @@ type AppContextShape = {
 
 // 引脚与 HML2354 BoardConfig 保持一致：
 // Share=S1(GPIO27) Options=S2(GPIO32) PS=A1(GPIO12) 触摸板=A2(GPIO24)
-// 左右鼠标键=2键触摸板 I2C1 SDA=16/SCL=25
+// D-PAD LEFT=21 RIGHT=20
 // UP=22 DOWN=23 Circle=B2=7 Cross=B1=10 Triangle=B4=5 Square=B3=15
 // L1=17 R1=26 L2=41 R2=42 左摇杆=L3=6 右摇杆=R3=37
 const SWAP_GPIO_ROWS: SwapPinRow[] = [
@@ -41,8 +41,8 @@ const SWAP_GPIO_ROWS: SwapPinRow[] = [
 	{ rowId: '32', labelKey: 'hml-pin-options', pinKey: getPinKey(32) },
 	{ rowId: '12', labelKey: 'hml-pin-ps', pinKey: getPinKey(12) },
 	{ rowId: '24', labelKey: 'hml-pin-touchpad', pinKey: getPinKey(24) },
-	{ rowId: '16', labelKey: 'hml-pin-mouse-left', pinKey: getPinKey(16) },
-	{ rowId: '25', labelKey: 'hml-pin-mouse-right', pinKey: getPinKey(25) },
+	{ rowId: '21', labelKey: 'hml-pin-left', pinKey: getPinKey(21) },
+	{ rowId: '20', labelKey: 'hml-pin-right', pinKey: getPinKey(20) },
 	{ rowId: '22', labelKey: 'hml-pin-up', pinKey: getPinKey(22) },
 	{ rowId: '23', labelKey: 'hml-pin-down', pinKey: getPinKey(23) },
 	{ rowId: '7', labelKey: 'hml-pin-circle', pinKey: getPinKey(7) },

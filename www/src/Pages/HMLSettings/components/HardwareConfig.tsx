@@ -43,7 +43,7 @@ export default function HardwareConfig() {
 			usb0: {
 				enabled: 0,
 			},
-			i2c1: {
+			i2c0: {
 				enabled: 0,
 			},
 		},
@@ -117,15 +117,15 @@ export default function HardwareConfig() {
 						: 0
 				);
 
-				// 同步显示屏和I2C1的启用状态
+				// 同步显示屏和I2C0的启用状态
 				// 如果两者不一致，以显示屏的enabled为准
-				if (display.enabled !== peripheral.peripheral?.i2c1?.enabled) {
+				if (display.enabled !== peripheral.peripheral?.i2c0?.enabled) {
 					setPeripheralOptions((prev) => ({
 						...prev,
 						peripheral: {
 							...prev.peripheral,
-							i2c1: {
-								...prev.peripheral?.i2c1,
+							i2c0: {
+								...prev.peripheral?.i2c0,
 								enabled: display.enabled,
 							},
 						},
@@ -184,7 +184,7 @@ export default function HardwareConfig() {
 			// Get current peripheral options to preserve other settings
 			const currentPeripheralOptions = await WebApi.getPeripheralOptions();
 			
-			// Prepare data to save, preserving existing settings and updating usb0.enabled 和 i2c1.enabled
+			// Prepare data to save, preserving existing settings and updating usb0.enabled 和 i2c0.enabled
 			const dataToSave = {
 				...currentPeripheralOptions,
 				peripheral: {
@@ -193,9 +193,9 @@ export default function HardwareConfig() {
 						...currentPeripheralOptions.peripheral.usb0,
 						enabled: peripheralOptions.peripheral?.usb0?.enabled || 0,
 					},
-					i2c1: {
-						...currentPeripheralOptions.peripheral.i2c1,
-						enabled: peripheralOptions.peripheral?.i2c1?.enabled || 0,
+					i2c0: {
+						...currentPeripheralOptions.peripheral.i2c0,
+						enabled: peripheralOptions.peripheral?.i2c0?.enabled || 0,
 					},
 				},
 			};
@@ -338,8 +338,8 @@ export default function HardwareConfig() {
 									...prev,
 									peripheral: {
 										...prev.peripheral,
-										i2c1: {
-											...prev.peripheral?.i2c1,
+										i2c0: {
+											...prev.peripheral?.i2c0,
 											enabled: isEnabled,
 										},
 									},
@@ -365,15 +365,15 @@ export default function HardwareConfig() {
 							onChange={(e) => {
 								const isEnabled = e.target.checked ? 1 : 0;
 								setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
-								// 打开 2 键触摸板时自动关闭显示屏、I2C1
+								// 打开 2 键触摸板时自动关闭显示屏、I2C0
 								if (isEnabled) {
 									setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
 									setPeripheralOptions((prev) => ({
 										...prev,
 										peripheral: {
 											...prev.peripheral,
-											i2c1: {
-												...prev.peripheral?.i2c1,
+											i2c0: {
+												...prev.peripheral?.i2c0,
 												enabled: 0,
 											},
 										},

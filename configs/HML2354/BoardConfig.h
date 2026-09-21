@@ -64,8 +64,8 @@
 #define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-TX
 #define GPIO_PIN_13 GpioAction::ASSIGNED_TO_ADDON // SPI1 LSM-CS
 #define GPIO_PIN_14 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-SCK
-#define GPIO_PIN_16 GpioAction::ASSIGNED_TO_ADDON // I2C1 SDA
-#define GPIO_PIN_25 GpioAction::ASSIGNED_TO_ADDON // I2C1 SCL
+#define GPIO_PIN_16 GpioAction::ASSIGNED_TO_ADDON // I2C0 SDA
+#define GPIO_PIN_25 GpioAction::ASSIGNED_TO_ADDON // I2C0 SCL
 #define GPIO_PIN_18 GpioAction::ASSIGNED_TO_ADDON // D+/UART0-TX
 #define GPIO_PIN_19 GpioAction::ASSIGNED_TO_ADDON // D-/UART0-RX
 #define GPIO_PIN_29 GpioAction::ASSIGNED_TO_ADDON //LED
@@ -85,7 +85,7 @@
 #ifdef SPI0_ENABLED
 #undef SPI0_ENABLED
 #endif
-#define SPI0_ENABLED 1
+#define SPI0_ENABLED 0
 
 #ifdef SPI0_PIN_RX
 #undef SPI0_PIN_RX
@@ -193,19 +193,19 @@
 // mini led
 #define MINI_MENU_GAMEPAD_INPUT 1
 #define HAS_I2C_DISPLAY 0
-// HML 显示屏走 I2C1（I2C0 仅由外设映射开关控制）
-#define DISPLAY_I2C_BLOCK i2c1
-#ifndef I2C0_ENABLED
-#define I2C0_ENABLED 0
-#endif
+// HML 显示屏走 I2C0（I2C1 仅由外设映射开关控制）
+#define DISPLAY_I2C_BLOCK i2c0
 #ifndef I2C1_ENABLED
 #define I2C1_ENABLED 0
 #endif
-#ifndef I2C1_PIN_SDA
-#define I2C1_PIN_SDA 16
+#ifndef I2C0_ENABLED
+#define I2C0_ENABLED 0
 #endif
-#ifndef I2C1_PIN_SCL
-#define I2C1_PIN_SCL 25
+#ifndef I2C0_PIN_SDA
+#define I2C0_PIN_SDA 16
+#endif
+#ifndef I2C0_PIN_SCL
+#define I2C0_PIN_SCL 25
 #endif
 #define SPLASH_MODE SPLASH_MODE_STATIC
 #define SPLASH_DURATION 1000
