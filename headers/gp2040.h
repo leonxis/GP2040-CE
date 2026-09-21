@@ -28,6 +28,7 @@ struct MainLoopGateStats {
     uint32_t mcp3208SampleWcetUs;
     uint32_t finalProcessWcetUs;
     uint32_t endpointArmGuardUs;
+    uint32_t postprocessWcetUs;
     uint32_t sampleAgeLastUs;
     uint32_t sampleAgeMaxUs;
     uint32_t deadlineMissCount;

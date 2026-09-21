@@ -75,8 +75,9 @@ static const uint32_t MAIN_LOOP_GATE_INTERVAL_2MS_US = 1500;
 static const uint32_t MAIN_LOOP_GATE_USB_FRAME_US = 1000;
 static const uint32_t MAIN_LOOP_GATE_PHASE_SPREAD_LIMIT_US = 125;
 static const uint32_t MAIN_LOOP_GATE_COMPLETION_TO_TOKEN_GUARD_US = 64;
-static const uint32_t MAIN_LOOP_GATE_ENDPOINT_READY_GUARD_US = 16;
-static const uint32_t MAIN_LOOP_GATE_WCET_MARGIN_US = 16;
+// 总安全余量：覆盖 WCET 测量不确定性 + WFE 唤醒延迟 + USB 端点就绪抖动 + 未测量开销
+// 在 armDeadline 层统一注入，各 Bound 使用原始 WCET maximum
+static const uint32_t MAIN_LOOP_GATE_SAFETY_MARGIN_US = 50;
 static const uint8_t MAIN_LOOP_GATE_WCET_WINDOW = 64;
 static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
@@ -202,6 +203,7 @@ static MainLoopGateRollingMax main_loop_gate_mcp3208_burst_setup_wcet;
 static MainLoopGateRollingMax main_loop_gate_mcp3208_sample_wcet;
 static MainLoopGateRollingMax main_loop_gate_final_process_wcet;
 static MainLoopGateRollingMax main_loop_gate_endpoint_arm_wcet;
+static MainLoopGateRollingMax main_loop_gate_postprocess_wcet;
 static MainLoopGateFrameSchedule main_loop_gate_frame_schedule;
 static uint32_t main_loop_gate_sample_age_last_us = 0;
 static uint32_t main_loop_gate_sample_age_max_us = 0;
@@ -255,7 +257,8 @@ static MainLoopGateRollingMax* mainLoopGateADCBurstSetupWcet(
 
 static bool mainLoopGateSchedulingMeasurementsReady() {
         if (main_loop_gate_final_process_wcet.maximum == 0 ||
-                main_loop_gate_endpoint_arm_wcet.maximum == 0) {
+                main_loop_gate_endpoint_arm_wcet.maximum == 0 ||
+                main_loop_gate_postprocess_wcet.maximum == 0) {
                 return false;
         }
         MainLoopGateRollingMax* adcWcet =
@@ -273,6 +276,7 @@ static void resetMainLoopGateMeasurements() {
         main_loop_gate_mcp3208_sample_wcet.reset();
         main_loop_gate_final_process_wcet.reset();
         main_loop_gate_endpoint_arm_wcet.reset();
+        main_loop_gate_postprocess_wcet.reset();
         main_loop_gate_frame_schedule = {};
         main_loop_gate_sample_age_last_us = 0;
         main_loop_gate_sample_age_max_us = 0;
@@ -305,9 +309,9 @@ void getMainLoopGateStats(MainLoopGateStats* stats) {
         stats->finalProcessWcetUs =
                 main_loop_gate_final_process_wcet.maximum;
         stats->endpointArmGuardUs =
-                main_loop_gate_endpoint_arm_wcet.maximum +
-                MAIN_LOOP_GATE_WCET_MARGIN_US +
-                MAIN_LOOP_GATE_ENDPOINT_READY_GUARD_US;
+                main_loop_gate_endpoint_arm_wcet.maximum;
+        stats->postprocessWcetUs =
+                main_loop_gate_postprocess_wcet.maximum;
         stats->sampleAgeLastUs = main_loop_gate_sample_age_last_us;
         stats->sampleAgeMaxUs = main_loop_gate_sample_age_max_us;
         stats->deadlineMissCount = main_loop_gate_deadline_miss_count;
@@ -438,16 +442,18 @@ static void prepareMainLoopGateFrameSchedule(
                 return;
         }
 
+        // 各 Bound 使用原始 WCET maximum；安全余量在 armDeadline 层统一注入
         const uint32_t finalProcessBoundUs =
-                main_loop_gate_final_process_wcet.maximum +
-                MAIN_LOOP_GATE_WCET_MARGIN_US;
+                main_loop_gate_final_process_wcet.maximum;
         const uint32_t endpointArmBoundUs =
-                main_loop_gate_endpoint_arm_wcet.maximum +
-                MAIN_LOOP_GATE_WCET_MARGIN_US;
+                main_loop_gate_endpoint_arm_wcet.maximum;
+        const uint32_t postprocessBoundUs =
+                main_loop_gate_postprocess_wcet.maximum;
         const uint32_t reservedUs =
                 finalProcessBoundUs +
                 endpointArmBoundUs +
-                MAIN_LOOP_GATE_ENDPOINT_READY_GUARD_US;
+                postprocessBoundUs +
+                MAIN_LOOP_GATE_SAFETY_MARGIN_US;
         if (reservedUs >= MAIN_LOOP_GATE_USB_FRAME_US) {
                 return;
         }
@@ -462,15 +468,22 @@ static void prepareMainLoopGateFrameSchedule(
                 snapshot.completeSofTimeUs +
                 MAIN_LOOP_GATE_USB_FRAME_US +
                 tokenPhaseUs;
+        // armDeadline 为 endpoint arming 的绝对截止时间：
+        // nextTokenEarliestUs - postprocessBoundUs - SAFETY_MARGIN_US
+        // postprocess 在 arm 之后执行（tud_task/restoreGateSPIProfile/processCompositeHID），
+        // 因此从 nextTokenEarliestUs 中扣除 postprocessBoundUs 与统一安全余量
         const uint32_t armDeadlineUs =
                 nextTokenEarliestUs -
-                MAIN_LOOP_GATE_ENDPOINT_READY_GUARD_US;
+                postprocessBoundUs -
+                MAIN_LOOP_GATE_SAFETY_MARGIN_US;
 
         main_loop_gate_frame_schedule.valid = true;
         main_loop_gate_frame_schedule.nextTokenEarliestUs =
                 nextTokenEarliestUs;
         main_loop_gate_frame_schedule.armDeadlineUs =
                 armDeadlineUs;
+        // finalizeDeadline = armDeadline - finalProcessBound - endpointArmBound
+        // （postprocess 与 SAFETY_MARGIN 已在 armDeadline 中扣除）
         main_loop_gate_frame_schedule.finalizeDeadlineUs =
                 armDeadlineUs -
                 finalProcessBoundUs -
@@ -693,6 +706,40 @@ static bool mainLoopGateReportAttempted(bool submitted) {
         return false;
 }
 
+// Forward declaration: mainLoopGateEventPending 定义在 sampleMainLoopGateLateAnalog 之后
+static bool mainLoopGateEventPending();
+
+// 在 LOCKED + valid schedule 时，sleep 到晚采样的最晚安全启动时刻。
+// sleep 目标 = finalizeDeadlineUs - sampleBoundUs（原始 WCET，安全余量已在 armDeadline 层注入）
+// 若剩余时间不足（非摇杆工作已超时），跳过 sleep 立即采样。
+static void sleepUntilLateSampleDeadline() {
+        if (main_loop_gate_state != MainLoopGateState::LOCKED ||
+                !main_loop_gate_frame_schedule.valid) {
+                return;
+        }
+        MainLoopGateRollingMax* adcWcet =
+                mainLoopGateADCWcet(main_loop_gate_analog_source);
+        MainLoopGateRollingMax* burstSetupWcet =
+                mainLoopGateADCBurstSetupWcet(main_loop_gate_analog_source);
+        if (adcWcet == nullptr || burstSetupWcet == nullptr) {
+                return;
+        }
+        // 使用原始 WCET 最大值；50µs 安全余量已在 armDeadline 层注入（步骤 6），
+        // 经 finalizeDeadlineUs 级联至 sleepTargetUs，无需在此额外扣减
+        const uint32_t sampleBoundUs =
+                burstSetupWcet->maximum + adcWcet->maximum;
+        const uint32_t sleepTargetUs =
+                main_loop_gate_frame_schedule.finalizeDeadlineUs - sampleBoundUs;
+        const uint32_t nowUs = time_us_32();
+        if (static_cast<int32_t>(sleepTargetUs - nowUs) <= 0) {
+                return;  // 非摇杆工作已超时，跳过 sleep
+        }
+        if (!mainLoopGateEventPending()) {
+                best_effort_wfe_or_timeout(
+                        make_timeout_time_us(sleepTargetUs));
+        }
+}
+
 static MainLoopGateLateSampleResult sampleMainLoopGateLateAnalog(
         AddonManager& addons) {
         MainLoopGateLateSampleResult result;
@@ -707,17 +754,16 @@ static MainLoopGateLateSampleResult sampleMainLoopGateLateAnalog(
         const bool deadlineMode =
                 main_loop_gate_state == MainLoopGateState::LOCKED &&
                 main_loop_gate_frame_schedule.valid;
+        // 单次采样：非门控模式仅采样一次，门控模式在 deadline 剩余不足时跳过
         if (deadlineMode) {
                 const uint32_t burstSetupBoundUs =
-                        burstSetupWcet->maximum +
-                        MAIN_LOOP_GATE_WCET_MARGIN_US;
-                const uint32_t sampleBoundUs =
-                        adcWcet->maximum +
-                        MAIN_LOOP_GATE_WCET_MARGIN_US;
+                        burstSetupWcet->maximum;
+                const uint32_t adcSampleBoundUs =
+                        adcWcet->maximum;
                 if (mainLoopGateTimeRemaining(
                                 time_us_32(),
                                 main_loop_gate_frame_schedule.finalizeDeadlineUs) <
-                        burstSetupBoundUs + sampleBoundUs) {
+                        burstSetupBoundUs + adcSampleBoundUs) {
                         main_loop_gate_frame_without_fresh_sample_count++;
                         return result;
                 }
@@ -742,55 +788,32 @@ static MainLoopGateLateSampleResult sampleMainLoopGateLateAnalog(
         request.enforceDeadline = deadlineMode;
         request.deadlineUs =
                 main_loop_gate_frame_schedule.finalizeDeadlineUs;
-        while (true) {
-                if (deadlineMode) {
-                        const uint32_t sampleBoundUs =
-                                adcWcet->maximum +
-                                MAIN_LOOP_GATE_WCET_MARGIN_US;
-                        const uint32_t nowUs = time_us_32();
-                        if (mainLoopGateTimeRemaining(
-                                        nowUs,
-                                        request.deadlineUs) <
-                                sampleBoundUs) {
-                                result.deadlineOverrun =
-                                        mainLoopGateTimeReached(
-                                                nowUs,
-                                                request.deadlineUs);
-                                break;
-                        }
-                }
-
-                const uint32_t sampleStartUs = time_us_32();
-                const bool sampled =
-                        addons.SampleGateLateAnalog(request);
-                const uint32_t sampleEndUs = time_us_32();
-                uint32_t sampleDurationUs =
-                        sampleEndUs - sampleStartUs;
-                if (sampleDurationUs == 0) {
-                        sampleDurationUs = 1;
-                }
-                adcWcet->record(sampleDurationUs);
-
-                if (!sampled) {
-                        result.deadlineOverrun =
-                                deadlineMode &&
-                                mainLoopGateTimeReached(
-                                        sampleEndUs,
-                                        request.deadlineUs);
-                        break;
-                }
-
-                result.sampleSets++;
-                if (!deadlineMode) {
-                        break;
-                }
-        }
+        // 单次采样：不再 while-loop，每帧仅采样一次
+        const uint32_t sampleStartUs = time_us_32();
+        const bool sampled =
+                addons.SampleGateLateAnalog(request);
+        const uint32_t sampleEndUs = time_us_32();
+        // EndBurst 必须在 record 之前结束 SPI burst，确保采样窗口完整闭合
         addons.EndGateLateAnalogBurst();
 
-        main_loop_gate_late_sample_set_count += result.sampleSets;
-        if (result.sampleSets > 1) {
-                main_loop_gate_repeated_sample_frame_count++;
+        uint32_t sampleDurationUs =
+                sampleEndUs - sampleStartUs;
+        if (sampleDurationUs == 0) {
+                sampleDurationUs = 1;
         }
+        adcWcet->record(sampleDurationUs);
+
+        if (sampled) {
+                result.sampleSets++;
+        } else {
+                result.deadlineOverrun =
+                        deadlineMode &&
+                        mainLoopGateTimeReached(
+                                sampleEndUs,
+                                request.deadlineUs);
+        }
+
+        main_loop_gate_late_sample_set_count += result.sampleSets;
         if (result.sampleSets >
                 main_loop_gate_max_sample_sets_per_frame) {
                 main_loop_gate_max_sample_sets_per_frame =
@@ -1411,19 +1434,48 @@ void GP2040::run() {
 
 		gamepad->process(); // process through MPGS
 
+		// (Post) Process for add-ons
+		// ProcessAddons 全量遍历：3个摇杆插件 process() 空跑（逻辑在
+		// processAnalog/processTravelKey/applyFinalProcess 中显式调用），22个正常执行
+		addons.ProcessAddons();
+
+		// 热键处理移到 sleep 前：
+		// - hotkey() 读 buttons/dpad（数字量），不依赖摇杆采样
+		// - HOTKEY_APPLY_CURVE_PRESET_* 修改 AnalogOptions，移到 processAnalog() 前
+		//   可使曲线预设变更当帧生效（原流程下一帧才生效）
+		// - HOTKEY_SAVE_CONFIG 等阻塞边缘情况会吃掉 sleep 时间，
+		//   但 sleepUntilLateSampleDeadline 会检测剩余时间不足并跳过 sleep
+		gamepad->hotkey(); 	// check for MPGS hotkeys
+		rebootHotkeys.process(configMode);
+
+		// ===== sleep 阶段（仅 LOCKED 态）=====
+		if (splitGateFrame) {
+			sleepUntilLateSampleDeadline();
+		}
+
+		// ===== 采样阶段（无条件调用）=====
+		// 门控模式下 deadlineMode=true（走 deadline 检查分支，单次采样）；
+		// 非门控模式下 deadlineMode=false（跳过 deadline 检查，仍单次采样）。
+		// 二者均完成一次 burst + sample + end，publishStickSnapshot 更新原子快照。
 		MainLoopGateLateSampleResult lateSample;
-                if (splitGateFrame) {
-                        // A failed sample leaves the previous complete snapshot published.
-			lateSample = sampleMainLoopGateLateAnalog(addons);
-                }
+		lateSample = sampleMainLoopGateLateAnalog(addons);
+
 		const uint32_t finalProcessStartUs =
 				splitGateFrame ? time_us_32() : 0;
 
-		// (Post) Process for add-ons
-		addons.ProcessAddons();
+		// ===== 摇杆后处理阶段（采样后显式调用）=====
+		// 与 AxisTiltOverlay.applyFinalProcess 同模式：GetAddon + 显式调用
+		UnifiedAnalogProcessorAddon* analogProc =
+				(UnifiedAnalogProcessorAddon*)addons.GetAddon(UnifiedAnalogProcessorName);
+		if (analogProc != nullptr) {
+			analogProc->processAnalog();
+		}
 
-		gamepad->hotkey(); 	// check for MPGS hotkeys
-		rebootHotkeys.process(configMode);
+		UnifiedJoystickTravelKeyAddon* travelKey =
+				(UnifiedJoystickTravelKeyAddon*)addons.GetAddon(UnifiedJoystickTravelKeyName);
+		if (travelKey != nullptr) {
+			travelKey->processTravelKey();
+		}
 
 		// Perform bidirectional swap for analog modes (after addons process)
 		// This ensures we use physical joystick values updated by the unified analog processor.
@@ -1513,9 +1565,16 @@ void GP2040::run() {
 					endpointArmStartUs,
 					endpointArmEndUs,
 					reportArmed);
-			if (lateSample.busTouched) {
-				LSM6DSRIMUAddon::restoreGateSPIProfile();
-			}
+		}
+		// ===== Postprocess 窗口（WCET 覆盖完整）=====
+		// postprocessStartUs 前移至 restoreGateSPIProfile 之前：
+		// postprocess WCET 覆盖：restoreGateSPIProfile + processCompositeHID
+		// + suppress 恢复 + tud_task + PostprocessAddons 全部耗时
+		const uint32_t postprocessStartUs =
+				splitGateFrame ? time_us_32() : 0;
+
+		if (lateSample.busTouched) {
+			LSM6DSRIMUAddon::restoreGateSPIProfile();
 		}
 		if (composite_hid_enabled) {
 			processCompositeHID(gamepad);
@@ -1531,6 +1590,16 @@ void GP2040::run() {
 
 		// Post-Process Add-ons with USB Report Processed Sent
 		addons.PostprocessAddons(processed);
+
+		if (splitGateFrame) {
+			const uint32_t postprocessEndUs = time_us_32();
+			uint32_t postprocessDurationUs =
+					postprocessEndUs - postprocessStartUs;
+			if (postprocessDurationUs == 0) {
+				postprocessDurationUs = 1;
+			}
+			main_loop_gate_postprocess_wcet.record(postprocessDurationUs);
+		}
 
 		// Check if we have a pending save
 		checkSaveRebootState();

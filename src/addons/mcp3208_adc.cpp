@@ -191,8 +191,8 @@ bool MCP3208ADCAddon::publishStickSnapshot(
 }
 
 void MCP3208ADCAddon::preprocess() {
-    if (!spiOk_) return;
-    (void)sampleStickSnapshot();
+    // 早采样已移除：采样统一在 sampleMainLoopGateLateAnalog() 中进行，
+    // 该函数在主循环中无条件调用（门控与非门控模式均执行）。
 }
 
 bool MCP3208ADCAddon::beginGateLateAnalogBurst() {
