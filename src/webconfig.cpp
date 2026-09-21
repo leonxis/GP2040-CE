@@ -38,6 +38,7 @@
 #include "addons/lsm6dsr_imu.h"
 #include "hardware/gpio.h"
 #include "hml_back_mapping_preset.h"
+#include "addons/hml_back_key.h"
 
 #define PATH_CGI_ACTION "/cgi/action"
 
@@ -3397,6 +3398,27 @@ std::string abortGetHeldPins()
     return {};
 }
 
+// 返回 10 个背键的 GPIO 引脚号与字段名（field 与 backKeys 网页字段一致），
+// 供背键设置页把 getHeldPins 捕获到的引脚号翻译成背键名称。
+// 非 RP2350B 版型返回空数组。
+std::string getHmlBackKeyPins()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(2) + JSON_ARRAY_SIZE(HML_BACK_KEY_COUNT)
+        + HML_BACK_KEY_COUNT * JSON_OBJECT_SIZE(2) + 200;
+    DynamicJsonDocument doc(capacity);
+
+    JsonArray pins = doc.createNestedArray("pins");
+#if HML_BACK_KEY_SUPPORTED
+    for (uint8_t i = 0; i < HML_BACK_KEY_COUNT; i++) {
+        JsonObject pinInfo = pins.createNestedObject();
+        pinInfo["pin"] = kHmlBackKeyDefs[i].pin;
+        pinInfo["field"] = kHmlBackKeyDefs[i].fieldName;
+    }
+#endif
+
+    return serialize_json(doc);
+}
+
 std::string getConfig()
 {
     return ConfigUtils::toJSON(Storage::getInstance().getConfig());
@@ -3642,6 +3664,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getMemoryReport", getMemoryReport },
     { "/api/getHeldPins", getHeldPins },
     { "/api/abortGetHeldPins", abortGetHeldPins },
+    { "/api/getHmlBackKeyPins", getHmlBackKeyPins },
     { "/api/getUsedPins", getUsedPins },
     { "/api/getConfig", getConfig },
     { "/api/getJoystickRaw", getJoystickRaw },

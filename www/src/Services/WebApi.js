@@ -827,6 +827,15 @@ async function abortGetHeldPins() {
 	}
 }
 
+async function getHmlBackKeyPins() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getHmlBackKeyPins`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
 async function getBoardDefinition() {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getBoardDefinition`);
@@ -897,6 +906,7 @@ export default {
 	getUsedPins,
 	getHeldPins,
 	abortGetHeldPins,
+	getHmlBackKeyPins,
     getBoardDefinition,
 	reboot,
 };

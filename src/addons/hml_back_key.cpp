@@ -8,93 +8,48 @@
 // 防抖帧数：电平连续 N 帧一致才更新稳定状态
 static constexpr uint8_t HML_BACK_KEY_DEBOUNCE_FRAMES = 3;
 
-enum BackKeyIndex : uint8_t {
-    LB1 = 0,  // 左背键1
-    RB1,      // 右背键1
-    LB2,      // 左背键2
-    RB2,      // 右背键2
-    LB3,      // 左背键3
-    RB3,      // 右背键3
-    LFN,      // 左FN
-    RFN,      // 右FN
-    LMT,      // 左MT
-    RMT,      // 右MT
-    KEY_COUNT
-};
-
-struct BackKeyPinDef {
-    uint8_t pin;
-    GpioMappingInfo HmlBackMappingPreset::*field;
-};
-
-static const BackKeyPinDef kBackKeyPins[KEY_COUNT] = {
-#if defined(HML_BACK_KEY_LB1_PIN)
-    { HML_BACK_KEY_LB1_PIN, &HmlBackMappingPreset::leftBack1Mapping },
-#endif
-#if defined(HML_BACK_KEY_RB1_PIN)
-    { HML_BACK_KEY_RB1_PIN, &HmlBackMappingPreset::rightBack1Mapping },
-#endif
-#if defined(HML_BACK_KEY_LB2_PIN)
-    { HML_BACK_KEY_LB2_PIN, &HmlBackMappingPreset::leftBack2Mapping },
-#endif
-#if defined(HML_BACK_KEY_RB2_PIN)
-    { HML_BACK_KEY_RB2_PIN, &HmlBackMappingPreset::rightBack2Mapping },
-#endif
-#if defined(HML_BACK_KEY_LB3_PIN)
-    { HML_BACK_KEY_LB3_PIN, &HmlBackMappingPreset::leftBack3Mapping },
-#endif
-#if defined(HML_BACK_KEY_RB3_PIN)
-    { HML_BACK_KEY_RB3_PIN, &HmlBackMappingPreset::rightBack3Mapping },
-#endif
-#if defined(HML_BACK_KEY_LFN_PIN)
-    { HML_BACK_KEY_LFN_PIN, &HmlBackMappingPreset::leftFnMapping },
-#endif
-#if defined(HML_BACK_KEY_RFN_PIN)
-    { HML_BACK_KEY_RFN_PIN, &HmlBackMappingPreset::rightFnMapping },
-#endif
-#if defined(HML_BACK_KEY_LMT_PIN)
-    { HML_BACK_KEY_LMT_PIN, &HmlBackMappingPreset::leftMtMapping },
-#endif
-#if defined(HML_BACK_KEY_RMT_PIN)
-    { HML_BACK_KEY_RMT_PIN, &HmlBackMappingPreset::rightMtMapping },
-#endif
+// 2354B 版型背键/FN/MT 固定走线（低电平有效），引脚号硬编码于此：
+// 顺序固定：LB1/RB1, LB2/RB2, LB3/RB3, LFN/RFN, LMT/RMT
+extern const HmlBackKeyDef kHmlBackKeyDefs[HML_BACK_KEY_COUNT] = {
+    { 31, "leftBack1",  &HmlBackMappingPreset::leftBack1Mapping  }, // 左背键1
+    { 30, "rightBack1", &HmlBackMappingPreset::rightBack1Mapping }, // 右背键1
+    { 33, "leftBack2",  &HmlBackMappingPreset::leftBack2Mapping  }, // 左背键2
+    { 34, "rightBack2", &HmlBackMappingPreset::rightBack2Mapping }, // 右背键2
+    { 35, "leftBack3",  &HmlBackMappingPreset::leftBack3Mapping  }, // 左背键3
+    { 36, "rightBack3", &HmlBackMappingPreset::rightBack3Mapping }, // 右背键3
+    { 45, "leftFn",     &HmlBackMappingPreset::leftFnMapping     }, // 左FN
+    { 39, "rightFn",    &HmlBackMappingPreset::rightFnMapping    }, // 右FN
+    { 47, "leftMt",     &HmlBackMappingPreset::leftMtMapping     }, // 左MT
+    { 38, "rightMt",    &HmlBackMappingPreset::rightMtMapping    }, // 右MT
 };
 
 bool HmlBackKeyAddon::available() {
-#if defined(HML_BACK_KEY_LB1_PIN) && defined(HML_BACK_KEY_RB1_PIN) \
-    && defined(HML_BACK_KEY_LB2_PIN) && defined(HML_BACK_KEY_RB2_PIN) \
-    && defined(HML_BACK_KEY_LB3_PIN) && defined(HML_BACK_KEY_RB3_PIN) \
-    && defined(HML_BACK_KEY_LFN_PIN) && defined(HML_BACK_KEY_RFN_PIN) \
-    && defined(HML_BACK_KEY_LMT_PIN) && defined(HML_BACK_KEY_RMT_PIN)
-    // 始终可用：由背键映射是否配置决定是否实际输出
-    return true;
-#else
-    return false;
-#endif
+    // 仅 48 GPIO 的 RP2350B 版型启用；引脚为固定走线，无需 BoardConfig 宏
+    return HML_BACK_KEY_SUPPORTED;
 }
 
 void HmlBackKeyAddon::buildMappings() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const HmlBackMappingPreset& activePreset = getActiveHmlBackPreset(addonOptions);
-    mapTable_.setCount(KEY_COUNT);
-    for (uint8_t i = 0; i < KEY_COUNT; i++) {
+    mapTable_.setCount(HML_BACK_KEY_COUNT);
+    for (uint8_t i = 0; i < HML_BACK_KEY_COUNT; i++) {
         ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(i);
         if (entry != nullptr) {
-            ActionMappingCommon::parseActionMapping(activePreset.*(kBackKeyPins[i].field), *entry);
+            ActionMappingCommon::parseActionMapping(activePreset.*(kHmlBackKeyDefs[i].presetField), *entry);
         }
     }
 }
 
 void HmlBackKeyAddon::setup() {
-    for (uint8_t i = 0; i < KEY_COUNT; i++) {
-        gpio_init(kBackKeyPins[i].pin);
-        gpio_set_dir(kBackKeyPins[i].pin, GPIO_IN);
-        gpio_pull_up(kBackKeyPins[i].pin);
+    for (uint8_t i = 0; i < HML_BACK_KEY_COUNT; i++) {
+        gpio_init(kHmlBackKeyDefs[i].pin);
+        gpio_set_dir(kHmlBackKeyDefs[i].pin, GPIO_IN);
+        gpio_pull_up(kHmlBackKeyDefs[i].pin);
     }
 
     buildMappings();
     outputScope_.reset();
-    for (uint8_t i = 0; i < KEY_COUNT; i++) {
+    for (uint8_t i = 0; i < HML_BACK_KEY_COUNT; i++) {
         ActionMappingCommon::resetDebounceBool(debounce_[i], false);
     }
 }
@@ -102,7 +57,7 @@ void HmlBackKeyAddon::setup() {
 void HmlBackKeyAddon::reinit() {
     buildMappings();
     outputScope_.reset();
-    for (uint8_t i = 0; i < KEY_COUNT; i++) {
+    for (uint8_t i = 0; i < HML_BACK_KEY_COUNT; i++) {
         ActionMappingCommon::resetDebounceBool(debounce_[i], false);
     }
 }
@@ -115,8 +70,8 @@ void HmlBackKeyAddon::preprocess() {
 
     outputScope_.beginFrame(gamepad);
 
-    for (uint8_t i = 0; i < KEY_COUNT; i++) {
-        const bool pressed = !gpio_get(kBackKeyPins[i].pin);
+    for (uint8_t i = 0; i < HML_BACK_KEY_COUNT; i++) {
+        const bool pressed = !gpio_get(kHmlBackKeyDefs[i].pin);
         ActionMappingCommon::updateDebounceBool(pressed, debounce_[i], HML_BACK_KEY_DEBOUNCE_FRAMES);
         if (debounce_[i].stable) {
             const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(i);

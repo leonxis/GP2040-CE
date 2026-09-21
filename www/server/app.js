@@ -877,6 +877,23 @@ app.get('/api/abortGetHeldPins', async (req, res) => {
 	return res.send();
 });
 
+app.get('/api/getHmlBackKeyPins', (req, res) => {
+	return res.send({
+		pins: [
+			{ pin: 31, field: 'leftBack1' },
+			{ pin: 30, field: 'rightBack1' },
+			{ pin: 33, field: 'leftBack2' },
+			{ pin: 34, field: 'rightBack2' },
+			{ pin: 35, field: 'leftBack3' },
+			{ pin: 36, field: 'rightBack3' },
+			{ pin: 45, field: 'leftFn' },
+			{ pin: 39, field: 'rightFn' },
+			{ pin: 47, field: 'leftMt' },
+			{ pin: 38, field: 'rightMt' },
+		],
+	});
+});
+
 app.post('/api/getHETriggerCalibration', (req, res) => {
 	return res.send({
 		voltage: 0.0,

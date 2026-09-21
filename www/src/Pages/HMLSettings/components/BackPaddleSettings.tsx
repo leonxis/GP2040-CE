@@ -1,11 +1,12 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Card, Row, Col, Button } from 'react-bootstrap';
+import { Alert, Card, Row, Col, Button } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { omit } from 'lodash';
 
 import { AppContext } from '../../../Contexts/AppContext';
 import { MaskPayload } from '../../../Store/useProfilesStore';
 import CustomSelect from '../../../Components/CustomSelect';
+import CaptureButton from '../../../Components/CaptureButton';
 import { getButtonLabels } from '../../../Data/Buttons';
 import { BUTTON_ACTIONS, PinActionValues } from '../../../Data/Pins';
 import WebApi from '../../../Services/WebApi';
@@ -111,6 +112,33 @@ function BackPaddleSettingsBody({
 	const appContext = useContext(AppContext);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isSaving, setIsSaving] = useState(false);
+	const [backKeyPinMap, setBackKeyPinMap] = useState<Map<number, string>>(new Map());
+	const [detectResult, setDetectResult] = useState<
+		{ kind: 'back'; field: string } | { kind: 'other' } | null
+	>(null);
+
+	// 拉取背键引脚→字段映射（引脚号固件内硬编码，仅 RP2350B 版型有数据）
+	useEffect(() => {
+		(async () => {
+			const data = await WebApi.getHmlBackKeyPins();
+			const entries: [number, string][] = Array.isArray(data?.pins)
+				? data.pins
+					.filter((p: { pin?: unknown; field?: unknown }) =>
+						typeof p?.pin === 'number' && typeof p?.field === 'string')
+					.map((p: { pin: number; field: string }) => [p.pin, p.field])
+				: [];
+			setBackKeyPinMap(new Map(entries));
+		})();
+	}, []);
+
+	const handleDetectBackKey = useCallback(
+		(_label: string, pin: number) => {
+			if (pin === undefined || pin === null || Number.isNaN(pin)) return;
+			const field = backKeyPinMap.get(pin);
+			setDetectResult(field ? { kind: 'back', field } : { kind: 'other' });
+		},
+		[backKeyPinMap],
+	);
 
 	const twoKeyOptions = bundle.twoKey;
 	const backKeyOptions = bundle.backKeys;
@@ -220,6 +248,27 @@ function BackPaddleSettingsBody({
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>{t('SettingsPage:hml-tab-back-buttons')}</Card.Header>
 				<Card.Body>
+					<div className="d-flex align-items-center gap-3 mb-3 flex-wrap">
+						{backKeyPinMap.size > 0 && (
+							<CaptureButton
+								buttonLabel={t('CalibrationSettings:hml-back-detect-button')}
+								labels={['']}
+								onChange={handleDetectBackKey}
+							/>
+						)}
+						{detectResult?.kind === 'back' && (
+							<Alert variant="info" className="mb-0 py-2 px-3">
+								{t('CalibrationSettings:hml-back-detected', {
+									name: t(`CalibrationSettings:${BACK_KEY_LABELS[detectResult.field]}`),
+								})}
+							</Alert>
+						)}
+						{detectResult?.kind === 'other' && (
+							<Alert variant="warning" className="mb-0 py-2 px-3">
+								{t('CalibrationSettings:hml-back-detected-other')}
+							</Alert>
+						)}
+					</div>
 					<Row className="g-3">
 						{BACK_KEY_FIELDS.map((field) =>
 							selectRow(

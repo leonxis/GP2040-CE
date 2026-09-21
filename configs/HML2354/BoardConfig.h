@@ -138,24 +138,25 @@
 #define LINEAR_R2_PIN 42
 
 // 背键/FN/触摸左右键：2354B 版型 GPIO 充足，背键为独立数字键
-// 背键由 HmlBackKeyAddon 插件读取（低电平有效），输出走 ActionMappingCommon 统一映射，
+// 背键由 HmlBackKeyAddon 插件读取（低电平有效），引脚在插件内硬编码，
+// 输出走 ActionMappingCommon 统一映射，
 // 映射存储于 HmlBackMappingPreset 左/右背键1-3 + FN/MT 字段
 // 2键触摸板硬件开关（全局，与方案无关）：0=关闭
 #define HML_TWOKEY_TOUCHPAD_ENABLED 0
 #define HML_TWOKEY_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
 #define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
-// 背键/FN/MT 引脚（低电平有效，独立于主 GPIO 表）
-#define HML_BACK_KEY_LB1_PIN 31 // 左背键1
-#define HML_BACK_KEY_RB1_PIN 30 // 右背键1
-#define HML_BACK_KEY_LB2_PIN 33 // 左背键2
-#define HML_BACK_KEY_RB2_PIN 34 // 右背键2
-#define HML_BACK_KEY_LB3_PIN 35 // 左背键3
-#define HML_BACK_KEY_RB3_PIN 36 // 右背键3
-#define HML_BACK_KEY_LFN_PIN 45 // 左FN
-#define HML_BACK_KEY_RFN_PIN 39 // 右FN
-#define HML_BACK_KEY_LMT_PIN 47 // 左MT
-#define HML_BACK_KEY_RMT_PIN 38 // 右MT
+// 背键/FN/MT 出厂默认映射（仅首次写入存储的方案1生效；未定义的背键默认 NONE）
+#define HML_BACK_KEY_LB1_ACTION GpioAction::BUTTON_PRESS_B1 // 左背键1
+#define HML_BACK_KEY_RB1_ACTION GpioAction::BUTTON_PRESS_B1 // 右背键1
+#define HML_BACK_KEY_LB2_ACTION GpioAction::BUTTON_PRESS_B1 // 左背键2
+#define HML_BACK_KEY_RB2_ACTION GpioAction::BUTTON_PRESS_B1 // 右背键2
+#define HML_BACK_KEY_LB3_ACTION GpioAction::BUTTON_PRESS_B1 // 左背键3
+#define HML_BACK_KEY_RB3_ACTION GpioAction::BUTTON_PRESS_B1 // 右背键3
+#define HML_BACK_KEY_LFN_ACTION GpioAction::BUTTON_PRESS_B1 // 左FN
+#define HML_BACK_KEY_RFN_ACTION GpioAction::BUTTON_PRESS_B1 // 右FN
+#define HML_BACK_KEY_LMT_ACTION GpioAction::BUTTON_PRESS_B1 // 左MT
+#define HML_BACK_KEY_RMT_ACTION GpioAction::BUTTON_PRESS_B1 // 右MT
 
 
 

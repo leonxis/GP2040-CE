@@ -59,6 +59,57 @@ void initHmlBackMappingPresetScheme1FromBoardConfig(HmlBackMappingPreset& scheme
     scheme1.rightKeyMapping.has_action = true;
     scheme1.has_rightKeyMapping = true;
 #endif
+    // 背键/FN/MT 默认 NONE；BoardConfig 定义了对应 ACTION 宏时以宏为准
+#if defined(HML_BACK_KEY_LB1_ACTION)
+    scheme1.leftBack1Mapping.action = HML_BACK_KEY_LB1_ACTION;
+    scheme1.leftBack1Mapping.has_action = true;
+    scheme1.has_leftBack1Mapping = true;
+#endif
+#if defined(HML_BACK_KEY_RB1_ACTION)
+    scheme1.rightBack1Mapping.action = HML_BACK_KEY_RB1_ACTION;
+    scheme1.rightBack1Mapping.has_action = true;
+    scheme1.has_rightBack1Mapping = true;
+#endif
+#if defined(HML_BACK_KEY_LB2_ACTION)
+    scheme1.leftBack2Mapping.action = HML_BACK_KEY_LB2_ACTION;
+    scheme1.leftBack2Mapping.has_action = true;
+    scheme1.has_leftBack2Mapping = true;
+#endif
+#if defined(HML_BACK_KEY_RB2_ACTION)
+    scheme1.rightBack2Mapping.action = HML_BACK_KEY_RB2_ACTION;
+    scheme1.rightBack2Mapping.has_action = true;
+    scheme1.has_rightBack2Mapping = true;
+#endif
+#if defined(HML_BACK_KEY_LB3_ACTION)
+    scheme1.leftBack3Mapping.action = HML_BACK_KEY_LB3_ACTION;
+    scheme1.leftBack3Mapping.has_action = true;
+    scheme1.has_leftBack3Mapping = true;
+#endif
+#if defined(HML_BACK_KEY_RB3_ACTION)
+    scheme1.rightBack3Mapping.action = HML_BACK_KEY_RB3_ACTION;
+    scheme1.rightBack3Mapping.has_action = true;
+    scheme1.has_rightBack3Mapping = true;
+#endif
+#if defined(HML_BACK_KEY_LFN_ACTION)
+    scheme1.leftFnMapping.action = HML_BACK_KEY_LFN_ACTION;
+    scheme1.leftFnMapping.has_action = true;
+    scheme1.has_leftFnMapping = true;
+#endif
+#if defined(HML_BACK_KEY_RFN_ACTION)
+    scheme1.rightFnMapping.action = HML_BACK_KEY_RFN_ACTION;
+    scheme1.rightFnMapping.has_action = true;
+    scheme1.has_rightFnMapping = true;
+#endif
+#if defined(HML_BACK_KEY_LMT_ACTION)
+    scheme1.leftMtMapping.action = HML_BACK_KEY_LMT_ACTION;
+    scheme1.leftMtMapping.has_action = true;
+    scheme1.has_leftMtMapping = true;
+#endif
+#if defined(HML_BACK_KEY_RMT_ACTION)
+    scheme1.rightMtMapping.action = HML_BACK_KEY_RMT_ACTION;
+    scheme1.rightMtMapping.has_action = true;
+    scheme1.has_rightMtMapping = true;
+#endif
 }
 
 void ensureHmlBackMappingPresetSlots(HmlBackMappingPresetOptions& opts, pb_size_t requiredCount) {
