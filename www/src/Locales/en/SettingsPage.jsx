@@ -245,6 +245,9 @@ export default {
 	'hml-bluetooth-link-label': 'Bluetooth Wireless',
 	'hml-bluetooth-link-hint':
 		'Enables Bluetooth connection. Supports XINPUT, DSE and NSPRO modes.',
+	'hml-nrf24-link-label': 'Wireless Mode',
+	'hml-nrf24-link-hint':
+		'Enable nRF24 direct wireless (SPI0). Requires a matching 2.4G receiver on the host',
 	'hml-report-rate-label': 'Report rate',
 	'hml-report-rate-hint': 'Host connection report rate. Enabling gyro may reduce the effective rate.',
 	'hml-screen-customization-button': 'Screen customization',

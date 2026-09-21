@@ -31,6 +31,7 @@
 #include "addons/wiiext.h"
 #include "addons/input_macro.h"
 #include "addons/uart_link.h"
+#include "addons/nrf24_link.h"
 #include "addons/snes_input.h"
 #include "addons/rotaryencoder.h"
 #include "addons/i2c_gpio_pcf8575.h"
@@ -81,15 +82,15 @@ static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
-static const uint8_t WEBCONFIG_BOOT_GPIO = 19; //修改为GPIO19
-static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_A = 18;
-static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_B = 19;
-static const uint8_t RUNTIME_HOTKEY_WEBCONFIG_GPIO = 21;
-static const uint8_t RUNTIME_HOTKEY_USB_BOOT_GPIO = 22;
-static const uint8_t RUNTIME_HOTKEY_MODE_X_GPIO = 15;
+static const uint8_t WEBCONFIG_BOOT_GPIO = 32; //修改为GPIO32
+static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_A = 27;
+static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_B = 32;
+static const uint8_t RUNTIME_HOTKEY_WEBCONFIG_GPIO = 26;
+static const uint8_t RUNTIME_HOTKEY_USB_BOOT_GPIO = 17;
+static const uint8_t RUNTIME_HOTKEY_MODE_X_GPIO = 10;
 static const uint8_t RUNTIME_HOTKEY_MODE_O_GPIO = 7;
-static const uint8_t RUNTIME_HOTKEY_MODE_SQUARE_GPIO = 13;
-static const uint8_t RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO = 14;
+static const uint8_t RUNTIME_HOTKEY_MODE_SQUARE_GPIO = 15;
+static const uint8_t RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO = 5;
 
 enum class RuntimeHotkeyAction {
 	NONE,
@@ -1087,6 +1088,7 @@ void GP2040::setup() {
 	addons.LoadAddon(new AxisTiltOverlayInput()); // Must execute after all joystick processing
 	addons.LoadAddon(new InputMacro());
 	addons.LoadAddon(new UARTLinkAddon());
+	addons.LoadAddon(new NRF24LinkAddon());
 	main_loop_gate_analog_source =
 			addons.GetGateLateAnalogSource();
 

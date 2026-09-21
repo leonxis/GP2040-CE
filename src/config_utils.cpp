@@ -412,6 +412,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.gamepadOptions, miniMenuGamepadInput, MINI_MENU_GAMEPAD_INPUT);
     INIT_UNSET_PROPERTY(config.gamepadOptions, wirelessLinkEnabled, DEFAULT_WIRELESS_LINK_ENABLED);
     INIT_UNSET_PROPERTY(config.gamepadOptions, bluetoothLinkEnabled, DEFAULT_BLUETOOTH_LINK_ENABLED);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, nrf24LinkEnabled, DEFAULT_NRF24_LINK_ENABLED);
 
     // hotkeyOptions
     HotkeyOptions& hotkeyOptions = config.hotkeyOptions;
@@ -2037,9 +2038,14 @@ void ConfigUtils::load(Config& config)
     // They were probably added with a newer version of the firmware.
     initUnsetPropertiesWithDefaults(config);
 
-    // 三开关硬件互斥归一化（GPIO8/9 复用：无线/蓝牙 UART1 与 USB0 D+/D- 冲突）。
-    // 优先级：无线连接 > 蓝牙模式 > USB 验证器；兜底绕过 UI 写入的脏配置。
-    if (config.gamepadOptions.wirelessLinkEnabled) {
+    // 四开关硬件互斥归一化：
+    //  - nRF24 直连(SPI0) 与 uart_link 无线(UART1) 与 蓝牙(UART1) 与 USB验证器(USB0 D+/D-) 互斥。
+    //  - 优先级：nRF24直连 > uart_link 无线 > 蓝牙 > USB验证器；兜底绕过 UI 写入的脏配置。
+    if (config.gamepadOptions.nrf24LinkEnabled) {
+        config.gamepadOptions.wirelessLinkEnabled = false;
+        config.gamepadOptions.bluetoothLinkEnabled = false;
+        config.peripheralOptions.blockUSB0.enabled = false;
+    } else if (config.gamepadOptions.wirelessLinkEnabled) {
         config.gamepadOptions.bluetoothLinkEnabled = false;
         config.peripheralOptions.blockUSB0.enabled = false;
     } else if (config.gamepadOptions.bluetoothLinkEnabled) {

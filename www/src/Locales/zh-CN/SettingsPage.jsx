@@ -223,6 +223,9 @@ export default {
 	'hml-bluetooth-link-label': '蓝牙无线',
 	'hml-bluetooth-link-hint':
 		'启用蓝牙连接，支持XINPUT、DSE、NSPRO模式连接',
+	'hml-nrf24-link-label': '无线模式',
+	'hml-nrf24-link-hint':
+		'启用 nRF24 直连无线（SPI0），需在接收端插入配套 2.4G 接收器',
 	'hml-report-rate-label': '回报率',
 	'hml-report-rate-hint': '调整主机连接回报率，若开启陀螺仪可能造成回报率降低。',
 	'hml-screen-customization-button': '屏幕个性化',

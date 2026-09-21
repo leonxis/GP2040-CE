@@ -69,12 +69,23 @@
 #define GPIO_PIN_18 GpioAction::ASSIGNED_TO_ADDON // D+/UART0-TX
 #define GPIO_PIN_19 GpioAction::ASSIGNED_TO_ADDON // D-/UART0-RX
 #define GPIO_PIN_29 GpioAction::ASSIGNED_TO_ADDON //LED
+// 背键/FN/MT GPIO 归插件管理，不参与主 GPIO 表与按键预设
+#define GPIO_PIN_38 GpioAction::ASSIGNED_TO_ADDON // 右MT (RMT)
+#define GPIO_PIN_39 GpioAction::ASSIGNED_TO_ADDON // 右FN (RFN)
+#define GPIO_PIN_45 GpioAction::ASSIGNED_TO_ADDON // 左FN (LFN)
+#define GPIO_PIN_47 GpioAction::ASSIGNED_TO_ADDON // 左MT (LMT)
+#define GPIO_PIN_30 GpioAction::ASSIGNED_TO_ADDON // 右背键1
+#define GPIO_PIN_31 GpioAction::ASSIGNED_TO_ADDON // 左背键1
+#define GPIO_PIN_33 GpioAction::ASSIGNED_TO_ADDON // 左背键2
+#define GPIO_PIN_34 GpioAction::ASSIGNED_TO_ADDON // 右背键2
+#define GPIO_PIN_35 GpioAction::ASSIGNED_TO_ADDON // 左背键3
+#define GPIO_PIN_36 GpioAction::ASSIGNED_TO_ADDON // 右背键3
 
-// SPI0: nrf关闭，RX=GPIO4, CS=GPIO1, SCK=GPIO2, TX=GPIO3, CE=GPIO0
+// SPI0: nRF24 直连启用，RX=GPIO4, CS=GPIO1, SCK=GPIO2, TX=GPIO3, CE=GPIO0
 #ifdef SPI0_ENABLED
 #undef SPI0_ENABLED
 #endif
-#define SPI0_ENABLED 0
+#define SPI0_ENABLED 1
 
 #ifdef SPI0_PIN_RX
 #undef SPI0_PIN_RX
@@ -146,17 +157,7 @@
 #define HML_BACK_KEY_LMT_PIN 47 // 左MT
 #define HML_BACK_KEY_RMT_PIN 38 // 右MT
 
-// 背键/FN/MT GPIO 归插件管理，不参与主 GPIO 表与按键预设
-#define GPIO_PIN_38 GpioAction::ASSIGNED_TO_ADDON // 右MT (RMT)
-#define GPIO_PIN_39 GpioAction::ASSIGNED_TO_ADDON // 右FN (RFN)
-#define GPIO_PIN_45 GpioAction::ASSIGNED_TO_ADDON // 左FN (LFN)
-#define GPIO_PIN_47 GpioAction::ASSIGNED_TO_ADDON // 左MT (LMT)
-#define GPIO_PIN_30 GpioAction::ASSIGNED_TO_ADDON // 右背键1
-#define GPIO_PIN_31 GpioAction::ASSIGNED_TO_ADDON // 左背键1
-#define GPIO_PIN_33 GpioAction::ASSIGNED_TO_ADDON // 左背键2
-#define GPIO_PIN_34 GpioAction::ASSIGNED_TO_ADDON // 右背键2
-#define GPIO_PIN_35 GpioAction::ASSIGNED_TO_ADDON // 左背键3
-#define GPIO_PIN_36 GpioAction::ASSIGNED_TO_ADDON // 右背键3
+
 
 // 摇杆叠加 RC 增益：首次写入存储时的默认值（RC 抖动强度 / 抖动幅度 / 衰减范围，单位 %）
 #define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT 100.0f
@@ -226,6 +227,9 @@
 // --- 无线连接开关板级默认值为关闭（与UART链路开关复用） ---
 // 运行时开关仍可通过网页/miniled 显式关闭。
 #define DEFAULT_WIRELESS_LINK_ENABLED 0
+
+// --- nRF24 直连无线模式开关板级默认值为关闭（SPI0 直驱，与无线连接/蓝牙三互斥）---
+#define DEFAULT_NRF24_LINK_ENABLED 0
 
 // PS AUTH
 #define DEFAULT_PS4CONTROLLER_TYPE PS4_CONTROLLER
