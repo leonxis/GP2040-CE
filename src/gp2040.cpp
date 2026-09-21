@@ -493,13 +493,15 @@ static void resetMainLoopGateForSnapshot(
 			: MainLoopGateState::WAIT_MOUNT;
 }
 
-// 无线链路是否激活：无线连接开关（nRF24 路径）或蓝牙模式开关（BLE 路径）
-// 任一启用即激活（config_utils 初始化时已写入板级默认值，加载时三互斥归一化）。
+// 无线链路是否激活：无线连接开关（UART→外部 radio）、nRF24 直连无线模式、
+// 蓝牙模式开关（BLE 路径）任一启用即激活（config_utils 初始化时已写入板级
+// 默认值，加载时三互斥归一化）。
 // 仅在 setup() 中调用一次，结果缓存至 main_loop_wireless_link_active，
-// 用途：USB Device 未挂载时主循环门控降级为无门控运行，保证 UART 帧持续输出。
+// 用途：USB Device 未挂载时主循环门控降级为无门控运行，保证无线链路
+// （UART/nRF24/BLE）的 PostprocessAddons 帧持续输出。
 static inline bool wirelessLinkActive() {
 	const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
-	return o.wirelessLinkEnabled || o.bluetoothLinkEnabled;
+	return o.wirelessLinkEnabled || o.bluetoothLinkEnabled || o.nrf24LinkEnabled;
 }
 
 static MainLoopGateAction getMainLoopGateAction(bool configMode) {
