@@ -699,7 +699,9 @@ bool PS4Driver::process(Gamepad * gamepad) {
     }
 
     // Wake up TinyUSB device
-    if (tud_suspended())
+    // 无线时间触发门控下主循环以 GPIO 变化扫描统一发起远程唤醒，
+    // 此处抑制每帧自动唤醒，避免主机刚挂起即被立即唤醒。
+    if (tud_suspended() && !isMainLoopGateTimeTriggered())
         tud_remote_wakeup();
 
     bool reportSent = false;

@@ -63,10 +63,11 @@ static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 static bool main_loop_gate_enabled = false;
 static bool main_loop_gate_runtime_enabled = false;
-// 初始化时缓存一次：无线输出链路（nRF24 / BLE）是否激活。开关切换
-// 必然重启，无需每轮循环重判。用途：USB Device 未挂载时主循环门控降级
-// 为无门控运行，保证 UART PostprocessAddons 持续发送。
-static bool main_loop_wireless_link_active = false;
+// 无线模式（nRF24/BLE/UART）启用时间触发门控：不依赖 IN 令牌，
+// 以 950µs 固定间隔触发帧，使主循环周期接近 1ms 轮询周期，降低 NAK。
+// setup() 中由 wirelessLinkActive() 缓存一次（开关切换必然重启）。
+static bool main_loop_gate_time_triggered = false;
+static uint32_t main_loop_gate_last_frame_start_us = 0;
 static bool composite_hid_enabled = false;
 static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static const uint32_t MAIN_LOOP_GATE_WAIT_TIMEOUT_US = 1000;
@@ -80,6 +81,9 @@ static const uint32_t MAIN_LOOP_GATE_COMPLETION_TO_TOKEN_GUARD_US = 64;
 static const uint32_t MAIN_LOOP_GATE_SAFETY_MARGIN_US = 50;
 static const uint8_t MAIN_LOOP_GATE_WCET_WINDOW = 64;
 static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
+// 无线模式（nRF24/BLE/UART）时间触发门控帧间隔：略快于 1ms 轮询周期，
+// 保证每次轮询时报文已就绪，降低 NAK 可能性。
+static const uint32_t MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US = 950;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
@@ -114,6 +118,7 @@ enum class MainLoopGateState {
 	RECOVERY,
 	SUSPENDED_ARMED,
 	SUSPENDED_UNARMED,
+	TIME_LOCKED, // 无线模式：时间触发，不依赖 IN 令牌
 };
 
 enum class MainLoopGateAction {
@@ -293,7 +298,8 @@ void getMainLoopGateStats(MainLoopGateStats* stats) {
                 return;
         }
         stats->deadlineSchedulingActive =
-                main_loop_gate_state == MainLoopGateState::LOCKED &&
+                (main_loop_gate_state == MainLoopGateState::LOCKED ||
+                 main_loop_gate_state == MainLoopGateState::TIME_LOCKED) &&
                 main_loop_gate_frame_schedule.valid;
         stats->analogSource = main_loop_gate_analog_source;
         stats->stableCompletions = main_loop_gate_stable_completions;
@@ -330,6 +336,10 @@ void getMainLoopGateStats(MainLoopGateStats* stats) {
                 main_loop_gate_frame_schedule.finalizeDeadlineUs;
 }
 
+bool isMainLoopGateTimeTriggered(void) {
+        return main_loop_gate_time_triggered;
+}
+
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const InputMode inputMode = DriverManager::getInstance().getInputMode();
@@ -340,14 +350,11 @@ static inline bool shouldUseMainLoopGate() {
 		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B ||
 		 inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
 
-	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
-	// 门控仅依赖 USB Device（连 PC 的原生 USB）的挂载/IN 轮询状态，与
-	// 验证器 PIO USB Host（USB0/GPIO8/9）无关。无线（nRF）链路启用不影响
-	// 门控启用判断；蓝牙模式开关开启时必须关闭门控——BLE 输出要求主循环
-	// 自由运行，否则 UART 帧节拍会被 USB IN 令牌拖慢。USB Device 未挂载时
-	// 另由 getMainLoopGateAction() 降级为无门控运行，保证无线输出。
-	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode &&
-	       !gamepadOptions.bluetoothLinkEnabled;
+	// 无线模式（nRF24/BLE/UART）不再排除门控：改为时间触发模式运行，
+	// 以 950µs 固定间隔触发帧，使主循环周期接近 1ms 轮询周期，降低 NAK。
+	// USB Device 未挂载时由 getMainLoopGateAction() 的时间触发路径处理，
+	// 不降级为无门控运行。
+	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
 }
 
 static void resetMainLoopGateTiming() {
@@ -490,6 +497,49 @@ static void prepareMainLoopGateFrameSchedule(
                 endpointArmBoundUs;
 }
 
+// 时间触发模式帧调度：以 lastFrameStart + 950µs 作为下一帧起点
+// （即当前帧的完成截止时间），复用相同 WCET bound 与安全余量逻辑。
+// 与 IN 令牌模式的 prepareMainLoopGateFrameSchedule 对应，但不依赖
+// completeSofTime/phaseMin（无线模式下 IN 令牌不可靠或缺失）。
+static void prepareMainLoopGateTimeTriggeredFrameSchedule() {
+        main_loop_gate_frame_schedule = {};
+        if (main_loop_gate_state != MainLoopGateState::TIME_LOCKED ||
+                !mainLoopGateSchedulingMeasurementsReady() ||
+                main_loop_gate_last_frame_start_us == 0) {
+                return;
+        }
+        const uint32_t finalProcessBoundUs =
+                main_loop_gate_final_process_wcet.maximum;
+        const uint32_t endpointArmBoundUs =
+                main_loop_gate_endpoint_arm_wcet.maximum;
+        const uint32_t postprocessBoundUs =
+                main_loop_gate_postprocess_wcet.maximum;
+        const uint32_t reservedUs =
+                finalProcessBoundUs +
+                endpointArmBoundUs +
+                postprocessBoundUs +
+                MAIN_LOOP_GATE_SAFETY_MARGIN_US;
+        if (reservedUs >= MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US) {
+                return;
+        }
+        // 下一帧起点 = 当前帧启动 + 950µs
+        const uint32_t nextFrameStartUs =
+                main_loop_gate_last_frame_start_us +
+                MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US;
+        const uint32_t armDeadlineUs =
+                nextFrameStartUs - postprocessBoundUs -
+                MAIN_LOOP_GATE_SAFETY_MARGIN_US;
+        main_loop_gate_frame_schedule.valid = true;
+        main_loop_gate_frame_schedule.nextTokenEarliestUs = nextFrameStartUs;
+        main_loop_gate_frame_schedule.armDeadlineUs = armDeadlineUs;
+        // finalizeDeadline = armDeadline - finalProcessBound - endpointArmBound
+        // （postprocess 与 SAFETY_MARGIN 已在 armDeadline 中扣除）
+        main_loop_gate_frame_schedule.finalizeDeadlineUs =
+                armDeadlineUs -
+                finalProcessBoundUs -
+                endpointArmBoundUs;
+}
+
 static void resetMainLoopGateForSnapshot(
 	const USBMainGamepadGateSnapshot& snapshot) {
 	main_loop_gate_epoch = snapshot.epoch;
@@ -500,18 +550,25 @@ static void resetMainLoopGateForSnapshot(
 	main_loop_suspend_scan_initialized = false;
 	resetMainLoopGateTiming();
         resetMainLoopGateMeasurements();
-	main_loop_gate_state =
-		(snapshot.mounted && !snapshot.suspended)
-			? MainLoopGateState::BOOTSTRAP_BUILD
-			: MainLoopGateState::WAIT_MOUNT;
+	main_loop_gate_last_frame_start_us = 0;
+	if (main_loop_gate_time_triggered) {
+		// 时间触发模式：USB 挂载状态不影响门控启动，直接进入 BOOTSTRAP_BUILD
+		main_loop_gate_state = MainLoopGateState::BOOTSTRAP_BUILD;
+	} else {
+		main_loop_gate_state =
+			(snapshot.mounted && !snapshot.suspended)
+				? MainLoopGateState::BOOTSTRAP_BUILD
+				: MainLoopGateState::WAIT_MOUNT;
+	}
 }
 
 // 无线链路是否激活：无线连接开关（UART→外部 radio）、nRF24 直连无线模式、
 // 蓝牙模式开关（BLE 路径）任一启用即激活（config_utils 初始化时已写入板级
 // 默认值，加载时三互斥归一化）。
-// 仅在 setup() 中调用一次，结果缓存至 main_loop_wireless_link_active，
-// 用途：USB Device 未挂载时主循环门控降级为无门控运行，保证无线链路
-// （UART/nRF24/BLE）的 PostprocessAddons 帧持续输出。
+// 仅在 setup() 中调用一次，结果缓存至 main_loop_gate_time_triggered：
+// 门控启用时走时间触发路径（USB 未挂载/挂起均不阻塞，PostprocessAddons
+// 的 UART/nRF24/BLE 帧以 950µs 节拍持续输出）；门控不支持的模式下
+// getMainLoopGateAction 直接返回 RunFrame 自由运行。
 static inline bool wirelessLinkActive() {
 	const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
 	return o.wirelessLinkEnabled || o.bluetoothLinkEnabled || o.nrf24LinkEnabled;
@@ -528,17 +585,15 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	USBMainGamepadGateSnapshot snapshot = {};
 	usb_get_main_gamepad_gate_snapshot(&snapshot);
 
-	// USB Device（连 PC 的原生 USB）未挂载：无线链路激活时属于正常状态
-	// （输出走无线链路），门控降级为无门控运行，确保 PostprocessAddons
-	// （UART 发送）执行；纯有线时保持原有 WaitUSB 等待枚举行为。
-	// 该检查置于 runtime 初始化之前，避免降级状态下每轮循环重复 reset。
-	if (!snapshot.mounted) {
+	// USB Device（连 PC 的原生 USB）未挂载：
+	// - 时间触发模式（无线链路激活）：不降级，由状态机处理
+	//   （BOOTSTRAP_BUILD → TIME_LOCKED），主循环照常执行，保证无线输出；
+	// - IN 令牌模式（纯有线）：保持 WAIT_MOUNT，随后返回 WaitUSB 等待枚举。
+	// 门控启用时 time_triggered 等价于无线链路激活，因此此处不存在
+	// “无线激活但非时间触发”的组合，无需再降级为无门控运行。
+	if (!snapshot.mounted && !main_loop_gate_time_triggered) {
 		main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
 		main_loop_suspend_scan_initialized = false;
-		if (main_loop_wireless_link_active) {
-			main_loop_gate_runtime_enabled = false;
-			return MainLoopGateAction::RunFrame;
-		}
 	}
 
 	if (!main_loop_gate_runtime_enabled) {
@@ -550,11 +605,13 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 
 	main_loop_gate_action_epoch = snapshot.epoch;
 
-	if (!snapshot.mounted) {
+	// 时间触发模式：USB 未挂载/挂起均不阻塞主循环，继续走状态机
+	// （BOOTSTRAP_BUILD → TIME_LOCKED），保证无线输出连续。
+	if (!snapshot.mounted && !main_loop_gate_time_triggered) {
 		return MainLoopGateAction::WaitUSB;
 	}
 
-	if (snapshot.suspended) {
+	if (snapshot.suspended && !main_loop_gate_time_triggered) {
 		if (main_loop_gate_state != MainLoopGateState::SUSPENDED_ARMED &&
 			main_loop_gate_state != MainLoopGateState::SUSPENDED_UNARMED) {
 			main_loop_suspend_scan_initialized = false;
@@ -581,9 +638,11 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 
 	if (snapshot.failedSeq != main_loop_gate_failed_seq) {
 		main_loop_gate_failed_seq = snapshot.failedSeq;
-		main_loop_gate_first_in_seen = false;
-		resetMainLoopGateTiming();
-		main_loop_gate_state = MainLoopGateState::RECOVERY;
+		if (!main_loop_gate_time_triggered) {
+			main_loop_gate_first_in_seen = false;
+			resetMainLoopGateTiming();
+			main_loop_gate_state = MainLoopGateState::RECOVERY;
+		}
 	}
 
 	if (main_loop_gate_state == MainLoopGateState::WAIT_MOUNT) {
@@ -593,6 +652,10 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	switch (main_loop_gate_state) {
 		case MainLoopGateState::BOOTSTRAP_BUILD:
                         main_loop_gate_frame_schedule = {};
+			if (main_loop_gate_time_triggered &&
+				main_loop_gate_last_frame_start_us == 0) {
+				main_loop_gate_last_frame_start_us = time_us_32();
+			}
 			return MainLoopGateAction::RunFrame;
 
 		case MainLoopGateState::BOOTSTRAP_SUBMIT:
@@ -668,12 +731,43 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 		case MainLoopGateState::WAIT_MOUNT:
 		default:
 			return MainLoopGateAction::WaitUSB;
+
+		case MainLoopGateState::TIME_LOCKED: {
+			const uint32_t now = time_us_32();
+			const uint32_t deadline =
+				main_loop_gate_last_frame_start_us +
+				MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US;
+			if (mainLoopGateTimeReached(now, deadline)) {
+				main_loop_gate_last_frame_start_us = now;
+				prepareMainLoopGateTimeTriggeredFrameSchedule();
+				return MainLoopGateAction::RunFrame;
+			}
+			return MainLoopGateAction::WaitUSB;
+		}
 	}
 }
 
 static bool mainLoopGateReportAttempted(bool submitted) {
 	if (!main_loop_gate_runtime_enabled) {
                 return submitted;
+        }
+
+	// 时间触发模式（无线）：不依赖 IN 令牌驱动状态转换。
+	// USB 未挂载时 inputDriver->process 返回 false（无 USB 提交），
+	// 但仍构建了报文，endpoint arm WCET 需记录，因此始终返回 true。
+	if (main_loop_gate_time_triggered) {
+		if (submitted) {
+			(void)usb_mark_main_gamepad_report_submitted(
+				main_loop_gate_action_epoch);
+		}
+		// BOOTSTRAP_BUILD 首帧后进入 TIME_LOCKED；
+		// RECOVERY 恢复到 TIME_LOCKED
+		if (main_loop_gate_state == MainLoopGateState::BOOTSTRAP_BUILD ||
+			main_loop_gate_state == MainLoopGateState::RECOVERY) {
+			main_loop_gate_state = MainLoopGateState::TIME_LOCKED;
+			main_loop_gate_frame_schedule = {};
+		}
+		return true;
 	}
 
 	if (submitted &&
@@ -713,7 +807,8 @@ static bool mainLoopGateEventPending();
 // sleep 目标 = finalizeDeadlineUs - sampleBoundUs（原始 WCET，安全余量已在 armDeadline 层注入）
 // 若剩余时间不足（非摇杆工作已超时），跳过 sleep 立即采样。
 static void sleepUntilLateSampleDeadline() {
-        if (main_loop_gate_state != MainLoopGateState::LOCKED ||
+        if ((main_loop_gate_state != MainLoopGateState::LOCKED &&
+             main_loop_gate_state != MainLoopGateState::TIME_LOCKED) ||
                 !main_loop_gate_frame_schedule.valid) {
                 return;
         }
@@ -752,7 +847,8 @@ static MainLoopGateLateSampleResult sampleMainLoopGateLateAnalog(
         }
 
         const bool deadlineMode =
-                main_loop_gate_state == MainLoopGateState::LOCKED &&
+                (main_loop_gate_state == MainLoopGateState::LOCKED ||
+                 main_loop_gate_state == MainLoopGateState::TIME_LOCKED) &&
                 main_loop_gate_frame_schedule.valid;
         // 单次采样：非门控模式仅采样一次，门控模式在 deadline 剩余不足时跳过
         if (deadlineMode) {
@@ -840,7 +936,7 @@ static void recordMainLoopGateFrameTiming(
         main_loop_gate_final_process_wcet.record(
                 finalProcessDurationUs);
 
-        if (!reportArmed) {
+        if (!reportArmed && !main_loop_gate_time_triggered) {
                 return;
         }
 
@@ -875,8 +971,10 @@ static void recordMainLoopGateFrameTiming(
                          main_loop_gate_frame_schedule.armDeadlineUs));
         if (missedDeadline) {
                 main_loop_gate_deadline_miss_count++;
-                resetMainLoopGateTiming();
-                main_loop_gate_state = MainLoopGateState::RECOVERY;
+                if (!main_loop_gate_time_triggered) {
+                        resetMainLoopGateTiming();
+                        main_loop_gate_state = MainLoopGateState::RECOVERY;
+                }
         }
 }
 
@@ -885,6 +983,16 @@ static bool mainLoopGateEventPending() {
 	usb_get_main_gamepad_gate_snapshot(&snapshot);
 	if (snapshot.epoch != main_loop_gate_epoch) {
 		return true;
+	}
+	if (main_loop_gate_time_triggered) {
+		// 时间触发模式：检查 950µs 帧间隔是否到期
+		if (main_loop_gate_state == MainLoopGateState::TIME_LOCKED) {
+			return mainLoopGateTimeReached(
+				time_us_32(),
+				main_loop_gate_last_frame_start_us +
+					MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US);
+		}
+		return true; // 非 TIME_LOCKED 态总有事件待处理
 	}
 	if (main_loop_gate_state == MainLoopGateState::WAIT_MOUNT) {
 		return snapshot.mounted;
@@ -1198,7 +1306,7 @@ void GP2040::setup() {
 		}
 	}
 	main_loop_gate_enabled = shouldUseMainLoopGate();
-	main_loop_wireless_link_active = wirelessLinkActive();
+	main_loop_gate_time_triggered = wirelessLinkActive();
 	composite_hid_enabled = (inputMode == INPUT_MODE_XINPUTB || inputMode == INPUT_MODE_PS4B);
 	if (DriverManager::getInstance().getDriver() != nullptr) {
 		cached_joystick_mid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
@@ -1339,9 +1447,19 @@ void GP2040::run() {
 			USBHostManager::getInstance().process();
 			tud_task();
 			if (!mainLoopGateEventPending()) {
-				best_effort_wfe_or_timeout(
-					make_timeout_time_us(
-						MAIN_LOOP_GATE_WAIT_TIMEOUT_US));
+				if (main_loop_gate_time_triggered) {
+					// 等待到下一帧触发时刻
+					const uint32_t remaining = mainLoopGateTimeRemaining(
+						time_us_32(),
+						main_loop_gate_last_frame_start_us +
+							MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US);
+					best_effort_wfe_or_timeout(
+						make_timeout_time_us(remaining));
+				} else {
+					best_effort_wfe_or_timeout(
+						make_timeout_time_us(
+							MAIN_LOOP_GATE_WAIT_TIMEOUT_US));
+				}
 			}
 			continue;
 		}
@@ -1416,12 +1534,29 @@ void GP2040::run() {
 		USBHostManager::getInstance().process();
 
 		// Config Loop (Web-Config skips Core0 add-ons)
-		if (configMode == true) {
-			inputDriver->process(gamepad);
-			rebootHotkeys.process(configMode);
-			checkSaveRebootState();
-			continue;
+	if (configMode == true) {
+		inputDriver->process(gamepad);
+		rebootHotkeys.process(configMode);
+		checkSaveRebootState();
+		continue;
+	}
+
+	// 无线时间触发模式下 USB 挂起：门控不进入 ScanSuspended（无线帧照常输出），
+	// 远程唤醒改由 GPIO 变化扫描触发，与有线 ScanSuspended 语义一致，
+	// 替代驱动内每帧自动 tud_remote_wakeup（驱动侧已抑制）。
+	if (main_loop_gate_time_triggered && get_usb_suspended()) {
+		const uint32_t currentGpio =
+			gamepad->debouncedGpio & buttonGpios;
+		if (!main_loop_suspend_scan_initialized) {
+			main_loop_suspend_last_gpio = currentGpio;
+			main_loop_suspend_scan_initialized = true;
+		} else if (currentGpio != main_loop_suspend_last_gpio) {
+			main_loop_suspend_last_gpio = currentGpio;
+			tud_remote_wakeup();
 		}
+	} else {
+		main_loop_suspend_scan_initialized = false;
+	}
 
                 // Gated frames run ordinary input work once.
                 const bool splitGateFrame =
