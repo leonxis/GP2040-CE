@@ -20,7 +20,6 @@ static uint16_t crc16_update(uint16_t crc, uint8_t b) {
 // config_utils 初始化时已通过 INIT_UNSET_PROPERTY 写入板级默认值并置 has_ 标志，
 // 此处直接读取值即可。
 bool UARTLinkAddon::available() {
-    if (!UART_LINK_ENABLED) return false;
     const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
     return o.wirelessLinkEnabled || o.bluetoothLinkEnabled;
 }

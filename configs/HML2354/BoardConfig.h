@@ -218,17 +218,16 @@
 #endif
 
 // --- UART 无线链路（GPIO18/19 复用 UART0 功能）（复用蓝牙模式连接开关，使其同开通关） ---
-// --- 蓝牙模式开关板级默认值为关闭（网页/miniled 开关共用） ---
-// 开启后 UART 链路 STATUS 帧通知 ESP32 走 BLE 输出路径；与无线连接、USB 验证器三互斥。
-#define DEFAULT_BLUETOOTH_LINK_ENABLED 0
+// 开启后 UART 链路 STATUS 帧通知 ESP32 走 BLE 输出路径。
+// 插件无条件编译/加载，启用与否只看运行时无线/蓝牙开关。
 #define UART_LINK_TX_PIN    18
 #define UART_LINK_RX_PIN    19
 #define UART_LINK_BAUD      921600
-
+//三模式默认开关配置，；三互斥
+// --- 蓝牙模式开关板级默认值为关闭（网页/miniled 开关共用） ---
+#define DEFAULT_BLUETOOTH_LINK_ENABLED 0
 // --- 无线连接开关板级默认值为关闭（与UART链路开关复用） ---
-// 运行时开关仍可通过网页/miniled 显式关闭。
 #define DEFAULT_WIRELESS_LINK_ENABLED 0
-
 // --- nRF24 直连无线模式开关板级默认值为关闭（SPI0 直驱，与无线连接/蓝牙三互斥）---
 #define DEFAULT_NRF24_LINK_ENABLED 0
 

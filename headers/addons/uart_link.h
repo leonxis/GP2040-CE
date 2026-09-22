@@ -4,10 +4,6 @@
 #include "gpaddon.h"
 #include "BoardConfig.h"
 
-#ifndef UART_LINK_ENABLED
-#define UART_LINK_ENABLED 0
-#endif
-
 #ifndef DEFAULT_WIRELESS_LINK_ENABLED
 #define DEFAULT_WIRELESS_LINK_ENABLED 0
 #endif
