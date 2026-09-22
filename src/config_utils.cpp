@@ -570,7 +570,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, tx, SPI0_PIN_TX);
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, enabled, (!!SPI1_ENABLED));
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, rx, SPI1_PIN_RX);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, cs, PI1_PIN_CS);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, cs, SPI1_PIN_CS);
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, sck, SPI1_PIN_SCK);
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, tx, SPI1_PIN_TX);
 

@@ -127,10 +127,11 @@ static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; nee
 static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
 static void sUsbAuth(int v) {
     POP().blockUSB0.enabled = v ? 1 : 0;
-    // 三互斥：开启 USB 验证器时自动关闭无线连接与蓝牙模式（GPIO8/9 复用冲突）
+    // 四互斥：开启 USB 验证器时自动关闭无线连接、蓝牙模式与无线模式（GPIO8/9 复用冲突）
     if (v) {
         GOP().wirelessLinkEnabled = false;
         GOP().bluetoothLinkEnabled = false;
+        GOP().nrf24LinkEnabled = false;
     }
     needsReboot = true;
 }
@@ -139,9 +140,10 @@ static void sUsbAuth(int v) {
 static int gWireless() { return GOP().wirelessLinkEnabled ? 1 : 0; }
 static void sWireless(int v) {
     GOP().wirelessLinkEnabled = v ? true : false;
-    // 三互斥：开启无线时自动关闭蓝牙模式与 USB 验证器（GPIO8/9 复用冲突）
+    // 四互斥：开启无线时自动关闭蓝牙模式、无线模式与 USB 验证器（GPIO8/9 复用冲突）
     if (v) {
         GOP().bluetoothLinkEnabled = false;
+        GOP().nrf24LinkEnabled = false;
         POP().blockUSB0.enabled = 0;
     }
     needsReboot = true;
@@ -151,9 +153,23 @@ static void sWireless(int v) {
 static int gBle() { return GOP().bluetoothLinkEnabled ? 1 : 0; }
 static void sBle(int v) {
     GOP().bluetoothLinkEnabled = v ? true : false;
-    // 三互斥：开启蓝牙时自动关闭无线连接与 USB 验证器（GPIO8/9 复用冲突）
+    // 四互斥：开启蓝牙时自动关闭无线连接、无线模式与 USB 验证器（GPIO8/9 复用冲突）
     if (v) {
         GOP().wirelessLinkEnabled = false;
+        GOP().nrf24LinkEnabled = false;
+        POP().blockUSB0.enabled = 0;
+    }
+    needsReboot = true;
+}
+
+// 无线模式开关（nRF24 直连 SPI0，对应网页 硬件配置 中的 无线模式开关）
+static int gNrf24() { return GOP().nrf24LinkEnabled ? 1 : 0; }
+static void sNrf24(int v) {
+    GOP().nrf24LinkEnabled = v ? true : false;
+    // 四互斥：开启 nRF24 直连时自动关闭无线连接、蓝牙与 USB 验证器
+    if (v) {
+        GOP().wirelessLinkEnabled = false;
+        GOP().bluetoothLinkEnabled = false;
         POP().blockUSB0.enabled = 0;
     }
     needsReboot = true;
@@ -425,7 +441,8 @@ static LiteOpt optHandle[] = {
   {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
   {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
   {"无线连接", OPT_BOOL, 0, 1, 1, NULL, 0, "", gWireless, sWireless},
-  {"蓝牙模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gBle, sBle},
+  {"BLE模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gBle, sBle},
+  {"无线模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gNrf24, sNrf24},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
 };
 // 背键映射子菜单：10 个背键/FN/MT，每个可选 17 种映射
@@ -468,7 +485,7 @@ static LiteOpt optLed[] = {
 
 static LiteSection secSettings[] = {
   {"配置", optConfig, 5},
-  {"手柄", optHandle, 5},
+  {"手柄", optHandle, 7},
   {"摇杆", optStick, 5},
   {"功能", optFunc, 5},
 };
@@ -486,6 +503,7 @@ static int scroll = 0;
 static bool dirty = false;
 static bool confirmOpen = false;
 static int confirmChoice = 0;
+static bool calibPromptOpen = false;
 static int snap[8];
 static int lastSavedInputMode = -1;
 // 背键映射子菜单状态
@@ -769,7 +787,7 @@ static void drawSlider(int x, int y, int w, int v, int max, int color) {
 
 void GPFusionMenuScreen::init() {
   page = 0; level = 0; section = 0; sel = 0; scroll = 0;
-  dirty = false; confirmOpen = false; animating = false;
+  dirty = false; confirmOpen = false; calibPromptOpen = false; animating = false;
   inBackMap = false; backMapDirty = false;
   needsReboot = false; calibDone = false;
   resetListAnim();
@@ -841,9 +859,17 @@ int8_t GPFusionMenuScreen::update() {
     if (t >= 1.0f) listAnim = false;
   }
 
+  // 校准完成提示框：按 B1 或 B2 关闭
+  if (calibPromptOpen) {
+    if (bEdge & (GAMEPAD_MASK_B1 | GAMEPAD_MASK_B2)) {
+      calibPromptOpen = false;
+    }
+    return -1;
+  }
+
   if (confirmOpen) {
     if (dEdge & 0x0C) confirmChoice = 1 - confirmChoice;
-    if (bEdge & GAMEPAD_MASK_B1) {
+    if (bEdge & GAMEPAD_MASK_B2) {  // B2=确定
       confirmOpen = false;
       if (confirmChoice == 0) {
         EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
@@ -854,7 +880,7 @@ int8_t GPFusionMenuScreen::update() {
         dirty = false;
       }
       backOne();
-    } else if (bEdge & GAMEPAD_MASK_B2) {
+    } else if (bEdge & GAMEPAD_MASK_B1) {  // B1=取消
       confirmOpen = false;
       undoCalibAndFlags();
       dirty = false;
@@ -905,7 +931,7 @@ int8_t GPFusionMenuScreen::update() {
       backMapDirty = true;
       needsReboot = true;
     }
-    if (bEdge & GAMEPAD_MASK_B2) { // B 退出（有改动则弹保存确认）
+    if (bEdge & GAMEPAD_MASK_B1) { // B1=取消退出（有改动则弹保存确认）
       if (backMapDirty) { confirmOpen = true; confirmChoice = 0; }
       else {
         // 无改动直接退出，保留父级 dirty 状态
@@ -920,11 +946,11 @@ int8_t GPFusionMenuScreen::update() {
   if (level == 0) {
     if (dEdge & 0x04) slideTo(-1);   // LEFT
     if (dEdge & 0x08) slideTo(+1);   // RIGHT
-    if (bEdge & GAMEPAD_MASK_B1) {   // A enter
+    if (bEdge & GAMEPAD_MASK_B2) {   // B2=确定 enter
       if (sectionCount() > 1) { level = 1; section = 0; sel = 0; scroll = 0; resetListAnim(); }
       else { level = 2; section = 0; sel = 0; scroll = 0; snapshot(); dirty = false; needsReboot = false; calibDone = false; }
     }
-    if (bEdge & GAMEPAD_MASK_B2) {   // B exit menu
+    if (bEdge & GAMEPAD_MASK_B1) {   // B1=取消 exit menu
       return DisplayMode::BUTTONS;
     }
   } else if (level == 1) {
@@ -932,8 +958,8 @@ int8_t GPFusionMenuScreen::update() {
     if (dEdge & 0x01) sel = (sel + cnt - 1) % cnt;   // UP
     if (dEdge & 0x02) sel = (sel + 1) % cnt;         // DOWN
     if (dEdge & 0x03) startListAnim(sel, 0);
-    if (bEdge & GAMEPAD_MASK_B1) { section = sel; level = 2; sel = 0; scroll = 0; resetListAnim(); snapshot(); dirty = false; needsReboot = false; calibDone = false; }
-    if (bEdge & GAMEPAD_MASK_B2) { level = 0; sel = 0; resetListAnim(); }
+    if (bEdge & GAMEPAD_MASK_B2) { section = sel; level = 2; sel = 0; scroll = 0; resetListAnim(); snapshot(); dirty = false; needsReboot = false; calibDone = false; }
+    if (bEdge & GAMEPAD_MASK_B1) { level = 0; sel = 0; resetListAnim(); }
   } else { // options
     LiteSection& s = curSection();
     if (dEdge & 0x01) { // UP（含从顶部回绕到底部）
@@ -967,8 +993,12 @@ int8_t GPFusionMenuScreen::update() {
         dirty = true;
       }
     }
-    if (bEdge & GAMEPAD_MASK_B1) {
-      if (o->type == OPT_ACTION) { dirty = (o->get() != 0); }
+    if (bEdge & GAMEPAD_MASK_B2) {  // B2=确定
+      if (o->type == OPT_ACTION) {
+        dirty = (o->get() != 0);
+        // 校准完成后弹出提示框
+        if (calibDone) calibPromptOpen = true;
+      }
       else if (o->type == OPT_SUBMENU) {
         inBackMap = true;
         sel = 0; scroll = 0;
@@ -977,7 +1007,7 @@ int8_t GPFusionMenuScreen::update() {
         resetListAnim();
       }
     }
-    if (bEdge & GAMEPAD_MASK_B2) {
+    if (bEdge & GAMEPAD_MASK_B1) {  // B1=取消
       if (dirty) { confirmOpen = true; confirmChoice = 0; }
       else backOne();
     }
@@ -1064,6 +1094,13 @@ static void drawBackMap() {
 void GPFusionMenuScreen::drawScreen() {
   R = getRenderer();
   fill(0, 0, 128, 64, 0);
+  if (calibPromptOpen) {
+    fill(20, 16, 88, 36, 0);
+    fill(21, 17, 86, 34, 1);
+    fill(23, 19, 82, 30, 0);
+    drawCJK(64, 30, "校准已保存", 1, true);
+    return;
+  }
   if (confirmOpen) {
     fill(24, 18, 80, 36, 0);
     fill(25, 19, 78, 34, 1);
