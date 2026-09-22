@@ -241,13 +241,13 @@ export default {
 	'hml-two-key-touchpad-hint': 'Same as 4-key touchpad; disables the display.',
 	'hml-wireless-link-label': '2.4G Wireless',
 	'hml-wireless-link-hint':
-		'Enables the 2.4G wireless link. Plug the receiver into your PC or console.',
+		'Requires an external wireless expansion board plugged into the controller USB port, plus a wireless receiver on the PC/console. For consoles, a verifier must be plugged into the receiver.',
 	'hml-bluetooth-link-label': 'Bluetooth Wireless',
 	'hml-bluetooth-link-hint':
-		'Enables Bluetooth connection. Supports XINPUT, DSE and NSPRO modes.',
+		'Requires an external wireless expansion board plugged into the controller USB port. Connect from PC or phone via Bluetooth.',
 	'hml-nrf24-link-label': 'Wireless Mode',
 	'hml-nrf24-link-hint':
-		'Enable nRF24 direct wireless (SPI0). Requires a matching 2.4G receiver on the host',
+		'Enables the controller built-in wireless. Just plug a wireless receiver into the PC/console. For consoles, a verifier must be plugged into the receiver.',
 	'hml-report-rate-label': 'Report rate',
 	'hml-report-rate-hint': 'Host connection report rate. Enabling gyro may reduce the effective rate.',
 	'hml-screen-customization-button': 'Screen customization',

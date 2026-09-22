@@ -27,10 +27,11 @@ bool UARTLinkAddon::available() {
 
 void UARTLinkAddon::setup() {
     if (!initialized) {
-        // UART1: GPIO8(TX)/GPIO9(RX)，与 USB0 D+/D- 复用（互斥），921600 波特率
-        uart_init(uart1, UART_LINK_BAUD);
-        gpio_set_function(UART_LINK_TX_PIN, GPIO_FUNC_UART);
-        gpio_set_function(UART_LINK_RX_PIN, GPIO_FUNC_UART);
+        // UART0: GPIO18(TX)/GPIO19(RX)（HML2354），通过 F11=UART_AUX 复用 UART0 TX/RX
+        // 与 USB0 D+/D- 复用（互斥），921600 波特率
+        uart_init(uart0, UART_LINK_BAUD);
+        gpio_set_function(UART_LINK_TX_PIN, GPIO_FUNC_UART_AUX);
+        gpio_set_function(UART_LINK_RX_PIN, GPIO_FUNC_UART_AUX);
         gpio_set_pulls(UART_LINK_RX_PIN, true, false);
 
         lastSentUs = 0;
@@ -76,7 +77,7 @@ void UARTLinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
     for (int i = 1; i <= 16; i++) crc = crc16_update(crc, frame[i]);
     frame[17] = (uint8_t)(crc & 0xFF);
     frame[18] = (uint8_t)(crc >> 8);
-    uart_write_blocking(uart1, frame, sizeof(frame));
+    uart_write_blocking(uart0, frame, sizeof(frame));
 }
 
 void UARTLinkAddon::sendStatusFrame(uint8_t inputMode, uint8_t linkMode) {
@@ -112,7 +113,7 @@ void UARTLinkAddon::sendStatusFrame(uint8_t inputMode, uint8_t linkMode) {
     for (int i = 1; i <= 22; i++) crc = crc16_update(crc, out[i]);
     out[23] = (uint8_t)(crc & 0xFF);
     out[24] = (uint8_t)(crc >> 8);
-    uart_write_blocking(uart1, out, sizeof(out));
+    uart_write_blocking(uart0, out, sizeof(out));
 }
 
 void UARTLinkAddon::handleRxByte(uint8_t b) {
@@ -157,8 +158,8 @@ void UARTLinkAddon::handleRxByte(uint8_t b) {
 
 void UARTLinkAddon::process() {
     if (!initialized) return;
-    while (uart_is_readable(uart1)) {
-        handleRxByte((uint8_t)uart_getc(uart1));
+    while (uart_is_readable(uart0)) {
+        handleRxByte((uint8_t)uart_getc(uart0));
     }
 }
 

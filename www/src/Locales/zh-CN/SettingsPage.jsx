@@ -217,15 +217,15 @@ export default {
 	'hml-display-hint': '将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率',
 	'hml-two-key-touchpad-label': '2键触摸板',
 	'hml-two-key-touchpad-hint': '启用后将禁用显示屏',
-	'hml-wireless-link-label': '2.4G无线',
+	'hml-wireless-link-label': '扩展无线模式',
 	'hml-wireless-link-hint':
-		'启动2.4G无线连接，需要在电脑或主机插入接收器。',
-	'hml-bluetooth-link-label': '蓝牙无线',
+		'需要在主板USB口插入外置无线扩展板，并在主机/电脑插入无线接收器，主机需要在接收器上插入验证器。',
+	'hml-bluetooth-link-label': '扩展蓝牙模式',
 	'hml-bluetooth-link-hint':
-		'启用蓝牙连接，支持XINPUT、DSE、NSPRO模式连接',
-	'hml-nrf24-link-label': '无线模式',
+		'需要在主板USB口插入外置无线扩展板，电脑/手机通过蓝牙连接。',
+	'hml-nrf24-link-label': '板载无线模式',
 	'hml-nrf24-link-hint':
-		'启用 nRF24 直连无线（SPI0），需在接收端插入配套 2.4G 接收器',
+		'开启主板内置无线，仅需在电脑/主机插入无线接收器，主机需要在接收器上插入验证器。',
 	'hml-report-rate-label': '回报率',
 	'hml-report-rate-hint': '调整主机连接回报率，若开启陀螺仪可能造成回报率降低。',
 	'hml-screen-customization-button': '屏幕个性化',
