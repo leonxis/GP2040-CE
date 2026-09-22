@@ -251,14 +251,16 @@ static void sBackPreset(int v) {
 // 索引0=无(NONE=-10), 1=上, 2=下, 3=左, 4=右, 5=方块(B3=7), 6=三角(B4=8),
 // 7=圆(B2=6), 8=叉(B1=5), 9=菜单(S1=13), 10=选项(S2=14),
 // 11=L1(=9), 12=L2(=11), 13=R1(=10), 14=R2(=12), 15=L3(=17), 16=R3(=18)
+// 17=OTHER(网页前端设置的菜单外映射项，显示但不可改，保存时保留原值)
 static const int BACK_ACTION_MAP[] = {-10, 1, 2, 3, 4, 7, 8, 6, 5, 14, 13, 9, 11, 10, 12, 17, 18};
 static const char* const N_BACK_ACTION[] = {
-  "无","上","下","左","右","方块","三角","圆","叉","菜单","选项","L1","L2","R1","R2","L3","R3"
+  "无","上","下","左","右","方块","三角","圆","叉","菜单","选项","L1","L2","R1","R2","L3","R3","OTHER"
 };
-static const int BACK_ACTION_COUNT = 17;
+static const int BACK_ACTION_COUNT = 18;
+static const int BACK_ACTION_OTHER_IDX = 17;
 static int backActionToIndex(int action) {
-  for (int i = 0; i < BACK_ACTION_COUNT; i++) if (BACK_ACTION_MAP[i] == action) return i;
-  return 0;
+  for (int i = 0; i < BACK_ACTION_COUNT - 1; i++) if (BACK_ACTION_MAP[i] == action) return i;
+  return BACK_ACTION_OTHER_IDX;
 }
 
 // 背键映射读取（从当前活动预设的 HmlBackMappingPreset）
@@ -293,61 +295,72 @@ static int gBackRMT() {
   return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightMtMapping.action);
 }
 // 背键映射写入（到当前活动预设）
+// OTHER 索引跳过写入，保留网页前端设置的菜单外映射值不被清空
 static void sBackLB1(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.leftBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.leftBack1Mapping.has_action = true;
   p.has_leftBack1Mapping = true;
 }
 static void sBackRB1(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.rightBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.rightBack1Mapping.has_action = true;
   p.has_rightBack1Mapping = true;
 }
 static void sBackLB2(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.leftBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.leftBack2Mapping.has_action = true;
   p.has_leftBack2Mapping = true;
 }
 static void sBackRB2(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.rightBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.rightBack2Mapping.has_action = true;
   p.has_rightBack2Mapping = true;
 }
 static void sBackLB3(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.leftBack3Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.leftBack3Mapping.has_action = true;
   p.has_leftBack3Mapping = true;
 }
 static void sBackRB3(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.rightBack3Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.rightBack3Mapping.has_action = true;
   p.has_rightBack3Mapping = true;
 }
 static void sBackLFN(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.leftFnMapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.leftFnMapping.has_action = true;
   p.has_leftFnMapping = true;
 }
 static void sBackRFN(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.rightFnMapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.rightFnMapping.has_action = true;
   p.has_rightFnMapping = true;
 }
 static void sBackLMT(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.leftMtMapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.leftMtMapping.has_action = true;
   p.has_leftMtMapping = true;
 }
 static void sBackRMT(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.rightMtMapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.rightMtMapping.has_action = true;
@@ -445,18 +458,18 @@ static LiteOpt optHandle[] = {
   {"无线模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gNrf24, sNrf24},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
 };
-// 背键映射子菜单：10 个背键/FN/MT，每个可选 17 种映射
+// 背键映射子菜单：10 个背键/FN/MT，每个可选 18 种映射（含 OTHER 占位）
 static LiteOpt optBackMap[] = {
-  {"左背键1", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLB1, sBackLB1},
-  {"右背键1", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRB1, sBackRB1},
-  {"左背键2", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLB2, sBackLB2},
-  {"右背键2", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRB2, sBackRB2},
-  {"左背键3", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLB3, sBackLB3},
-  {"右背键3", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRB3, sBackRB3},
-  {"左FN键",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLFN, sBackLFN},
-  {"右FN键",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRFN, sBackRFN},
-  {"左MT键",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackLMT, sBackLMT},
-  {"右MT键",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackRMT, sBackRMT},
+  {"左背键1", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLB1, sBackLB1},
+  {"右背键1", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRB1, sBackRB1},
+  {"左背键2", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLB2, sBackLB2},
+  {"右背键2", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRB2, sBackRB2},
+  {"左背键3", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLB3, sBackLB3},
+  {"右背键3", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRB3, sBackRB3},
+  {"左FN键",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLFN, sBackLFN},
+  {"右FN键",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRFN, sBackRFN},
+  {"左MT键",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLMT, sBackLMT},
+  {"右MT键",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRMT, sBackRMT},
 };
 static const int BACK_MAP_COUNT = 10;
 static LiteOpt optStick[] = {
