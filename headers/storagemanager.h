@@ -70,6 +70,10 @@ public:
 	void dismissAmbientWebConfigOverride();
 	bool isAmbientWebConfigOverrideActive() const;
 
+	/** nRF24 direct link: receiver-online (ACK debounced) flag written on Core0, read from Core1 NeoPico. */
+	void setNrf24LinkUp(bool up);
+	bool isNrf24LinkUp() const;
+
 private:
 	Storage() {}
 	bool CONFIG_MODE = false; 			// Config mode (boot)
@@ -81,6 +85,7 @@ private:
 	uint32_t systemFlashSize;
 
 	std::atomic<bool> ambientWebConfigOverrideActive { false };
+	std::atomic<bool> nrf24LinkUp { false };
 };
 
 #endif

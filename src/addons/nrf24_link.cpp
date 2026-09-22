@@ -57,6 +57,12 @@ void NRF24LinkAddon::setup() {
     lastLt = 0; lastRt = 0;
     lastInputMode = 0xFF;
 
+    // 上电/重初始化默认接收端离线：环境光立即红闪，直到 ACK 去抖通过
+    linkUp = false;
+    linkAckStreak = 0;
+    lastAckUs = 0;
+    Storage::getInstance().setNrf24LinkUp(false);
+
     initialized = true;
 }
 
@@ -122,7 +128,7 @@ bool NRF24LinkAddon::writePacket(const uint8_t *data) {
     return false;  // 超时
 }
 
-void NRF24LinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
+bool NRF24LinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
                                     uint16_t lx, uint16_t ly,
                                     uint16_t rx, uint16_t ry,
                                     uint8_t lt, uint8_t rt, uint8_t inputMode) {
@@ -144,7 +150,7 @@ void NRF24LinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
     payload[12] = rt;
     payload[13] = inputMode;
     payload[14] = 0;  // reserved
-    writePacket(payload);
+    return writePacket(payload);
 }
 
 void NRF24LinkAddon::process() {
@@ -157,6 +163,14 @@ void NRF24LinkAddon::postprocess(bool sent) {
 
     // 微秒计时：与 uart_link 一致，整数毫秒在高频循环下会产生同毫秒双跳过
     uint32_t now = time_us_32();
+
+    // 离线超时检测：linkUp 后 ACK 静默超过 1s（≈20 个心跳）判接收端离线。
+    // lastAckUs==0（开机从未收到 ACK）时 linkUp 本就为 false，无需处理。
+    if (linkUp && (now - lastAckUs) >= NRF24_LINK_DOWN_TIMEOUT_US) {
+        linkUp = false;
+        linkAckStreak = 0;
+        Storage::getInstance().setNrf24LinkUp(false);
+    }
 
     Gamepad* g = Storage::getInstance().GetProcessedGamepad();
     if (g == nullptr) return;
@@ -183,7 +197,18 @@ void NRF24LinkAddon::postprocess(bool sent) {
         (now - lastSentUs) >= NRF24_INPUT_HEARTBEAT_US) {
         const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
         uint8_t inputMode = static_cast<uint8_t>(options.inputMode);
-        sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt, inputMode);
+        const bool acked = sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt, inputMode);
+
+        // 在线去抖：连续 N 次 ACK 才发布在线（抗上电/干扰偶发 ACK）；
+        // 在线后的偶发丢包不翻转标志，由上方 1s 超时统一判离线。
+        if (acked) {
+            lastAckUs = now;
+            if (!linkUp && ++linkAckStreak >= NRF24_LINK_UP_STREAK) {
+                linkUp = true;
+                Storage::getInstance().setNrf24LinkUp(true);
+            }
+        }
+
         lastButtons = buttons;
         lastDpad = dpad;
         lastLx = lx; lastLy = ly; lastRx = rx; lastRy = ry;

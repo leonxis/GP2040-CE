@@ -274,7 +274,8 @@ private:
 
     uint8_t alLinkageStartIndex;
 
-    /// Web-config session ambient blink (AL_CUSTOM_EFFECT_WEB_CONFIG_HINT); phase reset on armed rising edge.
+    /// Shared ambient blink-hint phase: web-config hint (user color) and nRF24 unlinked (red);
+    /// phase resets on the rising edge of either override.
     uint8_t webConfigHintPhase_ = 0;
     absolute_time_t webConfigHintNextPhaseAt_;
     bool webConfigOverridePrev_ = false;

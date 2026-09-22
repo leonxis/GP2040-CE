@@ -322,9 +322,39 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	if (effectIdx > AL_CUSTOM_EFFECT_STATIC_THEME) {
 		effectIdx = AL_CUSTOM_EFFECT_STATIC_THEME;
 	}
-	if (DriverManager::getInstance().isConfigMode() &&
-	    Storage::getInstance().isAmbientWebConfigOverrideActive()) {
+	// RAM-only hint overrides (never persisted as user mode):
+	//  1) Web-config session blink — user-configured static color; takes priority.
+	//  2) nRF24 direct wireless with receiver offline (no ACK) — forced red blink.
+	const bool webHintActive =
+	    DriverManager::getInstance().isConfigMode() &&
+	    Storage::getInstance().isAmbientWebConfigOverrideActive();
+	const bool nrfUnlinkedHint =
+	    Storage::getInstance().getGamepadOptions().nrf24LinkEnabled &&
+	    !Storage::getInstance().isNrf24LinkUp();
+	if (webHintActive) {
 		effectIdx = AL_CUSTOM_EFFECT_WEB_CONFIG_HINT;
+	} else if (nrfUnlinkedHint) {
+		effectIdx = AL_CUSTOM_EFFECT_NRF24_UNLINKED;
+	}
+
+	// Shared blink phase machine for both hints; reset on the rising edge so each
+	// blink session always starts at phase 0.
+	static const uint32_t kBlinkHintPhaseMs[] = {100, 100, 100, 100, 100, 500};
+	constexpr size_t kBlinkHintPhaseCount = sizeof(kBlinkHintPhaseMs) / sizeof(kBlinkHintPhaseMs[0]);
+	const bool blinkHintActive = webHintActive || nrfUnlinkedHint;
+	if (blinkHintActive && !webConfigOverridePrev_) {
+		webConfigHintPhase_ = 0;
+		webConfigHintNextPhaseAt_ =
+		    delayed_by_ms(get_absolute_time(), kBlinkHintPhaseMs[0]);
+	}
+	webConfigOverridePrev_ = blinkHintActive;
+	if (blinkHintActive) {
+		while (time_reached(webConfigHintNextPhaseAt_)) {
+			webConfigHintPhase_ =
+			    static_cast<uint8_t>((webConfigHintPhase_ + 1) % kBlinkHintPhaseCount);
+			webConfigHintNextPhaseAt_ = delayed_by_ms(
+			    get_absolute_time(), kBlinkHintPhaseMs[webConfigHintPhase_]);
+		}
 	}
 
 	// Start-up Animations in Haute were here
@@ -459,32 +489,31 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 			}
 			break;
 		}
+		// Web-config session blink: user-configured static color (phase machine runs before switch).
 		case AL_CUSTOM_EFFECT_WEB_CONFIG_HINT: {
-			static const uint32_t kWebHintPhaseMs[] = {100, 100, 100, 100, 100, 500};
-			constexpr size_t kWebHintPhaseCount = sizeof(kWebHintPhaseMs) / sizeof(kWebHintPhaseMs[0]);
-
-			const bool overrideNow =
-			    DriverManager::getInstance().isConfigMode() &&
-			    Storage::getInstance().isAmbientWebConfigOverrideActive();
-			if (overrideNow && !webConfigOverridePrev_) {
-				webConfigHintPhase_ = 0;
-				webConfigHintNextPhaseAt_ =
-				    delayed_by_ms(get_absolute_time(), kWebHintPhaseMs[0]);
-			}
-			webConfigOverridePrev_ = overrideNow;
-
-			while (time_reached(webConfigHintNextPhaseAt_)) {
-				webConfigHintPhase_ =
-				    static_cast<uint8_t>((webConfigHintPhase_ + 1) % kWebHintPhaseCount);
-				webConfigHintNextPhaseAt_ = delayed_by_ms(
-				    get_absolute_time(), kWebHintPhaseMs[webConfigHintPhase_]);
-			}
 			const bool on =
 			    (webConfigHintPhase_ == 0 || webConfigHintPhase_ == 2 || webConfigHintPhase_ == 4);
 			const uint32_t configuredColor = options.alCustomStaticColorIndex == 0
 				? AMBIENT_DEFAULT_COLOR.value(LED_FORMAT_RGB)
 				: options.alCustomStaticColorIndex;
 			RGB amb(static_cast<uint32_t>(configuredColor));
+			if (on) {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] =
+					    amb.value(Animation::format, options.alStaticBrightnessCustomThemeX);
+				}
+			} else {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] = 0;
+				}
+			}
+			break;
+		}
+		// nRF24 receiver offline (unpaired): forced RED blink, ignoring configured static color.
+		case AL_CUSTOM_EFFECT_NRF24_UNLINKED: {
+			const bool on =
+			    (webConfigHintPhase_ == 0 || webConfigHintPhase_ == 2 || webConfigHintPhase_ == 4);
+			RGB amb(static_cast<uint32_t>(0xFF0000));  // forced red
 			if (on) {
 				for (int i = 0; i < maxFrame; i++) {
 					frame[alStartIndex + i] =

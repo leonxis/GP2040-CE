@@ -562,6 +562,7 @@ enum AmbientEffectType
     AL_CUSTOM_EFFECT_BREATH = 3;		// Breathing
     AL_CUSTOM_EFFECT_STATIC_THEME = 4;	// Custom Static
     AL_CUSTOM_EFFECT_WEB_CONFIG_HINT = 5;	// Web-config session hint (not persisted as user mode)
+    AL_CUSTOM_EFFECT_NRF24_UNLINKED = 6;	// nRF24 receiver offline red blink (not persisted as user mode)
 };
 
 enum AnimationColor // Sync with Animation.h

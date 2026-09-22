@@ -61,6 +61,11 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI0_PIN_CE;   // nRF24 CE
 #define NRF24_INPUT_ANALOG_MIN_US   900
 #define NRF24_INPUT_HEARTBEAT_US    50000
 
+// 接收端在线去抖：连续 N 次 ACK 判在线；ACK 静默超过超时（≈20 个心跳）判离线。
+// 状态写 Storage::setNrf24LinkUp()，供 Core1 环境光未配对红闪消费。
+#define NRF24_LINK_UP_STREAK        2
+#define NRF24_LINK_DOWN_TIMEOUT_US  1000000
+
 // DMA 扩展点：当前使用 PeripheralSPI 现有 FIFO 阻塞传输（spi_write_read_blocking），
 // 已使用 8 字节深硬件 FIFO，16 字节负载 @4MHz 仅 32us SPI 时间。
 // nRF24 主要瓶颈是 130us 空中 ACK 等待，与 SPI 无关；DMA 净收益约 17us/帧（1.7% CPU @1000Hz），
@@ -87,8 +92,8 @@ private:
     void cePulse(uint32_t us);
     // TX with auto-ACK; 阻塞最长 ~2ms; true = ACK 收到
     bool writePacket(const uint8_t *data);
-    // 组装 15 字节 payload 并发送
-    void sendInputFrame(uint16_t buttons, uint8_t dpad,
+    // 组装 15 字节 payload 并发送；返回 auto-ACK 结果（true=接收端在线）
+    bool sendInputFrame(uint16_t buttons, uint8_t dpad,
                         uint16_t lx, uint16_t ly,
                         uint16_t rx, uint16_t ry,
                         uint8_t lt, uint8_t rt, uint8_t inputMode);
@@ -106,6 +111,11 @@ private:
     uint16_t lastLx = 0, lastLy = 0, lastRx = 0, lastRy = 0;
     uint8_t  lastLt = 0, lastRt = 0;
     uint8_t  lastInputMode = 0xFF;
+
+    // 接收端在线去抖状态（ACK 历史），跨核通过 Storage nrf24LinkUp 发布
+    bool     linkUp = false;
+    uint8_t  linkAckStreak = 0;
+    uint32_t lastAckUs = 0;
 };
 
 #endif

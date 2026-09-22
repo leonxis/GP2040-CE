@@ -172,3 +172,13 @@ bool Storage::isAmbientWebConfigOverrideActive() const
 {
 	return ambientWebConfigOverrideActive.load(std::memory_order_acquire);
 }
+
+void Storage::setNrf24LinkUp(bool up)
+{
+	nrf24LinkUp.store(up, std::memory_order_release);
+}
+
+bool Storage::isNrf24LinkUp() const
+{
+	return nrf24LinkUp.load(std::memory_order_acquire);
+}
