@@ -46,6 +46,9 @@ export default function HardwareConfig() {
 			i2c0: {
 				enabled: 0,
 			},
+			spi0: {
+				enabled: 0,
+			},
 		},
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
@@ -167,9 +170,25 @@ export default function HardwareConfig() {
 					),
 				});
 				// 无线连接 / 蓝牙模式 / nRF24 直连开关：默认关闭（无值为 0）
-				setWirelessLinkEnabled(Number(gamepad?.wirelessLinkEnabled) ? 1 : 0);
-				setBluetoothLinkEnabled(Number(gamepad?.bluetoothLinkEnabled) ? 1 : 0);
-				setNrf24LinkEnabled(Number(gamepad?.nrf24LinkEnabled) ? 1 : 0);
+			setWirelessLinkEnabled(Number(gamepad?.wirelessLinkEnabled) ? 1 : 0);
+			setBluetoothLinkEnabled(Number(gamepad?.bluetoothLinkEnabled) ? 1 : 0);
+			const nrf24Enabled = Number(gamepad?.nrf24LinkEnabled) ? 1 : 0;
+			setNrf24LinkEnabled(nrf24Enabled);
+
+			// 同步无线模式(nRF24 直连)和 SPI0 的启用状态
+			// 如果两者不一致，以无线模式开关为准
+			if (nrf24Enabled !== peripheral.peripheral?.spi0?.enabled) {
+				setPeripheralOptions((prev) => ({
+					...prev,
+					peripheral: {
+						...prev.peripheral,
+						spi0: {
+							...prev.peripheral?.spi0,
+							enabled: nrf24Enabled,
+						},
+					},
+				}));
+			}
 			} catch (error) {
 				console.error('Failed to fetch hardware config:', error);
 			} finally {
@@ -194,11 +213,15 @@ export default function HardwareConfig() {
 						enabled: peripheralOptions.peripheral?.usb0?.enabled || 0,
 					},
 					i2c0: {
-						...currentPeripheralOptions.peripheral.i2c0,
-						enabled: peripheralOptions.peripheral?.i2c0?.enabled || 0,
-					},
+					...currentPeripheralOptions.peripheral.i2c0,
+					enabled: peripheralOptions.peripheral?.i2c0?.enabled || 0,
 				},
-			};
+				spi0: {
+					...currentPeripheralOptions.peripheral.spi0,
+					enabled: peripheralOptions.peripheral?.spi0?.enabled || 0,
+				},
+			},
+		};
 			
 			// 设备 HTTP POST 共用单缓冲区，须顺序提交
 			await WebApi.setPeripheralOptions(dataToSave);
@@ -477,6 +500,17 @@ export default function HardwareConfig() {
 											},
 										}));
 									}
+									// nRF24 直连使用 SPI0，开关状态双向同步 SPI0 启用位
+									setPeripheralOptions((prev) => ({
+										...prev,
+										peripheral: {
+											...prev.peripheral,
+											spi0: {
+												...prev.peripheral?.spi0,
+												enabled: checked,
+											},
+										},
+									}));
 								}}
 							/>
 							<span className="text-muted">

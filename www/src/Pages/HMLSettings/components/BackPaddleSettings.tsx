@@ -176,24 +176,23 @@ function BackPaddleSettingsBody({
 		setSaveMessage('');
 		setIsSaving(true);
 		try {
-			const requests: Promise<unknown>[] = [
-				WebApi.setTwoKeyTouchpadOptions({
-					presetIndex,
-					setActive: true,
-					section: 'twoKey',
-					leftKey: twoKey.leftKey,
-					rightKey: twoKey.rightKey,
-				}),
-				WebApi.setTwoKeyTouchpadOptions({
-					presetIndex,
-					setActive: true,
-					section: 'backKeys',
-					...backKeys,
-				}),
-			];
-			const results = await Promise.all(requests);
+			// 设备 lwIP HTTP POST 使用单一全局接收缓冲区，两个 POST 必须串行提交，
+			// 并发会互相覆盖 payload/URI 导致保存静默失败
+			const twoKeyResult = await WebApi.setTwoKeyTouchpadOptions({
+				presetIndex,
+				setActive: true,
+				section: 'twoKey',
+				leftKey: twoKey.leftKey,
+				rightKey: twoKey.rightKey,
+			});
+			const backKeysResult = await WebApi.setTwoKeyTouchpadOptions({
+				presetIndex,
+				setActive: true,
+				section: 'backKeys',
+				...backKeys,
+			});
 			// WebApi setters return false/null on failure instead of throwing
-			if (results.some((r) => r == null)) {
+			if (twoKeyResult == null || backKeysResult == null) {
 				setSaveMessage(t('Common:saved-error-message'));
 				setTimeout(() => setSaveMessage(''), 3000);
 				return;

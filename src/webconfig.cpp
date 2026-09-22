@@ -618,8 +618,8 @@ static constexpr Pin_t TWO_KEY_TOUCHPAD_ENABLE_GPIO = 12;
 static std::string serializeTwoKeyTouchpadGlobalDoc() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const TwoKeyTouchpadOptions& opts = addonOptions.twoKeyTouchpadOptions;
-    const size_t capacity = JSON_OBJECT_SIZE(8) + (JSON_OBJECT_SIZE(3) + 10);
-    DynamicJsonDocument doc(capacity);
+    // 外层 3 成员 + enableKey 嵌套 3 成员，ArduinoJson6 下需 12 slot ≈ 192 字节
+    DynamicJsonDocument doc(384);
     writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
     writeMapping(doc, "enableKey", opts.enableKeyMapping);
     writeActivePresetDoc(doc, addonOptions);
@@ -707,8 +707,9 @@ std::string getTwoKeyTouchpadOptions() {
     }
 
     AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    const size_t capacity = JSON_OBJECT_SIZE(16) + 12 * (JSON_OBJECT_SIZE(3) + 10);
-    DynamicJsonDocument doc(capacity);
+    // 12 个嵌套映射对象（每个 3 成员）+ 外层 13 成员；ArduinoJson6 每个对象成员
+    // 占用 2 个 VariantSlot（32 字节），共需约 98 slot ≈ 1568 字节，2048 留足余量。
+    DynamicJsonDocument doc(2048);
     const HmlBackMappingPreset& preset =
         getHmlBackPresetAt(addonOptions, (uint32_t)g_apiRequestPresetIndex);
     writeMapping(doc, "leftKey", preset.leftKeyMapping);

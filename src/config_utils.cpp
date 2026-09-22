@@ -562,15 +562,17 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(peripheralOptions.blockI2C1, speed, I2C1_SPEED);
 
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, enabled, (!!SPI0_ENABLED));
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, rx, (!!SPI0_ENABLED) ?  SPI0_PIN_RX : -1);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, cs, (!!SPI0_ENABLED) ?  SPI0_PIN_CS : -1);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, sck, (!!SPI0_ENABLED) ? SPI0_PIN_SCK : -1);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, tx, (!!SPI0_ENABLED) ?  SPI0_PIN_TX : -1);
+    // 引脚始终保留 BoardConfig 默认值（即使 SPI0 禁用）：
+    // nRF24 直连等插件通过外设映射开关在运行时启用 SPI0，需要直接拿到板级引脚。
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, rx, SPI0_PIN_RX);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, cs, SPI0_PIN_CS);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, sck, SPI0_PIN_SCK);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, tx, SPI0_PIN_TX);
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, enabled, (!!SPI1_ENABLED));
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, rx, (!!SPI1_ENABLED) ?  SPI1_PIN_RX : -1);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, cs, (!!SPI1_ENABLED) ?  SPI1_PIN_CS : -1);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, sck, (!!SPI1_ENABLED) ? SPI1_PIN_SCK : -1);
-    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, tx, (!!SPI1_ENABLED) ?  SPI1_PIN_TX : -1);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, rx, SPI1_PIN_RX);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, cs, PI1_PIN_CS);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, sck, SPI1_PIN_SCK);
+    INIT_UNSET_PROPERTY(peripheralOptions.blockSPI1, tx, SPI1_PIN_TX);
 
     INIT_UNSET_PROPERTY(peripheralOptions.blockUSB0, enabled, USB_PERIPHERAL_ENABLED);
     INIT_UNSET_PROPERTY(peripheralOptions.blockUSB0, dp, USB_PERIPHERAL_PIN_DPLUS);
@@ -1744,50 +1746,6 @@ void migrateJSliderToCore(Config& config)
         config.gamepadOptions.dpadMode = config.addonOptions.deprecatedSliderOptions.deprecatedModeDefault;
         config.addonOptions.deprecatedSliderOptions.enabled = false;
     }
-}
-
-// populate the alternative gpio mapping sets, aka profiles, with
-// the old values or whatever is in the core mappings
-// NOTE: this also handles initializations for a blank config! if/when the deprecated
-// pin mappings go away, the remainder of this code should go in there (there was no point
-// in duplicating it right now)
-void gpioMappingsMigrationProfiles(Config& config)
-{
-    AlternativePinMappings* deprecatedAlts = config.profileOptions.deprecatedAlternativePinMappings;
-
-    const auto assignProfilePinIfUsed = [&](uint8_t profileNum, Pin_t profilePin, GpioAction action) -> void {
-        if (isValidPin(profilePin)) {
-            config.profileOptions.gpioMappingsSets[profileNum].pins[profilePin].action = action;
-        }
-    };
-
-    for (uint8_t profileNum = 0; profileNum <= MAX_PROFILES-2; profileNum++) {
-        for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
-            config.profileOptions.gpioMappingsSets[profileNum].pins[pin].action = config.gpioMappings.pins[pin].action;
-        }
-        // only check protobuf if profiles are defined
-        if (profileNum < config.profileOptions.deprecatedAlternativePinMappings_count) {
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinButtonB1,  GpioAction::BUTTON_PRESS_B1);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinButtonB2,  GpioAction::BUTTON_PRESS_B2);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinButtonB3,  GpioAction::BUTTON_PRESS_B3);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinButtonB4,  GpioAction::BUTTON_PRESS_B4);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinButtonL1,  GpioAction::BUTTON_PRESS_L1);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinButtonR1,  GpioAction::BUTTON_PRESS_R1);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinButtonL2,  GpioAction::BUTTON_PRESS_L2);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinButtonR2,  GpioAction::BUTTON_PRESS_R2);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinDpadUp,    GpioAction::BUTTON_PRESS_UP);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinDpadDown,  GpioAction::BUTTON_PRESS_DOWN);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinDpadLeft,  GpioAction::BUTTON_PRESS_LEFT);
-            assignProfilePinIfUsed(profileNum, deprecatedAlts[profileNum].pinDpadRight, GpioAction::BUTTON_PRESS_RIGHT);
-        }
-
-        // reminder that this must be set or else nanopb won't retain anything
-        config.profileOptions.gpioMappingsSets[profileNum].pins_count = NUM_BANK0_GPIOS;
-    }
-    // reminder that this must be set or else nanopb won't retain anything
-    config.profileOptions.gpioMappingsSets_count = 5;
-
-    config.migrations.buttonProfilesMigrated = true;
 }
 
 void migrateTurboPinToGpio(Config& config) {
