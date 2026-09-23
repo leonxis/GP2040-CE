@@ -274,11 +274,12 @@ private:
 
     uint8_t alLinkageStartIndex;
 
-    /// Shared ambient blink-hint phase: web-config hint (user color) and nRF24 unlinked (red);
-    /// phase resets on the rising edge of either override.
-    uint8_t webConfigHintPhase_ = 0;
-    absolute_time_t webConfigHintNextPhaseAt_;
-    bool webConfigOverridePrev_ = false;
+    /// Shared ambient blink-hint phase machine: web-config hint (user color),
+    /// companion offline (red), BLE unlinked (blue) and wireless unpaired (yellow);
+    /// phase resets on the rising edge of any override.
+    uint8_t blinkHintPhase_ = 0;
+    absolute_time_t blinkHintNextPhaseAt_;
+    bool blinkHintPrev_ = false;
 };
 
 #endif

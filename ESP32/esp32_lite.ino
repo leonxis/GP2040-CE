@@ -7,6 +7,8 @@
 //   4. nRF / BLE 输出后端互斥切换：STATUS 帧 linkMode(payload[18])==1 时切蓝牙
 //      （关 nRF），linkMode==0（或未收到 STATUS）按 nRF24 无线模式传输；
 //      inputMode(payload[2]) 始终是真实手柄模式：nRF 包 pkt[0] + BLE 设备类型选择
+//   5. 100ms 心跳回发 LINK_STATUS 帧：当前输出后端 + nRF24 接收端链路状态 +
+//      BLE 主机连接状态，供 Pico 侧环境光提示（缺失红闪/无线未配对黄闪/蓝牙蓝闪）
 //
 // BLE 蓝牙手柄：按 inputMode 选择设备类型（当前仅 Xbox Series X 实现，
 //             不支持的模式退化 Xbox；DualSense/NS PRO 预留），
@@ -69,6 +71,14 @@ void ledWrite(uint8_t r, uint8_t g, uint8_t b) {
 #define FRAME_TYPE_INPUT  0x01   // Pico -> ESP32: 手柄输入
 #define FRAME_TYPE_ACK    0x02   // ESP32 -> Pico: 输入确认（Pico 链路指示依赖此帧）
 #define FRAME_TYPE_STATUS 0x03   // Pico -> ESP32: 模式状态（inputMode + linkMode）
+#define FRAME_TYPE_LINK_STATUS 0x0B  // ESP32 -> Pico: 后端连接状态心跳（见 sendLinkStatus）
+
+// LINK_STATUS payload（len=3）：
+//   [0] outputMode：0=nRF24 路径，1=BLE 路径（与 STATUS 帧 linkMode 同语义）
+//   [1] nrfLinked：nRF24 接收端链路已通（radioLinked，ACK 历史去抖）；仅 [0]==0 有效
+//   [2] bleConnected：BLE 主机已连接（配对完成）；仅 [0]==1 有效
+// 非当前后端的状态字节强制 0，避免切后端瞬间的历史值误导 Pico 侧灯效。
+#define LINK_STATUS_HEARTBEAT_MS 100
 
 // ---- 输出后端互斥切换 ----
 enum OutputBackend : uint8_t { OUTPUT_NRF = 0, OUTPUT_BLE = 1 };
@@ -181,6 +191,27 @@ void sendAck() {
 }
 
 // ============================================================================
+// UART TX：LINK_STATUS 心跳（10Hz）——回报当前输出后端及配对/连接状态。
+// Pico 侧 uart_link 以此驱动环境光提示（ESP32 缺失红闪 / 无线未配对黄闪 /
+// 蓝牙未连接蓝闪）；超过 500ms（5 个心跳）未收到时 Pico 判 ESP32 离线。
+// ============================================================================
+void sendLinkStatus() {
+    uint8_t frame[9];
+    frame[0] = FRAME_MAGIC;
+    frame[1] = FRAME_VERSION;
+    frame[2] = FRAME_TYPE_LINK_STATUS;
+    frame[3] = 3;
+    frame[4] = (outputMode == OUTPUT_BLE) ? 1 : 0;
+    frame[5] = (outputMode == OUTPUT_NRF && radioLinked) ? 1 : 0;
+    frame[6] = (outputMode == OUTPUT_BLE && bleConnected) ? 1 : 0;
+    uint16_t crc = 0xFFFF;
+    for (int i = 1; i <= 6; i++) crc = crc16_update(crc, frame[i]);
+    frame[7] = (uint8_t)(crc & 0xFF);
+    frame[8] = (uint8_t)(crc >> 8);
+    LINK_SERIAL.write(frame, sizeof(frame));
+}
+
+// ============================================================================
 // UART RX：INPUT 帧 → 更新手柄状态全局（radioTask / BLE 数据源）
 // ============================================================================
 void onInputFrame(uint8_t *payload, uint8_t len) {
@@ -253,7 +284,15 @@ void onStatusFrame(uint8_t *payload, uint8_t len) {
 // ============================================================================
 void radioTask(void *) {
     uint32_t failCount = 0;
+    uint8_t statusDiv = 0;
     for (;;) {
+        // LINK_STATUS 心跳：2ms tick / 50 = 100ms（10Hz）。任务在 BLE 模式下
+        // 也常驻空转，故两个后端的状态都能持续上报；UART 驱动 TX 有锁，
+        // 与 loop 内 sendAck 的并发写不会交错。
+        if (++statusDiv >= (LINK_STATUS_HEARTBEAT_MS / 2)) {
+            statusDiv = 0;
+            sendLinkStatus();
+        }
         if (outputMode == OUTPUT_NRF && radioUp) {
             uint8_t pkt[15];
             uint8_t mode = stStatusValid ? stInputMode : 0xFF; // 0xFF=模式未知

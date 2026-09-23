@@ -28,9 +28,13 @@
 // 帧格式: 0xAA + version + type + len + payload + CRC16(CCITT-FALSE)
 // STATUS 帧 payload: [2]=inputMode（nRF 包模式字节 / BLE 设备类型选择），
 //                    [18]=linkMode（0=nRF24 路径，1=BLE 路径），len=19，帧长 25
-// 发射端 RP2040 仅处理 INPUT 发送与 STATUS 上报；
+// LINK_STATUS 帧（ESP32 -> Pico，type=0x0B，len=3，帧长 9）:
+//   [0]=outputMode(0=nRF24,1=BLE) [1]=nrfLinked(接收端 ACK 去抖)
+//   [2]=bleConnected(主机已连接)
+//   非当前后端的状态字节 ESP32 强制为 0；Pico 侧再按 outputMode 做一次门控。
+// 发射端 RP2040 发送 INPUT/STATUS；接收方向仅处理 LINK_STATUS（驱动未配对灯效），
 // ACK/CONFIG/CONFIG_ACK/LED/ESP_SAVE/ESP_LOAD/ESP_LOAD_REQ/MUTE 帧一律不处理，
-// 接收方向仅做帧同步与 CRC 校验后丢弃（未识别类型 break）。
+// 仅做帧同步与 CRC 校验后丢弃。
 #define LINK_FRAME_MAGIC      0xAA
 #define LINK_FRAME_VERSION    1
 #define LINK_FRAME_TYPE_INPUT 0x01
@@ -43,12 +47,16 @@
 #define LINK_FRAME_TYPE_ESP_LOAD_REQ 0x08
 #define LINK_FRAME_TYPE_ESP_LOAD 0x09
 #define LINK_FRAME_TYPE_MUTE 0x0A
+#define LINK_FRAME_TYPE_LINK_STATUS 0x0B
 
 // INPUT 帧发送节流（微秒）：数字键变化即发；模拟量连续变化最小间隔 900us；
 // 50ms 心跳保证空闲时也有保底同步。
 #define UART_INPUT_ANALOG_MIN_US  900
 #define UART_INPUT_HEARTBEAT_US   50000
 #define UART_STATUS_HEARTBEAT_US  1000000
+// ESP32 LINK_STATUS 心跳 100ms；超过 500ms（连续 5 帧丢失）判 ESP32 离线，
+// 未配对灯效按 Pico 当前请求的链路模式闪烁。
+#define UART_LINK_STATUS_TIMEOUT_US 500000
 
 class UARTLinkAddon : public GPAddon {
 public:
@@ -67,6 +75,8 @@ private:
     // linkMode: 0=nRF24 输出路径（无线连接开关），1=BLE 蓝牙输出路径（蓝牙模式开关）
     void sendStatusFrame(uint8_t inputMode, uint8_t linkMode);
     void handleRxByte(uint8_t b);
+    // LINK_STATUS 帧（ESP32 后端配对/连接状态）：刷新时间戳并发布到 Storage
+    void handleLinkStatus();
     bool initialized = false;
     uint32_t lastSentUs;   // INPUT 帧节流时间戳（微秒）
     uint16_t lastButtons;
@@ -76,6 +86,8 @@ private:
     uint32_t lastStatusSentUs;
     uint8_t lastInputMode;
     uint8_t lastLinkMode;
+    // 最近一次收到合法 LINK_STATUS 帧的时间（0=从未收到/已超时），驱动未配对灯效
+    uint32_t lastLinkStatusUs;
     uint8_t rxState;    // 0 idle, 1 ver, 2 type, 3 len, 4 payload, 5 crcLo, 6 crcHi
     uint8_t rxType;
     uint8_t rxLen;

@@ -182,3 +182,25 @@ bool Storage::isNrf24LinkUp() const
 {
 	return nrf24LinkUp.load(std::memory_order_acquire);
 }
+
+void Storage::setUartLinkStatus(bool online, bool nrfLinked, bool bleConnected)
+{
+	uartStatusOnline.store(online, std::memory_order_release);
+	uartNrfLinked.store(nrfLinked, std::memory_order_release);
+	uartBleConnected.store(bleConnected, std::memory_order_release);
+}
+
+bool Storage::isUartStatusOnline() const
+{
+	return uartStatusOnline.load(std::memory_order_acquire);
+}
+
+bool Storage::isUartNrfLinked() const
+{
+	return uartNrfLinked.load(std::memory_order_acquire);
+}
+
+bool Storage::isUartBleConnected() const
+{
+	return uartBleConnected.load(std::memory_order_acquire);
+}

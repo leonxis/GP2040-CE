@@ -29,6 +29,7 @@ if [ ! -f "${BUILD_DIR}/CMakeCache.txt" ]; then
     cmake -S "${PROJECT_DIR}" -B "${BUILD_DIR}" \
         -G "Unix Makefiles" \
         -DCMAKE_BUILD_TYPE=Release \
+        -DGP2040_BOARDCONFIG=HML2354 \
         -DPICO_BOARD=HML2354 \
         -DPICO_PLATFORM=rp2350-arm-s \
         -DPICO_SDK_PATH="${PICO_SDK_PATH}"

@@ -41,6 +41,10 @@ void UARTLinkAddon::setup() {
         lastStatusSentUs = 0;
         lastInputMode = 0xFF;
         lastLinkMode = 0xFF;
+        // 上电/重初始化默认 ESP32 离线：环境光立即按当前链路模式未配对闪烁，
+        // 直到收到合法 LINK_STATUS 心跳（与 nrf24_link 上电默认离线策略一致）
+        lastLinkStatusUs = 0;
+        Storage::getInstance().setUartLinkStatus(false, false, false);
         rxState = 0;
         rxType = 0;
         rxLen = 0;
@@ -116,8 +120,8 @@ void UARTLinkAddon::sendStatusFrame(uint8_t inputMode, uint8_t linkMode) {
 }
 
 void UARTLinkAddon::handleRxByte(uint8_t b) {
-    // 保留帧同步与 CRC 校验；所有 ESP32→Pico 帧类型（ACK/CONFIG/LED/
-    // ESP_SAVE/ESP_LOAD_REQ/MUTE）一律不处理，校验完成后丢弃。
+    // 保留帧同步与 CRC 校验；ESP32→Pico 帧中仅 LINK_STATUS 分发（未配对灯效），
+    // 其余类型（ACK/CONFIG/LED/ESP_SAVE/ESP_LOAD_REQ/MUTE）校验完成后丢弃。
     switch (rxState) {
         case 0:
             if (b == LINK_FRAME_MAGIC) rxState = 1;
@@ -149,10 +153,25 @@ void UARTLinkAddon::handleRxByte(uint8_t b) {
             rxState = 6;
             break;
         case 6:
-            // CRC 校验通过与否都不分发——发射端无任何接收处理需求
+            if (b == (uint8_t)(rxCrcCalc >> 8) &&
+                rxCrcLo == (uint8_t)(rxCrcCalc & 0xFF) &&
+                rxType == LINK_FRAME_TYPE_LINK_STATUS && rxLen >= 3) {
+                handleLinkStatus();
+            }
+            // 其余帧类型校验通过与否都不分发
             rxState = 0;
             break;
     }
+}
+
+void UARTLinkAddon::handleLinkStatus() {
+    // payload: [0]=outputMode(0=nRF,1=BLE) [1]=nrfLinked [2]=bleConnected
+    // 按 outputMode 二次门控：ESP32 已把非当前后端的状态字节清零，这里防御性再判一次，
+    // 避免后端切换瞬间的历史值导致灯效错误地常亮（已连接）。
+    const bool nrfLinked = (rxPayload[0] == 0) && (rxPayload[1] != 0);
+    const bool bleConnected = (rxPayload[0] == 1) && (rxPayload[2] != 0);
+    lastLinkStatusUs = to_us_since_boot(get_absolute_time());
+    Storage::getInstance().setUartLinkStatus(true, nrfLinked, bleConnected);
 }
 
 void UARTLinkAddon::process() {
@@ -168,6 +187,14 @@ void UARTLinkAddon::postprocess(bool sent) {
     // 微秒计时：整数毫秒在 960~1000Hz 循环抖动下会产生同毫秒双跳过（帧间隔~2ms），
     // 微秒粒度保证 nRF radio 每个 2ms 窗口必有新鲜帧。
     uint32_t now = to_us_since_boot(get_absolute_time());
+
+    // ESP32 离线检测：LINK_STATUS 心跳（100ms）静默超过 500ms 判离线。
+    // lastLinkStatusUs==0（开机从未收到/已发布过离线）时无需重复发布。
+    if (lastLinkStatusUs != 0 &&
+        now - lastLinkStatusUs >= UART_LINK_STATUS_TIMEOUT_US) {
+        lastLinkStatusUs = 0;
+        Storage::getInstance().setUartLinkStatus(false, false, false);
+    }
 
     Gamepad* g = Storage::getInstance().GetProcessedGamepad();
     if (g == nullptr) return;
