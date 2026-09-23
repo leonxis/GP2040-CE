@@ -56,6 +56,7 @@ void NRF24LinkAddon::setup() {
     lastLx = 0; lastLy = 0; lastRx = 0; lastRy = 0;
     lastLt = 0; lastRt = 0;
     lastInputMode = 0xFF;
+    txSeq = 0;
 
     // 异步 TX 状态复位（reinit 路径同样经过此处）
     txPending = false;
@@ -148,24 +149,27 @@ void NRF24LinkAddon::submitInputFrame(uint16_t buttons, uint8_t dpad,
                                       uint16_t lx, uint16_t ly,
                                       uint16_t rx, uint16_t ry,
                                       uint8_t lt, uint8_t rt, uint8_t inputMode) {
-    // 15 字节 payload：复用 uart_link 帧的 13 字节游戏pad状态 +
-    // inputMode（接收端可识别源模式）+ reserved
+    // 15 字节 payload：与 ESP32 端 radioTask 及接收端解析格式完全一致
+    // [0]=inputMode [1]=递增序号 [2..3]=buttons(LE) [4]=dpad
+    // [5..12]=lx/ly/rx/ry(LE) [13]=lt [14]=rt
+    // 注意：勿改成 uart_link 的 13B+meta 布局——接收端按 ESP32 布局解析，
+    // 错位会导致摇杆数据错乱、按键被误判为模式切换而重启接收器
     uint8_t payload[NRF24_PAYLOAD];
-    payload[0]  = static_cast<uint8_t>(buttons & 0xFF);
-    payload[1]  = static_cast<uint8_t>(buttons >> 8);
-    payload[2]  = dpad;
-    payload[3]  = static_cast<uint8_t>(lx & 0xFF);
-    payload[4]  = static_cast<uint8_t>(lx >> 8);
-    payload[5]  = static_cast<uint8_t>(ly & 0xFF);
-    payload[6]  = static_cast<uint8_t>(ly >> 8);
-    payload[7]  = static_cast<uint8_t>(rx & 0xFF);
-    payload[8]  = static_cast<uint8_t>(rx >> 8);
-    payload[9]  = static_cast<uint8_t>(ry & 0xFF);
-    payload[10] = static_cast<uint8_t>(ry >> 8);
-    payload[11] = lt;
-    payload[12] = rt;
-    payload[13] = inputMode;
-    payload[14] = 0;  // reserved
+    payload[0]  = inputMode;
+    payload[1]  = txSeq++;
+    payload[2]  = static_cast<uint8_t>(buttons & 0xFF);
+    payload[3]  = static_cast<uint8_t>(buttons >> 8);
+    payload[4]  = dpad;
+    payload[5]  = static_cast<uint8_t>(lx & 0xFF);
+    payload[6]  = static_cast<uint8_t>(lx >> 8);
+    payload[7]  = static_cast<uint8_t>(ly & 0xFF);
+    payload[8]  = static_cast<uint8_t>(ly >> 8);
+    payload[9]  = static_cast<uint8_t>(rx & 0xFF);
+    payload[10] = static_cast<uint8_t>(rx >> 8);
+    payload[11] = static_cast<uint8_t>(ry & 0xFF);
+    payload[12] = static_cast<uint8_t>(ry >> 8);
+    payload[13] = lt;
+    payload[14] = rt;
     submitPacket(payload);
 }
 

@@ -121,6 +121,9 @@ private:
     uint8_t  lastLt = 0, lastRt = 0;
     uint8_t  lastInputMode = 0xFF;
 
+    // payload[1] 递增序号：与 ESP32 端 radioSeq 行为一致，供接收端丢包统计
+    uint8_t  txSeq = 0;
+
     // 接收端在线去抖状态（ACK 历史），跨核通过 Storage nrf24LinkUp 发布
     bool     linkUp = false;
     uint8_t  linkAckStreak = 0;
