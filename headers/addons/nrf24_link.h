@@ -56,10 +56,11 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI0_PIN_CE;   // nRF24 CE
 #define NRF24_STATUS_MAX_RT    0x10
 #define NRF24_STATUS_RX_DR    0x40
 
-// INPUT 帧发送节流（微秒）：数字键变化即发；模拟量连续变化最小间隔 900us；
-// 50ms 心跳保证空闲时也有保底同步。
-#define NRF24_INPUT_ANALOG_MIN_US   900
-#define NRF24_INPUT_HEARTBEAT_US    50000
+// INPUT 帧恒流发送间隔（微秒）：芯片空闲且距上次发送 ≥1ms 即无条件发当前
+// 状态快照，与 ESP32 端 radioTask 定频（2ms）同语义。接收器带丢包超时回中
+// 保护（摇杆静止时 50ms 心跳间隙会周期性触发回中闪现），恒流保证包间隙
+// 最多为在飞事务时长（最坏 ~2ms），远低于回中阈值。
+#define NRF24_SEND_INTERVAL_US      1000
 
 // 异步 TX：CE 高电平保持（datasheet 要求 >10us 触发单包发射）
 #define NRF24_CE_PULSE_US           15
@@ -74,9 +75,10 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI0_PIN_CE;   // nRF24 CE
 
 // 异步 TX 设计：postprocess 不等待 RF ACK。提交帧只做 W_TX_PAYLOAD（~35us
 // SPI）+ CE 脉冲（15us）即返回；后续帧 postprocess 每次只读一次 STATUS（~5us）
-// 判定 TX_DS/MAX_RT/超时。在飞期间的新状态做覆盖式合并（txDirty 一个布尔位，
-// 不缓存数据——最新状态始终可从 Storage 读取），芯片空闲当帧立即发最新快照。
-// 因此 postprocess 对主循环的占用稳定 ≤ ~70us，与接收端是否在线无关。
+// 判定 TX_DS/MAX_RT/超时。在飞期间不写第二个 W_TX_PAYLOAD（txPending 门控，
+// nRF24 TX FIFO 恒为 ≤1 包，重发只拉长单事务到最坏 ~2ms），芯片空闲即按恒流
+// 间隔发最新快照（数据不缓存，始终从 Storage 读取）。postprocess 对主循环
+// 占用稳定 ≤ ~70us，与接收端是否在线无关。
 
 class NRF24LinkAddon : public GPAddon {
 public:
@@ -113,13 +115,8 @@ private:
     int8_t cePin_ = -1;
     bool initialized = false;
 
-    // 节流缓存：与 uart_link 策略一致
+    // 恒流节流：上次发送时刻
     uint32_t lastSentUs = 0;
-    uint16_t lastButtons = 0;
-    uint8_t  lastDpad = 0;
-    uint16_t lastLx = 0, lastLy = 0, lastRx = 0, lastRy = 0;
-    uint8_t  lastLt = 0, lastRt = 0;
-    uint8_t  lastInputMode = 0xFF;
 
     // payload[1] 递增序号：与 ESP32 端 radioSeq 行为一致，供接收端丢包统计
     uint8_t  txSeq = 0;
@@ -129,11 +126,9 @@ private:
     uint8_t  linkAckStreak = 0;
     uint32_t lastAckUs = 0;
 
-    // 异步 TX 状态：txPending=有在飞事务（唯一 TX FIFO 被占用）；
-    // txDirty=在飞期间状态已变化（覆盖式合并，完成当帧立即发最新快照）；
+    // 异步 TX 状态：txPending=有在飞事务（nRF24 TX FIFO 仅 1 包）；
     // txStartUs=本次事务启动时刻（软件超时用）
     bool     txPending = false;
-    bool     txDirty = false;
     uint32_t txStartUs = 0;
 };
 

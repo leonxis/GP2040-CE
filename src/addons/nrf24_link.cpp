@@ -49,18 +49,10 @@ void NRF24LinkAddon::setup() {
     writeReg(NRF24_REG_CONFIG, 0x0E);             // PWR_UP + 2字节CRC
     sleep_ms(2);  // PowerUp + OscSettling 时间
 
-    // 4. 初始化节流缓存
+    // 4. 发送状态复位（reinit 路径同样经过此处）
     lastSentUs = 0;
-    lastButtons = 0;
-    lastDpad = 0;
-    lastLx = 0; lastLy = 0; lastRx = 0; lastRy = 0;
-    lastLt = 0; lastRt = 0;
-    lastInputMode = 0xFF;
     txSeq = 0;
-
-    // 异步 TX 状态复位（reinit 路径同样经过此处）
     txPending = false;
-    txDirty = false;
     txStartUs = 0;
 
     // 上电/重初始化默认接收端离线：环境光立即红闪，直到 ACK 去抖通过
@@ -210,14 +202,8 @@ void NRF24LinkAddon::postprocess(bool sent) {
     if (txPending) {
         const int8_t txResult = pollTxComplete();
         if (txResult < 0) {
-            // 芯片仍忙：不提交新事务；状态与在飞包不同则置 dirty，
-            // 数据不缓存——完成时直接从 Storage 读最新值
-            if (buttons != lastButtons || dpad != lastDpad ||
-                lx != lastLx || ly != lastLy ||
-                rx != lastRx || ry != lastRy ||
-                lt != lastLt || rt != lastRt) {
-                txDirty = true;
-            }
+            // 芯片仍在飞（重发中）：不提交新事务，恒流间隔被在飞时长自然
+            // 拉长；完成当帧从 Storage 读最新快照即可，无需 dirty 标记
             return;
         }
 
@@ -236,31 +222,16 @@ void NRF24LinkAddon::postprocess(bool sent) {
         }
     }
 
-    // ===== 阶段 2：芯片空闲，dirty 优先，否则走混合节流 =====
-    //  - dirty（在飞期间状态已变化）：无视节流立即发，保证忙期间输入
-    //    不被 900us/50ms 窗口额外拖延；
-    //  - 数字键(buttons/dpad)变化立即发，零额外延迟；
-    //  - 模拟量连续变化时限 900us（门控循环 0.95~1.04ms 每轮必满足）；
-    //  - 50ms 心跳保底同步/抗丢帧。
-    bool digitalChanged = (buttons != lastButtons || dpad != lastDpad);
-    bool analogChanged  = (lx != lastLx || ly != lastLy ||
-                           rx != lastRx || ry != lastRy ||
-                           lt != lastLt || rt != lastRt);
-    if (txDirty ||
-        digitalChanged ||
-        (analogChanged && (now - lastSentUs) >= NRF24_INPUT_ANALOG_MIN_US) ||
-        (now - lastSentUs) >= NRF24_INPUT_HEARTBEAT_US) {
+    // ===== 阶段 2：芯片空闲，恒流发送 =====
+    // 与 ESP32 radioTask 定频同语义：距上次发送 ≥1ms 无条件发当前快照，
+    // 静止时也不断流。旧"变化触发+50ms 心跳"策略会在摇杆静止时留下长包
+    // 间隙，周期性触发接收器回中闪现（2026-09-23 定位），已废弃。
+    // 门控循环 ~0.95~1.04ms 每轮必满足；在飞重发最坏 ~2ms 拉长单事务而非堆积。
+    if ((now - lastSentUs) >= NRF24_SEND_INTERVAL_US) {
         const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
         uint8_t inputMode = static_cast<uint8_t>(options.inputMode);
         submitInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt, inputMode);
-
-        lastButtons = buttons;
-        lastDpad = dpad;
-        lastLx = lx; lastLy = ly; lastRx = rx; lastRy = ry;
-        lastLt = lt; lastRt = rt;
-        lastInputMode = inputMode;
         lastSentUs = now;
-        txDirty = false;
     }
 }
 
