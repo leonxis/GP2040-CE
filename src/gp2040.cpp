@@ -63,6 +63,11 @@ static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 static bool main_loop_gate_enabled = false;
 static bool main_loop_gate_runtime_enabled = false;
+// 跳过摇杆晚采样前 sleep 的开关（调试/降延迟用）：
+// true  = sleepUntilLateSampleDeadline 不执行 WFE 等待，非摇杆工作完成后立即采样，
+//         其余门控逻辑（帧调度/LOCKED/deadline 检查）照常；
+// false = 默认，门控正常 sleep 到晚采样最晚安全启动时刻。
+static bool main_loop_gate_skip_late_sample_sleep = true;
 // 无线模式（nRF24/BLE/UART）启用时间触发门控：不依赖 IN 令牌，
 // 以 950µs 固定间隔触发帧，使主循环周期接近 1ms 轮询周期，降低 NAK。
 // setup() 中由 wirelessLinkActive() 缓存一次（开关切换必然重启）。
@@ -870,6 +875,10 @@ static bool mainLoopGateEventPending();
 // sleep 目标 = finalizeDeadlineUs - sampleBoundUs（原始 WCET，安全余量已在 armDeadline 层注入）
 // 若剩余时间不足（非摇杆工作已超时），跳过 sleep 立即采样。
 static void sleepUntilLateSampleDeadline() {
+        // 开关为真时跳过晚采样前 sleep（立即采样），门控其余逻辑不变
+        if (main_loop_gate_skip_late_sample_sleep) {
+                return;
+        }
         if ((main_loop_gate_state != MainLoopGateState::LOCKED &&
              main_loop_gate_state != MainLoopGateState::TIME_LOCKED) ||
                 !main_loop_gate_frame_schedule.valid) {
