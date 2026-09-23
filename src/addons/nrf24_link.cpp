@@ -57,6 +57,11 @@ void NRF24LinkAddon::setup() {
     lastLt = 0; lastRt = 0;
     lastInputMode = 0xFF;
 
+    // 异步 TX 状态复位（reinit 路径同样经过此处）
+    txPending = false;
+    txDirty = false;
+    txStartUs = 0;
+
     // 上电/重初始化默认接收端离线：环境光立即红闪，直到 ACK 去抖通过
     linkUp = false;
     linkAckStreak = 0;
@@ -104,35 +109,46 @@ void NRF24LinkAddon::cePulse(uint32_t us) {
     gpio_put(cePin_, 0);
 }
 
-bool NRF24LinkAddon::writePacket(const uint8_t *data) {
-    // 参考 ESP32/nrf24.h L34-48：TX with auto-ACK; 阻塞最长 ~2ms; true = ACK 收到
+void NRF24LinkAddon::submitPacket(const uint8_t *data) {
+    // 写 TX FIFO + CE 脉冲即返回，ACK 结果由后续帧 pollTxComplete 判定
     writeReg(NRF24_REG_STATUS, 0x70);  // clear STATUS
     spi_->select(csPin_);
     spi_->transfer(NRF24_CMD_W_TX_PAYLOAD);
     for (int i = 0; i < NRF24_PAYLOAD; i++) spi_->transfer(data[i]);
     spi_->deselect();
-    cePulse(20);  // 触发发射
-    uint32_t t = time_us_32();
-    while (time_us_32() - t < 2000) {
-        uint8_t st = readReg(NRF24_REG_STATUS);
-        if (st & NRF24_STATUS_TX_DS) {
-            writeReg(NRF24_REG_STATUS, NRF24_STATUS_TX_DS);
-            return true;  // TX_DS: ACK 收到
-        }
-        if (st & NRF24_STATUS_MAX_RT) {
-            writeReg(NRF24_REG_STATUS, NRF24_STATUS_MAX_RT);
-            flushTx();
-            return false;  // MAX_RT: 重试失败
-        }
-    }
-    return false;  // 超时
+    txStartUs = time_us_32();
+    cePulse(NRF24_CE_PULSE_US);  // 触发发射
+    txPending = true;
 }
 
-bool NRF24LinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
-                                    uint16_t lx, uint16_t ly,
-                                    uint16_t rx, uint16_t ry,
-                                    uint8_t lt, uint8_t rt, uint8_t inputMode) {
-    // 15 字节 payload：复用 uart_link INPUT 帧的 13 字节游戏pad状态 +
+int8_t NRF24LinkAddon::pollTxComplete() {
+    // 软件超时优先（纯时间比较，无额外 SPI 开销）：
+    // SETUP_RETR(0x13) 下硬件事务最长 ~2ms，超时判芯片异常并恢复
+    if (static_cast<int32_t>(time_us_32() - txStartUs) >=
+            NRF24_TX_POLL_TIMEOUT_US) {
+        writeReg(NRF24_REG_STATUS, 0x70);
+        flushTx();
+        return 0;
+    }
+    // 每次调用仅读一次 STATUS，不做循环等待
+    uint8_t st = readReg(NRF24_REG_STATUS);
+    if (st & NRF24_STATUS_TX_DS) {
+        writeReg(NRF24_REG_STATUS, NRF24_STATUS_TX_DS);
+        return 1;  // TX_DS: ACK 收到
+    }
+    if (st & NRF24_STATUS_MAX_RT) {
+        writeReg(NRF24_REG_STATUS, NRF24_STATUS_MAX_RT);
+        flushTx();
+        return 0;  // MAX_RT: 重试失败
+    }
+    return -1;  // 仍在进行
+}
+
+void NRF24LinkAddon::submitInputFrame(uint16_t buttons, uint8_t dpad,
+                                      uint16_t lx, uint16_t ly,
+                                      uint16_t rx, uint16_t ry,
+                                      uint8_t lt, uint8_t rt, uint8_t inputMode) {
+    // 15 字节 payload：复用 uart_link 帧的 13 字节游戏pad状态 +
     // inputMode（接收端可识别源模式）+ reserved
     uint8_t payload[NRF24_PAYLOAD];
     payload[0]  = static_cast<uint8_t>(buttons & 0xFF);
@@ -150,7 +166,7 @@ bool NRF24LinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
     payload[12] = rt;
     payload[13] = inputMode;
     payload[14] = 0;  // reserved
-    return writePacket(payload);
+    submitPacket(payload);
 }
 
 void NRF24LinkAddon::process() {
@@ -175,6 +191,8 @@ void NRF24LinkAddon::postprocess(bool sent) {
     Gamepad* g = Storage::getInstance().GetProcessedGamepad();
     if (g == nullptr) return;
 
+    // 始终读取【最新】绝对状态：payload 是状态快照而非事件流，
+    // 被跳过的中间快照语义等同无线丢包，无需排队补寄
     uint16_t buttons = static_cast<uint16_t>(g->state.buttons & 0xFFFF);
     uint8_t  dpad    = static_cast<uint8_t>(g->state.dpad);
     uint16_t lx = static_cast<uint16_t>(g->state.lx);
@@ -184,30 +202,53 @@ void NRF24LinkAddon::postprocess(bool sent) {
     uint8_t  lt = static_cast<uint8_t>(g->state.lt);
     uint8_t  rt = static_cast<uint8_t>(g->state.rt);
 
-    // 混合发送策略（与 uart_link 一致）：
-    //  - 数字键(buttons/dpad)变化立即发，零额外延迟；
-    //  - 模拟量连续变化时限 900us（门控模式循环 1.0~1.04ms 每轮必满足）；
-    //  - 50ms 心跳保底同步/抗丢帧。
-    bool digitalChanged = (buttons != lastButtons || dpad != lastDpad);
-    bool analogChanged  = (lx != lastLx || ly != lastLy ||
-                           rx != lastRx || ry != lastRy ||
-                           lt != lastLt || rt != lastRt);
-    if (digitalChanged ||
-        (analogChanged && (now - lastSentUs) >= NRF24_INPUT_ANALOG_MIN_US) ||
-        (now - lastSentUs) >= NRF24_INPUT_HEARTBEAT_US) {
-        const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
-        uint8_t inputMode = static_cast<uint8_t>(options.inputMode);
-        const bool acked = sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt, inputMode);
+    // ===== 阶段 1：在飞事务只做一次 STATUS 轮询 =====
+    if (txPending) {
+        const int8_t txResult = pollTxComplete();
+        if (txResult < 0) {
+            // 芯片仍忙：不提交新事务；状态与在飞包不同则置 dirty，
+            // 数据不缓存——完成时直接从 Storage 读最新值
+            if (buttons != lastButtons || dpad != lastDpad ||
+                lx != lastLx || ly != lastLy ||
+                rx != lastRx || ry != lastRy ||
+                lt != lastLt || rt != lastRt) {
+                txDirty = true;
+            }
+            return;
+        }
 
+        // 事务已结束（1=ACK，0=失败），本次调用内继续决定是否提交新包
+        txPending = false;
+        now = time_us_32();
         // 在线去抖：连续 N 次 ACK 才发布在线（抗上电/干扰偶发 ACK）；
         // 在线后的偶发丢包不翻转标志，由上方 1s 超时统一判离线。
-        if (acked) {
+        // ACK 结果比同步模式晚一帧获知，不影响去抖语义。
+        if (txResult == 1) {
             lastAckUs = now;
             if (!linkUp && ++linkAckStreak >= NRF24_LINK_UP_STREAK) {
                 linkUp = true;
                 Storage::getInstance().setNrf24LinkUp(true);
             }
         }
+    }
+
+    // ===== 阶段 2：芯片空闲，dirty 优先，否则走混合节流 =====
+    //  - dirty（在飞期间状态已变化）：无视节流立即发，保证忙期间输入
+    //    不被 900us/50ms 窗口额外拖延；
+    //  - 数字键(buttons/dpad)变化立即发，零额外延迟；
+    //  - 模拟量连续变化时限 900us（门控循环 0.95~1.04ms 每轮必满足）；
+    //  - 50ms 心跳保底同步/抗丢帧。
+    bool digitalChanged = (buttons != lastButtons || dpad != lastDpad);
+    bool analogChanged  = (lx != lastLx || ly != lastLy ||
+                           rx != lastRx || ry != lastRy ||
+                           lt != lastLt || rt != lastRt);
+    if (txDirty ||
+        digitalChanged ||
+        (analogChanged && (now - lastSentUs) >= NRF24_INPUT_ANALOG_MIN_US) ||
+        (now - lastSentUs) >= NRF24_INPUT_HEARTBEAT_US) {
+        const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
+        uint8_t inputMode = static_cast<uint8_t>(options.inputMode);
+        submitInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt, inputMode);
 
         lastButtons = buttons;
         lastDpad = dpad;
@@ -215,6 +256,7 @@ void NRF24LinkAddon::postprocess(bool sent) {
         lastLt = lt; lastRt = rt;
         lastInputMode = inputMode;
         lastSentUs = now;
+        txDirty = false;
     }
 }
 

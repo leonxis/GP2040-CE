@@ -61,16 +61,22 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI0_PIN_CE;   // nRF24 CE
 #define NRF24_INPUT_ANALOG_MIN_US   900
 #define NRF24_INPUT_HEARTBEAT_US    50000
 
+// 异步 TX：CE 高电平保持（datasheet 要求 >10us 触发单包发射）
+#define NRF24_CE_PULSE_US           15
+// 异步 TX 软件超时：SETUP_RETR(0x13：250us/3次重发) 下硬件最长事务 ~2ms，
+// 2.5ms 无 TX_DS/MAX_RT 判芯片异常，flush 后恢复
+#define NRF24_TX_POLL_TIMEOUT_US    2500
+
 // 接收端在线去抖：连续 N 次 ACK 判在线；ACK 静默超过超时（≈20 个心跳）判离线。
 // 状态写 Storage::setNrf24LinkUp()，供 Core1 环境光未配对红闪消费。
 #define NRF24_LINK_UP_STREAK        2
 #define NRF24_LINK_DOWN_TIMEOUT_US  1000000
 
-// DMA 扩展点：当前使用 PeripheralSPI 现有 FIFO 阻塞传输（spi_write_read_blocking），
-// 已使用 8 字节深硬件 FIFO，16 字节负载 @4MHz 仅 32us SPI 时间。
-// nRF24 主要瓶颈是 130us 空中 ACK 等待，与 SPI 无关；DMA 净收益约 17us/帧（1.7% CPU @1000Hz），
-// 不抵配置复杂度。若未来扩展为多包连续发送或增大 payload，可在 PeripheralSPI 暴露
-// setUseDMA(bool) 公共方法并在此处启用。
+// 异步 TX 设计：postprocess 不等待 RF ACK。提交帧只做 W_TX_PAYLOAD（~35us
+// SPI）+ CE 脉冲（15us）即返回；后续帧 postprocess 每次只读一次 STATUS（~5us）
+// 判定 TX_DS/MAX_RT/超时。在飞期间的新状态做覆盖式合并（txDirty 一个布尔位，
+// 不缓存数据——最新状态始终可从 Storage 读取），芯片空闲当帧立即发最新快照。
+// 因此 postprocess 对主循环的占用稳定 ≤ ~70us，与接收端是否在线无关。
 
 class NRF24LinkAddon : public GPAddon {
 public:
@@ -90,13 +96,16 @@ private:
     void flushTx();
     // 拉高 CE 指定微秒数（TX 触发 / RX 使能）
     void cePulse(uint32_t us);
-    // TX with auto-ACK; 阻塞最长 ~2ms; true = ACK 收到
-    bool writePacket(const uint8_t *data);
-    // 组装 15 字节 payload 并发送；返回 auto-ACK 结果（true=接收端在线）
-    bool sendInputFrame(uint16_t buttons, uint8_t dpad,
-                        uint16_t lx, uint16_t ly,
-                        uint16_t rx, uint16_t ry,
-                        uint8_t lt, uint8_t rt, uint8_t inputMode);
+    // 将 payload 写入 TX FIFO 并脉冲 CE 触发发射（不等待 ACK），置 txPending
+    void submitPacket(const uint8_t *data);
+    // 单次 STATUS 读取判定发射结果：
+    //   1=ACK(TX_DS)，0=失败(MAX_RT/软件超时，已 flush)，-1=仍在进行
+    int8_t pollTxComplete();
+    // 组装 15 字节 payload 并提交（ACK 结果由后续帧 pollTxComplete 获得）
+    void submitInputFrame(uint16_t buttons, uint8_t dpad,
+                          uint16_t lx, uint16_t ly,
+                          uint16_t rx, uint16_t ry,
+                          uint8_t lt, uint8_t rt, uint8_t inputMode);
 
     PeripheralSPI* spi_ = nullptr;
     SPIBaudrateProfile spiProfile_ = {};
@@ -116,6 +125,13 @@ private:
     bool     linkUp = false;
     uint8_t  linkAckStreak = 0;
     uint32_t lastAckUs = 0;
+
+    // 异步 TX 状态：txPending=有在飞事务（唯一 TX FIFO 被占用）；
+    // txDirty=在飞期间状态已变化（覆盖式合并，完成当帧立即发最新快照）；
+    // txStartUs=本次事务启动时刻（软件超时用）
+    bool     txPending = false;
+    bool     txDirty = false;
+    uint32_t txStartUs = 0;
 };
 
 #endif

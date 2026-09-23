@@ -39,6 +39,7 @@ struct MainLoopGateStats {
     uint32_t maxSampleSetsPerFrame;
     uint32_t nextTokenEarliestUs;
     uint32_t finalizeDeadlineUs;
+    uint32_t boundDegradedCount;
 };
 
 void getMainLoopGateStats(MainLoopGateStats* stats);

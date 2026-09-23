@@ -169,10 +169,27 @@ struct MainLoopGateRollingMax {
                         maximum = 0;
                         for (uint8_t i = 0; i < count; i++) {
                                 if (samples[i] > maximum) {
-                                        maximum = samples[i];
-                                }
+                                        maximum = samples[i]; }
                         }
                 }
+        }
+
+        // 窗口次大值（重复最大值也算）：用于 bound 最大值超限时的降级调度。
+        // 语义为"剔除最极端的一个样本后，窗口内观测到的最坏情况"，即典型 WCET。
+        uint32_t secondMaximum() const {
+                if (count < 2) return maximum;
+                uint32_t best = 0;
+                uint32_t second = 0;
+                for (uint8_t i = 0; i < count; i++) {
+                        const uint32_t v = samples[i];
+                        if (v >= best) {
+                                second = best;
+                                best = v;
+                        } else if (v > second) {
+                                second = v;
+                        }
+                }
+                return second;
         }
 };
 
@@ -218,6 +235,8 @@ static uint32_t main_loop_gate_late_sample_set_count = 0;
 static uint32_t main_loop_gate_repeated_sample_frame_count = 0;
 static uint32_t main_loop_gate_frame_without_fresh_sample_count = 0;
 static uint32_t main_loop_gate_max_sample_sets_per_frame = 0;
+// bound 最大值不可调度、改用次大值降级调度的次数（方案B）
+static uint32_t main_loop_gate_bound_degraded_count = 0;
 static bool main_loop_suspend_scan_initialized = false;
 static uint32_t main_loop_suspend_last_gpio = 0;
 static absolute_time_t main_loop_suspend_next_scan = nil_time;
@@ -291,6 +310,7 @@ static void resetMainLoopGateMeasurements() {
         main_loop_gate_repeated_sample_frame_count = 0;
         main_loop_gate_frame_without_fresh_sample_count = 0;
         main_loop_gate_max_sample_sets_per_frame = 0;
+        main_loop_gate_bound_degraded_count = 0;
 }
 
 void getMainLoopGateStats(MainLoopGateStats* stats) {
@@ -334,6 +354,8 @@ void getMainLoopGateStats(MainLoopGateStats* stats) {
                 main_loop_gate_frame_schedule.nextTokenEarliestUs;
         stats->finalizeDeadlineUs =
                 main_loop_gate_frame_schedule.finalizeDeadlineUs;
+        stats->boundDegradedCount =
+                main_loop_gate_bound_degraded_count;
 }
 
 bool isMainLoopGateTimeTriggered(void) {
@@ -439,6 +461,50 @@ static MainLoopGateCompletionResult recordMainLoopGateCompletion(
         return MainLoopGateCompletionResult::Normal;
 }
 
+struct MainLoopGateResolvedBounds {
+        uint32_t finalProcessUs;
+        uint32_t endpointArmUs;
+        uint32_t postprocessUs;
+        bool degraded;
+};
+
+// 解析帧调度使用的 WCET bounds（方案B）：
+// 优先使用各滚动窗口 maximum（硬 WCET）；若三者 + 安全余量已不可调度
+// （通常是窗口内一个极端尖峰，如偶发的存储写），则降级为各窗口次大值
+// （剔除最极端一个样本后的典型 WCET）继续调度，避免单样本造成整个帧调度
+// 失效、帧内睡眠/晚采样保护整体真空；尖峰帧本身由 deadline miss 计数覆盖。
+// 典型预算仍超限时返回 false（确实无可调度方案）。
+static bool resolveMainLoopGateBounds(
+        uint32_t intervalUs,
+        MainLoopGateResolvedBounds* out) {
+        const uint32_t fpMax = main_loop_gate_final_process_wcet.maximum;
+        const uint32_t eaMax = main_loop_gate_endpoint_arm_wcet.maximum;
+        const uint32_t ppMax = main_loop_gate_postprocess_wcet.maximum;
+        if (fpMax + eaMax + ppMax + MAIN_LOOP_GATE_SAFETY_MARGIN_US <
+                        intervalUs) {
+                out->finalProcessUs = fpMax;
+                out->endpointArmUs = eaMax;
+                out->postprocessUs = ppMax;
+                out->degraded = false;
+                return true;
+        }
+        const uint32_t fpTyp =
+                main_loop_gate_final_process_wcet.secondMaximum();
+        const uint32_t eaTyp =
+                main_loop_gate_endpoint_arm_wcet.secondMaximum();
+        const uint32_t ppTyp =
+                main_loop_gate_postprocess_wcet.secondMaximum();
+        if (fpTyp + eaTyp + ppTyp + MAIN_LOOP_GATE_SAFETY_MARGIN_US >=
+                        intervalUs) {
+                return false;
+        }
+        out->finalProcessUs = fpTyp;
+        out->endpointArmUs = eaTyp;
+        out->postprocessUs = ppTyp;
+        out->degraded = true;
+        return true;
+}
+
 static void prepareMainLoopGateFrameSchedule(
         const USBMainGamepadGateSnapshot& snapshot) {
         main_loop_gate_frame_schedule = {};
@@ -449,21 +515,19 @@ static void prepareMainLoopGateFrameSchedule(
                 return;
         }
 
-        // 各 Bound 使用原始 WCET maximum；安全余量在 armDeadline 层统一注入
-        const uint32_t finalProcessBoundUs =
-                main_loop_gate_final_process_wcet.maximum;
-        const uint32_t endpointArmBoundUs =
-                main_loop_gate_endpoint_arm_wcet.maximum;
-        const uint32_t postprocessBoundUs =
-                main_loop_gate_postprocess_wcet.maximum;
-        const uint32_t reservedUs =
-                finalProcessBoundUs +
-                endpointArmBoundUs +
-                postprocessBoundUs +
-                MAIN_LOOP_GATE_SAFETY_MARGIN_US;
-        if (reservedUs >= MAIN_LOOP_GATE_USB_FRAME_US) {
+        // Bound：maximum 不可调度时降级为窗口次大值（方案B）；
+        // 安全余量在 armDeadline 层统一注入
+        MainLoopGateResolvedBounds bounds;
+        if (!resolveMainLoopGateBounds(
+                        MAIN_LOOP_GATE_USB_FRAME_US, &bounds)) {
                 return;
         }
+        if (bounds.degraded) {
+                main_loop_gate_bound_degraded_count++;
+        }
+        const uint32_t finalProcessBoundUs = bounds.finalProcessUs;
+        const uint32_t endpointArmBoundUs = bounds.endpointArmUs;
+        const uint32_t postprocessBoundUs = bounds.postprocessUs;
 
         const uint32_t tokenPhaseUs =
                 main_loop_gate_phase_min_us >
@@ -508,20 +572,19 @@ static void prepareMainLoopGateTimeTriggeredFrameSchedule() {
                 main_loop_gate_last_frame_start_us == 0) {
                 return;
         }
-        const uint32_t finalProcessBoundUs =
-                main_loop_gate_final_process_wcet.maximum;
-        const uint32_t endpointArmBoundUs =
-                main_loop_gate_endpoint_arm_wcet.maximum;
-        const uint32_t postprocessBoundUs =
-                main_loop_gate_postprocess_wcet.maximum;
-        const uint32_t reservedUs =
-                finalProcessBoundUs +
-                endpointArmBoundUs +
-                postprocessBoundUs +
-                MAIN_LOOP_GATE_SAFETY_MARGIN_US;
-        if (reservedUs >= MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US) {
+        // Bound：maximum 不可调度时降级为窗口次大值（方案B）
+        MainLoopGateResolvedBounds bounds;
+        if (!resolveMainLoopGateBounds(
+                        MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US,
+                        &bounds)) {
                 return;
         }
+        if (bounds.degraded) {
+                main_loop_gate_bound_degraded_count++;
+        }
+        const uint32_t finalProcessBoundUs = bounds.finalProcessUs;
+        const uint32_t endpointArmBoundUs = bounds.endpointArmUs;
+        const uint32_t postprocessBoundUs = bounds.postprocessUs;
         // 下一帧起点 = 当前帧启动 + 950µs
         const uint32_t nextFrameStartUs =
                 main_loop_gate_last_frame_start_us +
