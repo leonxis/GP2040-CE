@@ -1,8 +1,6 @@
 #include "addons/mcp3208_adc.h"
 #include "peripheralmanager.h"
 
-#include "pico/time.h"
-
 static const uint8_t MCP3208_CHANNELS[MCP3208_READ_CHANNELS] = {0, 1, 6, 7};
 static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
     {0x06, 0x00, 0x00}, // CH0
@@ -83,8 +81,6 @@ void MCP3208ADCAddon::setup() {
             snapshot.x[stick] = center;
             snapshot.y[stick] = center;
         }
-        snapshot.sequence = 0;
-        snapshot.completedTimeUs = 0;
     }
     publishedStickSnapshot_.store(0, std::memory_order_relaxed);
     // Semantic mapping aligned with AnalogInput contract:
@@ -128,7 +124,7 @@ void MCP3208ADCAddon::process() {
             return;
         }
     }
-    (void)publishStickSnapshot(xValues, yValues);
+    publishStickSnapshot(xValues, yValues);
 }
 
 bool MCP3208ADCAddon::readChannel(
@@ -153,7 +149,7 @@ bool MCP3208ADCAddon::readChannel(
     return false;
 }
 
-bool MCP3208ADCAddon::publishStickSnapshot(
+void MCP3208ADCAddon::publishStickSnapshot(
     const uint16_t* xValues,
     const uint16_t* yValues
 ) {
@@ -166,12 +162,9 @@ bool MCP3208ADCAddon::publishStickSnapshot(
         next.x[stick] = xValues[stick];
         next.y[stick] = yValues[stick];
     }
-    next.sequence = stickSnapshots_[currentIndex].sequence + 1u;
-    next.completedTimeUs = time_us_32();
     publishedStickSnapshot_.store(
         nextIndex,
         std::memory_order_release);
-    return true;
 }
 
 void MCP3208ADCAddon::preprocess() {

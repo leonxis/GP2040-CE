@@ -8,17 +8,11 @@ struct USBMainGamepadGateSnapshot {
 	bool suspended;
 	bool reportArmed;
 	uint32_t epoch;
-	uint32_t sofSeq;
-	uint32_t sofFrame;
-	uint32_t sofTimeUs;
-	uint32_t submitSeq;
-	uint32_t submitTimeUs;
 	uint32_t completeSeq;
 	uint32_t completeTimeUs;
 	uint32_t completeSofFrame;
 	uint32_t completeSofTimeUs;
 	uint32_t failedSeq;
-	uint32_t failedTimeUs;
 };
 
 bool get_usb_mounted(void);

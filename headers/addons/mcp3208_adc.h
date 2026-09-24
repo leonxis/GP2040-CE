@@ -57,13 +57,11 @@ private:
     struct StickSnapshot {
         uint16_t x[MCP3208_STICK_COUNT];
         uint16_t y[MCP3208_STICK_COUNT];
-        uint32_t sequence;
-        uint32_t completedTimeUs;
     };
 
     bool readChannel(uint8_t channel, uint16_t& value);
     bool prepareSPITransaction();
-    bool publishStickSnapshot(
+    void publishStickSnapshot(
         const uint16_t* xValues,
         const uint16_t* yValues);
 

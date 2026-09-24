@@ -27,17 +27,13 @@ static volatile bool usb_suspended;
 static volatile bool usb_main_gamepad_report_armed;
 static volatile uint32_t usb_main_gamepad_epoch;
 static volatile uint32_t usb_main_gamepad_armed_epoch;
-static volatile uint32_t usb_main_gamepad_sof_seq;
 static volatile uint32_t usb_main_gamepad_sof_frame;
 static volatile uint32_t usb_main_gamepad_sof_time_us;
-static volatile uint32_t usb_main_gamepad_submit_seq;
-static volatile uint32_t usb_main_gamepad_submit_time_us;
 static volatile uint32_t usb_main_gamepad_complete_seq;
 static volatile uint32_t usb_main_gamepad_complete_time_us;
 static volatile uint32_t usb_main_gamepad_complete_sof_frame;
 static volatile uint32_t usb_main_gamepad_complete_sof_time_us;
 static volatile uint32_t usb_main_gamepad_failed_seq;
-static volatile uint32_t usb_main_gamepad_failed_time_us;
 
 static uint8_t compositeHIDInstance = 0xFF;
 
@@ -183,17 +179,13 @@ static void beginMainGamepadUSBEpoch(bool mounted) {
 	usb_suspended = false;
 	usb_main_gamepad_report_armed = false;
 	usb_main_gamepad_armed_epoch = 0;
-	usb_main_gamepad_sof_seq = 0;
 	usb_main_gamepad_sof_frame = 0;
 	usb_main_gamepad_sof_time_us = 0;
-	usb_main_gamepad_submit_seq = 0;
-	usb_main_gamepad_submit_time_us = 0;
 	usb_main_gamepad_complete_seq = 0;
 	usb_main_gamepad_complete_time_us = 0;
 	usb_main_gamepad_complete_sof_frame = 0;
 	usb_main_gamepad_complete_sof_time_us = 0;
 	usb_main_gamepad_failed_seq = 0;
-	usb_main_gamepad_failed_time_us = 0;
 	usb_main_gamepad_epoch++;
 	restore_interrupts(irqState);
 }
@@ -210,17 +202,11 @@ void usb_get_main_gamepad_gate_snapshot(USBMainGamepadGateSnapshot* snapshot) {
 		usb_main_gamepad_report_armed &&
 		(usb_main_gamepad_armed_epoch == usb_main_gamepad_epoch);
 	snapshot->epoch = usb_main_gamepad_epoch;
-	snapshot->sofSeq = usb_main_gamepad_sof_seq;
-	snapshot->sofFrame = usb_main_gamepad_sof_frame;
-	snapshot->sofTimeUs = usb_main_gamepad_sof_time_us;
-	snapshot->submitSeq = usb_main_gamepad_submit_seq;
-	snapshot->submitTimeUs = usb_main_gamepad_submit_time_us;
 	snapshot->completeSeq = usb_main_gamepad_complete_seq;
 	snapshot->completeTimeUs = usb_main_gamepad_complete_time_us;
 	snapshot->completeSofFrame = usb_main_gamepad_complete_sof_frame;
 	snapshot->completeSofTimeUs = usb_main_gamepad_complete_sof_time_us;
 	snapshot->failedSeq = usb_main_gamepad_failed_seq;
-	snapshot->failedTimeUs = usb_main_gamepad_failed_time_us;
 	restore_interrupts(irqState);
 }
 
@@ -234,8 +220,6 @@ bool usb_mark_main_gamepad_report_submitted(uint32_t expectedEpoch) {
 	if (canArm) {
 		usb_main_gamepad_armed_epoch = usb_main_gamepad_epoch;
 		usb_main_gamepad_report_armed = true;
-		usb_main_gamepad_submit_seq++;
-		usb_main_gamepad_submit_time_us = time_us_32();
 	}
 	restore_interrupts(irqState);
 	return canArm;
@@ -248,7 +232,6 @@ void usb_notify_main_gamepad_submit_failed(uint32_t expectedEpoch) {
 		!usb_main_gamepad_report_armed &&
 		(usb_main_gamepad_epoch == expectedEpoch)) {
 		usb_main_gamepad_failed_seq++;
-		usb_main_gamepad_failed_time_us = time_us_32();
 	}
 	restore_interrupts(irqState);
 }
@@ -258,7 +241,6 @@ void usb_notify_main_gamepad_sof(uint32_t frameNumber) {
 	if (usb_mounted && !usb_suspended) {
 		usb_main_gamepad_sof_frame = frameNumber;
 		usb_main_gamepad_sof_time_us = time_us_32();
-		usb_main_gamepad_sof_seq++;
 	}
 	restore_interrupts(irqState);
 }
@@ -302,7 +284,6 @@ void usb_notify_main_gamepad_poll_done_failed(void) {
 		(usb_main_gamepad_armed_epoch == usb_main_gamepad_epoch)) {
 		usb_main_gamepad_report_armed = false;
 		usb_main_gamepad_failed_seq++;
-		usb_main_gamepad_failed_time_us = time_us_32();
 	}
 	restore_interrupts(irqState);
 }

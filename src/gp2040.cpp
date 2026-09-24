@@ -132,7 +132,6 @@ static uint32_t main_loop_gate_last_complete_time_us = 0;
 static uint32_t main_loop_gate_last_complete_sof_frame = 0;
 static uint32_t main_loop_gate_phase_min_us = 0xFFFFFFFFu;
 static uint32_t main_loop_gate_phase_max_us = 0;
-static uint32_t main_loop_gate_interval_max_us = 0;
 static uint16_t main_loop_gate_stable_completions = 0;
 static bool main_loop_suspend_scan_initialized = false;
 static uint32_t main_loop_suspend_last_gpio = 0;
@@ -174,7 +173,6 @@ static void resetMainLoopGateTiming() {
 	main_loop_gate_last_complete_sof_frame = 0;
 	main_loop_gate_phase_min_us = 0xFFFFFFFFu;
 	main_loop_gate_phase_max_us = 0;
-	main_loop_gate_interval_max_us = 0;
 	main_loop_gate_stable_completions = 0;
 }
 
@@ -207,9 +205,6 @@ static MainLoopGateCompletionResult recordMainLoopGateCompletion(
 		(sofFrameDelta == 1u) &&
 		(intervalUs < MAIN_LOOP_GATE_INTERVAL_2MS_US);
 
-	if (intervalUs > main_loop_gate_interval_max_us) {
-		main_loop_gate_interval_max_us = intervalUs;
-	}
 	main_loop_gate_last_complete_time_us = snapshot.completeTimeUs;
 	main_loop_gate_last_complete_sof_frame =
 		snapshot.completeSofFrame;
@@ -254,7 +249,6 @@ static void resetMainLoopGateForSnapshot(
 	main_loop_gate_epoch = snapshot.epoch;
 	main_loop_gate_complete_seq = snapshot.completeSeq;
 	main_loop_gate_failed_seq = snapshot.failedSeq;
-	main_loop_gate_action_epoch = snapshot.epoch;
 	main_loop_gate_first_in_seen = false;
 	main_loop_suspend_scan_initialized = false;
 	resetMainLoopGateTiming();
@@ -973,7 +967,7 @@ void GP2040::run() {
 		USBHostManager::getInstance().process();
 
 		// Config Loop (Web-Config skips Core0 add-ons)
-if (configMode == true) {
+	if (configMode == true) {
 		inputDriver->process(gamepad);
 		rebootHotkeys.process(configMode);
 		checkSaveRebootState();
