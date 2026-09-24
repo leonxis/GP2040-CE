@@ -51,12 +51,10 @@ public:
 	virtual bool available();
 	virtual void setup();
 	virtual void preprocess() {}
-	virtual void process() {}
+	virtual void process();
 	virtual void postprocess(bool) {}
 	virtual void reinit();
 	virtual std::string name() { return AxisTiltOverlayName; }
-
-	void applyFinalProcess(Gamepad* gamepad);
 
 private:
 	struct Offset {

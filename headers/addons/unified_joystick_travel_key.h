@@ -14,7 +14,6 @@ public:
     virtual void setup();
     virtual void preprocess() {}
     virtual void process();
-    virtual void processTravelKey();
     virtual void postprocess(bool) {}
     virtual void reinit();
     virtual std::string name() { return UnifiedJoystickTravelKeyName; }

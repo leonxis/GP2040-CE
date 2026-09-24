@@ -45,15 +45,6 @@ public:
     virtual void preprocess();
     virtual void process();
     virtual void postprocess(bool) {}
-    virtual bool isGateLateAnalogProvider() const { return true; }
-    virtual GateLateAnalogSource gateLateAnalogSource() const {
-        return GateLateAnalogSource::MCP3208;
-    }
-    virtual bool beginGateLateAnalogBurst();
-    virtual bool sampleGateLateAnalog(
-        const GateLateAnalogSampleRequest& request);
-    virtual void endGateLateAnalogBurst();
-    virtual uint32_t gateLateAnalogCompletedTimeUs() const;
     virtual std::string name() { return MCP3208_ADC_ADDON_NAME; }
     virtual void reinit();
 
@@ -70,14 +61,11 @@ private:
         uint32_t completedTimeUs;
     };
 
-    bool sampleStickSnapshot(
-        const GateLateAnalogSampleRequest& request = {});
     bool readChannel(uint8_t channel, uint16_t& value);
     bool prepareSPITransaction();
     bool publishStickSnapshot(
         const uint16_t* xValues,
-        const uint16_t* yValues,
-        const GateLateAnalogSampleRequest& request = {});
+        const uint16_t* yValues);
 
     static MCP3208ADCAddon* s_instance;
     PeripheralSPI* spi_;
@@ -85,7 +73,6 @@ private:
     int8_t csPin_;            // Chip select GPIO (硬编码)
     bool spiOk_;
     SamplerStickChannelConfig stick_channels_[MCP3208_STICK_COUNT];
-    bool gateLateBurstActive_ = false;
     StickSnapshot stickSnapshots_[2] = {};
     std::atomic<uint8_t> publishedStickSnapshot_ { 0 };
 };

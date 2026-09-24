@@ -11,14 +11,6 @@ static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
     {0x07, 0xC0, 0x00}, // CH7
 };
 
-static inline bool gateDeadlineReached(
-    const GateLateAnalogSampleRequest& request,
-    uint32_t nowUs
-) {
-    return request.enforceDeadline &&
-        static_cast<int32_t>(nowUs - request.deadlineUs) >= 0;
-}
-
 bool MCP3208ADCAddon::available() {
     // Always enabled: no persisted user toggle. Only activates when the
     // fixed SPI peripheral is provided by the board configuration.
@@ -39,7 +31,7 @@ bool MCP3208ADCAddon::getRawStickForWebConfig(
     }
     adcMax = MCP3208_ADC_MAX;
     // Web calibration canvas only needs stick channels.
-    (void)s_instance->sampleStickSnapshot();
+    s_instance->process();
     const uint8_t snapshotIndex =
         s_instance->publishedStickSnapshot_.load(
             std::memory_order_acquire);
@@ -83,7 +75,6 @@ void MCP3208ADCAddon::setup() {
     spi_ = nullptr;
     spiProfile_ = {};
     spiOk_ = false;
-    gateLateBurstActive_ = false;
     csPin_ = -1;
     // Initialize stick channels to center so first frame is neutral.
     const uint16_t center = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
@@ -121,11 +112,9 @@ bool MCP3208ADCAddon::prepareSPITransaction() {
     return true;
 }
 
-bool MCP3208ADCAddon::sampleStickSnapshot(
-    const GateLateAnalogSampleRequest& request
-) {
-    if (!gateLateBurstActive_ && !prepareSPITransaction()) {
-        return false;
+void MCP3208ADCAddon::process() {
+    if (!prepareSPITransaction()) {
+        return;
     }
 
     uint16_t xValues[MCP3208_STICK_COUNT] = {};
@@ -136,10 +125,10 @@ bool MCP3208ADCAddon::sampleStickSnapshot(
         if (x >= 8 || y >= 8 ||
             !readChannel(x, xValues[stick]) ||
             !readChannel(y, yValues[stick])) {
-            return false;
+            return;
         }
     }
-    return publishStickSnapshot(xValues, yValues, request);
+    (void)publishStickSnapshot(xValues, yValues);
 }
 
 bool MCP3208ADCAddon::readChannel(
@@ -166,8 +155,7 @@ bool MCP3208ADCAddon::readChannel(
 
 bool MCP3208ADCAddon::publishStickSnapshot(
     const uint16_t* xValues,
-    const uint16_t* yValues,
-    const GateLateAnalogSampleRequest& request
+    const uint16_t* yValues
 ) {
     const uint8_t currentIndex =
         publishedStickSnapshot_.load(std::memory_order_relaxed);
@@ -179,11 +167,7 @@ bool MCP3208ADCAddon::publishStickSnapshot(
         next.y[stick] = yValues[stick];
     }
     next.sequence = stickSnapshots_[currentIndex].sequence + 1u;
-    const uint32_t completedTimeUs = time_us_32();
-    if (gateDeadlineReached(request, completedTimeUs)) {
-        return false;
-    }
-    next.completedTimeUs = completedTimeUs;
+    next.completedTimeUs = time_us_32();
     publishedStickSnapshot_.store(
         nextIndex,
         std::memory_order_release);
@@ -191,37 +175,10 @@ bool MCP3208ADCAddon::publishStickSnapshot(
 }
 
 void MCP3208ADCAddon::preprocess() {
-    // 早采样已移除：采样统一在 sampleMainLoopGateLateAnalog() 中进行，
-    // 该函数在主循环中无条件调用（门控与非门控模式均执行）。
-}
-
-bool MCP3208ADCAddon::beginGateLateAnalogBurst() {
-    gateLateBurstActive_ = prepareSPITransaction();
-    return gateLateBurstActive_;
-}
-
-bool MCP3208ADCAddon::sampleGateLateAnalog(
-    const GateLateAnalogSampleRequest& request
-) {
-    return sampleStickSnapshot(request);
-}
-
-void MCP3208ADCAddon::endGateLateAnalogBurst() {
-    gateLateBurstActive_ = false;
-}
-
-uint32_t MCP3208ADCAddon::gateLateAnalogCompletedTimeUs() const {
-    const uint8_t snapshotIndex =
-        publishedStickSnapshot_.load(std::memory_order_acquire);
-    return stickSnapshots_[snapshotIndex].completedTimeUs;
-}
-
-void MCP3208ADCAddon::process() {
-    // Sample provider only. Unified addons consume cached raw values.
 }
 
 void MCP3208ADCAddon::reinit() {
     if (spiOk_) {
-        (void)sampleStickSnapshot();
+        process();
     }
 }

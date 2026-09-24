@@ -17,7 +17,6 @@ public:
     virtual bool available();
     virtual void setup();
     virtual void process();
-    virtual void processAnalog();
     virtual void preprocess() {}
     virtual void postprocess(bool sent) {}
     virtual void reinit();

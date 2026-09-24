@@ -36,9 +36,4 @@ void usb_notify_main_gamepad_in_xfer_failed_from_xinput(void);
 void usb_notify_main_gamepad_poll_done_success(void);
 void usb_notify_main_gamepad_poll_done_failed(void);
 
-// 主循环门控是否处于无线时间触发模式（950us 自定时，不依赖 IN 令牌）。
-// USB 驱动据此抑制挂起时每帧自动发起 remote wakeup——时间触发模式下
-// 远程唤醒由主循环 GPIO 变化扫描统一触发，避免主机刚挂起即被立即唤醒。
-bool isMainLoopGateTimeTriggered(void);
-
 #endif // #ifndef _USB_DRIVER_H_

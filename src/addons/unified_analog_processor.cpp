@@ -142,7 +142,7 @@ uint16_t UnifiedAnalogProcessorAddon::quantizeRaw(int stickNum, uint16_t value, 
     return value;
 }
 
-void UnifiedAnalogProcessorAddon::processAnalog() {
+void UnifiedAnalogProcessorAddon::process() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const AnalogOptions& analogOptions = addonOptions.analogOptions;
     if (!available()) {
@@ -297,11 +297,6 @@ void UnifiedAnalogProcessorAddon::processAnalog() {
             gamepad->state.ry = clampedY;
         }
     }
-}
-
-void UnifiedAnalogProcessorAddon::process() {
-    // 空跑：实际逻辑在 processAnalog() 中由主循环在晚采样后显式调用
-    // （与 AxisTiltOverlay.process → applyFinalProcess 同模式）
 }
 
 float UnifiedAnalogProcessorAddon::getInterpolatedScale(int stickNum, float angle) const {

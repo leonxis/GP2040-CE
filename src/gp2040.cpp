@@ -63,16 +63,6 @@ static const uint32_t REBOOT_HOTKEY_ACTIVATION_TIME_MS = 50;
 static const uint32_t REBOOT_HOTKEY_HOLD_TIME_MS = 4000;
 static bool main_loop_gate_enabled = false;
 static bool main_loop_gate_runtime_enabled = false;
-// 跳过摇杆晚采样前 sleep 的开关（调试/降延迟用）：
-// true  = sleepUntilLateSampleDeadline 不执行 WFE 等待，非摇杆工作完成后立即采样，
-//         其余门控逻辑（帧调度/LOCKED/deadline 检查）照常；
-// false = 默认，门控正常 sleep 到晚采样最晚安全启动时刻。
-static bool main_loop_gate_skip_late_sample_sleep = true;
-// 无线模式（nRF24/BLE/UART）启用时间触发门控：不依赖 IN 令牌，
-// 以 950µs 固定间隔触发帧，使主循环周期接近 1ms 轮询周期，降低 NAK。
-// setup() 中由 wirelessLinkActive() 缓存一次（开关切换必然重启）。
-static bool main_loop_gate_time_triggered = false;
-static uint32_t main_loop_gate_last_frame_start_us = 0;
 static bool composite_hid_enabled = false;
 static const uint32_t MAIN_LOOP_GATE_REPORT_RATE_HZ = 1000;
 static const uint32_t MAIN_LOOP_GATE_WAIT_TIMEOUT_US = 1000;
@@ -80,15 +70,7 @@ static const uint32_t MAIN_LOOP_GATE_SUSPEND_SCAN_US = 4000;
 static const uint32_t MAIN_LOOP_GATE_INTERVAL_2MS_US = 1500;
 static const uint32_t MAIN_LOOP_GATE_USB_FRAME_US = 1000;
 static const uint32_t MAIN_LOOP_GATE_PHASE_SPREAD_LIMIT_US = 125;
-static const uint32_t MAIN_LOOP_GATE_COMPLETION_TO_TOKEN_GUARD_US = 64;
-// 总安全余量：覆盖 WCET 测量不确定性 + WFE 唤醒延迟 + USB 端点就绪抖动 + 未测量开销
-// 在 armDeadline 层统一注入，各 Bound 使用原始 WCET maximum
-static const uint32_t MAIN_LOOP_GATE_SAFETY_MARGIN_US = 50;
-static const uint8_t MAIN_LOOP_GATE_WCET_WINDOW = 64;
 static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
-// 无线模式（nRF24/BLE/UART）时间触发门控帧间隔：略快于 1ms 轮询周期，
-// 保证每次轮询时报文已就绪，降低 NAK 可能性。
-static const uint32_t MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US = 950;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
@@ -123,7 +105,6 @@ enum class MainLoopGateState {
 	RECOVERY,
 	SUSPENDED_ARMED,
 	SUSPENDED_UNARMED,
-	TIME_LOCKED, // 无线模式：时间触发，不依赖 IN 令牌
 };
 
 enum class MainLoopGateAction {
@@ -140,77 +121,6 @@ enum class MainLoopGateCompletionResult {
         PhaseMutation,
 };
 
-struct MainLoopGateRollingMax {
-        uint32_t samples[MAIN_LOOP_GATE_WCET_WINDOW] = {};
-        uint8_t nextIndex = 0;
-        uint8_t count = 0;
-        uint32_t maximum = 0;
-
-        void reset() {
-                for (uint8_t i = 0; i < MAIN_LOOP_GATE_WCET_WINDOW; i++) {
-                        samples[i] = 0;
-                }
-                nextIndex = 0;
-                count = 0;
-                maximum = 0;
-        }
-
-        void record(uint32_t value) {
-                const bool full = count == MAIN_LOOP_GATE_WCET_WINDOW;
-                const uint32_t replaced = full ? samples[nextIndex] : 0;
-                samples[nextIndex] = value;
-                nextIndex++;
-                if (nextIndex == MAIN_LOOP_GATE_WCET_WINDOW) {
-                        nextIndex = 0;
-                }
-                if (!full) {
-                        count++;
-                }
-                if (value >= maximum) {
-                        maximum = value;
-                        return;
-                }
-                if (full && replaced == maximum) {
-                        maximum = 0;
-                        for (uint8_t i = 0; i < count; i++) {
-                                if (samples[i] > maximum) {
-                                        maximum = samples[i]; }
-                        }
-                }
-        }
-
-        // 窗口次大值（重复最大值也算）：用于 bound 最大值超限时的降级调度。
-        // 语义为"剔除最极端的一个样本后，窗口内观测到的最坏情况"，即典型 WCET。
-        uint32_t secondMaximum() const {
-                if (count < 2) return maximum;
-                uint32_t best = 0;
-                uint32_t second = 0;
-                for (uint8_t i = 0; i < count; i++) {
-                        const uint32_t v = samples[i];
-                        if (v >= best) {
-                                second = best;
-                                best = v;
-                        } else if (v > second) {
-                                second = v;
-                        }
-                }
-                return second;
-        }
-};
-
-struct MainLoopGateFrameSchedule {
-        bool valid = false;
-        uint32_t nextTokenEarliestUs = 0;
-        uint32_t armDeadlineUs = 0;
-        uint32_t finalizeDeadlineUs = 0;
-};
-
-struct MainLoopGateLateSampleResult {
-        uint8_t sampleSets = 0;
-        bool busTouched = false;
-        bool deadlineOverrun = false;
-};
-
 static MainLoopGateState main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
 static uint32_t main_loop_gate_epoch = 0;
 static uint32_t main_loop_gate_complete_seq = 0;
@@ -224,164 +134,38 @@ static uint32_t main_loop_gate_phase_min_us = 0xFFFFFFFFu;
 static uint32_t main_loop_gate_phase_max_us = 0;
 static uint32_t main_loop_gate_interval_max_us = 0;
 static uint16_t main_loop_gate_stable_completions = 0;
-static GateLateAnalogSource main_loop_gate_analog_source =
-        GateLateAnalogSource::None;
-static MainLoopGateRollingMax main_loop_gate_mcp3208_burst_setup_wcet;
-static MainLoopGateRollingMax main_loop_gate_mcp3208_sample_wcet;
-static MainLoopGateRollingMax main_loop_gate_final_process_wcet;
-static MainLoopGateRollingMax main_loop_gate_endpoint_arm_wcet;
-static MainLoopGateRollingMax main_loop_gate_postprocess_wcet;
-static MainLoopGateFrameSchedule main_loop_gate_frame_schedule;
-static uint32_t main_loop_gate_sample_age_last_us = 0;
-static uint32_t main_loop_gate_sample_age_max_us = 0;
-static uint32_t main_loop_gate_deadline_miss_count = 0;
-static uint32_t main_loop_gate_phase_mutation_count = 0;
-static uint32_t main_loop_gate_late_sample_set_count = 0;
-static uint32_t main_loop_gate_repeated_sample_frame_count = 0;
-static uint32_t main_loop_gate_frame_without_fresh_sample_count = 0;
-static uint32_t main_loop_gate_max_sample_sets_per_frame = 0;
-// bound 最大值不可调度、改用次大值降级调度的次数（方案B）
-static uint32_t main_loop_gate_bound_degraded_count = 0;
 static bool main_loop_suspend_scan_initialized = false;
 static uint32_t main_loop_suspend_last_gpio = 0;
 static absolute_time_t main_loop_suspend_next_scan = nil_time;
 
 extern void processCompositeHID(Gamepad *gamepad);
 
-static inline bool mainLoopGateTimeReached(
-        uint32_t nowUs,
-        uint32_t deadlineUs) {
-        return static_cast<int32_t>(nowUs - deadlineUs) >= 0;
-}
-
-static inline uint32_t mainLoopGateTimeRemaining(
-        uint32_t nowUs,
-        uint32_t deadlineUs) {
-        const int32_t remaining =
-                static_cast<int32_t>(deadlineUs - nowUs);
-        return remaining > 0 ? static_cast<uint32_t>(remaining) : 0;
-}
-
-static MainLoopGateRollingMax* mainLoopGateADCWcet(
-        GateLateAnalogSource source) {
-        switch (source) {
-                case GateLateAnalogSource::MCP3208:
-                        return &main_loop_gate_mcp3208_sample_wcet;
-                case GateLateAnalogSource::None:
-                default:
-                        return nullptr;
-        }
-}
-
-static MainLoopGateRollingMax* mainLoopGateADCBurstSetupWcet(
-        GateLateAnalogSource source) {
-        switch (source) {
-                case GateLateAnalogSource::MCP3208:
-                        return &main_loop_gate_mcp3208_burst_setup_wcet;
-                case GateLateAnalogSource::None:
-                default:
-                        return nullptr;
-        }
-}
-
-static bool mainLoopGateSchedulingMeasurementsReady() {
-        if (main_loop_gate_final_process_wcet.maximum == 0 ||
-                main_loop_gate_endpoint_arm_wcet.maximum == 0 ||
-                main_loop_gate_postprocess_wcet.maximum == 0) {
-                return false;
-        }
-        MainLoopGateRollingMax* adcWcet =
-                mainLoopGateADCWcet(main_loop_gate_analog_source);
-        MainLoopGateRollingMax* burstSetupWcet =
-                mainLoopGateADCBurstSetupWcet(main_loop_gate_analog_source);
-        return adcWcet == nullptr ||
-                (adcWcet->maximum != 0 &&
-                 burstSetupWcet != nullptr &&
-                 burstSetupWcet->maximum != 0);
-}
-
-static void resetMainLoopGateMeasurements() {
-        main_loop_gate_mcp3208_burst_setup_wcet.reset();
-        main_loop_gate_mcp3208_sample_wcet.reset();
-        main_loop_gate_final_process_wcet.reset();
-        main_loop_gate_endpoint_arm_wcet.reset();
-        main_loop_gate_postprocess_wcet.reset();
-        main_loop_gate_frame_schedule = {};
-        main_loop_gate_sample_age_last_us = 0;
-        main_loop_gate_sample_age_max_us = 0;
-        main_loop_gate_deadline_miss_count = 0;
-        main_loop_gate_phase_mutation_count = 0;
-        main_loop_gate_late_sample_set_count = 0;
-        main_loop_gate_repeated_sample_frame_count = 0;
-        main_loop_gate_frame_without_fresh_sample_count = 0;
-        main_loop_gate_max_sample_sets_per_frame = 0;
-        main_loop_gate_bound_degraded_count = 0;
-}
-
 void getMainLoopGateStats(MainLoopGateStats* stats) {
         if (stats == nullptr) {
                 return;
         }
         stats->deadlineSchedulingActive =
-                (main_loop_gate_state == MainLoopGateState::LOCKED ||
-                 main_loop_gate_state == MainLoopGateState::TIME_LOCKED) &&
-                main_loop_gate_frame_schedule.valid;
-        stats->analogSource = main_loop_gate_analog_source;
+                (main_loop_gate_state == MainLoopGateState::LOCKED);
         stats->stableCompletions = main_loop_gate_stable_completions;
         stats->phaseMinUs =
                 main_loop_gate_phase_min_us == 0xFFFFFFFFu
                         ? 0
                         : main_loop_gate_phase_min_us;
         stats->phaseMaxUs = main_loop_gate_phase_max_us;
-        stats->mcp3208BurstSetupWcetUs =
-                main_loop_gate_mcp3208_burst_setup_wcet.maximum;
-        stats->mcp3208SampleWcetUs =
-                main_loop_gate_mcp3208_sample_wcet.maximum;
-        stats->finalProcessWcetUs =
-                main_loop_gate_final_process_wcet.maximum;
-        stats->endpointArmGuardUs =
-                main_loop_gate_endpoint_arm_wcet.maximum;
-        stats->postprocessWcetUs =
-                main_loop_gate_postprocess_wcet.maximum;
-        stats->sampleAgeLastUs = main_loop_gate_sample_age_last_us;
-        stats->sampleAgeMaxUs = main_loop_gate_sample_age_max_us;
-        stats->deadlineMissCount = main_loop_gate_deadline_miss_count;
-        stats->phaseMutationCount = main_loop_gate_phase_mutation_count;
-        stats->lateSampleSetCount =
-                main_loop_gate_late_sample_set_count;
-        stats->repeatedSampleFrameCount =
-                main_loop_gate_repeated_sample_frame_count;
-        stats->frameWithoutFreshSampleCount =
-                main_loop_gate_frame_without_fresh_sample_count;
-        stats->maxSampleSetsPerFrame =
-                main_loop_gate_max_sample_sets_per_frame;
-        stats->nextTokenEarliestUs =
-                main_loop_gate_frame_schedule.nextTokenEarliestUs;
-        stats->finalizeDeadlineUs =
-                main_loop_gate_frame_schedule.finalizeDeadlineUs;
-        stats->boundDegradedCount =
-                main_loop_gate_bound_degraded_count;
-}
-
-bool isMainLoopGateTimeTriggered(void) {
-        return main_loop_gate_time_triggered;
 }
 
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
 	const InputMode inputMode = DriverManager::getInstance().getInputMode();
-	// Note: SWITCH_PRO (NS PRO) is excluded from main-loop gating because its
-	// handshake/feature report phases do not consistently trigger HID IN
-	// completions, causing the gate to stall the main loop and drop inputs.
 	const bool supportedMode =
 		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B ||
 		 inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
-
-	// 无线模式（nRF24/BLE/UART）不再排除门控：改为时间触发模式运行，
-	// 以 950µs 固定间隔触发帧，使主循环周期接近 1ms 轮询周期，降低 NAK。
-	// USB Device 未挂载时由 getMainLoopGateAction() 的时间触发路径处理，
-	// 不降级为无门控运行。
-	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
+	const bool noWireless =
+		!gamepadOptions.wirelessLinkEnabled &&
+		!gamepadOptions.bluetoothLinkEnabled &&
+		!gamepadOptions.nrf24LinkEnabled;
+	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode && noWireless;
 }
 
 static void resetMainLoopGateTiming() {
@@ -392,7 +176,6 @@ static void resetMainLoopGateTiming() {
 	main_loop_gate_phase_max_us = 0;
 	main_loop_gate_interval_max_us = 0;
 	main_loop_gate_stable_completions = 0;
-        main_loop_gate_frame_schedule = {};
 }
 
 static MainLoopGateCompletionResult recordMainLoopGateCompletion(
@@ -466,148 +249,6 @@ static MainLoopGateCompletionResult recordMainLoopGateCompletion(
         return MainLoopGateCompletionResult::Normal;
 }
 
-struct MainLoopGateResolvedBounds {
-        uint32_t finalProcessUs;
-        uint32_t endpointArmUs;
-        uint32_t postprocessUs;
-        bool degraded;
-};
-
-// 解析帧调度使用的 WCET bounds（方案B）：
-// 优先使用各滚动窗口 maximum（硬 WCET）；若三者 + 安全余量已不可调度
-// （通常是窗口内一个极端尖峰，如偶发的存储写），则降级为各窗口次大值
-// （剔除最极端一个样本后的典型 WCET）继续调度，避免单样本造成整个帧调度
-// 失效、帧内睡眠/晚采样保护整体真空；尖峰帧本身由 deadline miss 计数覆盖。
-// 典型预算仍超限时返回 false（确实无可调度方案）。
-static bool resolveMainLoopGateBounds(
-        uint32_t intervalUs,
-        MainLoopGateResolvedBounds* out) {
-        const uint32_t fpMax = main_loop_gate_final_process_wcet.maximum;
-        const uint32_t eaMax = main_loop_gate_endpoint_arm_wcet.maximum;
-        const uint32_t ppMax = main_loop_gate_postprocess_wcet.maximum;
-        if (fpMax + eaMax + ppMax + MAIN_LOOP_GATE_SAFETY_MARGIN_US <
-                        intervalUs) {
-                out->finalProcessUs = fpMax;
-                out->endpointArmUs = eaMax;
-                out->postprocessUs = ppMax;
-                out->degraded = false;
-                return true;
-        }
-        const uint32_t fpTyp =
-                main_loop_gate_final_process_wcet.secondMaximum();
-        const uint32_t eaTyp =
-                main_loop_gate_endpoint_arm_wcet.secondMaximum();
-        const uint32_t ppTyp =
-                main_loop_gate_postprocess_wcet.secondMaximum();
-        if (fpTyp + eaTyp + ppTyp + MAIN_LOOP_GATE_SAFETY_MARGIN_US >=
-                        intervalUs) {
-                return false;
-        }
-        out->finalProcessUs = fpTyp;
-        out->endpointArmUs = eaTyp;
-        out->postprocessUs = ppTyp;
-        out->degraded = true;
-        return true;
-}
-
-static void prepareMainLoopGateFrameSchedule(
-        const USBMainGamepadGateSnapshot& snapshot) {
-        main_loop_gate_frame_schedule = {};
-        if (main_loop_gate_state != MainLoopGateState::LOCKED ||
-                !mainLoopGateSchedulingMeasurementsReady() ||
-                snapshot.completeSofTimeUs == 0 ||
-                main_loop_gate_phase_min_us == 0xFFFFFFFFu) {
-                return;
-        }
-
-        // Bound：maximum 不可调度时降级为窗口次大值（方案B）；
-        // 安全余量在 armDeadline 层统一注入
-        MainLoopGateResolvedBounds bounds;
-        if (!resolveMainLoopGateBounds(
-                        MAIN_LOOP_GATE_USB_FRAME_US, &bounds)) {
-                return;
-        }
-        if (bounds.degraded) {
-                main_loop_gate_bound_degraded_count++;
-        }
-        const uint32_t finalProcessBoundUs = bounds.finalProcessUs;
-        const uint32_t endpointArmBoundUs = bounds.endpointArmUs;
-        const uint32_t postprocessBoundUs = bounds.postprocessUs;
-
-        const uint32_t tokenPhaseUs =
-                main_loop_gate_phase_min_us >
-                        MAIN_LOOP_GATE_COMPLETION_TO_TOKEN_GUARD_US
-                        ? main_loop_gate_phase_min_us -
-                                MAIN_LOOP_GATE_COMPLETION_TO_TOKEN_GUARD_US
-                        : 0;
-        const uint32_t nextTokenEarliestUs =
-                snapshot.completeSofTimeUs +
-                MAIN_LOOP_GATE_USB_FRAME_US +
-                tokenPhaseUs;
-        // armDeadline 为 endpoint arming 的绝对截止时间：
-        // nextTokenEarliestUs - postprocessBoundUs - SAFETY_MARGIN_US
-        // postprocess 在 arm 之后执行（tud_task/restoreGateSPIProfile/processCompositeHID），
-        // 因此从 nextTokenEarliestUs 中扣除 postprocessBoundUs 与统一安全余量
-        const uint32_t armDeadlineUs =
-                nextTokenEarliestUs -
-                postprocessBoundUs -
-                MAIN_LOOP_GATE_SAFETY_MARGIN_US;
-
-        main_loop_gate_frame_schedule.valid = true;
-        main_loop_gate_frame_schedule.nextTokenEarliestUs =
-                nextTokenEarliestUs;
-        main_loop_gate_frame_schedule.armDeadlineUs =
-                armDeadlineUs;
-        // finalizeDeadline = armDeadline - finalProcessBound - endpointArmBound
-        // （postprocess 与 SAFETY_MARGIN 已在 armDeadline 中扣除）
-        main_loop_gate_frame_schedule.finalizeDeadlineUs =
-                armDeadlineUs -
-                finalProcessBoundUs -
-                endpointArmBoundUs;
-}
-
-// 时间触发模式帧调度：以 lastFrameStart + 950µs 作为下一帧起点
-// （即当前帧的完成截止时间），复用相同 WCET bound 与安全余量逻辑。
-// 与 IN 令牌模式的 prepareMainLoopGateFrameSchedule 对应，但不依赖
-// completeSofTime/phaseMin（无线模式下 IN 令牌不可靠或缺失）。
-static void prepareMainLoopGateTimeTriggeredFrameSchedule() {
-        main_loop_gate_frame_schedule = {};
-        if (main_loop_gate_state != MainLoopGateState::TIME_LOCKED ||
-                !mainLoopGateSchedulingMeasurementsReady() ||
-                main_loop_gate_last_frame_start_us == 0) {
-                return;
-        }
-        // Bound：maximum 不可调度时降级为窗口次大值（方案B）
-        MainLoopGateResolvedBounds bounds;
-        if (!resolveMainLoopGateBounds(
-                        MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US,
-                        &bounds)) {
-                return;
-        }
-        if (bounds.degraded) {
-                main_loop_gate_bound_degraded_count++;
-        }
-        const uint32_t finalProcessBoundUs = bounds.finalProcessUs;
-        const uint32_t endpointArmBoundUs = bounds.endpointArmUs;
-        const uint32_t postprocessBoundUs = bounds.postprocessUs;
-        // 下一帧起点 = 当前帧启动 + 950µs
-        const uint32_t nextFrameStartUs =
-                main_loop_gate_last_frame_start_us +
-                MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US;
-        const uint32_t armDeadlineUs =
-                nextFrameStartUs - postprocessBoundUs -
-                MAIN_LOOP_GATE_SAFETY_MARGIN_US;
-        main_loop_gate_frame_schedule.valid = true;
-        main_loop_gate_frame_schedule.nextTokenEarliestUs = nextFrameStartUs;
-        main_loop_gate_frame_schedule.armDeadlineUs = armDeadlineUs;
-        // finalizeDeadline = armDeadline - finalProcessBound - endpointArmBound
-        // （postprocess 与 SAFETY_MARGIN 已在 armDeadline 中扣除）
-        main_loop_gate_frame_schedule.finalizeDeadlineUs =
-                armDeadlineUs -
-                finalProcessBoundUs -
-                endpointArmBoundUs;
-}
-
 static void resetMainLoopGateForSnapshot(
 	const USBMainGamepadGateSnapshot& snapshot) {
 	main_loop_gate_epoch = snapshot.epoch;
@@ -617,29 +258,10 @@ static void resetMainLoopGateForSnapshot(
 	main_loop_gate_first_in_seen = false;
 	main_loop_suspend_scan_initialized = false;
 	resetMainLoopGateTiming();
-        resetMainLoopGateMeasurements();
-	main_loop_gate_last_frame_start_us = 0;
-	if (main_loop_gate_time_triggered) {
-		// 时间触发模式：USB 挂载状态不影响门控启动，直接进入 BOOTSTRAP_BUILD
-		main_loop_gate_state = MainLoopGateState::BOOTSTRAP_BUILD;
-	} else {
-		main_loop_gate_state =
-			(snapshot.mounted && !snapshot.suspended)
-				? MainLoopGateState::BOOTSTRAP_BUILD
-				: MainLoopGateState::WAIT_MOUNT;
-	}
-}
-
-// 无线链路是否激活：无线连接开关（UART→外部 radio）、nRF24 直连无线模式、
-// 蓝牙模式开关（BLE 路径）任一启用即激活（config_utils 初始化时已写入板级
-// 默认值，加载时三互斥归一化）。
-// 仅在 setup() 中调用一次，结果缓存至 main_loop_gate_time_triggered：
-// 门控启用时走时间触发路径（USB 未挂载/挂起均不阻塞，PostprocessAddons
-// 的 UART/nRF24/BLE 帧以 950µs 节拍持续输出）；门控不支持的模式下
-// getMainLoopGateAction 直接返回 RunFrame 自由运行。
-static inline bool wirelessLinkActive() {
-	const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
-	return o.wirelessLinkEnabled || o.bluetoothLinkEnabled || o.nrf24LinkEnabled;
+	main_loop_gate_state =
+		(snapshot.mounted && !snapshot.suspended)
+			? MainLoopGateState::BOOTSTRAP_BUILD
+			: MainLoopGateState::WAIT_MOUNT;
 }
 
 static MainLoopGateAction getMainLoopGateAction(bool configMode) {
@@ -653,13 +275,7 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	USBMainGamepadGateSnapshot snapshot = {};
 	usb_get_main_gamepad_gate_snapshot(&snapshot);
 
-	// USB Device（连 PC 的原生 USB）未挂载：
-	// - 时间触发模式（无线链路激活）：不降级，由状态机处理
-	//   （BOOTSTRAP_BUILD → TIME_LOCKED），主循环照常执行，保证无线输出；
-	// - IN 令牌模式（纯有线）：保持 WAIT_MOUNT，随后返回 WaitUSB 等待枚举。
-	// 门控启用时 time_triggered 等价于无线链路激活，因此此处不存在
-	// “无线激活但非时间触发”的组合，无需再降级为无门控运行。
-	if (!snapshot.mounted && !main_loop_gate_time_triggered) {
+	if (!snapshot.mounted) {
 		main_loop_gate_state = MainLoopGateState::WAIT_MOUNT;
 		main_loop_suspend_scan_initialized = false;
 	}
@@ -673,13 +289,11 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 
 	main_loop_gate_action_epoch = snapshot.epoch;
 
-	// 时间触发模式：USB 未挂载/挂起均不阻塞主循环，继续走状态机
-	// （BOOTSTRAP_BUILD → TIME_LOCKED），保证无线输出连续。
-	if (!snapshot.mounted && !main_loop_gate_time_triggered) {
+	if (!snapshot.mounted) {
 		return MainLoopGateAction::WaitUSB;
 	}
 
-	if (snapshot.suspended && !main_loop_gate_time_triggered) {
+	if (snapshot.suspended) {
 		if (main_loop_gate_state != MainLoopGateState::SUSPENDED_ARMED &&
 			main_loop_gate_state != MainLoopGateState::SUSPENDED_UNARMED) {
 			main_loop_suspend_scan_initialized = false;
@@ -706,11 +320,9 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 
 	if (snapshot.failedSeq != main_loop_gate_failed_seq) {
 		main_loop_gate_failed_seq = snapshot.failedSeq;
-		if (!main_loop_gate_time_triggered) {
-			main_loop_gate_first_in_seen = false;
-			resetMainLoopGateTiming();
-			main_loop_gate_state = MainLoopGateState::RECOVERY;
-		}
+		main_loop_gate_first_in_seen = false;
+		resetMainLoopGateTiming();
+		main_loop_gate_state = MainLoopGateState::RECOVERY;
 	}
 
 	if (main_loop_gate_state == MainLoopGateState::WAIT_MOUNT) {
@@ -719,11 +331,6 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 
 	switch (main_loop_gate_state) {
 		case MainLoopGateState::BOOTSTRAP_BUILD:
-                        main_loop_gate_frame_schedule = {};
-			if (main_loop_gate_time_triggered &&
-				main_loop_gate_last_frame_start_us == 0) {
-				main_loop_gate_last_frame_start_us = time_us_32();
-			}
 			return MainLoopGateAction::RunFrame;
 
 		case MainLoopGateState::BOOTSTRAP_SUBMIT:
@@ -735,7 +342,6 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 				recordMainLoopGateCompletion(snapshot);
 				main_loop_gate_first_in_seen = true;
 				main_loop_gate_state = MainLoopGateState::LEARNING;
-                                main_loop_gate_frame_schedule = {};
 				return MainLoopGateAction::RunFrame;
 			}
 			if (!snapshot.reportArmed) {
@@ -752,25 +358,22 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 					recordMainLoopGateCompletion(snapshot);
                                 if (result ==
                                         MainLoopGateCompletionResult::PhaseMutation) {
-                                        main_loop_gate_phase_mutation_count++;
                                         resetMainLoopGateTiming();
                                         main_loop_gate_state =
                                                 MainLoopGateState::RECOVERY;
                                 } else if (result ==
                                         MainLoopGateCompletionResult::IntervalMutation) {
                                         resetMainLoopGateTiming();
-					main_loop_gate_state =
-						MainLoopGateState::RECOVERY;
-				} else if (main_loop_gate_stable_completions >=
-                                                MAIN_LOOP_GATE_LOCK_COMPLETIONS &&
-                                        mainLoopGateSchedulingMeasurementsReady()) {
-					main_loop_gate_state =
-						MainLoopGateState::LOCKED;
-				} else {
-					main_loop_gate_state =
-						MainLoopGateState::LEARNING;
-				}
-                                prepareMainLoopGateFrameSchedule(snapshot);
+						main_loop_gate_state =
+							MainLoopGateState::RECOVERY;
+					} else if (main_loop_gate_stable_completions >=
+                                                MAIN_LOOP_GATE_LOCK_COMPLETIONS) {
+						main_loop_gate_state =
+							MainLoopGateState::LOCKED;
+					} else {
+						main_loop_gate_state =
+							MainLoopGateState::LEARNING;
+					}
 				return MainLoopGateAction::RunFrame;
 			}
 			if (!snapshot.reportArmed) {
@@ -787,7 +390,6 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 				recordMainLoopGateCompletion(snapshot);
 				main_loop_gate_first_in_seen = true;
 				main_loop_gate_state = MainLoopGateState::LEARNING;
-                                main_loop_gate_frame_schedule = {};
 				return MainLoopGateAction::RunFrame;
 			}
 			return snapshot.reportArmed
@@ -799,19 +401,6 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 		case MainLoopGateState::WAIT_MOUNT:
 		default:
 			return MainLoopGateAction::WaitUSB;
-
-		case MainLoopGateState::TIME_LOCKED: {
-			const uint32_t now = time_us_32();
-			const uint32_t deadline =
-				main_loop_gate_last_frame_start_us +
-				MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US;
-			if (mainLoopGateTimeReached(now, deadline)) {
-				main_loop_gate_last_frame_start_us = now;
-				prepareMainLoopGateTimeTriggeredFrameSchedule();
-				return MainLoopGateAction::RunFrame;
-			}
-			return MainLoopGateAction::WaitUSB;
-		}
 	}
 }
 
@@ -819,24 +408,6 @@ static bool mainLoopGateReportAttempted(bool submitted) {
 	if (!main_loop_gate_runtime_enabled) {
                 return submitted;
         }
-
-	// 时间触发模式（无线）：不依赖 IN 令牌驱动状态转换。
-	// USB 未挂载时 inputDriver->process 返回 false（无 USB 提交），
-	// 但仍构建了报文，endpoint arm WCET 需记录，因此始终返回 true。
-	if (main_loop_gate_time_triggered) {
-		if (submitted) {
-			(void)usb_mark_main_gamepad_report_submitted(
-				main_loop_gate_action_epoch);
-		}
-		// BOOTSTRAP_BUILD 首帧后进入 TIME_LOCKED；
-		// RECOVERY 恢复到 TIME_LOCKED
-		if (main_loop_gate_state == MainLoopGateState::BOOTSTRAP_BUILD ||
-			main_loop_gate_state == MainLoopGateState::RECOVERY) {
-			main_loop_gate_state = MainLoopGateState::TIME_LOCKED;
-			main_loop_gate_frame_schedule = {};
-		}
-		return true;
-	}
 
 	if (submitted &&
 		usb_mark_main_gamepad_report_submitted(main_loop_gate_action_epoch)) {
@@ -868,203 +439,11 @@ static bool mainLoopGateReportAttempted(bool submitted) {
         return false;
 }
 
-// Forward declaration: mainLoopGateEventPending 定义在 sampleMainLoopGateLateAnalog 之后
-static bool mainLoopGateEventPending();
-
-// 在 LOCKED + valid schedule 时，sleep 到晚采样的最晚安全启动时刻。
-// sleep 目标 = finalizeDeadlineUs - sampleBoundUs（原始 WCET，安全余量已在 armDeadline 层注入）
-// 若剩余时间不足（非摇杆工作已超时），跳过 sleep 立即采样。
-static void sleepUntilLateSampleDeadline() {
-        // 开关为真时跳过晚采样前 sleep（立即采样），门控其余逻辑不变
-        if (main_loop_gate_skip_late_sample_sleep) {
-                return;
-        }
-        if ((main_loop_gate_state != MainLoopGateState::LOCKED &&
-             main_loop_gate_state != MainLoopGateState::TIME_LOCKED) ||
-                !main_loop_gate_frame_schedule.valid) {
-                return;
-        }
-        MainLoopGateRollingMax* adcWcet =
-                mainLoopGateADCWcet(main_loop_gate_analog_source);
-        MainLoopGateRollingMax* burstSetupWcet =
-                mainLoopGateADCBurstSetupWcet(main_loop_gate_analog_source);
-        if (adcWcet == nullptr || burstSetupWcet == nullptr) {
-                return;
-        }
-        // 使用原始 WCET 最大值；50µs 安全余量已在 armDeadline 层注入（步骤 6），
-        // 经 finalizeDeadlineUs 级联至 sleepTargetUs，无需在此额外扣减
-        const uint32_t sampleBoundUs =
-                burstSetupWcet->maximum + adcWcet->maximum;
-        const uint32_t sleepTargetUs =
-                main_loop_gate_frame_schedule.finalizeDeadlineUs - sampleBoundUs;
-        const uint32_t nowUs = time_us_32();
-        if (static_cast<int32_t>(sleepTargetUs - nowUs) <= 0) {
-                return;  // 非摇杆工作已超时，跳过 sleep
-        }
-        if (!mainLoopGateEventPending()) {
-                best_effort_wfe_or_timeout(
-                        make_timeout_time_us(sleepTargetUs));
-        }
-}
-
-static MainLoopGateLateSampleResult sampleMainLoopGateLateAnalog(
-        AddonManager& addons) {
-        MainLoopGateLateSampleResult result;
-        MainLoopGateRollingMax* adcWcet =
-                mainLoopGateADCWcet(main_loop_gate_analog_source);
-        MainLoopGateRollingMax* burstSetupWcet =
-                mainLoopGateADCBurstSetupWcet(main_loop_gate_analog_source);
-        if (adcWcet == nullptr || burstSetupWcet == nullptr) {
-                return result;
-        }
-
-        const bool deadlineMode =
-                (main_loop_gate_state == MainLoopGateState::LOCKED ||
-                 main_loop_gate_state == MainLoopGateState::TIME_LOCKED) &&
-                main_loop_gate_frame_schedule.valid;
-        // 单次采样：非门控模式仅采样一次，门控模式在 deadline 剩余不足时跳过
-        if (deadlineMode) {
-                const uint32_t burstSetupBoundUs =
-                        burstSetupWcet->maximum;
-                const uint32_t adcSampleBoundUs =
-                        adcWcet->maximum;
-                if (mainLoopGateTimeRemaining(
-                                time_us_32(),
-                                main_loop_gate_frame_schedule.finalizeDeadlineUs) <
-                        burstSetupBoundUs + adcSampleBoundUs) {
-                        main_loop_gate_frame_without_fresh_sample_count++;
-                        return result;
-                }
-        }
-
-        const uint32_t burstSetupStartUs = time_us_32();
-        const bool burstStarted = addons.BeginGateLateAnalogBurst();
-        const uint32_t burstSetupEndUs = time_us_32();
-        if (!burstStarted) {
-                main_loop_gate_frame_without_fresh_sample_count++;
-                return result;
-        }
-        uint32_t burstSetupDurationUs =
-                burstSetupEndUs - burstSetupStartUs;
-        if (burstSetupDurationUs == 0) {
-                burstSetupDurationUs = 1;
-        }
-        burstSetupWcet->record(burstSetupDurationUs);
-        result.busTouched = true;
-
-        GateLateAnalogSampleRequest request;
-        request.enforceDeadline = deadlineMode;
-        request.deadlineUs =
-                main_loop_gate_frame_schedule.finalizeDeadlineUs;
-        // 单次采样：不再 while-loop，每帧仅采样一次
-        const uint32_t sampleStartUs = time_us_32();
-        const bool sampled =
-                addons.SampleGateLateAnalog(request);
-        const uint32_t sampleEndUs = time_us_32();
-        // EndBurst 必须在 record 之前结束 SPI burst，确保采样窗口完整闭合
-        addons.EndGateLateAnalogBurst();
-
-        uint32_t sampleDurationUs =
-                sampleEndUs - sampleStartUs;
-        if (sampleDurationUs == 0) {
-                sampleDurationUs = 1;
-        }
-        adcWcet->record(sampleDurationUs);
-
-        if (sampled) {
-                result.sampleSets++;
-        } else {
-                result.deadlineOverrun =
-                        deadlineMode &&
-                        mainLoopGateTimeReached(
-                                sampleEndUs,
-                                request.deadlineUs);
-        }
-
-        main_loop_gate_late_sample_set_count += result.sampleSets;
-        if (result.sampleSets >
-                main_loop_gate_max_sample_sets_per_frame) {
-                main_loop_gate_max_sample_sets_per_frame =
-                        result.sampleSets;
-        }
-        if (result.sampleSets == 0) {
-                main_loop_gate_frame_without_fresh_sample_count++;
-        }
-        return result;
-}
-
-static void recordMainLoopGateFrameTiming(
-        AddonManager& addons,
-        const MainLoopGateLateSampleResult& lateSample,
-        uint32_t finalProcessStartUs,
-        uint32_t endpointArmStartUs,
-        uint32_t endpointArmEndUs,
-        bool reportArmed) {
-        uint32_t finalProcessDurationUs =
-                endpointArmStartUs - finalProcessStartUs;
-        if (finalProcessDurationUs == 0) {
-                finalProcessDurationUs = 1;
-        }
-        main_loop_gate_final_process_wcet.record(
-                finalProcessDurationUs);
-
-        if (!reportArmed && !main_loop_gate_time_triggered) {
-                return;
-        }
-
-        uint32_t endpointArmDurationUs =
-                endpointArmEndUs - endpointArmStartUs;
-        if (endpointArmDurationUs == 0) {
-                endpointArmDurationUs = 1;
-        }
-        main_loop_gate_endpoint_arm_wcet.record(
-                endpointArmDurationUs);
-
-        const uint32_t sampleCompletedTimeUs =
-                addons.GetGateLateAnalogCompletedTimeUs();
-        if (sampleCompletedTimeUs != 0) {
-                main_loop_gate_sample_age_last_us =
-                        endpointArmEndUs - sampleCompletedTimeUs;
-                if (main_loop_gate_sample_age_last_us >
-                        main_loop_gate_sample_age_max_us) {
-                        main_loop_gate_sample_age_max_us =
-                                main_loop_gate_sample_age_last_us;
-                }
-        }
-
-        const bool missedDeadline =
-                main_loop_gate_frame_schedule.valid &&
-                (lateSample.deadlineOverrun ||
-                 mainLoopGateTimeReached(
-                         finalProcessStartUs,
-                         main_loop_gate_frame_schedule.finalizeDeadlineUs) ||
-                 mainLoopGateTimeReached(
-                         endpointArmEndUs,
-                         main_loop_gate_frame_schedule.armDeadlineUs));
-        if (missedDeadline) {
-                main_loop_gate_deadline_miss_count++;
-                if (!main_loop_gate_time_triggered) {
-                        resetMainLoopGateTiming();
-                        main_loop_gate_state = MainLoopGateState::RECOVERY;
-                }
-        }
-}
-
 static bool mainLoopGateEventPending() {
 	USBMainGamepadGateSnapshot snapshot = {};
 	usb_get_main_gamepad_gate_snapshot(&snapshot);
 	if (snapshot.epoch != main_loop_gate_epoch) {
 		return true;
-	}
-	if (main_loop_gate_time_triggered) {
-		// 时间触发模式：检查 950µs 帧间隔是否到期
-		if (main_loop_gate_state == MainLoopGateState::TIME_LOCKED) {
-			return mainLoopGateTimeReached(
-				time_us_32(),
-				main_loop_gate_last_frame_start_us +
-					MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US);
-		}
-		return true; // 非 TIME_LOCKED 态总有事件待处理
 	}
 	if (main_loop_gate_state == MainLoopGateState::WAIT_MOUNT) {
 		return snapshot.mounted;
@@ -1267,9 +646,6 @@ void GP2040::setup() {
 	addons.LoadUSBAddon(new KeyboardHostAddon());
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
 	addons.LoadAddon(new AnalogInput());
-	addons.LoadAddon(new MCP3208ADCAddon());
-	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
-	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon());
 	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new TwoKeyTouchpadAddon());
@@ -1290,12 +666,14 @@ void GP2040::setup() {
 	// Input override addons
 	addons.LoadAddon(new ReverseInput());
 	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
-	addons.LoadAddon(new AxisTiltOverlayInput()); // Must execute after all joystick processing
-	addons.LoadAddon(new InputMacro());
+	// 摇杆采样与后处理（按依赖顺序，放在所有其他插件之后）
+	addons.LoadAddon(new MCP3208ADCAddon());        // 采样
+	addons.LoadAddon(new UnifiedAnalogProcessorAddon());  // 处理
+	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon()); // 后处理
+	addons.LoadAddon(new AxisTiltOverlayInput());   // 最终叠加
+	addons.LoadAddon(new InputMacro());             // 覆盖摇杆值
 	addons.LoadAddon(new UARTLinkAddon());
 	addons.LoadAddon(new NRF24LinkAddon());
-	main_loop_gate_analog_source =
-			addons.GetGateLateAnalogSource();
 
 	InputMode inputMode = gamepad->getOptions().inputMode;
 	const BootAction bootAction = getBootAction();
@@ -1378,7 +756,6 @@ void GP2040::setup() {
 		}
 	}
 	main_loop_gate_enabled = shouldUseMainLoopGate();
-	main_loop_gate_time_triggered = wirelessLinkActive();
 	composite_hid_enabled = (inputMode == INPUT_MODE_XINPUTB || inputMode == INPUT_MODE_PS4B);
 	if (DriverManager::getInstance().getDriver() != nullptr) {
 		cached_joystick_mid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
@@ -1519,19 +896,9 @@ void GP2040::run() {
 			USBHostManager::getInstance().process();
 			tud_task();
 			if (!mainLoopGateEventPending()) {
-				if (main_loop_gate_time_triggered) {
-					// 等待到下一帧触发时刻
-					const uint32_t remaining = mainLoopGateTimeRemaining(
-						time_us_32(),
-						main_loop_gate_last_frame_start_us +
-							MAIN_LOOP_GATE_WIRELESS_FRAME_INTERVAL_US);
-					best_effort_wfe_or_timeout(
-						make_timeout_time_us(remaining));
-				} else {
-					best_effort_wfe_or_timeout(
-						make_timeout_time_us(
-							MAIN_LOOP_GATE_WAIT_TIMEOUT_US));
-				}
+				best_effort_wfe_or_timeout(
+					make_timeout_time_us(
+						MAIN_LOOP_GATE_WAIT_TIMEOUT_US));
 			}
 			continue;
 		}
@@ -1606,83 +973,24 @@ void GP2040::run() {
 		USBHostManager::getInstance().process();
 
 		// Config Loop (Web-Config skips Core0 add-ons)
-	if (configMode == true) {
+if (configMode == true) {
 		inputDriver->process(gamepad);
 		rebootHotkeys.process(configMode);
 		checkSaveRebootState();
 		continue;
 	}
 
-	// 无线时间触发模式下 USB 挂起：门控不进入 ScanSuspended（无线帧照常输出），
-	// 远程唤醒改由 GPIO 变化扫描触发，与有线 ScanSuspended 语义一致，
-	// 替代驱动内每帧自动 tud_remote_wakeup（驱动侧已抑制）。
-	if (main_loop_gate_time_triggered && get_usb_suspended()) {
-		const uint32_t currentGpio =
-			gamepad->debouncedGpio & buttonGpios;
-		if (!main_loop_suspend_scan_initialized) {
-			main_loop_suspend_last_gpio = currentGpio;
-			main_loop_suspend_scan_initialized = true;
-		} else if (currentGpio != main_loop_suspend_last_gpio) {
-			main_loop_suspend_last_gpio = currentGpio;
-			tud_remote_wakeup();
-		}
-	} else {
-		main_loop_suspend_scan_initialized = false;
-	}
-
-                // Gated frames run ordinary input work once.
-                const bool splitGateFrame =
-                        main_loop_gate_runtime_enabled;
-                if (splitGateFrame) {
-                        addons.PreprocessGateEarlyAddons();
-                } else {
-                        addons.PreprocessAddons();
-                }
+                addons.PreprocessAddons();
 
 		gamepad->process(); // process through MPGS
 
 		// (Post) Process for add-ons
-		// ProcessAddons 全量遍历：3个摇杆插件 process() 空跑（逻辑在
-		// processAnalog/processTravelKey/applyFinalProcess 中显式调用），22个正常执行
+		// ProcessAddons 全量遍历：摇杆采样与后处理插件（MCP3208ADC、UnifiedAnalogProcessor、
+		// UnifiedJoystickTravelKey、AxisTiltOverlay）注册顺序在最后，统一调度执行
 		addons.ProcessAddons();
 
-		// 热键处理移到 sleep 前：
-		// - hotkey() 读 buttons/dpad（数字量），不依赖摇杆采样
-		// - HOTKEY_APPLY_CURVE_PRESET_* 修改 AnalogOptions，移到 processAnalog() 前
-		//   可使曲线预设变更当帧生效（原流程下一帧才生效）
-		// - HOTKEY_SAVE_CONFIG 等阻塞边缘情况会吃掉 sleep 时间，
-		//   但 sleepUntilLateSampleDeadline 会检测剩余时间不足并跳过 sleep
 		gamepad->hotkey(); 	// check for MPGS hotkeys
 		rebootHotkeys.process(configMode);
-
-		// ===== sleep 阶段（仅 LOCKED 态）=====
-		if (splitGateFrame) {
-			sleepUntilLateSampleDeadline();
-		}
-
-		// ===== 采样阶段（无条件调用）=====
-		// 门控模式下 deadlineMode=true（走 deadline 检查分支，单次采样）；
-		// 非门控模式下 deadlineMode=false（跳过 deadline 检查，仍单次采样）。
-		// 二者均完成一次 burst + sample + end，publishStickSnapshot 更新原子快照。
-		MainLoopGateLateSampleResult lateSample;
-		lateSample = sampleMainLoopGateLateAnalog(addons);
-
-		const uint32_t finalProcessStartUs =
-				splitGateFrame ? time_us_32() : 0;
-
-		// ===== 摇杆后处理阶段（采样后显式调用）=====
-		// 与 AxisTiltOverlay.applyFinalProcess 同模式：GetAddon + 显式调用
-		UnifiedAnalogProcessorAddon* analogProc =
-				(UnifiedAnalogProcessorAddon*)addons.GetAddon(UnifiedAnalogProcessorName);
-		if (analogProc != nullptr) {
-			analogProc->processAnalog();
-		}
-
-		UnifiedJoystickTravelKeyAddon* travelKey =
-				(UnifiedJoystickTravelKeyAddon*)addons.GetAddon(UnifiedJoystickTravelKeyName);
-		if (travelKey != nullptr) {
-			travelKey->processTravelKey();
-		}
 
 		// Perform bidirectional swap for analog modes (after addons process)
 		// This ensures we use physical joystick values updated by the unified analog processor.
@@ -1726,12 +1034,6 @@ void GP2040::run() {
 			}
 		}
 
-		// Apply Y-axis overlay after all joystick transforms are complete.
-		AxisTiltOverlayInput* axisTiltOverlay = (AxisTiltOverlayInput*)addons.GetAddon(AxisTiltOverlayName);
-		if (axisTiltOverlay != nullptr) {
-			axisTiltOverlay->applyFinalProcess(gamepad);
-		}
-
 		checkProcessedState(processedGamepad->state, gamepad->state);
 
 		// Copy Processed Gamepad for Core1 (race condition otherwise)
@@ -1756,33 +1058,9 @@ void GP2040::run() {
 		}
 
 		// Process Input Driver
-		const uint32_t endpointArmStartUs =
-				splitGateFrame ? time_us_32() : 0;
 		bool processed = inputDriver->process(gamepad);
 		// A built frame is not a bootstrap until its main report was queued.
-		const bool reportArmed =
-				mainLoopGateReportAttempted(processed);
-		const uint32_t endpointArmEndUs =
-				splitGateFrame ? time_us_32() : 0;
-		if (splitGateFrame) {
-			recordMainLoopGateFrameTiming(
-					addons,
-					lateSample,
-					finalProcessStartUs,
-					endpointArmStartUs,
-					endpointArmEndUs,
-					reportArmed);
-		}
-		// ===== Postprocess 窗口（WCET 覆盖完整）=====
-		// postprocessStartUs 前移至 restoreGateSPIProfile 之前：
-		// postprocess WCET 覆盖：restoreGateSPIProfile + processCompositeHID
-		// + suppress 恢复 + tud_task + PostprocessAddons 全部耗时
-		const uint32_t postprocessStartUs =
-				splitGateFrame ? time_us_32() : 0;
-
-		if (lateSample.busTouched) {
-			LSM6DSRIMUAddon::restoreGateSPIProfile();
-		}
+		(void)mainLoopGateReportAttempted(processed);
 		if (composite_hid_enabled) {
 			processCompositeHID(gamepad);
 		}
@@ -1797,16 +1075,6 @@ void GP2040::run() {
 
 		// Post-Process Add-ons with USB Report Processed Sent
 		addons.PostprocessAddons(processed);
-
-		if (splitGateFrame) {
-			const uint32_t postprocessEndUs = time_us_32();
-			uint32_t postprocessDurationUs =
-					postprocessEndUs - postprocessStartUs;
-			if (postprocessDurationUs == 0) {
-				postprocessDurationUs = 1;
-			}
-			main_loop_gate_postprocess_wcet.record(postprocessDurationUs);
-		}
 
 		// Check if we have a pending save
 		checkSaveRebootState();

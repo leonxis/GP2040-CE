@@ -103,7 +103,7 @@ bool UnifiedJoystickTravelKeyAddon::readRawStick(uint8_t stickNum, uint16_t& raw
     }
 }
 
-void UnifiedJoystickTravelKeyAddon::processTravelKey() {
+void UnifiedJoystickTravelKeyAddon::process() {
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     if (gamepad == nullptr) {
         return;
@@ -152,8 +152,4 @@ void UnifiedJoystickTravelKeyAddon::processTravelKey() {
     }
 
     outputScope_.endFrame();
-}
-
-void UnifiedJoystickTravelKeyAddon::process() {
-    // 空跑：实际逻辑在 processTravelKey() 中由主循环在晚采样后显式调用
 }
