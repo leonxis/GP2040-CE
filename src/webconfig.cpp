@@ -23,6 +23,7 @@
 #include <set>
 
 #include <pico/types.h>
+#include <pico/time.h>
 
 // HTTPD Includes
 #include <ArduinoJson.h>
@@ -3335,9 +3336,18 @@ std::string getMemoryReport()
 
 static bool _abortGetHeldPins = false;
 
+// 等待首次按键的窗口
+static constexpr uint32_t HELD_PIN_PRESS_WINDOW_MS = 5000;
+// 检测到按键后（含按住阶段）整个捕获会话的硬超时，防止按住不放时永久阻塞 HTTP 请求
+static constexpr uint32_t HELD_PIN_MAX_SESSION_MS = 10000;
+static constexpr uint32_t HELD_PIN_DEBOUNCE_MS = 5;
+
 std::string getHeldPins()
 {
-    DynamicJsonDocument doc(JSON_OBJECT_SIZE(100));
+    // 清掉上一轮延迟到达的中止标志，避免残留 abort 让新一轮捕获立即退出
+    _abortGetHeldPins = false;
+
+    DynamicJsonDocument doc(JSON_OBJECT_SIZE(4) + JSON_ARRAY_SIZE(NUM_BANK0_GPIOS) + 16);
 
     // Initialize unassigned pins for reading
     std::vector<uint> uninitPins;
@@ -3350,45 +3360,65 @@ std::string getHeldPins()
         }
     }
 
+    const Mask_t baselineState = ~gpio_get_all64();
+    uint32_t firstSeen[NUM_BANK0_GPIOS] = {};
+    Mask_t detectedMask = 0;
     std::set<uint> heldPinsSet;
-    uint32_t startTime = getMillis();
-    Mask_t oldState = ~gpio_get_all64();
-    uint32_t debounceTime = 0;
+    const uint32_t startTime = getMillis();
     bool isAnyPinHeld = false;
 
-    // Monitor pins for 5 seconds or until released
-    while (!_abortGetHeldPins && (isAnyPinHeld || (getMillis() - startTime) < 5000)) {
+    while (true) {
+        // 维持 USB RNDIS / lwIP 运转，使等待期间到达的 /api/abortGetHeldPins 能被重入处理
         rndis_task();
 
-        Mask_t newState = ~gpio_get_all64();
-        if (isAnyPinHeld && newState == oldState) break; // Pins released
+        const uint32_t elapsed = getMillis() - startTime;
+        const Mask_t lowPins = ~gpio_get_all64();
 
-        Mask_t changedPins = newState ^ oldState;
-        uint32_t currentTime = getMillis();
+        if (_abortGetHeldPins) break;
 
+        if (isAnyPinHeld) {
+            // 仅等待“已检测到的按键”全部释放；其他引脚的状态差异不再阻止退出
+            if ((lowPins & detectedMask) == 0 || elapsed >= HELD_PIN_MAX_SESSION_MS) break;
+        } else if (elapsed >= HELD_PIN_PRESS_WINDOW_MS) {
+            break;
+        }
+
+        // 仅检测相对捕获开始时新拉低的 SIO 输入引脚
+        const Mask_t changedPins = (lowPins ^ baselineState) & ~detectedMask;
         for (uint32_t pin = 0; pin < NUM_BANK0_GPIOS; pin++) {
-            if ((changedPins & (Mask_t{1} << pin)) &&
-                gpio_get_function(pin) == GPIO_FUNC_SIO &&
-                !gpio_is_dir_out(pin)) {
+            const Mask_t pinMask = Mask_t{1} << pin;
+            if (!(changedPins & pinMask) ||
+                gpio_get_function(pin) != GPIO_FUNC_SIO ||
+                gpio_is_dir_out(pin) ||
+                !(lowPins & pinMask)) {
+                firstSeen[pin] = 0;
+                continue;
+            }
 
-                if (debounceTime == 0) debounceTime = currentTime;
-                if ((currentTime - debounceTime) > 5) { // 5ms debounce
-                    heldPinsSet.insert(pin);
-                    isAnyPinHeld = true;
-                }
+            if (firstSeen[pin] == 0) {
+                firstSeen[pin] = getMillis();
+            } else if ((getMillis() - firstSeen[pin]) >= HELD_PIN_DEBOUNCE_MS) {
+                detectedMask |= pinMask;
+                heldPinsSet.insert((uint)pin);
+                isAnyPinHeld = true;
             }
         }
+
+        // ~1kHz 轮询即可，避免窗口期内 100% CPU 死循环
+        sleep_ms(1);
     }
 
     for (uint32_t pin : uninitPins) gpio_deinit(pin);
 
-    if (_abortGetHeldPins) {
-        _abortGetHeldPins = false;
-        return {};
-    }
-
     auto heldPins = doc.createNestedArray("heldPins");
     for (uint32_t pin : heldPinsSet) heldPins.add(pin);
+
+    bool canceled = _abortGetHeldPins;
+    if (canceled) {
+        _abortGetHeldPins = false;
+        // 必须返回合法 JSON；空响应会被 httpd 当作 404，前端解析失败会卡死弹窗
+        doc["canceled"] = true;
+    }
 
     return serialize_json(doc);
 }
@@ -3396,7 +3426,7 @@ std::string getHeldPins()
 std::string abortGetHeldPins()
 {
     _abortGetHeldPins = true;
-    return {};
+    return "{}";
 }
 
 // 返回 10 个背键的 GPIO 引脚号与字段名（field 与 backKeys 网页字段一致），

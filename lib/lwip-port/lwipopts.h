@@ -51,6 +51,10 @@
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (2 * TCP_MSS)
 
+/* 默认仅 5 个活动 TCP PCB；getHeldPins 会长时间占用 1 个连接，浏览器并发/重试时
+   容易耗尽 PCB 导致 abortGetHeldPins 无法建连、页面整体卡死，适当增加余量 */
+#define MEMP_NUM_TCP_PCB                8
+
 #define ETHARP_SUPPORT_STATIC_ENTRIES   1
 
 #define LWIP_HTTPD_CGI                  0
