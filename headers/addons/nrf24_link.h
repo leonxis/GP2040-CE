@@ -26,8 +26,8 @@ static constexpr uint8_t NRF24_HW_SPI_BLOCK = 0;
 static constexpr int8_t  NRF24_HW_CS_PIN    = SPI0_PIN_CS;   // nRF24 CSN
 static constexpr int8_t  NRF24_HW_CE_PIN    = SPI0_PIN_CE;   // nRF24 CE
 
-// SPI 速率：4MHz（与 ESP32 端 nrf24.h 一致）
-#define NRF24_SPI_HZ          4000000u
+// SPI 速率：8MHz
+#define NRF24_SPI_HZ          8000000u
 
 // nRF24 RF 配置（与 ESP32 端完全一致以确保互通）
 #define NRF24_PAYLOAD         15
