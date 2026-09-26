@@ -119,6 +119,18 @@ uint8_t radioHistIdx = 0;
 volatile uint8_t radioHistOk = 0;
 volatile bool radioLinked = false;
 
+// ---- UART 链路看门狗：Pico 静默时 nRF/BLE 全后端休眠 ----
+// Pico 切到 nRF24 直连模式（uart_link 插件不加载）或关机后，UART 上再无任何帧。
+// 此时 ESP32 的 nRF 若继续每 2ms 发包，会与 Pico 板载 nRF 同信道/同地址冲突，
+// 接收器交替收到真实帧与回中帧，表现为摇杆中心点闪烁、按键断闪。
+// 超时未收到任何 CRC 合法帧 → nRF powerDown + BLE 停广播断连，让出信道；
+// 重新收到帧（Pico 切回/重启进入 uart_link 模式）→ 按最近 STATUS 的 linkMode 自动唤醒。
+// Pico INPUT 保底心跳 50ms，300ms 为 6 倍余量抗抖动；开机 1s 宽限等 Pico 启动首帧。
+#define UART_LINK_LOST_MS   300
+#define UART_BOOT_GRACE_MS  1000
+volatile uint32_t lastUartFrameMs = 0;  // 最近一次 CRC 合法帧时刻（millis），0=从未收到
+volatile bool linkSleeping = false;     // 两路后端是否已因 UART 静默休眠
+
 // ---- 手柄状态（INPUT 帧 → radioTask / BLE 共用数据源）----
 volatile uint16_t lastButtons = 0;
 volatile uint8_t lastDpad = 0;
@@ -293,6 +305,33 @@ void radioTask(void *) {
             statusDiv = 0;
             sendLinkStatus();
         }
+
+        // UART 看门狗：Pico 静默（nRF 直连模式/关机）→ nRF+BLE 全休眠；收帧 → 自动唤醒。
+        uint32_t nowTickMs = millis();
+        bool uartAlive = (lastUartFrameMs != 0) &&
+                         (nowTickMs - lastUartFrameMs < UART_LINK_LOST_MS);
+        if (!linkSleeping && !uartAlive && nowTickMs >= UART_BOOT_GRACE_MS) {
+            // 休眠：nRF 断电 + 请求 BLE 停止，并把 outputMode 置为无效值 0xFF。
+            // 关键：0xFF 使 Pico 恢复后首个 STATUS 帧必然命中 applyOutputMode()
+            // 的"模式变化"分支（desired 永远 != 0xFF），nRF 重新上电/蓝牙重启全部
+            // 走 core1 既有单一路径；本任务唤醒时不接触 nRF SPI，杜绝两核并发。
+            // powerDown 与 applyOutputMode 切 BLE 时同序列：先 radioUp=false 再等 3ms
+            // 在途 writePacket（最多 ~2ms）结束。
+            linkSleeping = true;
+            radioLinked = false;      // 让 LINK_STATUS/LED 立即反映离线
+            radioUp = false;
+            vTaskDelay(3 / portTICK_PERIOD_MS);
+            radio.powerDown();        // nRF 静默断电，让出信道消除与 Pico 板载 nRF 冲突
+            bleDesired = false;       // bleTask 停广播并断开已连接主机
+            outputMode = 0xFF;        // 强制恢复时 applyOutputMode 完整重放硬件上电
+        } else if (linkSleeping && uartAlive) {
+            // Pico 恢复：硬件唤醒由随后到达的 STATUS 帧 applyOutputMode() 完成
+            //（Pico uart_link 启动当帧即发 STATUS，在 INPUT 之后 <1ms）；
+            // 此处仅退出休眠态。STATUS 处理完前两后端都保持停止（1~2ms，
+            // 接收器 1s 状态缓存对此无感知）。本分支严禁操作 nRF SPI。
+            linkSleeping = false;
+        }
+
         if (outputMode == OUTPUT_NRF && radioUp) {
             uint8_t pkt[15];
             uint8_t mode = stStatusValid ? stInputMode : 0xFF; // 0xFF=模式未知
@@ -659,6 +698,9 @@ void handleRxByte(uint8_t b) {
         case 6:
             if (b == (uint8_t)(rxCrcCalc >> 8) &&
                 rxCrcLo == (uint8_t)(rxCrcCalc & 0xFF)) {
+                // 任何 CRC 合法帧都证明 Pico 在线（INPUT 50ms 保底心跳），
+                // 供 radioTask 的 UART 看门狗做休眠/唤醒判定
+                lastUartFrameMs = millis();
                 if (rxType == FRAME_TYPE_INPUT) onInputFrame(rxPayload, rxLen);
                 else if (rxType == FRAME_TYPE_STATUS) onStatusFrame(rxPayload, rxLen);
                 // 其余帧类型（CONFIG/LED/ESP_SAVE/MUTE 等）无菜单/持久化需求，忽略
@@ -680,7 +722,10 @@ void updateLed() {
     lastLedMs = now;
 
     uint8_t r = 0, g = 0, b = 0;
-    if (outputMode == OUTPUT_BLE) {
+    if (linkSleeping) {
+        bool on = (now / 500) % 2 == 0; // Pico 离线（nRF 直连模式/关机）：1Hz 红色慢闪
+        if (on) r = 48;
+    } else if (outputMode == OUTPUT_BLE) {
         if (!bleRunning) {
             r = 40; b = 40;                 // 异常：BLE 模式但栈未运行（诊断指纹）
         } else if (bleConnected) {
