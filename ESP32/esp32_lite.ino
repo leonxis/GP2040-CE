@@ -69,7 +69,6 @@ void ledWrite(uint8_t r, uint8_t g, uint8_t b) {
 #define FRAME_MAGIC       0xAA
 #define FRAME_VERSION     1
 #define FRAME_TYPE_INPUT  0x01   // Pico -> ESP32: 手柄输入
-#define FRAME_TYPE_ACK    0x02   // ESP32 -> Pico: 输入确认（Pico 链路指示依赖此帧）
 #define FRAME_TYPE_STATUS 0x03   // Pico -> ESP32: 模式状态（inputMode + linkMode）
 #define FRAME_TYPE_LINK_STATUS 0x0B  // ESP32 -> Pico: 后端连接状态心跳（见 sendLinkStatus）
 
@@ -120,15 +119,17 @@ volatile uint8_t radioHistOk = 0;
 volatile bool radioLinked = false;
 
 // ---- UART 链路看门狗：Pico 静默时 nRF/BLE 全后端休眠 ----
-// Pico 切到 nRF24 直连模式（uart_link 插件不加载）或关机后，UART 上再无任何帧。
+// Pico 切到 nRF24 直连模式（uart_link 插件不加载）或关机后，UART 线上再无任何字节。
 // 此时 ESP32 的 nRF 若继续每 2ms 发包，会与 Pico 板载 nRF 同信道/同地址冲突，
 // 接收器交替收到真实帧与回中帧，表现为摇杆中心点闪烁、按键断闪。
-// 超时未收到任何 CRC 合法帧 → nRF powerDown + BLE 停广播断连，让出信道；
-// 重新收到帧（Pico 切回/重启进入 uart_link 模式）→ 按最近 STATUS 的 linkMode 自动唤醒。
-// Pico INPUT 保底心跳 50ms，300ms 为 6 倍余量抗抖动；开机 1s 宽限等 Pico 启动首帧。
-#define UART_LINK_LOST_MS   300
+// 活动判据=UART 线上任意字节（loop drain 即刷新），而非 CRC 合法帧：突发误码/丢包
+// 恰恰证明 Pico 在线，绝不能因此休眠断连；Pico 切走/关机的特征是线路完全静默。
+// 1000ms 无任何字节 → nRF powerDown + BLE 停广播断连，让出信道；
+// 重新收到字节（Pico 切回/重启进入 uart_link 模式）→ 按最近 STATUS 的 linkMode 自动唤醒。
+// 开机 1s 宽限等 Pico 启动首帧。
+#define UART_LINK_LOST_MS   1000
 #define UART_BOOT_GRACE_MS  1000
-volatile uint32_t lastUartFrameMs = 0;  // 最近一次 CRC 合法帧时刻（millis），0=从未收到
+volatile uint32_t lastUartByteMs = 0;   // 最近一次 UART 字节活动时刻（millis），0=从未收到
 volatile bool linkSleeping = false;     // 两路后端是否已因 UART 静默休眠
 
 // ---- 手柄状态（INPUT 帧 → radioTask / BLE 共用数据源）----
@@ -186,23 +187,6 @@ static uint16_t crc16_update(uint16_t crc, uint8_t b) {
 }
 
 // ============================================================================
-// UART TX：ACK（Pico 侧 lastAckTime 链路指示依赖）
-// ============================================================================
-void sendAck() {
-    uint8_t frame[7];
-    frame[0] = FRAME_MAGIC;
-    frame[1] = FRAME_VERSION;
-    frame[2] = FRAME_TYPE_ACK;
-    frame[3] = 1;
-    frame[4] = 0x01;
-    uint16_t crc = 0xFFFF;
-    for (int i = 1; i <= 4; i++) crc = crc16_update(crc, frame[i]);
-    frame[5] = (uint8_t)(crc & 0xFF);
-    frame[6] = (uint8_t)(crc >> 8);
-    LINK_SERIAL.write(frame, sizeof(frame));
-}
-
-// ============================================================================
 // UART TX：LINK_STATUS 心跳（10Hz）——回报当前输出后端及配对/连接状态。
 // Pico 侧 uart_link 以此驱动环境光提示（ESP32 缺失红闪 / 无线未配对黄闪 /
 // 蓝牙未连接蓝闪）；超过 500ms（5 个心跳）未收到时 Pico 判 ESP32 离线。
@@ -240,9 +224,9 @@ void onInputFrame(uint8_t *payload, uint8_t len) {
             lastLT = payload[11];
             lastRT = payload[12];
         }
-        // BLE 模式下由 bleTask 读取这些全局并按 on-change 编码发送 HID report
+        // BLE 模式下由 bleTask 读取这些全局并按固定 5ms 节拍编码发送 HID report
     }
-    sendAck();
+    // 不回 ACK：Pico 侧收到也只做 CRC 校验后丢弃，890Hz 反向流量只会串扰前向帧。
 }
 
 // ============================================================================
@@ -299,17 +283,17 @@ void radioTask(void *) {
     uint8_t statusDiv = 0;
     for (;;) {
         // LINK_STATUS 心跳：2ms tick / 50 = 100ms（10Hz）。任务在 BLE 模式下
-        // 也常驻空转，故两个后端的状态都能持续上报；UART 驱动 TX 有锁，
-        // 与 loop 内 sendAck 的并发写不会交错。
+        // 也常驻空转，故两个后端的状态都能持续上报；本固件 UART TX 仅此一处写者，
+        // 与 RX 路径（loop 只读）无并发写冲突。
         if (++statusDiv >= (LINK_STATUS_HEARTBEAT_MS / 2)) {
             statusDiv = 0;
             sendLinkStatus();
         }
 
-        // UART 看门狗：Pico 静默（nRF 直连模式/关机）→ nRF+BLE 全休眠；收帧 → 自动唤醒。
+        // UART 看门狗：Pico 静默（nRF 直连模式/关机）→ nRF+BLE 全休眠；线路恢复字节 → 自动唤醒。
         uint32_t nowTickMs = millis();
-        bool uartAlive = (lastUartFrameMs != 0) &&
-                         (nowTickMs - lastUartFrameMs < UART_LINK_LOST_MS);
+        bool uartAlive = (lastUartByteMs != 0) &&
+                         (nowTickMs - lastUartByteMs < UART_LINK_LOST_MS);
         if (!linkSleeping && !uartAlive && nowTickMs >= UART_BOOT_GRACE_MS) {
             // 休眠：nRF 断电 + 请求 BLE 停止，并把 outputMode 置为无效值 0xFF。
             // 关键：0xFF 使 Pico 恢复后首个 STATUS 帧必然命中 applyOutputMode()
@@ -698,9 +682,8 @@ void handleRxByte(uint8_t b) {
         case 6:
             if (b == (uint8_t)(rxCrcCalc >> 8) &&
                 rxCrcLo == (uint8_t)(rxCrcCalc & 0xFF)) {
-                // 任何 CRC 合法帧都证明 Pico 在线（INPUT 50ms 保底心跳），
-                // 供 radioTask 的 UART 看门狗做休眠/唤醒判定
-                lastUartFrameMs = millis();
+                // 看门狗活动判据在 loop 按"任意字节"刷新，与帧内容/CRC 无关；
+                // 这里只分发 CRC 合法帧，其余类型校验后忽略。
                 if (rxType == FRAME_TYPE_INPUT) onInputFrame(rxPayload, rxLen);
                 else if (rxType == FRAME_TYPE_STATUS) onStatusFrame(rxPayload, rxLen);
                 // 其余帧类型（CONFIG/LED/ESP_SAVE/MUTE 等）无菜单/持久化需求，忽略
@@ -788,7 +771,13 @@ void ledTask(void *) {
 }
 
 void loop() {
+    // 看门狗活动判据：drain 到任意字节即刷新（每批一次 millis()）。
+    // 不要求 CRC 合法——误码/丢包期间线路仍有活动，说明 Pico 仍在 uart_link 模式，
+    // 只有线路完全静默（Pico 切 nRF 直连/关机）才允许休眠。
+    bool active = false;
     while (LINK_SERIAL.available()) {
         handleRxByte((uint8_t)LINK_SERIAL.read());
+        active = true;
     }
+    if (active) lastUartByteMs = millis();
 }

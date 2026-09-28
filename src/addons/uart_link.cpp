@@ -33,11 +33,6 @@ void UARTLinkAddon::setup() {
         gpio_set_function(UART_LINK_RX_PIN, GPIO_FUNC_UART_AUX);
         gpio_set_pulls(UART_LINK_RX_PIN, true, false);
 
-        lastSentUs = 0;
-        lastButtons = 0;
-        lastDpad = 0;
-        lastLx = 0; lastLy = 0; lastRx = 0; lastRy = 0;
-        lastLt = 0; lastRt = 0;
         lastStatusSentUs = 0;
         lastInputMode = 0xFF;
         lastLinkMode = 0xFF;
@@ -205,25 +200,9 @@ void UARTLinkAddon::postprocess(bool sent) {
     uint16_t rx = (uint16_t)g->state.rx, ry = (uint16_t)g->state.ry;
     uint8_t lt = (uint8_t)g->state.lt, rt = (uint8_t)g->state.rt;
 
-    // 混合发送策略：
-    //  - 数字键(buttons/dpad)变化立即发，零额外延迟（边沿事件天然稀疏）；
-    //  - 模拟量连续变化时限 900us（门控模式循环 1.0~1.04ms 每轮必满足，
-    //    蓝牙自由跑模式上限约 1111 帧/s，防止死区失效时 ADC 噪声洪泛 UART）；
-    //  - 50ms 心跳保底同步/抗丢帧。
-    bool digitalChanged = (buttons != lastButtons || dpad != lastDpad);
-    bool analogChanged  = (lx != lastLx || ly != lastLy ||
-                           rx != lastRx || ry != lastRy ||
-                           lt != lastLt || rt != lastRt);
-    if (digitalChanged ||
-        (analogChanged && now - lastSentUs >= UART_INPUT_ANALOG_MIN_US) ||
-        now - lastSentUs >= UART_INPUT_HEARTBEAT_US) {
-        sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt);
-        lastButtons = buttons;
-        lastDpad = dpad;
-        lastLx = lx; lastLy = ly; lastRx = rx; lastRy = ry;
-        lastLt = lt; lastRt = rt;
-        lastSentUs = now;
-    }
+    // 限流取消：主循环每轮 postprocess 都发一帧 INPUT（门控模式 ~960~1000Hz），
+    // 保证 nRF 每个 2ms 射频窗口 / BLE 每个连接事件都能取到最新输入。
+    sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt);
 
     // inputMode/linkMode 变化立即上报 + 1s 心跳：
     // inputMode 保证 nRF 包 pkt[0] 跟随真实输入模式、供 BLE 选设备类型；

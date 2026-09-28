@@ -49,10 +49,7 @@
 #define LINK_FRAME_TYPE_MUTE 0x0A
 #define LINK_FRAME_TYPE_LINK_STATUS 0x0B
 
-// INPUT 帧发送节流（微秒）：数字键变化即发；模拟量连续变化最小间隔 900us；
-// 50ms 心跳保证空闲时也有保底同步。
-#define UART_INPUT_ANALOG_MIN_US  900
-#define UART_INPUT_HEARTBEAT_US   50000
+// STATUS 帧心跳间隔（微秒）：inputMode/linkMode 变化即发，空闲时 1s 保底
 #define UART_STATUS_HEARTBEAT_US  1000000
 // ESP32 LINK_STATUS 心跳 100ms；超过 500ms（连续 5 帧丢失）判 ESP32 离线，
 // 未配对灯效按 Pico 当前请求的链路模式闪烁。
@@ -78,11 +75,6 @@ private:
     // LINK_STATUS 帧（ESP32 后端配对/连接状态）：刷新时间戳并发布到 Storage
     void handleLinkStatus();
     bool initialized = false;
-    uint32_t lastSentUs;   // INPUT 帧节流时间戳（微秒）
-    uint16_t lastButtons;
-    uint8_t lastDpad;
-    uint16_t lastLx, lastLy, lastRx, lastRy;
-    uint8_t lastLt, lastRt;
     uint32_t lastStatusSentUs;
     uint8_t lastInputMode;
     uint8_t lastLinkMode;
