@@ -1102,18 +1102,13 @@ std::string setGamepadOptions()
     readDoc(gamepadOptions.usbOverrideID, doc, "usbOverrideID");
     readDoc(gamepadOptions.usbVendorID, doc, "usbVendorID");
     readDoc(gamepadOptions.usbProductID, doc, "usbProductID");
-    readDoc(gamepadOptions.wirelessLinkEnabled, doc, "wirelessLinkEnabled");
     readDoc(gamepadOptions.bluetoothLinkEnabled, doc, "bluetoothLinkEnabled");
     readDoc(gamepadOptions.nrf24LinkEnabled, doc, "nrf24LinkEnabled");
-    // 四开关硬件互斥：
-    //  - nRF24 直连(SPI1) 与 uart_link 无线(UART0) 与 蓝牙(UART0) 与 USB验证器(USB0 D+/D-) 互斥。
-    //  - 优先级：nRF24直连 > uart_link 无线 > 蓝牙 > USB验证器。
+    // 三开关硬件互斥：
+    //  - nRF24 直连(SPI1) 与 蓝牙(UART0) 与 USB验证器(USB0 D+/D-) 互斥。
+    //  - 优先级：nRF24直连 > 蓝牙 > USB验证器。
     PeripheralOptions& peripheralOptions = Storage::getInstance().getPeripheralOptions();
     if (gamepadOptions.nrf24LinkEnabled) {
-        gamepadOptions.wirelessLinkEnabled = false;
-        gamepadOptions.bluetoothLinkEnabled = false;
-        peripheralOptions.blockUSB0.enabled = 0;
-    } else if (gamepadOptions.wirelessLinkEnabled) {
         gamepadOptions.bluetoothLinkEnabled = false;
         peripheralOptions.blockUSB0.enabled = 0;
     } else if (gamepadOptions.bluetoothLinkEnabled) {
@@ -1124,8 +1119,6 @@ std::string setGamepadOptions()
     peripheralOptions.blockSPI1.enabled =
         gamepadOptions.nrf24LinkEnabled ||
         Storage::getInstance().getAddonOptions().lsm6dsrOptions.enabled;
-    readDoc(gamepadOptions.wirelessPaired, doc, "wirelessPaired");
-
 
     HotkeyOptions& hotkeyOptions = Storage::getInstance().getHotkeyOptions();
     save_hotkey(&hotkeyOptions.hotkey01, doc, "hotkey01");
@@ -1181,10 +1174,8 @@ std::string getGamepadOptions()
     writeDoc(doc, "usbDescVersion", gamepadOptions.usbDescVersion);
     writeDoc(doc, "usbOverrideID", gamepadOptions.usbOverrideID);
     writeDoc(doc, "miniMenuGamepadInput", gamepadOptions.miniMenuGamepadInput);
-    writeDoc(doc, "wirelessLinkEnabled", gamepadOptions.wirelessLinkEnabled ? 1 : 0);
     writeDoc(doc, "bluetoothLinkEnabled", gamepadOptions.bluetoothLinkEnabled ? 1 : 0);
     writeDoc(doc, "nrf24LinkEnabled", gamepadOptions.nrf24LinkEnabled ? 1 : 0);
-    writeDoc(doc, "wirelessPaired", gamepadOptions.wirelessPaired ? 1 : 0);
     // Write USB Vendor ID and Product ID as 4 character hex strings with 0 padding
     char usbVendorStr[5];
     snprintf(usbVendorStr, 5, "%04X", (unsigned int)gamepadOptions.usbVendorID);
@@ -1908,10 +1899,9 @@ std::string setPeripheralOptions()
     docToValue(peripheralOptions.blockUSB0.enable5v, doc, "peripheral", "usb0", "enable5v");
     docToValue(peripheralOptions.blockUSB0.order, doc, "peripheral", "usb0", "order");
 
-    // 互斥：开启 USB0 主机时强制关闭无线连接与蓝牙模式（GPIO8/9 复用冲突）
+    // 互斥：开启 USB0 主机时强制关闭蓝牙模式（GPIO18/19 复用冲突）
     if (peripheralOptions.blockUSB0.enabled) {
         GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
-        gamepadOptions.wirelessLinkEnabled = false;
         gamepadOptions.bluetoothLinkEnabled = false;
     }
 

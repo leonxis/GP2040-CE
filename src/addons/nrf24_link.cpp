@@ -147,10 +147,10 @@ void NRF24LinkAddon::submitInputFrame(uint16_t buttons, uint8_t dpad,
                                       uint16_t lx, uint16_t ly,
                                       uint16_t rx, uint16_t ry,
                                       uint8_t lt, uint8_t rt, uint8_t inputMode) {
-    // 15 字节 payload：与 ESP32 端 radioTask 及接收端解析格式完全一致
+    // 15 字节 payload：板载 nRF24 直连格式，与接收端解析格式完全一致
     // [0]=inputMode [1]=递增序号 [2..3]=buttons(LE) [4]=dpad
     // [5..12]=lx/ly/rx/ry(LE) [13]=lt [14]=rt
-    // 注意：勿改成 uart_link 的 13B+meta 布局——接收端按 ESP32 布局解析，
+    // 注意：勿改成 uart_link 的 13B+meta 布局——接收端按本直连格式解析，
     // 错位会导致摇杆数据错乱、按键被误判为模式切换而重启接收器
     uint8_t payload[NRF24_PAYLOAD];
     payload[0]  = inputMode;
@@ -229,7 +229,7 @@ void NRF24LinkAddon::postprocess(bool sent) {
     }
 
     // ===== 阶段 2：芯片空闲，恒流发送 =====
-    // 与 ESP32 radioTask 定频同语义：距上次发送 ≥1ms 无条件发当前快照，
+    // 恒流 1ms 定频：距上次发送 ≥1ms 无条件发当前快照，
     // 静止时也不断流。旧"变化触发+50ms 心跳"策略会在摇杆静止时留下长包
     // 间隙，周期性触发接收器回中闪现（2026-09-23 定位），已废弃。
     // 门控循环 ~0.95~1.04ms 每轮必满足；在飞重发最坏 ~2ms 拉长单事务而非堆积。

@@ -1,26 +1,23 @@
-// esp32_lite — GP2040-CE 发射端附属 ESP32-S3 固件（精简版，无屏幕/菜单）
+// esp32_lite — GP2040-CE 发射端附属 ESP32-S3 固件（精简版，无屏幕/菜单，纯蓝牙）
 //
 // 职责：
 //   1. UART 接收发射端 Pico（uart_link.cpp）的 INPUT/STATUS 帧
-//   2. 将手柄状态经 nRF24 定频转发给接收端（15 字节定长包，与正式版一致）
+//   2. 将手柄状态经 BLE 蓝牙发送给主机（BLE Composite HID + NimBLE）
 //   3. 板载 WS2812（GPIO21）状态指示灯
-//   4. nRF / BLE 输出后端互斥切换：STATUS 帧 linkMode(payload[18])==1 时切蓝牙
-//      （关 nRF），linkMode==0（或未收到 STATUS）按 nRF24 无线模式传输；
-//      inputMode(payload[2]) 始终是真实手柄模式：nRF 包 pkt[0] + BLE 设备类型选择
-//   5. 100ms 心跳回发 LINK_STATUS 帧：当前输出后端 + nRF24 接收端链路状态 +
-//      BLE 主机连接状态，供 Pico 侧环境光提示（缺失红闪/无线未配对黄闪/蓝牙蓝闪）
+//   4. inputMode(payload[2]) 始终是真实手柄模式：BLE 设备类型选择
+//   5. 100ms 心跳回发 LINK_STATUS 帧：BLE 主机连接状态，供 Pico 侧环境光提示
+//      （伴侣缺失红闪/蓝牙未连接蓝闪）
+//   6. UART 静默看门狗：Pico 关机/蓝牙开关关闭时停 BLE 省电
 //
 // BLE 蓝牙手柄：按 inputMode 选择设备类型（当前仅 Xbox Series X 实现，
 //             不支持的模式退化 Xbox；DualSense/NS PRO 预留），
 //             ESP32-BLE-CompositeHID + NimBLE，实现见 bleBegin/bleStop/bleTask
 // 协议：0xAA + version + type + len + payload + CRC16/CCITT-FALSE
-//       与 GP-combine esp32.ino / Pico 侧 uart_link.cpp 逐字节一致
+//       与 Pico 侧 uart_link.cpp 逐字节一致
 // ============================================================================
 
-#include <SPI.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "nrf24.h"
 
 // ===== BLE 蓝牙手柄（模拟 Xbox Series X，BLE Composite HID + NimBLE）=====
 // 必需库（均安装到"速写本/sketchbook"的 libraries 目录）：
@@ -51,10 +48,6 @@ static HardwareSerial LinkSerial(0);
 #define LINK_SERIAL LinkSerial
 
 
-// ===== nRF24L01（HSPI 总线）：CE=9, CSN=10, MOSI=11, SCK=12, MISO=13 =====
-#define NRF_CSN 10
-#define NRF_CE  9
-
 // ===== 板载 WS2812 状态灯 =====
 #define LED_PIN 21
 
@@ -69,19 +62,12 @@ void ledWrite(uint8_t r, uint8_t g, uint8_t b) {
 #define FRAME_MAGIC       0xAA
 #define FRAME_VERSION     1
 #define FRAME_TYPE_INPUT  0x01   // Pico -> ESP32: 手柄输入
-#define FRAME_TYPE_STATUS 0x03   // Pico -> ESP32: 模式状态（inputMode + linkMode）
-#define FRAME_TYPE_LINK_STATUS 0x0B  // ESP32 -> Pico: 后端连接状态心跳（见 sendLinkStatus）
+#define FRAME_TYPE_STATUS 0x03   // Pico -> ESP32: 模式状态（inputMode）
+#define FRAME_TYPE_LINK_STATUS 0x0B  // ESP32 -> Pico: 连接状态心跳（见 sendLinkStatus）
 
-// LINK_STATUS payload（len=3）：
-//   [0] outputMode：0=nRF24 路径，1=BLE 路径（与 STATUS 帧 linkMode 同语义）
-//   [1] nrfLinked：nRF24 接收端链路已通（radioLinked，ACK 历史去抖）；仅 [0]==0 有效
-//   [2] bleConnected：BLE 主机已连接（配对完成）；仅 [0]==1 有效
-// 非当前后端的状态字节强制 0，避免切后端瞬间的历史值误导 Pico 侧灯效。
+// LINK_STATUS payload（len=1）：
+//   [0] bleConnected：BLE 主机已连接（配对完成）
 #define LINK_STATUS_HEARTBEAT_MS 100
-
-// ---- 输出后端互斥切换 ----
-enum OutputBackend : uint8_t { OUTPUT_NRF = 0, OUTPUT_BLE = 1 };
-volatile uint8_t outputMode = OUTPUT_NRF;  // 初始无线；未收到 STATUS 也按无线处理
 
 // ---- BLE 设备类型（按 Pico inputMode 选择；当前仅 Xbox 实现，其余退化 Xbox）----
 enum BlePadType : uint8_t { BLE_PAD_XBOX = 0, BLE_PAD_DUALSENSE = 1, BLE_PAD_NSPRO = 2 };
@@ -107,41 +93,25 @@ static uint8_t blePadTypeForInputMode(uint8_t mode) {
 }
 volatile uint8_t stBlePadType = BLE_PAD_XBOX;  // STATUS 输入模式对应的 BLE 类型
 
-// ---- nRF24 无线状态 ----
-NRF24 radio;
-SPIClass nrfSpi(HSPI);
-volatile bool radioUp = false;
-uint8_t radioSeq = 0;
-// link quality: ACK results over the last 100 packets
-volatile uint8_t radioHist[100];
-uint8_t radioHistIdx = 0;
-volatile uint8_t radioHistOk = 0;
-volatile bool radioLinked = false;
-
-// ---- UART 链路看门狗：Pico 静默时 nRF/BLE 全后端休眠 ----
-// Pico 切到 nRF24 直连模式（uart_link 插件不加载）或关机后，UART 线上再无任何字节。
-// 此时 ESP32 的 nRF 若继续每 2ms 发包，会与 Pico 板载 nRF 同信道/同地址冲突，
-// 接收器交替收到真实帧与回中帧，表现为摇杆中心点闪烁、按键断闪。
+// ---- UART 链路看门狗：Pico 静默时 BLE 休眠 ----
+// Pico 切到非蓝牙模式或关机后，UART 线上再无任何字节，BLE 停广播省电。
 // 活动判据=UART 线上任意字节（loop drain 即刷新），而非 CRC 合法帧：突发误码/丢包
-// 恰恰证明 Pico 在线，绝不能因此休眠断连；Pico 切走/关机的特征是线路完全静默。
-// 1000ms 无任何字节 → nRF powerDown + BLE 停广播断连，让出信道；
-// 重新收到字节（Pico 切回/重启进入 uart_link 模式）→ 按最近 STATUS 的 linkMode 自动唤醒。
+// 恰恰证明 Pico 在线，绝不能因此休眠；Pico 切走/关机的特征是线路完全静默。
+// 1000ms 无任何字节 → 停 BLE；重新收到字节（Pico 切回/重启）→ 自动恢复。
 // 开机 1s 宽限等 Pico 启动首帧。
 #define UART_LINK_LOST_MS   1000
 #define UART_BOOT_GRACE_MS  1000
-volatile uint32_t lastUartByteMs = 0;   // 最近一次 UART 字节活动时刻（millis），0=从未收到
-volatile bool linkSleeping = false;     // 两路后端是否已因 UART 静默休眠
+static uint32_t lastUartByteMs = 0;   // 最近一次 UART 字节活动时刻（millis），0=从未收到
+static bool linkSleeping = false;     // BLE 是否已因 UART 静默休眠
 
-// ---- 手柄状态（INPUT 帧 → radioTask / BLE 共用数据源）----
+// ---- 手柄状态（INPUT 帧 → BLE 数据源）----
 volatile uint16_t lastButtons = 0;
 volatile uint8_t lastDpad = 0;
 volatile uint16_t lastLX = 0x8000, lastLY = 0x8000, lastRX = 0x8000, lastRY = 0x8000;
 volatile uint8_t lastLT = 0, lastRT = 0;
 
-// ---- STATUS 帧解析（payload[2]=inputMode，payload[18]=linkMode）----
-volatile uint8_t stInputMode = 0;
-volatile uint8_t stLinkMode = 0;       // 0=nRF24，1=BLE；默认 0
-volatile bool stStatusValid = false;   // 收到过完整 STATUS 帧
+// ---- STATUS 帧解析（payload[2]=inputMode）----
+// 新协议帧 len=3，不做旧帧兼容。
 
 // ---- WS2812 状态灯 ----
 uint8_t ledR = 0, ledG = 0, ledB = 0;   // 当前已写颜色缓存
@@ -149,19 +119,19 @@ unsigned long lastLedMs = 0;
 
 // ---- BLE 蓝牙手柄（模拟 Xbox Series X，BLE HID）----
 // 生命周期：NimBLE 栈在首次进入蓝牙模式时惰性创建、整个上电周期复用（库 begin() 内部
-// 一次性 NimBLEDevice::init，反复 init/deinit 不稳定）；切回无线时仅停广播/断开连接，
+// 一次性 NimBLEDevice::init，反复 init/deinit 不稳定）；休眠时仅停广播/断开连接，
 // 不销毁对象。bleConnected 由 bleTask 维护，供 LED 显示。
 // 重连后无输出根因：ESP32 重启后 onConnect 立即置 connected=true，但 CCCD 恢复
-// (ble_gatts_bonding_restored) 是认证完成后异步发生——bleTask 在 CCCD 恢复前就调
-// notify() 导致静默失败。修复：onAuthenticationComplete 回调中重置 bleForceSend，
-// bleTask 连接后延迟 1s 再发首帧，等 CCCD 恢复完毕。
+// (ble_gatts_bonding_restored) 是认证完成后异步发生——在 CCCD 恢复前就调 notify()
+// 会静默失败。修复：bleTask 连接后轮询 isReady()（库在 onAuthenticationComplete
+// 回调内置位），未就绪期间等待（最长 2s），再按 5ms 节拍发送。
 volatile bool bleRunning = false;
 volatile bool bleConnected = false;
-// bleDesired：输出模式切换器对 BLE 栈的"期望运行"请求；bleRunning 是 bleTask
+// bleDesired：看门狗/初始化对 BLE 栈的"期望运行"请求；bleRunning 是 bleTask
 // 完成实际启停后的"实际运行"状态。启停动作（NimBLE init 数百 ms / 断连等待）
 // 必须在 core0 的 bleTask 自身上下文执行——若在 core1 loopTask 的 UART 接收
 // 路径里直接 bleBegin()，会与已在 core0 运行的 bleTask/NimBLE host 跨核并发
-// 初始化，造成 loop 阻塞→LED 停在 setup 初始红灯、连接参数请求时序错乱。
+// 初始化，造成 loop 阻塞→LED 停在初始灯、连接参数请求时序错乱。
 volatile bool bleDesired = false;
 // 连接间隔是否已达高速（<=6 unit≈133Hz 容量）：bleTask 治理循环维护，供 LED 显示。
 volatile bool bleIntervalFast = false;
@@ -171,8 +141,7 @@ void bleStop();
 static BleCompositeHID   *bleHid = nullptr;
 static XboxGamepadDevice *blePad = nullptr;
 static bool      bleStackStarted = false;   // NimBLE 栈是否已 begin()
-static uint32_t  bleStackStartMs = 0;       // begin() 时刻（用于避开初始化竞态）
-static bool      bleForceSend    = true;    // （重）连接/恢复后强制发一帧
+static uint32_t  bleStackStartMs = 0;       // begin() 时刻（用于广播补名延时）
 static uint8_t   activeBlePadType = 0xFF;   // 当前栈内已构造的 BLE 设备类型
 
 // ============================================================================
@@ -187,28 +156,26 @@ static uint16_t crc16_update(uint16_t crc, uint8_t b) {
 }
 
 // ============================================================================
-// UART TX：LINK_STATUS 心跳（10Hz）——回报当前输出后端及配对/连接状态。
-// Pico 侧 uart_link 以此驱动环境光提示（ESP32 缺失红闪 / 无线未配对黄闪 /
-// 蓝牙未连接蓝闪）；超过 500ms（5 个心跳）未收到时 Pico 判 ESP32 离线。
+// UART TX：LINK_STATUS 心跳（10Hz）——回报 BLE 主机连接状态。
+// Pico 侧 uart_link 以此驱动环境光提示（ESP32 缺失红闪 / 蓝牙未连接蓝闪）；
+// 超过 500ms（5 个心跳）未收到时 Pico 判 ESP32 离线。
 // ============================================================================
 void sendLinkStatus() {
-    uint8_t frame[9];
+    uint8_t frame[7];
     frame[0] = FRAME_MAGIC;
     frame[1] = FRAME_VERSION;
     frame[2] = FRAME_TYPE_LINK_STATUS;
-    frame[3] = 3;
-    frame[4] = (outputMode == OUTPUT_BLE) ? 1 : 0;
-    frame[5] = (outputMode == OUTPUT_NRF && radioLinked) ? 1 : 0;
-    frame[6] = (outputMode == OUTPUT_BLE && bleConnected) ? 1 : 0;
+    frame[3] = 1;
+    frame[4] = bleConnected ? 1 : 0;
     uint16_t crc = 0xFFFF;
-    for (int i = 1; i <= 6; i++) crc = crc16_update(crc, frame[i]);
-    frame[7] = (uint8_t)(crc & 0xFF);
-    frame[8] = (uint8_t)(crc >> 8);
+    for (int i = 1; i <= 4; i++) crc = crc16_update(crc, frame[i]);
+    frame[5] = (uint8_t)(crc & 0xFF);
+    frame[6] = (uint8_t)(crc >> 8);
     LINK_SERIAL.write(frame, sizeof(frame));
 }
 
 // ============================================================================
-// UART RX：INPUT 帧 → 更新手柄状态全局（radioTask / BLE 数据源）
+// UART RX：INPUT 帧 → 更新手柄状态全局（BLE 数据源）
 // ============================================================================
 void onInputFrame(uint8_t *payload, uint8_t len) {
     if (len >= 3) {
@@ -226,135 +193,14 @@ void onInputFrame(uint8_t *payload, uint8_t len) {
         }
         // BLE 模式下由 bleTask 读取这些全局并按固定 5ms 节拍编码发送 HID report
     }
-    // 不回 ACK：Pico 侧收到也只做 CRC 校验后丢弃，890Hz 反向流量只会串扰前向帧。
 }
 
 // ============================================================================
-// 输出后端互斥切换：STATUS linkMode==1 切蓝牙，否则切无线
-// ============================================================================
-void applyOutputMode() {
-    uint8_t desired = (stStatusValid && stLinkMode == 1)
-                          ? OUTPUT_BLE : OUTPUT_NRF;
-    if (desired == outputMode) return;
-
-    outputMode = desired;
-    if (outputMode == OUTPUT_BLE) {
-        // 切蓝牙：先停 radioTask 发送（outputMode 已变 + radioUp 清零），
-        // 等在途 writePacket（最多 ~2ms）结束后再断电 nRF，避免 SPI 事务交叉
-        radioUp = false;
-        vTaskDelay(3 / portTICK_PERIOD_MS);
-        radio.powerDown();                // nRF 静默断电
-        // 仅发请求：bleBegin()（NimBLE init 数百 ms）由 core0 bleTask 在其自身
-        // 任务上下文完成，严禁在本 loopTask(core1) 里直接调——跨核并发初始化
-        // NimBLE 会阻塞 loop（LED 卡死在红灯）并扰乱连接参数协商。
-        bleDesired = true;
-    } else {
-        // 切无线：请求 bleTask 停广播/断开主机（异步）；nRF 这边立即恢复。
-        // 切换瞬间 BLE 断连（最长约 100ms）与 nRF 发送短暂并存，同频干扰至多丢
-        // 几个包，链路历史阈值(10/100)可吸收。
-        bleDesired = false;
-        radio.powerUp();
-        radio.setChannel(NRF24_CHANNEL);  // 与接收端一致：固定信道
-        radio.resetLink();                // 清 TX FIFO/STATUS，防止断电前残留包重发
-        delay(2);                         // nRF24 上电后需 ~1.5ms 进入 Standby
-        radioUp = true;
-    }
-}
-
-// ============================================================================
-// UART RX：STATUS 帧 → 取 inputMode(payload[2]) 与 linkMode(payload[18])，
-// 触发输出路径切换。新协议帧 len=19，不做旧帧（无 linkMode）兼容。
+// UART RX：STATUS 帧 → 取 inputMode(payload[2]) 更新 BLE 设备类型。
 // ============================================================================
 void onStatusFrame(uint8_t *payload, uint8_t len) {
-    if (len < 19) return;           // payload[2]=inputMode, payload[18]=linkMode
-    stInputMode = payload[2];
-    stBlePadType = blePadTypeForInputMode(stInputMode);
-    stLinkMode = payload[18] ? 1 : 0;
-    stStatusValid = true;
-    applyOutputMode();
-}
-
-// ============================================================================
-// nRF24 无线发送任务：核 0，2ms 定频（500Hz），与接收端 15 字节包格式一致
-// 蓝牙模式时空转不发包（nRF/BLE 互斥）
-// ============================================================================
-void radioTask(void *) {
-    uint32_t failCount = 0;
-    uint8_t statusDiv = 0;
-    for (;;) {
-        // LINK_STATUS 心跳：2ms tick / 50 = 100ms（10Hz）。任务在 BLE 模式下
-        // 也常驻空转，故两个后端的状态都能持续上报；本固件 UART TX 仅此一处写者，
-        // 与 RX 路径（loop 只读）无并发写冲突。
-        if (++statusDiv >= (LINK_STATUS_HEARTBEAT_MS / 2)) {
-            statusDiv = 0;
-            sendLinkStatus();
-        }
-
-        // UART 看门狗：Pico 静默（nRF 直连模式/关机）→ nRF+BLE 全休眠；线路恢复字节 → 自动唤醒。
-        uint32_t nowTickMs = millis();
-        bool uartAlive = (lastUartByteMs != 0) &&
-                         (nowTickMs - lastUartByteMs < UART_LINK_LOST_MS);
-        if (!linkSleeping && !uartAlive && nowTickMs >= UART_BOOT_GRACE_MS) {
-            // 休眠：nRF 断电 + 请求 BLE 停止，并把 outputMode 置为无效值 0xFF。
-            // 关键：0xFF 使 Pico 恢复后首个 STATUS 帧必然命中 applyOutputMode()
-            // 的"模式变化"分支（desired 永远 != 0xFF），nRF 重新上电/蓝牙重启全部
-            // 走 core1 既有单一路径；本任务唤醒时不接触 nRF SPI，杜绝两核并发。
-            // powerDown 与 applyOutputMode 切 BLE 时同序列：先 radioUp=false 再等 3ms
-            // 在途 writePacket（最多 ~2ms）结束。
-            linkSleeping = true;
-            radioLinked = false;      // 让 LINK_STATUS/LED 立即反映离线
-            radioUp = false;
-            vTaskDelay(3 / portTICK_PERIOD_MS);
-            radio.powerDown();        // nRF 静默断电，让出信道消除与 Pico 板载 nRF 冲突
-            bleDesired = false;       // bleTask 停广播并断开已连接主机
-            outputMode = 0xFF;        // 强制恢复时 applyOutputMode 完整重放硬件上电
-        } else if (linkSleeping && uartAlive) {
-            // Pico 恢复：硬件唤醒由随后到达的 STATUS 帧 applyOutputMode() 完成
-            //（Pico uart_link 启动当帧即发 STATUS，在 INPUT 之后 <1ms）；
-            // 此处仅退出休眠态。STATUS 处理完前两后端都保持停止（1~2ms，
-            // 接收器 1s 状态缓存对此无感知）。本分支严禁操作 nRF SPI。
-            linkSleeping = false;
-        }
-
-        if (outputMode == OUTPUT_NRF && radioUp) {
-            uint8_t pkt[15];
-            uint8_t mode = stStatusValid ? stInputMode : 0xFF; // 0xFF=模式未知
-            uint16_t btns = lastButtons;
-            uint8_t dpad = lastDpad;
-            uint16_t lx = lastLX, ly = lastLY, rx = lastRX, ry = lastRY;
-            uint8_t lt = lastLT, rt = lastRT;
-            pkt[0] = mode;
-            pkt[1] = radioSeq++;
-            pkt[2] = btns & 0xFF;
-            pkt[3] = btns >> 8;
-            pkt[4] = dpad;
-            pkt[5] = lx & 0xFF;  pkt[6] = lx >> 8;
-            pkt[7] = ly & 0xFF;  pkt[8] = ly >> 8;
-            pkt[9] = rx & 0xFF;  pkt[10] = rx >> 8;
-            pkt[11] = ry & 0xFF; pkt[12] = ry >> 8;
-            pkt[13] = lt;
-            pkt[14] = rt;
-            bool acked = radio.writePacket(pkt);
-            if (radioHist[radioHistIdx]) radioHistOk--;
-            radioHist[radioHistIdx] = acked ? 1 : 0;
-            if (acked) radioHistOk++;
-            radioHistIdx = (radioHistIdx + 1) % 100;
-            radioLinked = (radioHistOk >= 10);
-            if (acked) {
-                failCount = 0;
-            } else {
-                failCount++;
-                if (failCount > 500) { // 连续失败看门狗：重新初始化模块
-                    radio.begin(nrfSpi, NRF_CSN, NRF_CE);
-                    radioUp = true;
-                    failCount = 0;
-                    for (int i = 0; i < 100; i++) radioHist[i] = 0;
-                    radioHistOk = 0;
-                }
-            }
-        }
-        vTaskDelay(2 / portTICK_PERIOD_MS);
-    }
+    if (len < 3) return;           // payload[2]=inputMode
+    stBlePadType = blePadTypeForInputMode(payload[2]);
 }
 
 // ============================================================================
@@ -396,8 +242,8 @@ static uint8_t dpadMaskToXboxFlags(uint8_t mask) {
     return f;
 }
 
-// 将手柄状态写入 Xbox 报告（不发送）。坐标：0..65535(中心0x8000) → -32768..32767，
-// Y 轴取反（上为正，与 GP2040 XInput 驱动一致）；扳机 0..255 → 0..1023。
+// 将手柄状态写入 Xbox 报告（不发送）。坐标：0..65535(中心0x8000) → -32768..32767；
+// 扳机 0..255 → 0..1023。
 static void bleApplyState(uint16_t btns, uint8_t dpad,
                           uint16_t lx, uint16_t ly, uint16_t rx, uint16_t ry,
                           uint8_t lt, uint8_t rt) {
@@ -441,7 +287,7 @@ static void bleSetUniqueAddress() {
 // 按类型构造 BLE HID 设备并加入 CompositeHID。当前仅 BLE_PAD_XBOX 实现，
 // DUALSENSE/NSPRO 预留：选择器对未实现类型已统一返回 XBOX，故此处不会收到。
 static XboxGamepadDevice *buildBlePad(uint8_t padType, BLEHostConfiguration &hostCfg,
-                                      const char *&devName, const char *&mfrName) {
+                                      const char *&devName, const char *mfrName) {
     switch (padType) {
         // 预留：CompositeHID 库补齐 DualSenseDevice/NSProDevice 后在此构造，
         // 对应 VID/PID、HID 描述符、按键映射 bleBtnTable 一并扩展。
@@ -477,11 +323,9 @@ void bleBegin(uint8_t padType) {
         activeBlePadType = padType;
         bleStackStarted = true;
         bleStackStartMs = millis();
-        bleForceSend = true;
     } else if (NimBLEDevice::isInitialized()) {
         // 再次进入：栈仍在，用同一个传统广播对象恢复广播（含名字/服务/appearance）
         NimBLEDevice::getServer()->getAdvertising()->start();
-        bleForceSend = true;
     }
 }
 
@@ -518,7 +362,7 @@ static void bleRestartAdvertisingWithName() {
     adv->start();
 }
 
-// BLE 任务：蓝牙模式下连接后按 on-change 发送 HID report
+// BLE 任务：连接后按固定 5ms 节拍发送 HID report；同时维护 100ms LINK_STATUS 心跳。
 // 等待 onAuthenticationComplete（CCCD 恢复完毕）后再发首帧，避免 notify 静默失败。
 void bleTask(void *) {
     bool wasConnected = false;
@@ -527,10 +371,17 @@ void bleTask(void *) {
     uint32_t connMs = 0;      // 连接时刻
     uint32_t lastParamMs = 0; // 上次请求高速连接参数时刻
     uint32_t lastPollMs = 0;  // 上次间隔轮询时刻
-    // on-change 发送：缓存上次发送的状态，变化时才发（含 bleForceSend 强制发）
-    uint16_t sBtns = 0xFFFF, sLX = 0xFFFF, sLY = 0xFFFF, sRX = 0xFFFF, sRY = 0xFFFF;
-    uint8_t  sDpad = 0xFF, sLT = 0xFF, sRT = 0xFF;
+    uint32_t lastLinkStatusMs = 0; // 上次 LINK_STATUS 心跳时刻
     for (;;) {
+        uint32_t nowMs = millis();
+
+        // LINK_STATUS 心跳：100ms 一帧；任务常驻，休眠期间也持续上报（连接位为 0）。
+        // 本固件 UART TX 仅此一处写者，与 RX 路径（loop 只读）无并发写冲突。
+        if (nowMs - lastLinkStatusMs >= LINK_STATUS_HEARTBEAT_MS) {
+            sendLinkStatus();
+            lastLinkStatusMs = nowMs;
+        }
+
         // 运行中 BLE 设备类型变化：GATT 服务/HID 描述符在 NimBLE init 时一次定型，
         // 栈内热重建不稳定；Pico 切换手柄模式本身会重启，这里同样以自重启收敛。
         // 当前选择器对所有模式均返回 XBOX，实际不会触发；非 Xbox 类型实现后生效。
@@ -561,12 +412,9 @@ void bleTask(void *) {
                     lastParamMs = 0;
                     lastPollMs = 0;
                     bleIntervalFast = false;
-                    bleForceSend = true;
                 } else {
-                    // 仅在"已连接→断开"边沿恢复广播。必须以 bleRunning 为前提：
-                    // applyOutputMode 切回无线时先置 bleRunning=false 再 bleStop()，
-                    // 若此处无条件复活广播，切走后 ESP32 仍在 BLE 广播、Windows 自动
-                    // 重连形成"无线模式下的幽灵连接"。
+                    // 仅在"已连接→断开"边沿恢复广播。必须以 bleRunning 为前提，
+                    // 若此处无条件复活广播，休眠后 ESP32 仍在 BLE 广播形成"幽灵连接"。
                     if (wasConnected && bleRunning && NimBLEDevice::isInitialized()) {
                         NimBLEDevice::getServer()->getAdvertising()->start();
                     }
@@ -577,7 +425,6 @@ void bleTask(void *) {
             // 认证/CCCD 恢复就绪检测：onAuthenticationComplete 后 isReady()=true
             bool ready = bleHid->isReady();
             if (ready && !wasReady) {
-                bleForceSend = true;
                 lastParamMs = millis();
                 bleHid->requestFastConnectionParams();
             }
@@ -596,7 +443,7 @@ void bleTask(void *) {
                 // 持续连接间隔治理：每 500ms 读一次真实间隔，一旦 >6 unit 立刻按
                 // 750ms 节奏重请 (6,6)；回到 <=6 后转为 3s 巡检，掉速即恢复请求。
                 NimBLEServer *srv = NimBLEDevice::getServer();
-                uint32_t nowMs = millis();
+                nowMs = millis();
                 if (srv && srv->getConnectedCount() > 0 &&
                     nowMs - lastPollMs >= 500) {
                     lastPollMs = nowMs;
@@ -623,10 +470,6 @@ void bleTask(void *) {
                 // 5ms 固定发送：每 5ms 发送一次 HID report，保证稳定回报率
                 bleApplyState(btns, dpad, lx, ly, rx, ry, lt, rt);
                 blePad->sendGamepadReport();
-                sBtns = btns; sDpad = dpad;
-                sLX = lx; sLY = ly; sRX = rx; sRY = ry;
-                sLT = lt; sRT = rt;
-                bleForceSend = false;
                 vTaskDelay(5 / portTICK_PERIOD_MS);
             } else {
                 vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -694,10 +537,11 @@ void handleRxByte(uint8_t b) {
 }
 
 // ============================================================================
-// WS2812 状态灯：仅状态变化时刷新，100ms 节流（蓝牙慢闪由时间驱动）
-//   无线+链路正常=绿 / 无线+链路丢失=红 / 蓝牙+广播中=蓝慢闪(1Hz)
-//   蓝牙+已连接+间隔达标=蓝常亮 / 蓝牙+已连接但间隔未达标(47Hz指纹)=蓝快闪(4Hz)
-//   蓝牙+栈未运行=紫(异常指纹，正常不应出现)
+// WS2812 状态灯：仅状态变化时刷新，100ms 节流（慢闪由时间驱动）
+//   Pico 离线（蓝牙开关关闭/关机）= 红慢闪(1Hz)
+//   BLE 广播中=蓝慢闪(1Hz)
+//   BLE 已连接+间隔达标=蓝常亮 / 已连接但间隔未达标(47Hz指纹)=蓝快闪(4Hz)
+//   BLE 栈未运行=紫(异常指纹)
 // ============================================================================
 void updateLed() {
     unsigned long now = millis();
@@ -706,26 +550,21 @@ void updateLed() {
 
     uint8_t r = 0, g = 0, b = 0;
     if (linkSleeping) {
-        bool on = (now / 500) % 2 == 0; // Pico 离线（nRF 直连模式/关机）：1Hz 红色慢闪
+        bool on = (now / 500) % 2 == 0; // Pico 离线：1Hz 红色慢闪
         if (on) r = 48;
-    } else if (outputMode == OUTPUT_BLE) {
-        if (!bleRunning) {
-            r = 40; b = 40;                 // 异常：BLE 模式但栈未运行（诊断指纹）
-        } else if (bleConnected) {
-            if (bleIntervalFast) {
-                r = 0; g = 0; b = 60;       // 已连接+间隔达标(125Hz)：蓝色常亮
-            } else {
-                bool on = (now / 250) % 2 == 0;  // 已连接但间隔未达标(47Hz)：蓝快闪
-                if (on) { r = 0; g = 0; b = 60; }
-            }
+    } else if (!bleRunning) {
+        // 栈启动收敛期（NimBLE init 数百 ms）不判异常；启动 3s 后仍未运行才显紫
+        if (now > 3000) { r = 40; b = 40; }
+    } else if (bleConnected) {
+        if (bleIntervalFast) {
+            r = 0; g = 0; b = 60;       // 已连接+间隔达标(125Hz)：蓝色常亮
         } else {
-            bool on = (now / 500) % 2 == 0; // 广播中：1Hz 蓝色慢闪
-            if (on) { r = 0; g = 0; b = 48; }
+            bool on = (now / 250) % 2 == 0;  // 已连接但间隔未达标(47Hz)：蓝快闪
+            if (on) { r = 0; g = 0; b = 60; }
         }
-    } else if (radioLinked) {
-        g = 40;                           // 绿色：链路正常
     } else {
-        r = 48;                           // 红色：链路丢失
+        bool on = (now / 500) % 2 == 0; // 广播中：1Hz 蓝色慢闪
+        if (on) { r = 0; g = 0; b = 48; }
     }
 
     if (r != ledR || g != ledG || b != ledB) {
@@ -738,21 +577,17 @@ void updateLed() {
 // setup / loop
 // ============================================================================
 void setup() {
-    // 降频 80MHz 省电：BLE 控制器有独立基带时钟，降频不影响蓝牙；
-    // nRF24 SPI 在 80MHz 下软件层开销可接受（HSPI 硬件 SPI 不依赖 CPU 频率）。
+    // 降频 80MHz 省电：BLE 控制器有独立基带时钟，降频不影响蓝牙。
     setCpuFrequencyMhz(80);
 
     // 上电先点红，进入 loop 后由状态机接管
     ledWrite(48, 0, 0);
     ledR = 48;
 
-    nrfSpi.begin(12, 13, 11, -1); // SCK=12, MISO=13, MOSI=11 (HSPI；CSN=10/CE=9 由驱动管理)
-    radio.begin(nrfSpi, NRF_CSN, NRF_CE);
-
     LINK_SERIAL.begin(UART_BAUD, SERIAL_8N1, ESP_RX, ESP_TX);
-    radioUp = true;  // 默认无线模式；收到 STATUS linkMode=1 后切蓝牙
+    // 开机即请求启动 BLE；UART 看门狗按 Pico 在线状态收敛（静默 1s 后停）
+    bleDesired = true;
 
-    xTaskCreatePinnedToCore(radioTask, "radio", 4096, NULL, 1, NULL, 0); // 发送跑在核0
     xTaskCreatePinnedToCore(bleTask, "ble", 8192, NULL, 1, NULL, 0);     // BLE 任务常驻核0
 
     // LED 独立任务最后创建：pin 核1，优先级 2 高于 loopTask。
@@ -760,7 +595,7 @@ void setup() {
     xTaskCreatePinnedToCore(ledTask, "led", 2560, NULL, 2, NULL, 1);
 }
 
-// 独立 LED 任务：优先级 2（高于 loop/radio/ble 的 1），即便 loopTask 被 UART
+// 独立 LED 任务：优先级 2（高于 loop/ble 的 1），即便 loopTask 被 UART
 // 处理路径饿死或阻塞，本任务仍能被调度；neopixelWrite 由此任务独占，杜绝与 loop
 // 并发访问 RMT。节拍 20ms，updateLed 内部另有 100ms 节流。
 void ledTask(void *) {
@@ -772,12 +607,25 @@ void ledTask(void *) {
 
 void loop() {
     // 看门狗活动判据：drain 到任意字节即刷新（每批一次 millis()）。
-    // 不要求 CRC 合法——误码/丢包期间线路仍有活动，说明 Pico 仍在 uart_link 模式，
-    // 只有线路完全静默（Pico 切 nRF 直连/关机）才允许休眠。
+    // 不要求 CRC 合法——误码/丢包期间线路仍有活动，说明 Pico 仍在蓝牙模式，
+    // 只有线路完全静默（Pico 切走/关机）才允许休眠。
     bool active = false;
     while (LINK_SERIAL.available()) {
         handleRxByte((uint8_t)LINK_SERIAL.read());
         active = true;
     }
-    if (active) lastUartByteMs = millis();
+    uint32_t nowMs = millis();
+    if (active) lastUartByteMs = nowMs;
+
+    bool uartAlive = (lastUartByteMs != 0) &&
+                     (nowMs - lastUartByteMs < UART_LINK_LOST_MS);
+    if (!linkSleeping && !uartAlive && nowMs >= UART_BOOT_GRACE_MS) {
+        // Pico 静默：停 BLE 省电（实际启停由 bleTask 在 core0 执行）
+        linkSleeping = true;
+        bleDesired = false;
+    } else if (linkSleeping && uartAlive) {
+        // Pico 恢复：重新请求启动 BLE
+        linkSleeping = false;
+        bleDesired = true;
+    }
 }

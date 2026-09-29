@@ -217,9 +217,6 @@ export default {
 	'hml-display-hint': '将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率',
 	'hml-two-key-touchpad-label': '2键触摸板',
 	'hml-two-key-touchpad-hint': '启用后将禁用显示屏',
-	'hml-wireless-link-label': '扩展无线模式',
-	'hml-wireless-link-hint':
-		'需要在主板USB口插入外置无线扩展板，并在主机/电脑插入无线接收器，主机需要在接收器上插入验证器。',
 	'hml-bluetooth-link-label': '扩展蓝牙模式',
 	'hml-bluetooth-link-hint':
 		'需要在主板USB口插入外置无线扩展板，电脑/手机通过蓝牙连接。',

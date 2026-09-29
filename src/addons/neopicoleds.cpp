@@ -324,35 +324,31 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	}
 	// RAM-only hint overrides (never persisted as user mode):
 	//  1) Web-config session blink — user-configured static color; takes priority.
-	//  2) UART companion (ESP32) absent while an extended link is enabled — forced red blink.
+	//  2) UART companion (ESP32) absent while bluetooth is enabled — forced red blink.
 	//  3) BLE companion online but host not connected — forced blue blink.
-	//  4) Wireless unpaired (onboard nRF24 direct no-ACK, or companion online but
-	//     receiver not linked) — forced yellow blink.
-	// 三种链路开关三互斥，同一时刻至多一条提示成立。
+	//  4) Onboard nRF24 direct no-ACK/unpaired — forced yellow blink.
+	// 两种链路开关互斥，同一时刻至多一条提示成立。
 	const GamepadOptions& linkOpts = Storage::getInstance().getGamepadOptions();
 	const bool webHintActive =
 	    DriverManager::getInstance().isConfigMode() &&
 	    Storage::getInstance().isAmbientWebConfigOverrideActive();
 	const bool uartOnline = Storage::getInstance().isUartStatusOnline();
 	const bool companionOfflineHint =
-	    (linkOpts.bluetoothLinkEnabled || linkOpts.wirelessLinkEnabled) &&
-	    !uartOnline;
+	    linkOpts.bluetoothLinkEnabled && !uartOnline;
 	const bool bleUnlinkedHint =
 	    linkOpts.bluetoothLinkEnabled && uartOnline &&
 	    !Storage::getInstance().isUartBleConnected();
-	const bool wirelessUnlinkedHint =
-	    (linkOpts.nrf24LinkEnabled &&
-	     !Storage::getInstance().isNrf24LinkUp()) ||
-	    (linkOpts.wirelessLinkEnabled && uartOnline &&
-	     !Storage::getInstance().isUartNrfLinked());
+	const bool nrf24UnlinkedHint =
+	    linkOpts.nrf24LinkEnabled &&
+	    !Storage::getInstance().isNrf24LinkUp();
 	if (webHintActive) {
 		effectIdx = AL_CUSTOM_EFFECT_WEB_CONFIG_HINT;
 	} else if (companionOfflineHint) {
 		effectIdx = AL_CUSTOM_EFFECT_COMPANION_OFFLINE;
 	} else if (bleUnlinkedHint) {
 		effectIdx = AL_CUSTOM_EFFECT_BLE_UNLINKED;
-	} else if (wirelessUnlinkedHint) {
-		effectIdx = AL_CUSTOM_EFFECT_WIRELESS_UNLINKED;
+	} else if (nrf24UnlinkedHint) {
+		effectIdx = AL_CUSTOM_EFFECT_NRF24_UNLINKED;
 	}
 
 	// Shared blink phase machine for all hints; reset on the rising edge so each
@@ -360,7 +356,7 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	static const uint32_t kBlinkHintPhaseMs[] = {100, 100, 100, 100, 100, 500};
 	constexpr size_t kBlinkHintPhaseCount = sizeof(kBlinkHintPhaseMs) / sizeof(kBlinkHintPhaseMs[0]);
 	const bool blinkHintActive =
-	    webHintActive || companionOfflineHint || bleUnlinkedHint || wirelessUnlinkedHint;
+	    webHintActive || companionOfflineHint || bleUnlinkedHint || nrf24UnlinkedHint;
 	if (blinkHintActive && !blinkHintPrev_) {
 		blinkHintPhase_ = 0;
 		blinkHintNextPhaseAt_ =
@@ -530,14 +526,14 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 		}
 		// Link hint blinks share the same forced rhythm/phase; color identifies state —
 		// companion (ESP32) absent = red; BLE host offline = blue;
-		// wireless unpaired (nRF24 direct / UART receiver) = yellow.
+		// onboard nRF24 direct unpaired = yellow.
 		// All ignore the user-configured static color.
-		case AL_CUSTOM_EFFECT_WIRELESS_UNLINKED:
+		case AL_CUSTOM_EFFECT_NRF24_UNLINKED:
 		case AL_CUSTOM_EFFECT_BLE_UNLINKED:
 		case AL_CUSTOM_EFFECT_COMPANION_OFFLINE: {
 			const bool on =
 			    (blinkHintPhase_ == 0 || blinkHintPhase_ == 2 || blinkHintPhase_ == 4);
-			uint32_t hintColor = 0xFFFF00;  // default yellow: wireless unpaired
+			uint32_t hintColor = 0xFFFF00;  // default yellow: nRF24 direct unpaired
 			if (effectIdx == AL_CUSTOM_EFFECT_BLE_UNLINKED) {
 				hintColor = 0x0000FF;        // blue: BLE host not connected
 			} else if (effectIdx == AL_CUSTOM_EFFECT_COMPANION_OFFLINE) {

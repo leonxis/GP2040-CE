@@ -59,7 +59,7 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI1_PIN_NRF_CE;  // nRF24 CE
 #define NRF24_STATUS_RX_DR    0x40
 
 // INPUT 帧恒流发送间隔（微秒）：芯片空闲且距上次发送 ≥1ms 即无条件发当前
-// 状态快照，与 ESP32 端 radioTask 定频（2ms）同语义。接收器带丢包超时回中
+// 状态快照。接收器带丢包超时回中
 // 保护（摇杆静止时 50ms 心跳间隙会周期性触发回中闪现），恒流保证包间隙
 // 最多为在飞事务时长（最坏 ~2ms），远低于回中阈值。
 #define NRF24_SEND_INTERVAL_US      1000

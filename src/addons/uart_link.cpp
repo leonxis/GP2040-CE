@@ -15,13 +15,12 @@ static uint16_t crc16_update(uint16_t crc, uint8_t b) {
     return crc;
 }
 
-// available() 由两个互斥开关驱动（网页/miniled）：wirelessLinkEnabled 走 nRF24 路径，
-// bluetoothLinkEnabled 走 BLE 蓝牙路径；任一开启即启用 UART 链路。
+// available() 由蓝牙开关驱动（网页/miniled）：bluetoothLinkEnabled 走 BLE 蓝牙路径。
 // config_utils 初始化时已通过 INIT_UNSET_PROPERTY 写入板级默认值并置 has_ 标志，
 // 此处直接读取值即可。
 bool UARTLinkAddon::available() {
     const GamepadOptions& o = Storage::getInstance().getGamepadOptions();
-    return o.wirelessLinkEnabled || o.bluetoothLinkEnabled;
+    return o.bluetoothLinkEnabled;
 }
 
 void UARTLinkAddon::setup() {
@@ -35,11 +34,10 @@ void UARTLinkAddon::setup() {
 
         lastStatusSentUs = 0;
         lastInputMode = 0xFF;
-        lastLinkMode = 0xFF;
-        // 上电/重初始化默认 ESP32 离线：环境光立即按当前链路模式未配对闪烁，
+        // 上电/重初始化默认 ESP32 离线：环境光立即按蓝牙未连接闪烁，
         // 直到收到合法 LINK_STATUS 心跳（与 nrf24_link 上电默认离线策略一致）
         lastLinkStatusUs = 0;
-        Storage::getInstance().setUartLinkStatus(false, false, false);
+        Storage::getInstance().setUartLinkStatus(false, false);
         rxState = 0;
         rxType = 0;
         rxLen = 0;
@@ -78,40 +76,21 @@ void UARTLinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
     uart_write_blocking(uart0, frame, sizeof(frame));
 }
 
-void UARTLinkAddon::sendStatusFrame(uint8_t inputMode, uint8_t linkMode) {
-    // inputMode 真实——nRF 包 pkt[0] 来源 + BLE 设备类型选择依据；
-    // linkMode 真实——0=nRF24 路径，1=BLE 路径，ESP32 据此切换输出通道；
-    // 其余字段全部固定默认值（不读取设置），ESP32 仅显示用。
-    // LED/电池: 灯效用 GP2040-CE 自有配置，ESP32 显示 USB 供电满电。
-    const uint8_t frame[25] = {
-        LINK_FRAME_MAGIC,
-        LINK_FRAME_VERSION,
-        LINK_FRAME_TYPE_STATUS,
-        19,             // gamepad + LED + battery status + linkMode
-        0,              // socdMode: 默认(UPRIGHT)
-        0,              // dpadMode: 默认(DIGITAL)
-        inputMode,      // inputMode: 真实值
-        0,              // flags: invertX/Y/fourWay 全 0
-        5,              // debounce: 默认
-        0,              // animIndex: 默认
-        0xFF,           // brightness: 最大
-        0,              // staticColorIndex: 默认
-        0, 0,           // chaseCycle: 0
-        0, 0,           // rainbowCycle: 0
-        0,              // ledFlags: 0
-        0, 0,           // flowCycle: 0
-        (uint8_t)(4200 & 0xFF), (uint8_t)(4200 >> 8),  // battMv: 4200 满电
-        0x03,           // battFlags: valid + USB 供电
-        linkMode,       // payload[18]: 0=nRF24, 1=BLE
-        0, 0            // CRC 占位
-    };
-    uint8_t out[25];
-    memcpy(out, frame, sizeof(out));
+void UARTLinkAddon::sendStatusFrame(uint8_t inputMode) {
+    // inputMode 真实——BLE 设备类型选择依据；其余字段固定默认值。
+    uint8_t frame[9];
+    frame[0] = LINK_FRAME_MAGIC;
+    frame[1] = LINK_FRAME_VERSION;
+    frame[2] = LINK_FRAME_TYPE_STATUS;
+    frame[3] = 3;          // socdMode + dpadMode + inputMode
+    frame[4] = 0;          // socdMode: 默认(UPRIGHT)
+    frame[5] = 0;          // dpadMode: 默认(DIGITAL)
+    frame[6] = inputMode;  // inputMode: 真实值
     uint16_t crc = 0xFFFF;
-    for (int i = 1; i <= 22; i++) crc = crc16_update(crc, out[i]);
-    out[23] = (uint8_t)(crc & 0xFF);
-    out[24] = (uint8_t)(crc >> 8);
-    uart_write_blocking(uart0, out, sizeof(out));
+    for (int i = 1; i <= 6; i++) crc = crc16_update(crc, frame[i]);
+    frame[7] = (uint8_t)(crc & 0xFF);
+    frame[8] = (uint8_t)(crc >> 8);
+    uart_write_blocking(uart0, frame, sizeof(frame));
 }
 
 void UARTLinkAddon::handleRxByte(uint8_t b) {
@@ -150,7 +129,7 @@ void UARTLinkAddon::handleRxByte(uint8_t b) {
         case 6:
             if (b == (uint8_t)(rxCrcCalc >> 8) &&
                 rxCrcLo == (uint8_t)(rxCrcCalc & 0xFF) &&
-                rxType == LINK_FRAME_TYPE_LINK_STATUS && rxLen >= 3) {
+                rxType == LINK_FRAME_TYPE_LINK_STATUS && rxLen >= 1) {
                 handleLinkStatus();
             }
             // 其余帧类型校验通过与否都不分发
@@ -160,13 +139,10 @@ void UARTLinkAddon::handleRxByte(uint8_t b) {
 }
 
 void UARTLinkAddon::handleLinkStatus() {
-    // payload: [0]=outputMode(0=nRF,1=BLE) [1]=nrfLinked [2]=bleConnected
-    // 按 outputMode 二次门控：ESP32 已把非当前后端的状态字节清零，这里防御性再判一次，
-    // 避免后端切换瞬间的历史值导致灯效错误地常亮（已连接）。
-    const bool nrfLinked = (rxPayload[0] == 0) && (rxPayload[1] != 0);
-    const bool bleConnected = (rxPayload[0] == 1) && (rxPayload[2] != 0);
+    // payload: [0]=bleConnected(主机已连接)
+    const bool bleConnected = rxPayload[0] != 0;
     lastLinkStatusUs = to_us_since_boot(get_absolute_time());
-    Storage::getInstance().setUartLinkStatus(true, nrfLinked, bleConnected);
+    Storage::getInstance().setUartLinkStatus(true, bleConnected);
 }
 
 void UARTLinkAddon::process() {
@@ -180,7 +156,7 @@ void UARTLinkAddon::postprocess(bool sent) {
     (void)sent;
     if (!initialized) return;
     // 微秒计时：整数毫秒在 960~1000Hz 循环抖动下会产生同毫秒双跳过（帧间隔~2ms），
-    // 微秒粒度保证 nRF radio 每个 2ms 窗口必有新鲜帧。
+    // 微秒粒度保证 LINK_STATUS 500ms 离线判定与 STATUS 1s 心跳间隔准确。
     uint32_t now = to_us_since_boot(get_absolute_time());
 
     // ESP32 离线检测：LINK_STATUS 心跳（100ms）静默超过 500ms 判离线。
@@ -188,7 +164,7 @@ void UARTLinkAddon::postprocess(bool sent) {
     if (lastLinkStatusUs != 0 &&
         now - lastLinkStatusUs >= UART_LINK_STATUS_TIMEOUT_US) {
         lastLinkStatusUs = 0;
-        Storage::getInstance().setUartLinkStatus(false, false, false);
+        Storage::getInstance().setUartLinkStatus(false, false);
     }
 
     Gamepad* g = Storage::getInstance().GetProcessedGamepad();
@@ -201,20 +177,16 @@ void UARTLinkAddon::postprocess(bool sent) {
     uint8_t lt = (uint8_t)g->state.lt, rt = (uint8_t)g->state.rt;
 
     // 限流取消：主循环每轮 postprocess 都发一帧 INPUT（门控模式 ~960~1000Hz），
-    // 保证 nRF 每个 2ms 射频窗口 / BLE 每个连接事件都能取到最新输入。
+    // 保证 BLE 每个连接事件都能取到最新输入。
     sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt);
 
-    // inputMode/linkMode 变化立即上报 + 1s 心跳：
-    // inputMode 保证 nRF 包 pkt[0] 跟随真实输入模式、供 BLE 选设备类型；
-    // linkMode 告知 ESP32 输出路径（0=nRF24, 1=BLE）。
+    // inputMode 变化立即上报 + 1s 心跳：供 ESP32 选 BLE 设备类型。
     const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
     uint8_t inputMode = (uint8_t)options.inputMode;
-    uint8_t linkMode  = options.bluetoothLinkEnabled ? 1 : 0;
-    if (inputMode != lastInputMode || linkMode != lastLinkMode ||
+    if (inputMode != lastInputMode ||
         now - lastStatusSentUs >= UART_STATUS_HEARTBEAT_US) {
-        sendStatusFrame(inputMode, linkMode);
+        sendStatusFrame(inputMode);
         lastInputMode = inputMode;
-        lastLinkMode = linkMode;
         lastStatusSentUs = now;
     }
 }

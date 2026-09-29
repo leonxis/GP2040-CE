@@ -75,10 +75,9 @@ public:
 	bool isNrf24LinkUp() const;
 
 	/** UART companion (ESP32) link status, written on Core0, read from Core1 NeoPico.
-	 *  online = fresh LINK_STATUS heartbeat; nrfLinked/bleConnected = paired on active backend. */
-	void setUartLinkStatus(bool online, bool nrfLinked, bool bleConnected);
+	 *  online = fresh LINK_STATUS heartbeat; bleConnected = BLE host connected. */
+	void setUartLinkStatus(bool online, bool bleConnected);
 	bool isUartStatusOnline() const;
-	bool isUartNrfLinked() const;
 	bool isUartBleConnected() const;
 
 private:
@@ -94,7 +93,6 @@ private:
 	std::atomic<bool> ambientWebConfigOverrideActive { false };
 	std::atomic<bool> nrf24LinkUp { false };
 	std::atomic<bool> uartStatusOnline { false };
-	std::atomic<bool> uartNrfLinked { false };
 	std::atomic<bool> uartBleConnected { false };
 };
 

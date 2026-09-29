@@ -161,7 +161,6 @@ static inline bool shouldUseMainLoopGate() {
 		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B ||
 		 inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
 	const bool noWireless =
-		!gamepadOptions.wirelessLinkEnabled &&
 		!gamepadOptions.bluetoothLinkEnabled &&
 		!gamepadOptions.nrf24LinkEnabled;
 	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode && noWireless;

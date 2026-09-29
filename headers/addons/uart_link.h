@@ -4,10 +4,6 @@
 #include "gpaddon.h"
 #include "BoardConfig.h"
 
-#ifndef DEFAULT_WIRELESS_LINK_ENABLED
-#define DEFAULT_WIRELESS_LINK_ENABLED 0
-#endif
-
 #ifndef DEFAULT_BLUETOOTH_LINK_ENABLED
 #define DEFAULT_BLUETOOTH_LINK_ENABLED 0
 #endif
@@ -26,12 +22,10 @@
 
 // ---- frame protocol (shared with ESP32 side) ----
 // 帧格式: 0xAA + version + type + len + payload + CRC16(CCITT-FALSE)
-// STATUS 帧 payload: [2]=inputMode（nRF 包模式字节 / BLE 设备类型选择），
-//                    [18]=linkMode（0=nRF24 路径，1=BLE 路径），len=19，帧长 25
-// LINK_STATUS 帧（ESP32 -> Pico，type=0x0B，len=3，帧长 9）:
-//   [0]=outputMode(0=nRF24,1=BLE) [1]=nrfLinked(接收端 ACK 去抖)
-//   [2]=bleConnected(主机已连接)
-//   非当前后端的状态字节 ESP32 强制为 0；Pico 侧再按 outputMode 做一次门控。
+// STATUS 帧 payload: [0]=socdMode(固定0) [1]=dpadMode(固定0) [2]=inputMode
+//                    （BLE 设备类型选择依据），len=3，帧长 9
+// LINK_STATUS 帧（ESP32 -> Pico，type=0x0B，len=1，帧长 7）:
+//   [0]=bleConnected(主机已连接)
 // 发射端 RP2040 发送 INPUT/STATUS；接收方向仅处理 LINK_STATUS（驱动未配对灯效），
 // ACK/CONFIG/CONFIG_ACK/LED/ESP_SAVE/ESP_LOAD/ESP_LOAD_REQ/MUTE 帧一律不处理，
 // 仅做帧同步与 CRC 校验后丢弃。
@@ -49,10 +43,10 @@
 #define LINK_FRAME_TYPE_MUTE 0x0A
 #define LINK_FRAME_TYPE_LINK_STATUS 0x0B
 
-// STATUS 帧心跳间隔（微秒）：inputMode/linkMode 变化即发，空闲时 1s 保底
+// STATUS 帧心跳间隔（微秒）：inputMode 变化即发，空闲时 1s 保底
 #define UART_STATUS_HEARTBEAT_US  1000000
 // ESP32 LINK_STATUS 心跳 100ms；超过 500ms（连续 5 帧丢失）判 ESP32 离线，
-// 未配对灯效按 Pico 当前请求的链路模式闪烁。
+// 未配对灯效按蓝牙未连接/伴侣缺失闪烁。
 #define UART_LINK_STATUS_TIMEOUT_US 500000
 
 class UARTLinkAddon : public GPAddon {
@@ -68,16 +62,14 @@ private:
     void sendInputFrame(uint16_t buttons, uint8_t dpad,
                         uint16_t lx, uint16_t ly, uint16_t rx, uint16_t ry,
                         uint8_t lt, uint8_t rt);
-    // STATUS 帧: inputMode 与 linkMode 真实，其余字段全部固定默认值（协议兼容 ESP32 解析）
-    // linkMode: 0=nRF24 输出路径（无线连接开关），1=BLE 蓝牙输出路径（蓝牙模式开关）
-    void sendStatusFrame(uint8_t inputMode, uint8_t linkMode);
+    // STATUS 帧: 仅 inputMode 真实，其余字段固定默认值（ESP32 据此选 BLE 设备类型）
+    void sendStatusFrame(uint8_t inputMode);
     void handleRxByte(uint8_t b);
-    // LINK_STATUS 帧（ESP32 后端配对/连接状态）：刷新时间戳并发布到 Storage
+    // LINK_STATUS 帧（ESP32 BLE 主机连接状态）：刷新时间戳并发布到 Storage
     void handleLinkStatus();
     bool initialized = false;
     uint32_t lastStatusSentUs;
     uint8_t lastInputMode;
-    uint8_t lastLinkMode;
     // 最近一次收到合法 LINK_STATUS 帧的时间（0=从未收到/已超时），驱动未配对灯效
     uint32_t lastLinkStatusUs;
     uint8_t rxState;    // 0 idle, 1 ver, 2 type, 3 len, 4 payload, 5 crcLo, 6 crcHi

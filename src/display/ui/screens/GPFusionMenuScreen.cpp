@@ -134,24 +134,10 @@ static void sGyro(int v) {
 static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
 static void sUsbAuth(int v) {
     POP().blockUSB0.enabled = v ? 1 : 0;
-    // 四互斥：开启 USB 验证器时自动关闭无线连接、蓝牙模式与无线模式（GPIO8/9 复用冲突）
-    if (v) {
-        GOP().wirelessLinkEnabled = false;
-        GOP().bluetoothLinkEnabled = false;
-        GOP().nrf24LinkEnabled = false;
-    }
-    needsReboot = true;
-}
-
-// 无线连接开关（nRF24 输出路径，对应网页 硬件配置 中的 无线连接开关）
-static int gWireless() { return GOP().wirelessLinkEnabled ? 1 : 0; }
-static void sWireless(int v) {
-    GOP().wirelessLinkEnabled = v ? true : false;
-    // 四互斥：开启无线时自动关闭蓝牙模式、无线模式与 USB 验证器（GPIO8/9 复用冲突）
+    // 三互斥：开启 USB 验证器时自动关闭蓝牙模式与无线模式（GPIO18/19 复用冲突）
     if (v) {
         GOP().bluetoothLinkEnabled = false;
         GOP().nrf24LinkEnabled = false;
-        POP().blockUSB0.enabled = 0;
     }
     needsReboot = true;
 }
@@ -160,9 +146,8 @@ static void sWireless(int v) {
 static int gBle() { return GOP().bluetoothLinkEnabled ? 1 : 0; }
 static void sBle(int v) {
     GOP().bluetoothLinkEnabled = v ? true : false;
-    // 四互斥：开启蓝牙时自动关闭无线连接、无线模式与 USB 验证器（GPIO8/9 复用冲突）
+    // 三互斥：开启蓝牙时自动关闭无线模式与 USB 验证器（GPIO18/19 复用冲突）
     if (v) {
-        GOP().wirelessLinkEnabled = false;
         GOP().nrf24LinkEnabled = false;
         POP().blockUSB0.enabled = 0;
     }
@@ -173,9 +158,8 @@ static void sBle(int v) {
 static int gNrf24() { return GOP().nrf24LinkEnabled ? 1 : 0; }
 static void sNrf24(int v) {
     GOP().nrf24LinkEnabled = v ? true : false;
-    // 四互斥：开启 nRF24 直连时自动关闭无线连接、蓝牙与 USB 验证器
+    // 三互斥：开启 nRF24 直连时自动关闭蓝牙与 USB 验证器
     if (v) {
-        GOP().wirelessLinkEnabled = false;
         GOP().bluetoothLinkEnabled = false;
         POP().blockUSB0.enabled = 0;
     }
@@ -464,7 +448,6 @@ static LiteOpt optHandle[] = {
   {"背键映射", OPT_SUBMENU, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
   {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
   {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
-  {"无线连接", OPT_BOOL, 0, 1, 1, NULL, 0, "", gWireless, sWireless},
   {"BLE模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gBle, sBle},
   {"无线模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gNrf24, sNrf24},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},

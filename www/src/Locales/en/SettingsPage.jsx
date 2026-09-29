@@ -239,9 +239,6 @@ export default {
 		'Turns off the display and related interface. For PS5G, disabling the display can help reach 1000 Hz report rate.',
 	'hml-two-key-touchpad-label': '2-key touchpad',
 	'hml-two-key-touchpad-hint': 'Same as 4-key touchpad; disables the display.',
-	'hml-wireless-link-label': '2.4G Wireless',
-	'hml-wireless-link-hint':
-		'Requires an external wireless expansion board plugged into the controller USB port, plus a wireless receiver on the PC/console. For consoles, a verifier must be plugged into the receiver.',
 	'hml-bluetooth-link-label': 'Bluetooth Wireless',
 	'hml-bluetooth-link-hint':
 		'Requires an external wireless expansion board plugged into the controller USB port. Connect from PC or phone via Bluetooth.',

@@ -214,7 +214,7 @@ export default {
 	'hml-two-key-touchpad-hint': '4キーと同様で、ディスプレイを無効にします。',
 	'hml-nrf24-link-label': '無線モード',
 	'hml-nrf24-link-hint':
-		'nRF24 直結無線（SPI0）を有効化。ホスト側に 2.4G レシーバーが必要',
+		'nRF24 直結無線（SPI1）を有効化。ホスト側に 2.4G レシーバーが必要',
 	'hml-report-rate-label': '報告率',
 	'hml-report-rate-hint': 'ホスト接続の報告率。ジャイロ有効時は実効率が下がる可能性があります。',
 	'hml-screen-customization-button': '画面のカスタマイズ',
