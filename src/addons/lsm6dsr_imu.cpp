@@ -61,7 +61,6 @@ static constexpr float kOneEuroTau = 1.0f / (2.0f * 3.14159265f * LSM6DSR_ONE_EU
 // 按需读取用（网页模式下 preprocess 不运行，API 调用时现场读一次）
 static PeripheralSPI* s_spi = nullptr;
 static int8_t s_csPin = -1;
-static SPIBaudrateProfile s_spiProfile;
 
 static inline int16_t read16LE(const uint8_t* p) {
 	return (int16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
@@ -81,8 +80,8 @@ static inline float lsm6dsr_compute_dt_s(uint64_t nowUs, uint64_t& lastUs) {
 
 static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
 	// 与逐字节 transfer(0) 等价：首字节 RX 丢弃，后续 len 字节为寄存器数据（IF_INC）
+	// SPI 速率/模式在 setup 统一配置（8MHz/MODE0，与 nRF24 共享），此处不再切换
 	if (len == 0 || len > 12) return;
-        spi->beginTransaction(s_spiProfile, SPI_MSB_FIRST, SPI_MODE0);
 	spi->select(csPin);
 	uint8_t tx[13];
 	uint8_t rx[13];
@@ -94,7 +93,6 @@ static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* 
 }
 
 static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t val) {
-        spi->beginTransaction(s_spiProfile, SPI_MSB_FIRST, SPI_MODE0);
 	spi->select(csPin);
 	spi->transfer(reg);
 	spi->transfer(val);
@@ -107,17 +105,13 @@ bool LSM6DSRIMUAddon::available() {
 		return false;
 	}
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-	if (!opts.enabled) return false;
-	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(LSM6DSR_HW_SPI_BLOCK);
-	if (!PeripheralManager::getInstance().isSPIEnabled(LSM6DSR_HW_SPI_BLOCK) || !spi || !spi->configured)
-		return false;
-	return true;
+	// SPI1 在 setup() 内按 BoardConfig 引脚自行初始化，不依赖外设开关或其他插件
+	return opts.enabled;
 }
 
 void LSM6DSRIMUAddon::setup() {
 	s_spi = nullptr;
 	s_csPin = -1;
-        s_spiProfile = {};
 
 	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
 	if (!opts.enabled) {
@@ -126,18 +120,23 @@ void LSM6DSRIMUAddon::setup() {
 		return;
 	}
 	csPin = LSM6DSR_HW_CS_PIN;
-	spi = PeripheralManager::getInstance().getSPI(LSM6DSR_HW_SPI_BLOCK);
-	if (!spi || !spi->configured) {
+	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(LSM6DSR_HW_SPI_BLOCK);
+	if (!spi) {
 		spi = nullptr;
 		csPin = -1;
 		return;
 	}
-        s_spiProfile = spi->makeBaudrateProfile(LSM6DSR_SPI_HZ);
-        if (!s_spiProfile.valid()) {
-                spi = nullptr;
-                csPin = -1;
-                return;
-        }
+	// 若 SPI1 尚未由 PeripheralManager 初始化（外设开关关闭/初始化顺序差异），
+	// 插件在 setup 阶段按 BoardConfig SPI1 引脚自行初始化，不依赖任何一方先配置。
+	if (!spi->configured) {
+		spi->setConfig(LSM6DSR_HW_SPI_BLOCK, SPI1_PIN_TX, SPI1_PIN_RX, SPI1_PIN_SCK, SPI1_PIN_CS);
+	}
+	if (!spi->configured) {
+		spi = nullptr;
+		csPin = -1;
+		return;
+	}
+	this->spi = spi;
 	offsetGyroX = opts.offsetGyroX;
 	offsetGyroY = opts.offsetGyroY;
 	offsetGyroZ = opts.offsetGyroZ;
@@ -171,8 +170,9 @@ void LSM6DSRIMUAddon::setup() {
 	imuHistoryIndex = 0;
 	memset(imuHistory, 0, sizeof(imuHistory));
 
-        // LSM6DSR and MCP3208 share MODE0; only their baudrate differs.
-        spi->beginTransaction(s_spiProfile, SPI_MSB_FIRST, SPI_MODE0);
+	// LSM6DSR 与 nRF24 同为 8MHz/MODE0/MSB：整根 SPI1 总线统一配置，setup 仅
+	// 设置一次，运行期不再切换速率/模式。
+	spi->beginTransaction(LSM6DSR_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 
 	// Disable FIFO (避免延迟), I3C, High Performance, ODR 1666 Hz, 4g acc, 500 dps gyro, BDU+IF_INC
 	// CTRL2_G: 0x84 = ODR 1.66kHz (0b10) + FS 500 dps (0b01) → 17.5 mdps/LSB

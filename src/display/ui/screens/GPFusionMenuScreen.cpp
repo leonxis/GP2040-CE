@@ -121,7 +121,14 @@ static void sColor(int v) {
 static int gLedOff() { return LOP().turnOffWhenSuspended ? 1 : 0; }
 static void sLedOff(int v) { LOP().turnOffWhenSuspended = v ? true : false; }
 static int gGyro() { return AOP2().lsm6dsrOptions.enabled ? 1 : 0; }
-static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; needsReboot = true; }
+static void sGyro(int v) {
+    AOP2().lsm6dsrOptions.enabled = v ? true : false;
+    // SPI1 由 LSM6DSR 体感与 nRF24 直连共享：任一开启即使能，全关才关闭
+    POP().blockSPI1.enabled =
+        AOP2().lsm6dsrOptions.enabled ||
+        GOP().nrf24LinkEnabled;
+    needsReboot = true;
+}
 
 // USB 验证器开关（对应网页配置 GNS设置-硬件配置 中的 USB验证器，即 blockUSB0.enabled）
 static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
@@ -162,7 +169,7 @@ static void sBle(int v) {
     needsReboot = true;
 }
 
-// 无线模式开关（nRF24 直连 SPI0，对应网页 硬件配置 中的 无线模式开关）
+// 无线模式开关（nRF24 直连 SPI1，对应网页 硬件配置 中的 无线模式开关）
 static int gNrf24() { return GOP().nrf24LinkEnabled ? 1 : 0; }
 static void sNrf24(int v) {
     GOP().nrf24LinkEnabled = v ? true : false;
@@ -172,6 +179,10 @@ static void sNrf24(int v) {
         GOP().bluetoothLinkEnabled = false;
         POP().blockUSB0.enabled = 0;
     }
+    // SPI1 由 nRF24 直连与 LSM6DSR 体感共享：任一开启即使能，全关才关闭
+    POP().blockSPI1.enabled =
+        GOP().nrf24LinkEnabled ||
+        Storage::getInstance().getAddonOptions().lsm6dsrOptions.enabled;
     needsReboot = true;
 }
 

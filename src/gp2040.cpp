@@ -669,10 +669,10 @@ void GP2040::setup() {
 	addons.LoadAddon(new UARTLinkAddon());
 
 	// nRF24 板载模块引脚安全固定（无论 nrf24_link 插件是否启用）：CE=0、CSN=1。
-	// 插件未加载时 SPI0 不初始化（BoardConfig SPI0_ENABLED=0），GPIO0/1 为复位高阻；
-	// nRF 模块常供电，上电默认 Power Down 本不发射，但 CSN 浮空存在噪声伪写 CONFIG
-	// 寄存器使芯片意外上电的理论风险——固定后彻底静默，杜绝与 ESP32 侧 nRF 同信道
-	// 干扰。插件启用时其 setup() 会重新接管这两个引脚，无冲突。
+	// 插件未加载时其 SPI1 上的 CSN(GPIO6)/CE(GPIO9) 无人驱动；nRF 模块常供电，
+	// 上电默认 Power Down 本不发射，但 CSN 浮空存在噪声伪写 CONFIG 寄存器使芯片
+	// 意外上电的理论风险——固定后彻底静默，杜绝与 ESP32 侧 nRF 同信道干扰。
+	// 插件启用时其 setup() 会重新接管这两个引脚，无冲突。
 	gpio_init(NRF24_HW_CE_PIN);
 	gpio_set_dir(NRF24_HW_CE_PIN, GPIO_OUT);
 	gpio_put(NRF24_HW_CE_PIN, 0);

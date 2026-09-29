@@ -1106,7 +1106,7 @@ std::string setGamepadOptions()
     readDoc(gamepadOptions.bluetoothLinkEnabled, doc, "bluetoothLinkEnabled");
     readDoc(gamepadOptions.nrf24LinkEnabled, doc, "nrf24LinkEnabled");
     // 四开关硬件互斥：
-    //  - nRF24 直连(SPI0) 与 uart_link 无线(UART1) 与 蓝牙(UART1) 与 USB验证器(USB0 D+/D-) 互斥。
+    //  - nRF24 直连(SPI1) 与 uart_link 无线(UART0) 与 蓝牙(UART0) 与 USB验证器(USB0 D+/D-) 互斥。
     //  - 优先级：nRF24直连 > uart_link 无线 > 蓝牙 > USB验证器。
     PeripheralOptions& peripheralOptions = Storage::getInstance().getPeripheralOptions();
     if (gamepadOptions.nrf24LinkEnabled) {
@@ -1119,6 +1119,11 @@ std::string setGamepadOptions()
     } else if (gamepadOptions.bluetoothLinkEnabled) {
         peripheralOptions.blockUSB0.enabled = 0;
     }
+    // SPI1 由 nRF24 直连与 LSM6DSR 体感共享：任一开启保持使能，全关才关闭。
+    // SPI0 固定分配给 MCP3208 摇杆 ADC，不与 nRF24 联动。
+    peripheralOptions.blockSPI1.enabled =
+        gamepadOptions.nrf24LinkEnabled ||
+        Storage::getInstance().getAddonOptions().lsm6dsrOptions.enabled;
     readDoc(gamepadOptions.wirelessPaired, doc, "wirelessPaired");
 
 
@@ -2488,6 +2493,11 @@ std::string setAddonOptions()
 
     LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
     docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
+    // SPI1 由 LSM6DSR 体感与 nRF24 直连共享：体感开关变化时同步 SPI1 使能位
+    // （任一开启保持使能，全关才关闭），重启后由 config_utils 归一化兜底。
+    Storage::getInstance().getPeripheralOptions().blockSPI1.enabled =
+        lsm6dsrOptions.enabled ||
+        Storage::getInstance().getGamepadOptions().nrf24LinkEnabled;
     docToValue(lsm6dsrOptions.outputMode, doc, "lsm6dsrOutputMode");
     docToValue(lsm6dsrOptions.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
     docToValue(lsm6dsrOptions.offsetGyroY, doc, "lsm6dsrOffsetGyroY");

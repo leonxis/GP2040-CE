@@ -28,7 +28,7 @@
 #define GPIO_PIN_27 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
 #define GPIO_PIN_32 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
 #define GPIO_PIN_37 GpioAction::BUTTON_PRESS_R3     // R3     | RS     | RS      | R3       | 12     | RS     |
-#define GPIO_PIN_06 GpioAction::BUTTON_PRESS_L3     // L3     | LS     | LS      | L3       | 11     | LS     |
+#define GPIO_PIN_04 GpioAction::BUTTON_PRESS_L3     // L3     | LS     | LS      | L3       | 11     | LS     |
 #define GPIO_PIN_24 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
 #define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
 // Keyboard Mapping Configuration
@@ -54,20 +54,24 @@
 #define KEY_BUTTON_FN   -1                    // Hotkey Function                                        |
 
 // Setting GPIO pins to assigned by add-on
-#define GPIO_PIN_00 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-CE
-#define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-CS
-#define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-SCK
-#define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-TX
-#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // SPI0 nrf-RX
-#define GPIO_PIN_08 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-RX
-#define GPIO_PIN_09 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-CS
-#define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-TX
-#define GPIO_PIN_13 GpioAction::ASSIGNED_TO_ADDON // SPI1 LSM-CS
-#define GPIO_PIN_14 GpioAction::ASSIGNED_TO_ADDON // SPI1 MCP-SCK
+#define GPIO_PIN_00 GpioAction::ASSIGNED_TO_ADDON // SPI0 MCP3208-RX
+#define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 MCP3208-CS
+#define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 MCP3208-SCK
+#define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 MCP3208-TX
+
+#define GPIO_PIN_08 GpioAction::ASSIGNED_TO_ADDON // SPI1 NRF/LSM6-RX
+#define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON // SPI1 NRF/LSM6-TX
+#define GPIO_PIN_14 GpioAction::ASSIGNED_TO_ADDON // SPI1 NRF/LSM6-SCK
+#define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON // SPI1 NRF-CS
+#define GPIO_PIN_09 GpioAction::ASSIGNED_TO_ADDON // SPI1 NRF-CE
+#define GPIO_PIN_13 GpioAction::ASSIGNED_TO_ADDON // SPI1 LSM6-CS
+
 #define GPIO_PIN_16 GpioAction::ASSIGNED_TO_ADDON // I2C0 SDA
 #define GPIO_PIN_25 GpioAction::ASSIGNED_TO_ADDON // I2C0 SCL
+
 #define GPIO_PIN_18 GpioAction::ASSIGNED_TO_ADDON // D+/UART0-TX
 #define GPIO_PIN_19 GpioAction::ASSIGNED_TO_ADDON // D-/UART0-RX
+
 #define GPIO_PIN_29 GpioAction::ASSIGNED_TO_ADDON //LED
 // 背键/FN/MT GPIO 归插件管理，不参与主 GPIO 表与按键预设
 #define GPIO_PIN_38 GpioAction::ASSIGNED_TO_ADDON // 右MT (RMT)
@@ -81,11 +85,11 @@
 #define GPIO_PIN_35 GpioAction::ASSIGNED_TO_ADDON // 左背键3
 #define GPIO_PIN_36 GpioAction::ASSIGNED_TO_ADDON // 右背键3
 
-// SPI0: nRF24 直连启用，RX=GPIO4, CS=GPIO1, SCK=GPIO2, TX=GPIO3, CE=GPIO0
+// SPI0: 当前启用，分配给 MCP3208（CS=1, SCK=2, TX=3, RX=0）
 #ifdef SPI0_ENABLED
 #undef SPI0_ENABLED
 #endif
-#define SPI0_ENABLED 0
+#define SPI0_ENABLED 1
 
 #ifdef SPI0_PIN_RX
 #undef SPI0_PIN_RX
@@ -99,13 +103,13 @@
 #ifdef SPI0_PIN_TX
 #undef SPI0_PIN_TX
 #endif
-#define SPI0_PIN_CE 0
 #define SPI0_PIN_CS 1
 #define SPI0_PIN_SCK 2
 #define SPI0_PIN_TX 3
-#define SPI0_PIN_RX 4
+#define SPI0_PIN_RX 0
 
-// SPI1: MCP3208+LSM6DSRTR开启，RX=GPIO8, MCP-CS=GPIO9, LSM-CS=GPIO13, SCK=GPIO14, TX=GPIO11
+// SPI1: LSM6DSRTR(CS=GPIO13) + nRF24(CS=GPIO6, CE=GPIO9) 共用
+// SCK=GPIO14, TX=GPIO11, RX=GPIO8（从外设配置读取）；两设备均为 8MHz/MODE0
 #ifdef SPI1_ENABLED
 #undef SPI1_ENABLED
 #endif
@@ -123,14 +127,15 @@
 #ifdef SPI1_PIN_TX
 #undef SPI1_PIN_TX
 #endif
-#define SPI1_PIN_CS1 13
-#define SPI1_PIN_CS 9
-#define SPI1_PIN_SCK 14
-#define SPI1_PIN_TX 11
-#define SPI1_PIN_RX 8
+#define SPI1_PIN_NRF_CS  6    // nRF24 CSN
+#define SPI1_PIN_NRF_CE  9    // nRF24 CE（非 SPI CS，插件手动 GPIO 驱动）
+#define SPI1_PIN_CS      13   // LSM6DSRTR CS
+#define SPI1_PIN_SCK     14
+#define SPI1_PIN_TX      11
+#define SPI1_PIN_RX      8
 
-// MCP3208 摇杆 ADC 插件恒启用（SPI1/CS 由 BoardConfig SPI1_PIN_CS 提供）
-// LSM6 插件默认：关闭（SPI1/CS1 由 BoardConfig SPI1_PIN_CS1 提供）
+// MCP3208 摇杆 ADC 插件恒启用（SPI0/CS 由 BoardConfig SPI0_PIN_CS 提供）
+// LSM6 插件默认：关闭（SPI1/CS 由 BoardConfig SPI1_PIN_CS 提供）
 #define LSM6DSR_DEFAULT_ENABLED 0
 
 // 线性扳机 ADC 引脚：RP2350 ADC 基址=GPIO40，GPIO41=ch1(L2)，GPIO42=ch2(R2)
@@ -228,7 +233,7 @@
 #define DEFAULT_BLUETOOTH_LINK_ENABLED 0
 // --- 无线连接开关板级默认值为关闭（与UART链路开关复用） ---
 #define DEFAULT_WIRELESS_LINK_ENABLED 0
-// --- nRF24 直连无线模式开关板级默认值为关闭（SPI0 直驱，与无线连接/蓝牙三互斥）---
+// --- nRF24 直连无线模式开关板级默认值为关闭（SPI1 直驱 CS=GPIO6/CE=GPIO9，与无线连接/蓝牙三互斥）---
 #define DEFAULT_NRF24_LINK_ENABLED 0
 
 // PS AUTH

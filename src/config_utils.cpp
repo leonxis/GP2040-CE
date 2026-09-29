@@ -562,8 +562,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(peripheralOptions.blockI2C1, speed, I2C1_SPEED);
 
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, enabled, (!!SPI0_ENABLED));
-    // 引脚始终保留 BoardConfig 默认值（即使 SPI0 禁用）：
-    // nRF24 直连等插件通过外设映射开关在运行时启用 SPI0，需要直接拿到板级引脚。
+    // SPI0 固定分配给 MCP3208，外设映射页面显示真实板级引脚。
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, rx, SPI0_PIN_RX);
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, cs, SPI0_PIN_CS);
     INIT_UNSET_PROPERTY(peripheralOptions.blockSPI0, sck, SPI0_PIN_SCK);
@@ -1997,7 +1996,7 @@ void ConfigUtils::load(Config& config)
     initUnsetPropertiesWithDefaults(config);
 
     // 四开关硬件互斥归一化：
-    //  - nRF24 直连(SPI0) 与 uart_link 无线(UART1) 与 蓝牙(UART1) 与 USB验证器(USB0 D+/D-) 互斥。
+    //  - nRF24 直连(SPI1) 与 uart_link 无线(UART0) 与 蓝牙(UART0) 与 USB验证器(USB0 D+/D-) 互斥。
     //  - 优先级：nRF24直连 > uart_link 无线 > 蓝牙 > USB验证器；兜底绕过 UI 写入的脏配置。
     if (config.gamepadOptions.nrf24LinkEnabled) {
         config.gamepadOptions.wirelessLinkEnabled = false;
@@ -2009,6 +2008,12 @@ void ConfigUtils::load(Config& config)
     } else if (config.gamepadOptions.bluetoothLinkEnabled) {
         config.peripheralOptions.blockUSB0.enabled = false;
     }
+
+    // SPI1 由 nRF24 直连（板载无线）与 LSM6DSR 体感共享：两者任一开启都必须保持
+    // SPI1 使能，只有两者全部关闭时才关闭 SPI1。
+    config.peripheralOptions.blockSPI1.enabled =
+        config.gamepadOptions.nrf24LinkEnabled ||
+        config.addonOptions.lsm6dsrOptions.enabled;
 
     // Run migrations that need to happen after initUnset...
     // ProtoBuf && Board Config settings are loaded here

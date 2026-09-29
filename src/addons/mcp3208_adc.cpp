@@ -11,7 +11,7 @@ static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
 
 bool MCP3208ADCAddon::available() {
     // Always enabled: no persisted user toggle. Only activates when the
-    // fixed SPI peripheral is provided by the board configuration.
+    // fixed SPI0 peripheral is provided by the board configuration.
     return PeripheralManager::getInstance().isSPIEnabled(MCP3208_HW_SPI_BLOCK);
 }
 
@@ -71,7 +71,6 @@ bool MCP3208ADCAddon::getRawStickForProcessor(
 void MCP3208ADCAddon::setup() {
     s_instance = this;
     spi_ = nullptr;
-    spiProfile_ = {};
     spiOk_ = false;
     csPin_ = -1;
     // Initialize stick channels to center so first frame is neutral.
@@ -88,28 +87,20 @@ void MCP3208ADCAddon::setup() {
     stick_channels_[0] = {0, 1}; // stick0: CH0/CH1 (VRX/VRY)
     stick_channels_[1] = {7, 6}; // stick1: CH7/CH6 (VRX/VRY)
 
-    // Fixed HML wiring: SPI1 / CS from BoardConfig SPI1_PIN_CS.
+    // Fixed HML wiring: SPI0 独占 / CS from BoardConfig SPI0_PIN_CS。
+    // SPI0_ENABLED=1，PeripheralManager 已在插件加载前完成初始化。
     csPin_ = MCP3208_HW_CS_PIN;
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(MCP3208_HW_SPI_BLOCK);
     if (!spi || !spi->configured) return;
     spi_ = spi;
-    spiProfile_ = spi_->makeBaudrateProfile(MCP3208_SPI_HZ);
-    if (!spiProfile_.valid()) return;
-    spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE0);
+    // SPI0 由 MCP3208 独占：1.5MHz/MODE0/MSB 仅在 setup 配置一次，运行时不再切频。
+    spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 
     spiOk_ = true;
 }
 
-bool MCP3208ADCAddon::prepareSPITransaction() {
-    if (!spi_ || !spiOk_ || !spiProfile_.valid()) {
-        return false;
-    }
-    spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE0);
-    return true;
-}
-
 void MCP3208ADCAddon::process() {
-    if (!prepareSPITransaction()) {
+    if (!spi_ || !spiOk_) {
         return;
     }
 

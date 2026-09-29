@@ -8,11 +8,12 @@
 
 #define LSM6DSR_IMU_ADDON_NAME "LSM6DSR IMU"
 
-// HML 固定接线：与 MCP3208 共用 SPI1（SCK/TX/RX 从网页前端读取），LSM6 CS 来自 BoardConfig SPI1_PIN_CS1。
-// LSM6DSR 使用 MODE0；与 MCP3208 共线时仅需切换 SPI 频率。
-#define LSM6DSR_SPI_HZ      10000000u
+// HML 固定接线：与 nRF24 共用 SPI1（SCK/TX/RX 从 BoardConfig/外设配置读取），
+// LSM6 CS 来自 BoardConfig SPI1_PIN_CS（GPIO13）。LSM6DSR 使用 MODE0/8MHz，
+// 与 nRF24 完全一致，故 SPI 速率/模式仅在 setup 配置一次，运行中不再切换。
+#define LSM6DSR_SPI_HZ      8000000u
 static constexpr uint8_t LSM6DSR_HW_SPI_BLOCK = 1;
-static constexpr int8_t LSM6DSR_HW_CS_PIN = SPI1_PIN_CS1;
+static constexpr int8_t LSM6DSR_HW_CS_PIN = SPI1_PIN_CS;
 
 
 // 供 webconfig 按需读取 6 轴 RAW（已应用校准偏移；网页模式下主循环不跑 addon preprocess，故 API 内做一次 SPI 读取）

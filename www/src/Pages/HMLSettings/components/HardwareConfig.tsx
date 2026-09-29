@@ -49,6 +49,9 @@ export default function HardwareConfig() {
 			spi0: {
 				enabled: 0,
 			},
+			spi1: {
+				enabled: 0,
+			},
 		},
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
@@ -79,6 +82,8 @@ export default function HardwareConfig() {
 	const [wirelessLinkEnabled, setWirelessLinkEnabled] = useState(0);
 	const [bluetoothLinkEnabled, setBluetoothLinkEnabled] = useState(0);
 	const [nrf24LinkEnabled, setNrf24LinkEnabled] = useState(0);
+	// 体感（LSM6DSR）总开关：来自体感设置页 AddonsOptions，与板载无线共同决定 SPI1 使能
+	const [lsm6AddonEnabled, setLsm6AddonEnabled] = useState(0);
 
 	const [hostSaveMessage, setHostSaveMessage] = useState('');
 	const [ledSaveMessage, setLedSaveMessage] = useState('');
@@ -170,25 +175,30 @@ export default function HardwareConfig() {
 					),
 				});
 				// 无线连接 / 蓝牙模式 / nRF24 直连开关：默认关闭（无值为 0）
-			setWirelessLinkEnabled(Number(gamepad?.wirelessLinkEnabled) ? 1 : 0);
-			setBluetoothLinkEnabled(Number(gamepad?.bluetoothLinkEnabled) ? 1 : 0);
-			const nrf24Enabled = Number(gamepad?.nrf24LinkEnabled) ? 1 : 0;
-			setNrf24LinkEnabled(nrf24Enabled);
+		setWirelessLinkEnabled(Number(gamepad?.wirelessLinkEnabled) ? 1 : 0);
+		setBluetoothLinkEnabled(Number(gamepad?.bluetoothLinkEnabled) ? 1 : 0);
+		const nrf24Enabled = Number(gamepad?.nrf24LinkEnabled) ? 1 : 0;
+		setNrf24LinkEnabled(nrf24Enabled);
+		// 体感总开关（与体感设置页同一 AddonsOptions 字段）
+		const lsm6Enabled = Number(addons?.LSM6DSRAddonEnabled) ? 1 : 0;
+		setLsm6AddonEnabled(lsm6Enabled);
 
-			// 同步无线模式(nRF24 直连)和 SPI0 的启用状态
-			// 如果两者不一致，以无线模式开关为准
-			if (nrf24Enabled !== peripheral.peripheral?.spi0?.enabled) {
-				setPeripheralOptions((prev) => ({
-					...prev,
-					peripheral: {
-						...prev.peripheral,
-						spi0: {
-							...prev.peripheral?.spi0,
-							enabled: nrf24Enabled,
-						},
+		// SPI1 由 nRF24 直连（板载无线）与 LSM6DSR 体感共享：
+		// 两者任一开启即保持 SPI1 使能，全部关闭才关闭；与设备当前值不一致时同步。
+		// SPI0 固定分配给 MCP3208 摇杆 ADC，本页不改其使能位。
+		const spi1Enabled = nrf24Enabled || lsm6Enabled ? 1 : 0;
+		if (spi1Enabled !== Number(peripheral.peripheral?.spi1?.enabled)) {
+			setPeripheralOptions((prev) => ({
+				...prev,
+				peripheral: {
+					...prev.peripheral,
+					spi1: {
+						...prev.peripheral?.spi1,
+						enabled: spi1Enabled,
 					},
-				}));
-			}
+				},
+			}));
+		}
 			} catch (error) {
 				console.error('Failed to fetch hardware config:', error);
 			} finally {
@@ -216,9 +226,14 @@ export default function HardwareConfig() {
 					...currentPeripheralOptions.peripheral.i2c0,
 					enabled: peripheralOptions.peripheral?.i2c0?.enabled || 0,
 				},
+				// SPI0 固定分配给 MCP3208，保留设备当前值
 				spi0: {
 					...currentPeripheralOptions.peripheral.spi0,
-					enabled: peripheralOptions.peripheral?.spi0?.enabled || 0,
+				},
+				// SPI1 = 板载无线(nRF24) || 体感(LSM6DSR)：任一开启即使能，全关才关闭
+				spi1: {
+					...currentPeripheralOptions.peripheral.spi1,
+					enabled: nrf24LinkEnabled || lsm6AddonEnabled ? 1 : 0,
 				},
 			},
 		};
@@ -475,7 +490,7 @@ export default function HardwareConfig() {
 							</span>
 						</div>
 
-						{/* 无线模式开关（nRF24 直连 SPI0）*/}
+						{/* 无线模式开关（nRF24 直连 SPI1，与体感共享 SPI1）*/}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 							<Form.Check
 								type="switch"
@@ -500,14 +515,15 @@ export default function HardwareConfig() {
 											},
 										}));
 									}
-									// nRF24 直连使用 SPI0，开关状态双向同步 SPI0 启用位
+									// nRF24 直连使用 SPI1，与体感开关共同决定 SPI1 使能：
+									// 任一开启保持使能，全关才关闭（保存时也会按同一规则重算）
 									setPeripheralOptions((prev) => ({
 										...prev,
 										peripheral: {
 											...prev.peripheral,
-											spi0: {
-												...prev.peripheral?.spi0,
-												enabled: checked,
+											spi1: {
+												...prev.peripheral?.spi1,
+												enabled: checked || lsm6AddonEnabled ? 1 : 0,
 											},
 										},
 									}));

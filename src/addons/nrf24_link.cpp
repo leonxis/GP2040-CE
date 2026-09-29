@@ -16,13 +16,19 @@ bool NRF24LinkAddon::available() {
 void NRF24LinkAddon::setup() {
     if (initialized) return;
 
-    // 1. 获取 SPI0 实例（PeripheralManager 在 config_utils 中已按 SPI0_ENABLED 完成默认初始化）
+    // 1. 获取 SPI1 实例。若 PeripheralManager 尚未初始化 SPI1（外设配置未使能或
+    //    初始化顺序差异），插件在 setup 阶段按 BoardConfig SPI1 引脚自行初始化，
+    //    不依赖任何一方预先完成 SPI 配置。
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(NRF24_HW_SPI_BLOCK);
-    if (!spi || !spi->configured) return;
+    if (!spi) return;
+    if (!spi->configured) {
+        spi->setConfig(NRF24_HW_SPI_BLOCK, SPI1_PIN_TX, SPI1_PIN_RX, SPI1_PIN_SCK, SPI1_PIN_CS);
+    }
+    if (!spi->configured) return;
     spi_ = spi;
-    spiProfile_ = spi_->makeBaudrateProfile(NRF24_SPI_HZ);
-    if (!spiProfile_.valid()) return;
-    spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE0);
+    // LSM6DSRTR 与 nRF24 同为 8MHz/MODE0/MSB：整根总线统一配置，setup 仅设置
+    // 一次，运行期不再切换速率/模式。
+    spi_->beginTransaction(NRF24_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 
     csPin_ = NRF24_HW_CS_PIN;
     cePin_ = NRF24_HW_CE_PIN;

@@ -10,7 +10,9 @@
 #include "pico/time.h"
 
 // 通过 NRF24LinkAddon 控制是否启用（由 GamepadOptions.nrf24LinkEnabled 驱动）。
-// BoardConfig 提供 SPI0 引脚（CE/CS/SCK/TX/RX），插件通过 SPI0 直驱 nRF24L01+。
+// 与 LSM6DSRTR 共用 SPI1（SCK/TX/RX 从 BoardConfig/外设配置读取），
+// nRF24 CSN/CE 为板级固定引脚（BoardConfig 宏）。两设备同为 8MHz/MODE0/MSB，
+// 故 SPI 速率/模式仅在 setup 配置一次，运行中不再切换。
 #ifndef NRF24_LINK_ENABLED
 #define NRF24_LINK_ENABLED 1
 #endif
@@ -21,10 +23,10 @@
 
 #define NRF24_LINK_ADDON_NAME "NRF24 Link"
 
-// HML2354 固定接线：SPI0（SCK/TX/RX 来自 BoardConfig），CSN/CE 由 BoardConfig 提供
-static constexpr uint8_t NRF24_HW_SPI_BLOCK = 0;
-static constexpr int8_t  NRF24_HW_CS_PIN    = SPI0_PIN_CS;   // nRF24 CSN
-static constexpr int8_t  NRF24_HW_CE_PIN    = SPI0_PIN_CE;   // nRF24 CE
+// HML2354 固定接线：SPI1，CSN=GPIO6、CE=GPIO9（BoardConfig 宏，其他板型兜底同值）
+static constexpr uint8_t NRF24_HW_SPI_BLOCK = 1;
+static constexpr int8_t  NRF24_HW_CS_PIN    = SPI1_PIN_NRF_CS;  // nRF24 CSN
+static constexpr int8_t  NRF24_HW_CE_PIN    = SPI1_PIN_NRF_CE;  // nRF24 CE
 
 // SPI 速率：8MHz
 #define NRF24_SPI_HZ          8000000u
@@ -110,7 +112,6 @@ private:
                           uint8_t lt, uint8_t rt, uint8_t inputMode);
 
     PeripheralSPI* spi_ = nullptr;
-    SPIBaudrateProfile spiProfile_ = {};
     int8_t csPin_ = -1;
     int8_t cePin_ = -1;
     bool initialized = false;

@@ -9,9 +9,10 @@
 
 #define MCP3208_ADC_ADDON_NAME "MCP3208 ADC"
 
-// HML fixed wiring: SPI1 (SCK/TX/RX from webconfig), CS from BoardConfig SPI1_PIN_CS.
-static constexpr uint8_t MCP3208_HW_SPI_BLOCK = 1;
-static constexpr int8_t MCP3208_HW_CS_PIN = SPI1_PIN_CS;
+// HML fixed wiring: SPI0 (SCK/TX/RX from BoardConfig), CS from BoardConfig SPI0_PIN_CS.
+// SPI0 由 MCP3208 独占，固定 1.5MHz/MODE0/MSB，setup 配置一次后无运行时切频。
+static constexpr uint8_t MCP3208_HW_SPI_BLOCK = 0;
+static constexpr int8_t MCP3208_HW_CS_PIN = SPI0_PIN_CS;
 
 #define MCP3208_SPI_HZ          1500000u
 
@@ -60,14 +61,12 @@ private:
     };
 
     bool readChannel(uint8_t channel, uint16_t& value);
-    bool prepareSPITransaction();
     void publishStickSnapshot(
         const uint16_t* xValues,
         const uint16_t* yValues);
 
     static MCP3208ADCAddon* s_instance;
     PeripheralSPI* spi_;
-    SPIBaudrateProfile spiProfile_;
     int8_t csPin_;            // Chip select GPIO (硬编码)
     bool spiOk_;
     SamplerStickChannelConfig stick_channels_[MCP3208_STICK_COUNT];
