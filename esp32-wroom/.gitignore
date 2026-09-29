@@ -1,0 +1,10 @@
+# ESP-IDF independent build directory (must not share the RP2354 build dir)
+build-esp/
+
+# Generated config; sdkconfig.defaults is the committed source of truth
+sdkconfig
+sdkconfig.old
+
+# IDF component manager artifacts
+dependencies.lock
+managed_components/
