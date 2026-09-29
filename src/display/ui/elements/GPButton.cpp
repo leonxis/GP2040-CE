@@ -1,11 +1,20 @@
 #include "GPButton.h"
 #include "GPGFX_UI_layouts.h"
+#include "BoardConfig.h"
 
 void GPButton::draw() {
     // new style button:
     uint16_t baseX = this->x;
     uint16_t baseY = this->y;
-    Mask_t pinValues = ~gpio_get_all64();
+    // 按下态：低有效引脚低电平=按下，高有效引脚高电平=按下（BUTTON_ACTIVE_HIGH_MASK）
+#ifdef BUTTON_ACTIVE_HIGH_MASK
+    const Mask_t activeHighMask = (Mask_t)BUTTON_ACTIVE_HIGH_MASK;
+#else
+    const Mask_t activeHighMask = 0;
+#endif
+    const Mask_t gpioState = gpio_get_all64();
+    const Mask_t pinValues = (~gpioState & ~activeHighMask)
+                           |  (gpioState &  activeHighMask);
 
     // scale to viewport
     double scaleX = this->getScaleX();

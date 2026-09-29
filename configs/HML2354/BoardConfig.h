@@ -11,6 +11,12 @@
 
 #define BOARD_CONFIG_LABEL "HML2354"
 
+// 高电平有效按键引脚掩码：高电平=按下，低电平=松开（其余按键为低电平有效）
+// 这些引脚无外部下拉电阻，固件在 initializeStandardGpio 中配置内部下拉，
+// debounceGpioGetAll 读取时对掩码内引脚不取反。
+// GPIO26(R1) / GPIO17(L1)
+#define BUTTON_ACTIVE_HIGH_MASK ((1ULL << 26) | (1ULL << 17))
+
 // Main pin mapping Configuration
 //                                                  // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
 #define GPIO_PIN_22 GpioAction::BUTTON_PRESS_UP     // UP     | UP     | UP      | UP       | UP     | UP     |

@@ -12,6 +12,7 @@
 #include "animationstorage.h"
 #include "system.h"
 #include "config_utils.h"
+#include "BoardConfig.h"
 #include "types.h"
 #include "version.h"
 #include "enums.pb.h"
@@ -3349,6 +3350,12 @@ std::string getHeldPins()
 
     DynamicJsonDocument doc(JSON_OBJECT_SIZE(4) + JSON_ARRAY_SIZE(NUM_BANK0_GPIOS) + 16);
 
+#ifdef BUTTON_ACTIVE_HIGH_MASK
+    const Mask_t activeHighMask = (Mask_t)BUTTON_ACTIVE_HIGH_MASK;
+#else
+    const Mask_t activeHighMask = 0;
+#endif
+
     // Initialize unassigned pins for reading
     std::vector<uint> uninitPins;
     for (uint32_t pin = 0; pin < NUM_BANK0_GPIOS; pin++) {
@@ -3356,11 +3363,18 @@ std::string getHeldPins()
             uninitPins.push_back(pin);
             gpio_init(pin);
             gpio_set_dir(pin, GPIO_IN);
-            gpio_pull_up(pin);
+            // 高有效未分配引脚：内部下拉；其余未分配引脚：内部上拉
+            if (activeHighMask & (Mask_t{1} << pin))
+                gpio_set_pulls(pin, false, true);
+            else
+                gpio_pull_up(pin);
         }
     }
 
-    const Mask_t baselineState = ~gpio_get_all64();
+    // 按下态掩码：低有效引脚低电平=按下，高有效引脚高电平=按下
+    const Mask_t gpioBaseline = gpio_get_all64();
+    const Mask_t baselineState = (~gpioBaseline & ~activeHighMask)
+                               |  (gpioBaseline &  activeHighMask);
     uint32_t firstSeen[NUM_BANK0_GPIOS] = {};
     Mask_t detectedMask = 0;
     std::set<uint> heldPinsSet;
@@ -3372,25 +3386,27 @@ std::string getHeldPins()
         rndis_task();
 
         const uint32_t elapsed = getMillis() - startTime;
-        const Mask_t lowPins = ~gpio_get_all64();
+        const Mask_t gpioState = gpio_get_all64();
+        const Mask_t pressedPins = (~gpioState & ~activeHighMask)
+                                 |  (gpioState &  activeHighMask);
 
         if (_abortGetHeldPins) break;
 
         if (isAnyPinHeld) {
             // 仅等待“已检测到的按键”全部释放；其他引脚的状态差异不再阻止退出
-            if ((lowPins & detectedMask) == 0 || elapsed >= HELD_PIN_MAX_SESSION_MS) break;
+            if ((pressedPins & detectedMask) == 0 || elapsed >= HELD_PIN_MAX_SESSION_MS) break;
         } else if (elapsed >= HELD_PIN_PRESS_WINDOW_MS) {
             break;
         }
 
-        // 仅检测相对捕获开始时新拉低的 SIO 输入引脚
-        const Mask_t changedPins = (lowPins ^ baselineState) & ~detectedMask;
+        // 仅检测相对捕获开始时新按下的 SIO 输入引脚
+        const Mask_t changedPins = (pressedPins ^ baselineState) & ~detectedMask;
         for (uint32_t pin = 0; pin < NUM_BANK0_GPIOS; pin++) {
             const Mask_t pinMask = Mask_t{1} << pin;
             if (!(changedPins & pinMask) ||
                 gpio_get_function(pin) != GPIO_FUNC_SIO ||
                 gpio_is_dir_out(pin) ||
-                !(lowPins & pinMask)) {
+                !(pressedPins & pinMask)) {
                 firstSeen[pin] = 0;
                 continue;
             }

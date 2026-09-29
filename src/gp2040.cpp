@@ -6,6 +6,7 @@
 
 #include "build_info.h"
 #include "peripheralmanager.h"
+#include "BoardConfig.h"
 #include "storagemanager.h"
 #include "hml_back_mapping_preset.h"
 #include "addonmanager.h"
@@ -74,6 +75,14 @@ static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
+
+// 高电平有效按键引脚（按下=高电平），见 BoardConfig BUTTON_ACTIVE_HIGH_MASK
+#ifdef BUTTON_ACTIVE_HIGH_MASK
+static constexpr Mask_t buttonActiveHighMask = BUTTON_ACTIVE_HIGH_MASK;
+#else
+static constexpr Mask_t buttonActiveHighMask = 0;
+#endif
+
 static const uint8_t WEBCONFIG_BOOT_GPIO = 32; //修改为GPIO32
 static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_A = 27;
 static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_B = 32;
@@ -451,25 +460,27 @@ static bool mainLoopGateEventPending() {
 const static uint32_t rebootDelayMs = 500;
 static absolute_time_t rebootDelayTimeout = nil_time;
 
-static bool isGPIOHeldLow(uint8_t pin) {
-	return gpio_get(pin) == 0;
+// 按引脚极性判定是否按下：高有效引脚高电平=按下，低有效引脚低电平=按下
+static bool isHotkeyGPIOPressed(uint8_t pin) {
+	const bool levelHigh = gpio_get(pin) != 0;
+	return (buttonActiveHighMask & (Mask_t{1} << pin)) ? levelHigh : !levelHigh;
 }
 
 static bool isWebConfigBootGPIOPressed() {
-	return isGPIOHeldLow(WEBCONFIG_BOOT_GPIO);
+	return isHotkeyGPIOPressed(WEBCONFIG_BOOT_GPIO);
 }
 
 static RuntimeHotkeyAction getRuntimeHotkeyAction() {
-	if (!isGPIOHeldLow(RUNTIME_HOTKEY_SHARED_GPIO_A) || !isGPIOHeldLow(RUNTIME_HOTKEY_SHARED_GPIO_B)) {
+	if (!isHotkeyGPIOPressed(RUNTIME_HOTKEY_SHARED_GPIO_A) || !isHotkeyGPIOPressed(RUNTIME_HOTKEY_SHARED_GPIO_B)) {
 		return RuntimeHotkeyAction::NONE;
 	}
 
-	const bool webConfigPressed = isGPIOHeldLow(RUNTIME_HOTKEY_WEBCONFIG_GPIO);
-	const bool usbBootPressed = isGPIOHeldLow(RUNTIME_HOTKEY_USB_BOOT_GPIO);
-	const bool modeXPressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_X_GPIO);
-	const bool modeOPressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_O_GPIO);
-	const bool modeSquarePressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_SQUARE_GPIO);
-	const bool modeTrianglePressed = isGPIOHeldLow(RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO);
+	const bool webConfigPressed = isHotkeyGPIOPressed(RUNTIME_HOTKEY_WEBCONFIG_GPIO);
+	const bool usbBootPressed = isHotkeyGPIOPressed(RUNTIME_HOTKEY_USB_BOOT_GPIO);
+	const bool modeXPressed = isHotkeyGPIOPressed(RUNTIME_HOTKEY_MODE_X_GPIO);
+	const bool modeOPressed = isHotkeyGPIOPressed(RUNTIME_HOTKEY_MODE_O_GPIO);
+	const bool modeSquarePressed = isHotkeyGPIOPressed(RUNTIME_HOTKEY_MODE_SQUARE_GPIO);
+	const bool modeTrianglePressed = isHotkeyGPIOPressed(RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO);
 
 	const uint8_t thirdPinPressedCount =
 		static_cast<uint8_t>(webConfigPressed) +
@@ -581,9 +592,15 @@ static void configureWebConfigHotkeyGPIOs() {
 		RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO,
 	};
 	for (uint8_t i = 0; i < count_of(pins); i++) {
-		gpio_init(pins[i]);
-		gpio_set_dir(pins[i], GPIO_IN);
-		gpio_pull_up(pins[i]);
+		const uint8_t pin = pins[i];
+		gpio_init(pin);
+		gpio_set_dir(pin, GPIO_IN);
+		// 高有效热键引脚配内部下拉（无外部下拉），其余热键引脚内部上拉；
+		// 须与 initializeStandardGpio 保持一致，否则会覆盖其极性设置
+		if (buttonActiveHighMask & (Mask_t{1} << pin))
+			gpio_set_pulls(pin, false, true);
+		else
+			gpio_pull_up(pin);
 	}
 }
 
@@ -810,11 +827,16 @@ void GP2040::initializeStandardGpio() {
 		// (NONE=-10, RESERVED=-5, ASSIGNED_TO_ADDON=0, everything else is ours)
 		if (pinMappings[pin].action > 0)
 		{
+			Mask_t pinMask = Mask_t{1} << pin;
 			gpio_init(pin);                    // Initialize pin
 			gpio_set_dir(pin, GPIO_IN);        // Set as INPUT
-			gpio_pull_up(pin);                 // Set as PULLUP
+			// 高有效引脚：无外部下拉，配置内部下拉保证空闲为低；其余为内部上拉
+			if (buttonActiveHighMask & pinMask)
+				gpio_set_pulls(pin, false, true);
+			else
+				gpio_pull_up(pin);             // Set as PULLUP
 			gpio_set_input_enabled(pin, true); // Ensure digital input buffer is enabled (may be disabled by adc_gpio_init)
-			buttonGpios |= Mask_t{1} << pin;   // mark this pin as mattering for GPIO debouncing
+			buttonGpios |= pinMask;            // mark this pin as mattering for GPIO debouncing
 		}
 	}
 }
@@ -845,7 +867,10 @@ void GP2040::deinitializeStandardGpio() {
  * instead, if you don't want debounced data.
  */
 void GP2040::debounceGpioGetAll() {
-	Mask_t raw_gpio = ~gpio_get_all64();
+	// 低有效引脚：低电平=按下（取反）；高有效引脚：高电平=按下（不取反）
+	Mask_t gpioState = gpio_get_all64();
+	Mask_t raw_gpio = (~gpioState & ~buttonActiveHighMask)
+	                |  (gpioState &  buttonActiveHighMask);
 	Gamepad* gamepad = Storage::getInstance().GetGamepad();
 	// return if state isn't different than the actual
 	if (gamepad->debouncedGpio == (raw_gpio & buttonGpios)) return;

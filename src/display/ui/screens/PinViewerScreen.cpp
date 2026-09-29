@@ -2,6 +2,7 @@
 
 #include "pico/stdlib.h"
 #include "drivermanager.h"
+#include "BoardConfig.h"
 
 void PinViewerScreen::init() {
     getRenderer()->clearScreen();
@@ -12,7 +13,15 @@ void PinViewerScreen::shutdown() {
 }
 
 void PinViewerScreen::drawScreen() {
-    Mask_t pinValues = ~gpio_get_all64();
+    // 按下态：低有效引脚低电平=按下，高有效引脚高电平=按下（BUTTON_ACTIVE_HIGH_MASK）
+#ifdef BUTTON_ACTIVE_HIGH_MASK
+    const Mask_t activeHighMask = (Mask_t)BUTTON_ACTIVE_HIGH_MASK;
+#else
+    const Mask_t activeHighMask = 0;
+#endif
+    const Mask_t gpioState = gpio_get_all64();
+    const Mask_t pinValues = (~gpioState & ~activeHighMask)
+                           |  (gpioState &  activeHighMask);
     GpioMappingInfo* pinMappings = Storage::getInstance().getProfilePinMappings();
 
     std::string pinsPressed = "GPIO Pin : ";
