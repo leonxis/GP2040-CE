@@ -22,3 +22,10 @@ env.ini
 *docker-compose.yml
 www/src_gen/enums.ts
 /lib/NeoPico/src/generated/ws2812.pio.h
+
+# CMake FetchContent artifacts and generated version header
+_deps/
+headers/version.h
+
+# Trae tool working directory
+.trae/
