@@ -67,14 +67,6 @@ static inline uint16_t ads8332ReadDataWord(PeripheralSPI* spi, int8_t csPin) {
     spi->deselect();
     return rawValue;
 }
-
-static inline bool gateDeadlineReached(
-    const GateLateAnalogSampleRequest& request,
-    uint32_t nowUs
-) {
-    return request.enforceDeadline &&
-        static_cast<int32_t>(nowUs - request.deadlineUs) >= 0;
-}
 } // namespace
 
 ADS8332ADCAddon* ADS8332ADCAddon::s_instance_ = nullptr;
@@ -93,7 +85,6 @@ void ADS8332ADCAddon::setup() {
     spi_ = nullptr;
     spiProfile_ = {};
     dividerSampleFrameCounter_ = 0;
-    gateLateBurstActive_ = false;
     csPin_ = -1;
     convstPin_ = -1;
     // Semantic mapping aligned with AnalogInput:
@@ -118,8 +109,6 @@ void ADS8332ADCAddon::setup() {
             snapshot.x[stick] = ADS8332_RAW_HALF;
             snapshot.y[stick] = ADS8332_RAW_HALF;
         }
-        snapshot.sequence = 0;
-        snapshot.completedTimeUs = 0;
     }
     publishedStickSnapshot_.store(0, std::memory_order_relaxed);
     csPin_ = ADS8332_HW_CS_PIN;
@@ -148,73 +137,17 @@ void ADS8332ADCAddon::setup() {
     }
 
     spiOk_ = true;
-    (void)sampleDividerChannels();
+    // First scan samples all six channels (frame counter starts at 0).
+    process();
 }
 
 void ADS8332ADCAddon::reinit() {
     if (!spiOk_) {
         return;
     }
+    // Force the next scan to include the divider channels.
     dividerSampleFrameCounter_ = 0;
-    (void)sampleDividerChannels();
-}
-
-void ADS8332ADCAddon::preprocess() {
-    if (!spiOk_) {
-        return;
-    }
-    if (!prepareSPITransaction()) {
-        return;
-    }
-
-    // Sticks sample every frame; divider keys sample every 4th frame to reduce SPI/CPU load.
-    const bool sampleDividerThisFrame = ((dividerSampleFrameCounter_++ & 0x03u) == 0u);
-    const uint8_t countThisFrame = sampleDividerThisFrame ? preprocess_channel_count_ : 4u;
-    uint16_t sampledValues[ADS8332_CHANNEL_COUNT] = {};
-    if (!readAllChannelsOptimizedUnique(
-            preprocess_channels_,
-            countThisFrame,
-            sampledValues)) {
-        return;
-    }
-
-    (void)publishStickSnapshot(sampledValues);
-    if (sampleDividerThisFrame) {
-        adcValues_[divider_channels_.left_channel] =
-            sampledValues[divider_channels_.left_channel];
-        adcValues_[divider_channels_.right_channel] =
-            sampledValues[divider_channels_.right_channel];
-    }
-}
-
-void ADS8332ADCAddon::preprocessGateEarly() {
-    if (!spiOk_) {
-        return;
-    }
-    if ((dividerSampleFrameCounter_++ & 0x03u) == 0u) {
-        (void)sampleDividerChannels();
-    }
-}
-
-bool ADS8332ADCAddon::beginGateLateAnalogBurst() {
-    gateLateBurstActive_ = prepareSPITransaction();
-    return gateLateBurstActive_;
-}
-
-bool ADS8332ADCAddon::sampleGateLateAnalog(
-    const GateLateAnalogSampleRequest& request
-) {
-    return sampleStickSnapshot(request);
-}
-
-void ADS8332ADCAddon::endGateLateAnalogBurst() {
-    gateLateBurstActive_ = false;
-}
-
-uint32_t ADS8332ADCAddon::gateLateAnalogCompletedTimeUs() const {
-    const uint8_t snapshotIndex =
-        publishedStickSnapshot_.load(std::memory_order_acquire);
-    return stickSnapshots_[snapshotIndex].completedTimeUs;
+    process();
 }
 
 bool ADS8332ADCAddon::prepareSPITransaction() {
@@ -228,45 +161,33 @@ bool ADS8332ADCAddon::prepareSPITransaction() {
     return true;
 }
 
-bool ADS8332ADCAddon::sampleStickSnapshot(
-    const GateLateAnalogSampleRequest& request
-) {
-    if (!gateLateBurstActive_ && !prepareSPITransaction()) {
-        return false;
+void ADS8332ADCAddon::process() {
+    if (!spiOk_ || !prepareSPITransaction()) {
+        return;
     }
 
+    // One optimized sequence per frame. Every 4th frame the divider channels
+    // (CH3/CH4) are appended to the same sequence instead of a separate SPI
+    // exchange; other frames only scan the four stick channels.
+    const bool sampleDividerThisFrame =
+        ((dividerSampleFrameCounter_++ & 0x03u) == 0u);
+    const uint8_t channelCount =
+        sampleDividerThisFrame ? preprocess_channel_count_ : 4u;
     uint16_t sampledValues[ADS8332_CHANNEL_COUNT] = {};
     if (!readAllChannelsOptimizedUnique(
             preprocess_channels_,
-            4,
+            channelCount,
             sampledValues)) {
-        return false;
-    }
-    return publishStickSnapshot(sampledValues, request);
-}
-
-bool ADS8332ADCAddon::sampleDividerChannels() {
-    if (!prepareSPITransaction()) {
-        return false;
+        return;
     }
 
-    const uint8_t dividerChannels[2] = {
-        divider_channels_.left_channel,
-        divider_channels_.right_channel,
-    };
-    uint16_t sampledValues[ADS8332_CHANNEL_COUNT] = {};
-    if (!readAllChannelsOptimizedUnique(
-            dividerChannels,
-            2,
-            sampledValues)) {
-        return false;
+    publishStickSnapshot(sampledValues);
+    if (sampleDividerThisFrame) {
+        adcValues_[divider_channels_.left_channel] =
+            sampledValues[divider_channels_.left_channel];
+        adcValues_[divider_channels_.right_channel] =
+            sampledValues[divider_channels_.right_channel];
     }
-
-    adcValues_[divider_channels_.left_channel] =
-        sampledValues[divider_channels_.left_channel];
-    adcValues_[divider_channels_.right_channel] =
-        sampledValues[divider_channels_.right_channel];
-    return true;
 }
 
 bool ADS8332ADCAddon::readAllChannelsOptimizedUnique(
@@ -301,9 +222,8 @@ bool ADS8332ADCAddon::readAllChannelsOptimizedUnique(
     return true;
 }
 
-bool ADS8332ADCAddon::publishStickSnapshot(
-    const uint16_t* sampledValues,
-    const GateLateAnalogSampleRequest& request
+void ADS8332ADCAddon::publishStickSnapshot(
+    const uint16_t* sampledValues
 ) {
     const uint8_t currentIndex =
         publishedStickSnapshot_.load(std::memory_order_relaxed);
@@ -316,16 +236,9 @@ bool ADS8332ADCAddon::publishStickSnapshot(
         next.y[stick] =
             sampledValues[stick_channels_[stick].y_channel];
     }
-    next.sequence = stickSnapshots_[currentIndex].sequence + 1u;
-    const uint32_t completedTimeUs = time_us_32();
-    if (gateDeadlineReached(request, completedTimeUs)) {
-        return false;
-    }
-    next.completedTimeUs = completedTimeUs;
     publishedStickSnapshot_.store(
         nextIndex,
         std::memory_order_release);
-    return true;
 }
 
 bool ADS8332ADCAddon::configureADS8332CFR() {
@@ -344,17 +257,13 @@ bool ADS8332ADCAddon::configureADS8332CFR() {
     return (readback & 0x0FFFu) == (ADS8332_CFR_VALUE & 0x0FFFu);
 }
 
-void ADS8332ADCAddon::process() {
-    // Sample provider only. Unified addons consume cached raw values.
-}
-
 bool ADS8332ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMax) {
     if (s_instance_ == nullptr || !s_instance_->spiOk_ || stickNum > 1) {
         return false;
     }
 
     adcMax = ADS8332_RAW_MAX;
-    (void)s_instance_->sampleStickSnapshot();
+    s_instance_->process();
     const uint8_t snapshotIndex =
         s_instance_->publishedStickSnapshot_.load(
             std::memory_order_acquire);

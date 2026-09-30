@@ -236,7 +236,8 @@ uint16_t AxisTiltOverlayInput::applyPercentDelta(uint16_t axisValue, float perce
 	return static_cast<uint16_t>(newValue);
 }
 
-void AxisTiltOverlayInput::applyFinalProcess(Gamepad* gamepad) {
+void AxisTiltOverlayInput::process() {
+	Gamepad* gamepad = Storage::getInstance().GetGamepad();
 	if (gamepad == nullptr) {
 		return;
 	}

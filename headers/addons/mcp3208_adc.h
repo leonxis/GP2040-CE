@@ -49,19 +49,10 @@ public:
 
     virtual bool available();
     virtual void setup();
-    virtual void preprocess();
+    // All sampling (sticks plus the 1-in-4-frames divider channels) happens in process().
+    virtual void preprocess() {}
     virtual void process();
     virtual void postprocess(bool) {}
-    virtual void preprocessGateEarly();
-    virtual bool isGateLateAnalogProvider() const { return true; }
-    virtual GateLateAnalogSource gateLateAnalogSource() const {
-        return GateLateAnalogSource::MCP3208;
-    }
-    virtual bool beginGateLateAnalogBurst();
-    virtual bool sampleGateLateAnalog(
-        const GateLateAnalogSampleRequest& request);
-    virtual void endGateLateAnalogBurst();
-    virtual uint32_t gateLateAnalogCompletedTimeUs() const;
     virtual std::string name() { return MCP3208_ADC_ADDON_NAME; }
     virtual void reinit();
 
@@ -79,19 +70,16 @@ private:
     struct StickSnapshot {
         uint16_t x[MCP3208_STICK_COUNT];
         uint16_t y[MCP3208_STICK_COUNT];
-        uint32_t sequence;
-        uint32_t completedTimeUs;
     };
 
-    bool sampleStickSnapshot(
-        const GateLateAnalogSampleRequest& request = {});
-    bool sampleSwitchChannels();
-    bool readChannel(uint8_t channel, uint16_t& value);
+    bool readChannelsBatched(
+        const uint8_t* channels,
+        uint8_t count,
+        uint16_t* values);
     bool prepareSPITransaction();
-    bool publishStickSnapshot(
+    void publishStickSnapshot(
         const uint16_t* xValues,
-        const uint16_t* yValues,
-        const GateLateAnalogSampleRequest& request = {});
+        const uint16_t* yValues);
 
     static MCP3208ADCAddon* s_instance;
     PeripheralSPI* spi_;
@@ -103,7 +91,6 @@ private:
     SamplerDividerChannelConfig divider_channels_;
     // CH2/CH5 采样降频计数器：仅控制 raw 采样频率，不承担映射/防抖状态
     uint8_t ch25_sample_counter_;
-    bool gateLateBurstActive_ = false;
     StickSnapshot stickSnapshots_[2] = {};
     std::atomic<uint8_t> publishedStickSnapshot_ { 0 };
 };
