@@ -18,9 +18,9 @@ extern const HmlBackKeyDef kHmlBackKeyDefs[HML_BACK_KEY_COUNT] = {
     { 35, "leftBack3",  &HmlBackMappingPreset::leftBack3Mapping  }, // 左背键3
     { 36, "rightBack3", &HmlBackMappingPreset::rightBack3Mapping }, // 右背键3
     { 45, "leftFn",     &HmlBackMappingPreset::leftFnMapping     }, // 左FN
-    { 39, "rightFn",    &HmlBackMappingPreset::rightFnMapping    }, // 右FN
-    { 47, "leftMt",     &HmlBackMappingPreset::leftMtMapping     }, // 左MT
-    { 38, "rightMt",    &HmlBackMappingPreset::rightMtMapping    }, // 右MT
+    { 44, "rightFn",    &HmlBackMappingPreset::rightFnMapping    }, // 右FN
+    { 46, "leftMt",     &HmlBackMappingPreset::leftMtMapping     }, // 左MT
+    { 33, "rightMt",    &HmlBackMappingPreset::rightMtMapping    }, // 右MT
 };
 
 bool HmlBackKeyAddon::available() {

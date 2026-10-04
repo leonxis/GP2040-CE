@@ -25,8 +25,8 @@
 #define GPIO_PIN_20 GpioAction::BUTTON_PRESS_RIGHT  // RIGHT  | RIGHT  | RIGHT   | RIGHT    | RIGHT  | RIGHT  |
 #define GPIO_PIN_10 GpioAction::BUTTON_PRESS_B1     // B1     | A      | B       | Cross    | 2      | K1     |
 #define GPIO_PIN_07 GpioAction::BUTTON_PRESS_B2     // B2     | B      | A       | Circle   | 3      | K2     |
-#define GPIO_PIN_42 GpioAction::BUTTON_PRESS_R2     // R2     | RT     | ZR      | R2       | 8      | K3     |
-#define GPIO_PIN_41 GpioAction::BUTTON_PRESS_L2     // L2     | LT     | ZL      | L2       | 7      | K4     |
+#define GPIO_PIN_41 GpioAction::BUTTON_PRESS_R2     // R2     | RT     | ZR      | R2       | 8      | K3     |
+#define GPIO_PIN_40 GpioAction::BUTTON_PRESS_L2     // L2     | LT     | ZL      | L2       | 7      | K4     |
 #define GPIO_PIN_15 GpioAction::BUTTON_PRESS_B3     // B3     | X      | Y       | Square   | 1      | P1     |
 #define GPIO_PIN_05 GpioAction::BUTTON_PRESS_B4     // B4     | Y      | X       | Triangle | 4      | P2     |
 #define GPIO_PIN_26 GpioAction::BUTTON_PRESS_R1     // R1     | RB     | R       | R1       | 6      | P3     |
@@ -34,7 +34,7 @@
 #define GPIO_PIN_27 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
 #define GPIO_PIN_32 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
 #define GPIO_PIN_37 GpioAction::BUTTON_PRESS_R3     // R3     | RS     | RS      | R3       | 12     | RS     |
-#define GPIO_PIN_04 GpioAction::BUTTON_PRESS_L3     // L3     | LS     | LS      | L3       | 11     | LS     |
+#define GPIO_PIN_47 GpioAction::BUTTON_PRESS_L3     // L3     | LS     | LS      | L3       | 11     | LS     |
 #define GPIO_PIN_24 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
 #define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
 // Keyboard Mapping Configuration
@@ -80,16 +80,21 @@
 
 #define GPIO_PIN_29 GpioAction::ASSIGNED_TO_ADDON //LED
 // 背键/FN/MT GPIO 归插件管理，不参与主 GPIO 表与按键预设
-#define GPIO_PIN_38 GpioAction::ASSIGNED_TO_ADDON // 右MT (RMT)
-#define GPIO_PIN_39 GpioAction::ASSIGNED_TO_ADDON // 右FN (RFN)
+#define GPIO_PIN_43 GpioAction::ASSIGNED_TO_ADDON // 右MT (RMT)
+#define GPIO_PIN_44 GpioAction::ASSIGNED_TO_ADDON // 右FN (RFN)
 #define GPIO_PIN_45 GpioAction::ASSIGNED_TO_ADDON // 左FN (LFN)
-#define GPIO_PIN_47 GpioAction::ASSIGNED_TO_ADDON // 左MT (LMT)
+#define GPIO_PIN_46 GpioAction::ASSIGNED_TO_ADDON // 左MT (LMT)
 #define GPIO_PIN_30 GpioAction::ASSIGNED_TO_ADDON // 右背键1
 #define GPIO_PIN_31 GpioAction::ASSIGNED_TO_ADDON // 左背键1
 #define GPIO_PIN_33 GpioAction::ASSIGNED_TO_ADDON // 左背键2
 #define GPIO_PIN_34 GpioAction::ASSIGNED_TO_ADDON // 右背键2
 #define GPIO_PIN_35 GpioAction::ASSIGNED_TO_ADDON // 左背键3
 #define GPIO_PIN_36 GpioAction::ASSIGNED_TO_ADDON // 右背键3
+
+// TMRS-SPI-CS
+#define GPIO_PIN_38 GpioAction::ASSIGNED_TO_ADDON // RLRCS
+#define GPIO_PIN_39 GpioAction::ASSIGNED_TO_ADDON // RUDCS
+#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // LLRCS
 
 // SPI0: 当前启用，分配给 MCP3208（CS=1, SCK=2, TX=3, RX=0）
 #ifdef SPI0_ENABLED
@@ -145,8 +150,8 @@
 #define LSM6DSR_DEFAULT_ENABLED 0
 
 // 线性扳机 ADC 引脚：RP2350 ADC 基址=GPIO40，GPIO41=ch1(L2)，GPIO42=ch2(R2)
-#define LINEAR_L2_PIN 41
-#define LINEAR_R2_PIN 42
+#define LINEAR_L2_PIN 40
+#define LINEAR_R2_PIN 41
 
 // 背键/FN/触摸左右键：2354B 版型 GPIO 充足，背键为独立数字键
 // 背键由 HmlBackKeyAddon 插件读取（低电平有效），引脚在插件内硬编码，
