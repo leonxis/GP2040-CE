@@ -4,10 +4,18 @@
  */
 
 #include "FlashPROM.h"
+#include "pico/assert.h"
 
 uint8_t FlashPROM::writeCache[EEPROM_SIZE_BYTES];
 volatile static alarm_id_t flashWriteAlarm = 0;
 volatile static spin_lock_t *flashLock = nullptr;
+
+static inline bool isMacroRecRangeValid(uint32_t offset, size_t len)
+{
+	return offset >= MACRO_REC_FLASH_OFFSET &&
+	       len > 0 && len <= MACRO_REC_FLASH_SIZE &&
+	       offset - MACRO_REC_FLASH_OFFSET <= MACRO_REC_FLASH_SIZE - len;
+}
 
 int64_t writeToFlash(alarm_id_t id, void *flashCache)
 {
@@ -25,6 +33,40 @@ int64_t writeToFlash(alarm_id_t id, void *flashCache)
 	spin_unlock(flashLock, interrupts);
 
 	return 0;
+}
+
+void FlashPROM::eraseRange(uint32_t offset, size_t len)
+{
+	hard_assert(isMacroRecRangeValid(offset, len));
+	hard_assert((offset & (FLASH_BLOCK_SIZE - 1)) == 0);
+	hard_assert((len & (FLASH_BLOCK_SIZE - 1)) == 0);
+
+	while (is_spin_locked(flashLock));
+
+	multicore_lockout_start_blocking();
+	uint32_t interrupts = spin_lock_blocking(flashLock);
+
+	flash_range_erase(offset, len);
+
+	multicore_lockout_end_blocking();
+	spin_unlock(flashLock, interrupts);
+}
+
+void FlashPROM::programPages(uint32_t offset, const uint8_t * data, size_t len)
+{
+	hard_assert(isMacroRecRangeValid(offset, len));
+	hard_assert((offset & (FLASH_PAGE_SIZE - 1)) == 0);
+	hard_assert((len & (FLASH_PAGE_SIZE - 1)) == 0);
+
+	while (is_spin_locked(flashLock));
+
+	multicore_lockout_start_blocking();
+	uint32_t interrupts = spin_lock_blocking(flashLock);
+
+	flash_range_program(offset, data, len);
+
+	multicore_lockout_end_blocking();
+	spin_unlock(flashLock, interrupts);
 }
 
 void FlashPROM::start()

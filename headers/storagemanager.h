@@ -80,6 +80,14 @@ public:
 	bool isUartStatusOnline() const;
 	bool isUartBleConnected() const;
 
+	/** Macro recording hints, written on Core0 by InputMacro, read from Core1 NeoPico.
+	 *  recording = capture in progress (green blink); recPulseSeq increments on a
+	 *  capacity-induced stop to arm the one-shot red 3-blink. */
+	void setMacroRecording(bool active);
+	bool isMacroRecording() const;
+	void pulseMacroRecFull();
+	uint32_t macroRecPulseSeq() const;
+
 private:
 	Storage() {}
 	bool CONFIG_MODE = false; 			// Config mode (boot)
@@ -94,6 +102,8 @@ private:
 	std::atomic<bool> nrf24LinkUp { false };
 	std::atomic<bool> uartStatusOnline { false };
 	std::atomic<bool> uartBleConnected { false };
+	std::atomic<bool> macroRecording { false };
+	std::atomic<uint32_t> macroRecPulseSeqValue { 0 };
 };
 
 #endif

@@ -189,6 +189,19 @@ endif()
 # We want a larger stack of 4kb per core instead of the default 2kb
 add_compile_definitions(PICO_STACK_SIZE=0x1000)
 
+# Config/web/USB-CDC path (never part of the 1ms input hot loop): keep these
+# translation units at -Os so the firmware image stays below the macro
+# recording flash region (0x1A0000). -Os only overrides -O3 for these files.
+set_source_files_properties(
+    src/webconfig.cpp
+    src/config_utils.cpp
+    src/config_legacy.cpp
+    src/addons/input_macro.cpp
+    src/addons/neopicoleds.cpp
+    src/storagemanager.cpp
+    PROPERTIES COMPILE_OPTIONS "-Os"
+)
+
 add_executable(${PROJECT_NAME}
 src/main.cpp
 src/gp2040.cpp

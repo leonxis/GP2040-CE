@@ -161,6 +161,7 @@ export default {
 		'right-stick-press-preset-2': 'Right stick press preset 2',
 		'right-stick-press-preset-3': 'Right stick press preset 3',
 		'right-stick-press-preset-clear': 'Clear right stick press preset',
+		'macro-record-1': 'Macro 1 Start/Stop Recording',
 	},
 	'4-way-joystick-mode-label': '4-Way Joystick Mode',
 	'dpad-trigger-threshold-label': 'D-Pad Diagonal Trigger Threshold',

@@ -318,6 +318,7 @@ const HOTKEY_ACTIONS = [
 	{ labelKey: 'hotkey-actions.right-stick-press-preset-2', value: 89 },
 	{ labelKey: 'hotkey-actions.right-stick-press-preset-3', value: 90 },
 	{ labelKey: 'hotkey-actions.right-stick-press-preset-clear', value: 91 },
+	{ labelKey: 'hotkey-actions.macro-record-1', value: 92 },
 	{ labelKey: 'hotkey-actions.turbo-count-down', value: 76 },
 	{ labelKey: 'hotkey-actions.menu-nav-up', value: 44 },
 	{ labelKey: 'hotkey-actions.menu-nav-down', value: 45 },

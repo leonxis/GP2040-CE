@@ -280,6 +280,17 @@ private:
     uint8_t blinkHintPhase_ = 0;
     absolute_time_t blinkHintNextPhaseAt_;
     bool blinkHintPrev_ = false;
+
+    /// Macro-recording hints (Core0 sets Storage atomics; Core1 renders here):
+    /// green 200ms/300ms blink while capturing; one-shot red 3-blink when a
+    /// recording stops because flash capacity was reached.
+    bool recHintPrev_ = false;
+    uint8_t recGreenPhase_ = 0;              // 0 = on, 1 = off
+    absolute_time_t recGreenNextPhaseAt_;
+    uint32_t recPulseLastSeq_ = 0;
+    bool recPulseArmed_ = false;
+    uint8_t recPulsePhase_ = 0;
+    absolute_time_t recPulseNextPhaseAt_;
 };
 
 #endif
