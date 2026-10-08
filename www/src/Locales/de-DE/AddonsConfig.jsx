@@ -97,9 +97,6 @@ export default {
 	'axis-tilt-overlay-rc-jitter-amplitude-tooltip': 'Maximum range during jitter.',
 	'axis-tilt-overlay-rc-decay-range-tooltip':
 		'Overlay jitter falls from ~3% stick deflection (L∞) toward the edge; 3% turns radial decay off; above 3%, this sets the end where jitter reaches zero.',
-	'buzzer-speaker-header-text': 'Summer-Lautsprecher',
-	'buzzer-speaker-pin-label': 'Summer-Pin',
-	'buzzer-speaker-volume-label': 'Summer-Lautstärke',
 	'player-number-header-text': 'Spieler-Nummer (NUR X-INPUT)',
 	'player-number-sub-header': 'Warnung',
 	'player-number-sub-header-text':

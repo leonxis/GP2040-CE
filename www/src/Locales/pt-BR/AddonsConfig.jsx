@@ -100,9 +100,6 @@ export default {
 	'axis-tilt-overlay-rc-jitter-amplitude-tooltip': 'Maximum range during jitter.',
 	'axis-tilt-overlay-rc-decay-range-tooltip':
 		'Overlay jitter falls from ~3% stick deflection (L∞) toward the edge; 3% turns radial decay off; above 3%, this sets the end where jitter reaches zero.',
-	'buzzer-speaker-header-text': 'Alto-falante do Buzzer',
-	'buzzer-speaker-pin-label': 'Pino do Buzzer',
-	'buzzer-speaker-volume-label': 'Volume do Buzzer',
 	'player-number-header-text': 'Número do Jogador (APENAS X-INPUT)',
 	'player-number-sub-header-text':
 		'ATENÇÃO: ATIVE ESTA OPÇÃO APENAS SE VOCÊ ESTIVER CONECTANDO VÁRIOS DISPOSITIVOS GP2040-CE COM NÚMERO DE JOGADOR HABILITADO',
@@ -119,13 +116,6 @@ export default {
 	'ps4-mode-serial-number-label':
 		'Número de Série (16 Bytes em Hexadecimal ASCII)',
 	'ps4-mode-signature-label': 'Assinatura (256 Bytes em Binário)',
-	'wii-extension-header-text': 'Extensão Wii',
-	'wii-extension-sub-header-text':
-		'<0>Observação: se a Tela estiver habilitada ao mesmo tempo, este complemento será desativado.</0> <1>Controladores Atualmente Suportados</1> <0>Classic/Classic Pro: Suporta Ambos os Analógicos e o D-Pad. B = B1, A = B2, Y = B3, X = B4, L = L1, ZL = L2, R = R1, ZR = R2, Menos = S1, Mais = S2, Início = A1</0> <0>Nunchuck: Suporta Stick Analógico. C = B1, Z = B2</0> <0>Guitarra Guitar Hero: Suporta Stick Analógico. Verde = B1, Vermelho = B2, Azul = B3, Amarelo = B4, Laranja = L1, Strum Up = Cima, Strum Down = Baixo, Menos = S1, Mais = S2</0>',
-	'wii-extension-sda-pin-label': 'Pino SDA I2C',
-	'wii-extension-scl-pin-label': 'Pino SCL I2C',
-	'wii-extension-block-label': 'Bloqueio I2C',
-	'wii-extension-speed-label': 'Velocidade I2C',
 	'snes-extension-header-text': 'Configuração de Extensão SNES',
 	'snes-extension-sub-header-text':
 		'<0>Observação: se a Tela estiver habilitada ao mesmo tempo, este complemento será desativado.</0> <1>Controladores Atualmente Suportados</1> <2>Controle SNES: Suporta D-Pad. B = B1, A = B2, Y = B3, X = B4, L = L1, R = R1, Selecionar = S1, Iniciar = S2<br/>Mouse SNES: Suporta Stick Analógico. Clique Esquerdo = B1, Clique Direito = B2<br/>NES: Suporta D-Pad. B = B1, A = B2, Selecionar = S1, Iniciar = S2</2>',

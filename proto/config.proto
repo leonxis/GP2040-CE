@@ -600,15 +600,6 @@ message AxisTiltOverlayOptions
     reserved 18;
 }
 
-message BuzzerOptions
-{
-    optional bool enabled = 1;
-
-    optional int32 pin = 2;
-    optional uint32 volume = 3;
-    optional int32 enablePin = 4;
-}
-
 message ExtraButtonOptions
 {
     optional bool enabled = 1 [deprecated = true];
@@ -649,125 +640,6 @@ message PSPassthroughOptions
 message XBOnePassthroughOptions
 {
     optional bool enabled = 1  [deprecated = true];
-}
-
-message WiiOptions
-{
-    message AnalogAxis
-    {
-        optional int32 axisType = 1;
-        optional int32 minRange = 2;
-        optional int32 maxRange = 3;
-    }
-
-    message StickOptions
-    {
-        optional AnalogAxis x = 1;
-        optional AnalogAxis y = 2;
-    }
-
-    message NunchukOptions
-    {
-        optional int32 buttonC = 1;
-        optional int32 buttonZ = 2;
-        optional StickOptions stick = 3;
-    }
-
-    message ClassicOptions
-    {
-        optional int32 buttonA = 1;
-        optional int32 buttonB = 2;
-        optional int32 buttonX = 3;
-        optional int32 buttonY = 4;
-        optional int32 buttonL = 5;
-        optional int32 buttonZL = 6;
-        optional int32 buttonR = 7;
-        optional int32 buttonZR = 8;
-        optional int32 buttonMinus = 9;
-        optional int32 buttonPlus = 10;
-        optional int32 buttonHome = 11;
-        optional int32 buttonUp = 12;
-        optional int32 buttonDown = 13;
-        optional int32 buttonLeft = 14;
-        optional int32 buttonRight = 15;
-        optional StickOptions rightStick = 17;
-        optional StickOptions leftStick = 16;
-        optional AnalogAxis leftTrigger = 18;
-        optional AnalogAxis rightTrigger = 19;
-    }
-
-    message TaikoOptions
-    {
-        optional int32 buttonKatLeft = 1;
-        optional int32 buttonKatRight = 2;
-        optional int32 buttonDonLeft = 3;
-        optional int32 buttonDonRight = 4;
-    }
-
-    message GuitarOptions
-    {
-        optional int32 buttonRed = 1;
-        optional int32 buttonGreen = 2;
-        optional int32 buttonYellow = 3;
-        optional int32 buttonBlue = 4;
-        optional int32 buttonOrange = 5;
-        optional int32 buttonPedal = 6;
-        optional int32 buttonMinus = 7;
-        optional int32 buttonPlus = 8;
-        optional int32 strumUp = 9;
-        optional int32 strumDown = 10;
-        optional StickOptions stick = 11;
-        optional AnalogAxis whammyBar = 12;
-    }
-
-    message DrumOptions
-    {
-        optional int32 buttonRed = 1;
-        optional int32 buttonGreen = 2;
-        optional int32 buttonYellow = 3;
-        optional int32 buttonBlue = 4;
-        optional int32 buttonOrange = 5;
-        optional int32 buttonPedal = 6;
-        optional int32 buttonMinus = 7;
-        optional int32 buttonPlus = 8;
-        optional StickOptions stick = 9;
-    }
-
-    message TurntableOptions
-    {
-        optional int32 buttonLeftRed = 1;
-        optional int32 buttonLeftGreen = 2;
-        optional int32 buttonLeftBlue = 3;
-        optional int32 buttonRightRed = 4;
-        optional int32 buttonRightGreen = 5;
-        optional int32 buttonRightBlue = 6;
-        optional int32 buttonMinus = 7;
-        optional int32 buttonPlus = 8;
-        optional int32 buttonEuphoria = 9;
-        optional StickOptions stick = 10;
-        optional AnalogAxis leftTurntable = 11;
-        optional AnalogAxis rightTurntable = 12;
-        optional AnalogAxis effects = 13;
-        optional AnalogAxis fader = 14;
-    }
-
-    message ControllerOptions
-    {
-        optional NunchukOptions nunchuk = 1;
-        optional ClassicOptions classic = 2;
-        optional TaikoOptions taiko = 3;
-        optional GuitarOptions guitar = 4;
-        optional DrumOptions drum = 5;
-        optional TurntableOptions turntable = 6;
-    }
-
-    optional bool enabled = 1;
-    optional int32 deprecatedI2cBlock = 2 [deprecated = true];
-    optional int32 deprecatedI2cSDAPin = 3 [deprecated = true];
-    optional int32 deprecatedI2cSCLPin = 4 [deprecated = true];
-    optional int32 deprecatedI2cSpeed = 5 [deprecated = true];
-
-    optional ControllerOptions controllers = 6;
 }
 
 message SNESOptions
@@ -882,39 +754,6 @@ message RotaryOptions
     optional RotaryPinOptions encoderTwo = 3;
 }
 
-message PCF8575Options
-{
-    optional bool enabled = 1;
-    optional int32 deprecatedI2cBlock = 2 [deprecated = true];
-    repeated GpioMappingInfo pins = 3 [(nanopb).max_count = 16];
-}
-
-message DRV8833RumbleOptions
-{
-    optional bool enabled = 1;
-
-    optional int32 leftMotorPin = 2;
-    optional int32 rightMotorPin = 3;
-    optional int32 motorSleepPin = 4;
-    optional uint32 pwmFrequency = 5;
-    optional float dutyMin = 6;
-    optional float dutyMax = 7;
-}
-
-message ReactiveLEDInfo
-{
-    optional int32 pin = 1;
-    optional GpioAction action = 2;
-    optional ReactiveLEDMode modeDown = 3;
-    optional ReactiveLEDMode modeUp = 4;
-}
-
-message ReactiveLEDOptions
-{
-    optional bool enabled = 1;
-    repeated ReactiveLEDInfo leds = 2 [(nanopb).max_count = 10];
-}
-
 message HETriggerInfo
 {
     optional GpioAction action = 1;
@@ -965,11 +804,10 @@ message AddonOptions
     optional ReverseOptions reverseOptions = 6;
     reserved 7;
     optional DualDirectionalOptions dualDirectionalOptions = 8;
-    optional BuzzerOptions buzzerOptions = 9;
+    reserved 9;
     optional ExtraButtonOptions deprecatedExtraButtonOptions = 10 [deprecated = true];
     optional PlayerNumberOptions playerNumberOptions = 11 [deprecated = true];
     optional PS4Options ps4Options = 12 [(nanopb).disallow_export = true];
-    optional WiiOptions wiiOptions = 13;
     optional SOCDSliderOptions socdSliderOptions = 14;
     optional SNESOptions snesOptions = 15;
     optional FocusModeOptions focusModeOptions = 16;
@@ -981,9 +819,9 @@ message AddonOptions
     optional XBOnePassthroughOptions xbonePassthroughOptions = 22 [deprecated = true];
     reserved 23;
     optional RotaryOptions rotaryOptions = 24;
-    optional PCF8575Options pcf8575Options = 25;
-    optional DRV8833RumbleOptions drv8833RumbleOptions = 26;
-    optional ReactiveLEDOptions reactiveLEDOptions = 27;
+    reserved 25;
+    reserved 26;
+    reserved 27;
     optional GamepadUSBHostOptions gamepadUSBHostOptions = 28;
     optional TG16Options tg16Options = 29;
     optional HETriggerOptions heTriggerOptions = 30;

@@ -29,13 +29,11 @@
 #include "addons/reverse.h"
 #include "addons/turbo.h"
 #include "addons/slider_socd.h"
-#include "addons/wiiext.h"
 #include "addons/input_macro.h"
 #include "addons/uart_link.h"
 #include "addons/nrf24_link.h"
 #include "addons/snes_input.h"
 #include "addons/rotaryencoder.h"
-#include "addons/i2c_gpio_pcf8575.h"
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
@@ -665,12 +663,10 @@ void GP2040::setup() {
 	addons.LoadAddon(new BootselButtonAddon());
 	addons.LoadAddon(new DualDirectionalInput());
 	addons.LoadAddon(new FocusModeAddon());
-	addons.LoadAddon(new WiiExtensionInput());
 	addons.LoadAddon(new SNESpadInput());
 	addons.LoadAddon(new SliderSOCDInput());
 	addons.LoadAddon(new TiltInput());
 	addons.LoadAddon(new RotaryEncoderInput());
-	addons.LoadAddon(new PCF8575Addon());
 	addons.LoadAddon(new TG16padInput());
 
 	// Input override addons

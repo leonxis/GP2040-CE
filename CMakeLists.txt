@@ -250,7 +250,6 @@ src/drivers/xinput/XInputAuthUSBListener.cpp
 src/drivers/xinput/XInputDriver.cpp
 src/drivers/xinputb/XInputBDriver.cpp
 src/interfaces/i2c/i2cdevicebase.cpp
-src/interfaces/i2c/pcf8575/pcf8575.cpp
 src/interfaces/i2c/ssd1306/obd_ssd1306.cpp
 src/interfaces/i2c/ssd1306/tiny_ssd1306.cpp
 src/display/ui/elements/GPWidget.cpp
@@ -297,21 +296,16 @@ src/addons/two_key_touchpad.cpp
 src/addons/hml_back_key.cpp
 src/addons/mcp3208_adc.cpp
 src/addons/lsm6dsr_imu.cpp
-src/addons/buzzerspeaker.cpp
 src/addons/dualdirectional.cpp
 src/addons/keyboard_host.cpp
 src/addons/keyboard_host_listener.cpp
-src/addons/i2c_gpio_pcf8575.cpp
 src/addons/display.cpp
 src/addons/neopicoleds.cpp
 src/addons/playerleds.cpp
-src/addons/reactiveleds.cpp
 src/addons/rotaryencoder.cpp
 src/addons/reverse.cpp
-src/addons/drv8833_rumble.cpp
 src/addons/turbo.cpp
 src/addons/slider_socd.cpp
-src/addons/wiiext.cpp
 src/addons/input_macro.cpp
 src/addons/uart_link.cpp
 src/addons/nrf24_link.cpp
@@ -352,7 +346,6 @@ rndis
 hardware_adc
 hardware_pwm
 PicoPeripherals
-WiiExtension
 SNESpad
 pico_mbedtls
 nanopb
@@ -367,9 +360,7 @@ headers/drivers/shared
 headers/events
 headers/interfaces
 headers/interfaces/i2c
-headers/interfaces/i2c/pcf8575
 headers/interfaces/i2c/ssd1306
-headers/interfaces/i2c/wiiextension
 headers/gamepad
 headers/display
 headers/display/fonts

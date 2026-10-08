@@ -252,8 +252,6 @@ namespace ConfigLegacy
         uint16_t bootselButtonMap;
         uint8_t extraButtonPin;
         uint32_t extraButtonMap;
-        uint8_t buzzerPin;
-        uint8_t buzzerVolume;
         uint8_t shmupMode; // Turbo SHMUP Mode
         uint8_t shmupMixMode; // How we mix turbo and non-turbo buttons
         uint16_t shmupAlwaysOn1;
@@ -278,7 +276,6 @@ namespace ConfigLegacy
         uint32_t wiiExtensionSpeed;
         uint8_t AnalogInputEnabled;
         uint8_t BootselButtonAddonEnabled;
-        uint8_t BuzzerSpeakerAddonEnabled;
         uint8_t DualDirectionalInputEnabled;
         uint8_t ExtraButtonAddonEnabled;
         uint8_t I2CAnalog1219InputEnabled;
@@ -290,7 +287,6 @@ namespace ConfigLegacy
         uint8_t ReverseInputEnabled;
         uint8_t TurboInputEnabled;
         uint8_t SliderSOCDInputEnabled;
-        uint8_t WiiExtensionAddonEnabled;
         uint32_t checksum;
     };
 
@@ -948,12 +944,6 @@ bool ConfigUtils::fromLegacyStorage(Config& config)
         SET_PROPERTY(bootselButtonOptions, enabled, legacyAddonOptions.BootselButtonAddonEnabled);
         SET_PROPERTY(bootselButtonOptions, buttonMap, legacyAddonOptions.bootselButtonMap);
 
-        BuzzerOptions& buzzerOptions = config.addonOptions.buzzerOptions;
-        config.addonOptions.has_buzzerOptions = true;
-        SET_PROPERTY(buzzerOptions, enabled, legacyAddonOptions.BuzzerSpeakerAddonEnabled);
-        SET_PROPERTY(buzzerOptions, pin, bytePinToIntPin(legacyAddonOptions.buzzerPin));
-        SET_PROPERTY(buzzerOptions, volume, legacyAddonOptions.buzzerVolume);
-
         DualDirectionalOptions& dualDirectionalOptions = config.addonOptions.dualDirectionalOptions;
         config.addonOptions.has_dualDirectionalOptions = true;
         SET_PROPERTY(dualDirectionalOptions, enabled, legacyAddonOptions.DualDirectionalInputEnabled);
@@ -1027,14 +1017,6 @@ bool ConfigUtils::fromLegacyStorage(Config& config)
             SET_PROPERTY(turboOptions, shmupMixMode, static_cast<ShmupMixMode>(legacyAddonOptions.shmupMixMode));
         }
 
-        WiiOptions& wiiOptions = config.addonOptions.wiiOptions;
-        config.addonOptions.has_wiiOptions = true;
-        SET_PROPERTY(wiiOptions, enabled, legacyAddonOptions.WiiExtensionAddonEnabled);
-        SET_PROPERTY(wiiOptions, deprecatedI2cBlock, legacyAddonOptions.wiiExtensionBlock);
-        SET_PROPERTY(wiiOptions, deprecatedI2cSDAPin, bytePinToIntPin(legacyAddonOptions.wiiExtensionSDAPin));
-        SET_PROPERTY(wiiOptions, deprecatedI2cSCLPin, bytePinToIntPin(legacyAddonOptions.wiiExtensionSCLPin));
-        SET_PROPERTY(wiiOptions, deprecatedI2cSpeed, legacyAddonOptions.wiiExtensionSpeed);
-        
         PS4Options& ps4Options = config.addonOptions.ps4Options;
         config.addonOptions.has_ps4Options = true;
         SET_PROPERTY(ps4Options, enabled, legacyAddonOptions.PS4ModeAddonEnabled);

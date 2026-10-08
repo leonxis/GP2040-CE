@@ -12,7 +12,6 @@ import BackupPage from './BackupPage';
 import DisplayConfig from './DisplayConfig';
 import AddonsConfig from './AddonsConfig';
 import CaptureButton from './CaptureButton';
-import WiiAddon from './Addons/WiiAddon';
 import InputMacroAddon from './InputMacroAddon';
 
 export default {
@@ -30,6 +29,5 @@ export default {
 	DisplayConfig,
 	AddonsConfig,
 	CaptureButton,
-	WiiAddon,
 	InputMacroAddon,
 };

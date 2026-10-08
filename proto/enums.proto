@@ -679,16 +679,6 @@ enum RotaryEncoderPinMode
     ENCODER_MODE_VOLUME = 9;
 };
 
-enum ReactiveLEDMode
-{
-    option (nanopb_enumopt).long_names = false;
-
-    REACTIVE_LED_STATIC_OFF = 0;
-    REACTIVE_LED_STATIC_ON = 1;
-    REACTIVE_LED_FADE_IN = 2;
-    REACTIVE_LED_FADE_OUT = 3;
-};
-
 enum PS4ControllerIDMode
 {
     option (nanopb_enumopt).long_names = false;

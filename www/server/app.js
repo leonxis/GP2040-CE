@@ -332,78 +332,6 @@ app.get('/api/getPeripheralOptions', (req, res) => {
 	});
 });
 
-app.get('/api/getWiiControls', (req, res) =>
-	res.send({
-		'nunchuk.analogStick.x.axisType': 1,
-		'nunchuk.analogStick.y.axisType': 2,
-		'nunchuk.buttonC': 1,
-		'nunchuk.buttonZ': 2,
-		'classic.analogLeftStick.x.axisType': 1,
-		'classic.analogLeftStick.y.axisType': 2,
-		'classic.analogRightStick.x.axisType': 3,
-		'classic.analogRightStick.y.axisType': 4,
-		'classic.analogLeftTrigger.axisType': 7,
-		'classic.analogRightTrigger.axisType': 8,
-		'classic.buttonA': 2,
-		'classic.buttonB': 1,
-		'classic.buttonX': 8,
-		'classic.buttonY': 4,
-		'classic.buttonL': 64,
-		'classic.buttonR': 128,
-		'classic.buttonZL': 16,
-		'classic.buttonZR': 32,
-		'classic.buttonMinus': 256,
-		'classic.buttonHome': 4096,
-		'classic.buttonPlus': 512,
-		'classic.buttonUp': 65536,
-		'classic.buttonDown': 131072,
-		'classic.buttonLeft': 262144,
-		'classic.buttonRight': 524288,
-		'guitar.analogStick.x.axisType': 1,
-		'guitar.analogStick.y.axisType': 2,
-		'guitar.analogWhammyBar.axisType': 14,
-		'guitar.buttonOrange': 64,
-		'guitar.buttonRed': 2,
-		'guitar.buttonBlue': 4,
-		'guitar.buttonGreen': 1,
-		'guitar.buttonYellow': 8,
-		'guitar.buttonPedal': 128,
-		'guitar.buttonMinus': 256,
-		'guitar.buttonPlus': 512,
-		'guitar.buttonStrumUp': 65536,
-		'guitar.buttonStrumDown': 131072,
-		'drum.analogStick.x.axisType': 1,
-		'drum.analogStick.y.axisType': 2,
-		'drum.buttonOrange': 64,
-		'drum.buttonRed': 2,
-		'drum.buttonBlue': 8,
-		'drum.buttonGreen': 1,
-		'drum.buttonYellow': 4,
-		'drum.buttonPedal': 128,
-		'drum.buttonMinus': 256,
-		'drum.buttonPlus': 512,
-		'turntable.analogStick.x.axisType': 1,
-		'turntable.analogStick.y.axisType': 2,
-		'turntable.analogLeftTurntable.axisType': 13,
-		'turntable.analogRightTurntable.axisType': 15,
-		'turntable.analogFader.axisType': 7,
-		'turntable.analogEffects.axisType': 8,
-		'turntable.buttonLeftGreen': 262144,
-		'turntable.buttonLeftRed': 65536,
-		'turntable.buttonLeftBlue': 524288,
-		'turntable.buttonRightGreen': 4,
-		'turntable.buttonRightRed': 8,
-		'turntable.buttonRightBlue': 2,
-		'turntable.buttonEuphoria': 32,
-		'turntable.buttonMinus': 256,
-		'turntable.buttonPlus': 512,
-		'taiko.buttonDonLeft': 262144,
-		'taiko.buttonKatLeft': 64,
-		'taiko.buttonDonRight': 1,
-		'taiko.buttonKatRight': 128,
-	}),
-);
-
 app.get('/api/getProfileOptions', (req, res) => {
 	return res.send({
 		alternativePinMappings: [
@@ -471,15 +399,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		analog_error: 1000,
 		analog_error2: 1000,
 		bootselButtonMap: 0,
-		buzzerPin: -1,
-		buzzerEnablePin: -1,
-		buzzerVolume: 100,
-		drv8833RumbleLeftMotorPin: -1,
-		drv8833RumbleRightMotorPin: -1,
-		drv8833RumbleMotorSleepPin: -1,
-		drv8833RumblePWMFrequency: 10000,
-		drv8833RumbleDutyMin: 0,
-		drv8833RumbleDutyMax: 100,
 		focusModePin: -1,
 		focusModeButtonLockMask: 0,
 		focusModeButtonLockEnabled: 0,
@@ -514,7 +433,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		AnalogInputEnabled: 1,
 		FocusModeAddonEnabled: 1,
 		focusModeMacroLockEnabled: 0,
-		BuzzerSpeakerAddonEnabled: 1,
 		BootselButtonAddonEnabled: 1,
 		DualDirectionalInputEnabled: 1,
 		TiltInputEnabled: 1,
@@ -523,7 +441,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		ReverseInputEnabled: 1,
 		SliderSOCDInputEnabled: 1,
 		TurboInputEnabled: 1,
-		WiiExtensionAddonEnabled: 1,
 		SNESpadAddonEnabled: 1,
 		LSM6DSRAddonEnabled: 0,
 		lsm6dsrOutputMode: 0,
@@ -568,9 +485,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		heTriggerSmoothing: 0,
 		heTriggerSmoothingFactor: 5,
 		RotaryAddonEnabled: 1,
-		PCF8575AddonEnabled: 1,
-		DRV8833RumbleAddonEnabled: 1,
-		ReactiveLEDAddonEnabled: 1,
 		GamepadUSBHostAddonEnabled: 1,
 		tg16PadOePin: -1,
 		tg16PadSelectPin: -1,
@@ -581,33 +495,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		TG16padAddonEnabled: 1,
 		HETriggerEnabled: 1,
 		usedPins: Object.values(picoController.usedPins),
-	});
-});
-
-app.get('/api/getExpansionPins', (req, res) => {
-	return res.send({
-		pins: {
-			pcf8575: [
-				{
-					pin00: { option: 2, direction: 0 },
-					pin01: { option: -10, direction: 0 },
-					pin02: { option: -10, direction: 0 },
-					pin03: { option: -10, direction: 0 },
-					pin04: { option: -10, direction: 0 },
-					pin05: { option: -10, direction: 0 },
-					pin06: { option: -10, direction: 0 },
-					pin07: { option: -10, direction: 0 },
-					pin08: { option: -10, direction: 0 },
-					pin09: { option: -10, direction: 0 },
-					pin10: { option: -10, direction: 0 },
-					pin11: { option: -10, direction: 0 },
-					pin12: { option: -10, direction: 0 },
-					pin13: { option: -10, direction: 0 },
-					pin14: { option: -10, direction: 0 },
-					pin15: { option: -10, direction: 0 },
-				},
-			],
-		},
 	});
 });
 
@@ -831,23 +718,6 @@ app.get('/api/getButtonLayoutDefs', (req, res) => {
 			BUTTON_LAYOUT_BOARD_DEFINED_ALT6_B: 46,
 			BUTTON_LAYOUT_BOARD_DEFINED_ALT7_B: 47,
 		},
-	});
-});
-
-app.get('/api/getReactiveLEDs', (req, res) => {
-	return res.send({
-		leds: [
-			{ pin: -1, action: -10, modeDown: 0, modeUp: 1 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-			{ pin: -1, action: -10, modeDown: 1, modeUp: 0 },
-		],
 	});
 });
 
