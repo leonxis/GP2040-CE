@@ -53,11 +53,11 @@ fi
 echo "==> 增量编译"
 cmake --build "${BUILD_DIR}" -j"$(nproc)"
 
-# 宏录制区从 flash 偏移 0x1A0000（320KB）开始，固件镜像不得越界
-MACRO_REC_LIMIT=$((0x1A0000))
+# 宏录制区从 flash 偏移 0x190000（384KB，宏1/宏2 各 192KB）开始，固件镜像不得越界
+MACRO_REC_LIMIT=$((0x190000))
 BIN_FILE="$(ls -1 "${BUILD_DIR}"/GP2040-CE_*_HML2354.bin | head -n1)"
 BIN_SIZE="$(stat -c%s "${BIN_FILE}")"
-echo "==> 固件镜像大小：${BIN_SIZE} / ${MACRO_REC_LIMIT} 字节（宏录制区起点 0x1A0000）"
+echo "==> 固件镜像大小：${BIN_SIZE} / ${MACRO_REC_LIMIT} 字节（宏录制区起点 0x190000）"
 if [ "${BIN_SIZE}" -gt "${MACRO_REC_LIMIT}" ]; then
     echo "错误：固件末端越过宏录制区（${BIN_SIZE} > ${MACRO_REC_LIMIT}），会擦写/覆盖录制数据！" >&2
     exit 1

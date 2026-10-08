@@ -505,6 +505,7 @@ enum GamepadHotkey
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_3 = 90;
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_CLEAR = 91;
     HOTKEY_MACRO_RECORD_1 = 92;              // Macro 1 record start/stop toggle
+    HOTKEY_MACRO_RECORD_2 = 93;              // Macro 2 record start/stop toggle
 }
 
 enum AnimationEffects

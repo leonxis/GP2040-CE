@@ -2932,21 +2932,29 @@ std::string setMacroAddonOptions()
         macroOptions.macroList[macrosIndex].useMacroTriggerButton = macro["useMacroTriggerButton"].as<bool>();
         macroOptions.macroList[macrosIndex].macroTriggerButton = macro["macroTriggerButton"].as<uint32_t>();
         macroOptions.macroList[macrosIndex].enabled = macro["enabled"] == true;
-        macroOptions.macroList[macrosIndex].exclusive = macro["exclusive"] == true;
         macroOptions.macroList[macrosIndex].interruptible = macro["interruptible"] == true;
         macroOptions.macroList[macrosIndex].showFrames = macro["showFrames"] == true;
 
-        // Macro 1 only: recording mode (firmware-managed flash stream) vs edited steps.
-        if (macrosIndex == MACRO_REC_INDEX) {
-            macroOptions.macroList[macrosIndex].recordMode = macro["recordMode"] == true;
-            // Recording metadata is read-only; the web UI may only clear it.
+        if (static_cast<unsigned>(macrosIndex) < MACRO_REC_SLOT_COUNT) {
+            // Macro 1/2: pure recorded slots. The flash stream is owned by the
+            // firmware; the web UI may only invalidate it (flag only, no flash
+            // erase on the CGI core). Exclusive is always on, edited steps are
+            // ignored; the stream itself is erased on the next recording.
+            macroOptions.macroList[macrosIndex].exclusive = true;
+            macroOptions.macroList[macrosIndex].macroInputs_count = 0;
             if (macro["clearRecording"] == true) {
                 macroOptions.macroList[macrosIndex].hasRecording = false;
                 macroOptions.macroList[macrosIndex].recFrames = 0;
             }
-        } else {
-            macroOptions.macroList[macrosIndex].recordMode = false;
+            if (++macrosIndex >= MAX_MACRO_LIMIT)
+                break;
+            continue;
         }
+
+        // Macro 3-6: pure edited macros.
+        macroOptions.macroList[macrosIndex].exclusive = macro["exclusive"] == true;
+        macroOptions.macroList[macrosIndex].hasRecording = false;
+        macroOptions.macroList[macrosIndex].recFrames = 0;
 
         JsonArray macroInputs = macro["macroInputs"];
         int macroInputsIndex = 0;
@@ -2956,20 +2964,12 @@ std::string setMacroAddonOptions()
             macroInput.duration = input["duration"].as<uint32_t>();
             macroInput.waitDuration = input["waitDuration"].as<uint32_t>();
             macroInput.buttonMask = input["buttonMask"].as<uint32_t>();
-            // Analog axes: present key = drive that axis (clamped to 16bit), absent = leave untouched
-            macroInput.has_lx = false;
-            macroInput.has_ly = false;
-            macroInput.has_rx = false;
-            macroInput.has_ry = false;
-            uint32_t axisValue;
-            if (input.containsKey("lx") && input["lx"].is<uint32_t>())
-                { axisValue = input["lx"].as<uint32_t>(); macroInput.lx = axisValue > 65535u ? 65535u : axisValue; macroInput.has_lx = true; }
-            if (input.containsKey("ly") && input["ly"].is<uint32_t>())
-                { axisValue = input["ly"].as<uint32_t>(); macroInput.ly = axisValue > 65535u ? 65535u : axisValue; macroInput.has_ly = true; }
-            if (input.containsKey("rx") && input["rx"].is<uint32_t>())
-                { axisValue = input["rx"].as<uint32_t>(); macroInput.rx = axisValue > 65535u ? 65535u : axisValue; macroInput.has_rx = true; }
-            if (input.containsKey("ry") && input["ry"].is<uint32_t>())
-                { axisValue = input["ry"].as<uint32_t>(); macroInput.ry = axisValue > 65535u ? 65535u : axisValue; macroInput.has_ry = true; }
+            // Stick direction: present key = drive that stick direction
+            macroInput.has_stickDirection = false;
+            if (input.containsKey("stickDirection") && input["stickDirection"].is<uint32_t>()) {
+                macroInput.stickDirection = input["stickDirection"].as<uint32_t>();
+                macroInput.has_stickDirection = true;
+            }
             if (++macroInputsIndex >= MAX_MACRO_INPUT_LIMIT) break;
         }
         macroOptions.macroList[macrosIndex].macroInputs_count = macroInputsIndex;
@@ -3003,10 +3003,12 @@ std::string getMacroAddonOptions()
         macro["macroTriggerButton"] = macroOptions.macroList[i].macroTriggerButton;
         macro["macroLabel"] = macroOptions.macroList[i].macroLabel;
 
-        if (i == MACRO_REC_INDEX) {
-            macro["recordMode"] = macroOptions.macroList[i].recordMode ? 1 : 0;
+        // Macro 1/2: recording metadata only (no edited steps echoed back).
+        if (static_cast<unsigned>(i) < MACRO_REC_SLOT_COUNT) {
             macro["hasRecording"] = macroOptions.macroList[i].hasRecording ? 1 : 0;
             macro["recFrames"] = macroOptions.macroList[i].recFrames;
+            macro.createNestedArray("macroInputs");
+            continue;
         }
 
         JsonArray macroInputs = macro.createNestedArray("macroInputs");
@@ -3016,11 +3018,8 @@ std::string getMacroAddonOptions()
             macroInput["buttonMask"] = mi.buttonMask;
             macroInput["duration"] = mi.duration;
             macroInput["waitDuration"] = mi.waitDuration;
-            // Analog axes are omitted entirely when the step does not drive them.
-            if (mi.has_lx) macroInput["lx"] = mi.lx;
-            if (mi.has_ly) macroInput["ly"] = mi.ly;
-            if (mi.has_rx) macroInput["rx"] = mi.rx;
-            if (mi.has_ry) macroInput["ry"] = mi.ry;
+            if (mi.has_stickDirection)
+                macroInput["stickDirection"] = mi.stickDirection;
         }
     }
 

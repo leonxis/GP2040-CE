@@ -1168,7 +1168,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
         INIT_UNSET_PROPERTY(config.addonOptions.macroOptions.macroList[i], macroTriggerButton, 0);
         INIT_UNSET_PROPERTY_STR(config.addonOptions.macroOptions.macroList[i], macroLabel, "");
         INIT_UNSET_PROPERTY(config.addonOptions.macroOptions.macroList[i], deprecatedMacroTriggerPin, -1);
-        // recordMode/hasRecording/recFrames intentionally have no legacy defaults:
+        // hasRecording/recFrames intentionally have no legacy defaults:
         // zero-init from decode is the correct value for all new configurations.
     }
 

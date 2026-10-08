@@ -516,6 +516,34 @@ app.get('/api/getHETriggerOptions', (req, res) => {
 app.get('/api/getMacroAddonOptions', (req, res) => {
 	return res.send({
 		macroList: [
+			// Macro 1/2: recorded slots (stream owned by firmware).
+			{
+				enabled: 1,
+				exclusive: 1,
+				interruptible: 0,
+				showFrames: 1,
+				macroType: 1,
+				useMacroTriggerButton: 1,
+				macroTriggerButton: 1 << 19,
+				macroLabel: 'Rec 1',
+				hasRecording: 1,
+				recFrames: 12500,
+				macroInputs: [],
+			},
+			{
+				enabled: 0,
+				exclusive: 1,
+				interruptible: 1,
+				showFrames: 1,
+				macroType: 1,
+				useMacroTriggerButton: 0,
+				macroTriggerButton: 0,
+				macroLabel: '',
+				hasRecording: 0,
+				recFrames: 0,
+				macroInputs: [],
+			},
+			// Macro 3-6: edited macros.
 			{
 				enabled: 1,
 				exclusive: 1,
@@ -527,35 +555,19 @@ app.get('/api/getMacroAddonOptions', (req, res) => {
 				macroLabel: 'Shoryuken',
 				macroInputs: [
 					{ buttonMask: 1 << 19, duration: 16666, waitDuration: 0 },
-					{ buttonMask: 1 << 17, duration: 16666, waitDuration: 0 },
+					{
+						buttonMask: 1 << 17,
+						duration: 16666,
+						waitDuration: 0,
+						stickDirection: 59,
+					},
 					{
 						buttonMask: (1 << 17) | (1 << 19) | (1 << 3),
 						duration: 16666,
 						waitDuration: 0,
+						stickDirection: 0xfffffffe,
 					},
 				],
-			},
-			{
-				enabled: 0,
-				exclusive: 1,
-				interruptible: 1,
-				showFrames: 1,
-				macroType: 1,
-				useMacroTriggerButton: 0,
-				macroTriggerButton: 0,
-				macroLabel: '',
-				macroInputs: [],
-			},
-			{
-				enabled: 0,
-				exclusive: 1,
-				interruptible: 1,
-				showFrames: 1,
-				macroType: 1,
-				useMacroTriggerButton: 0,
-				macroTriggerButton: 0,
-				macroLabel: '',
-				macroInputs: [],
 			},
 			{
 				enabled: 0,

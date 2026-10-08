@@ -8,17 +8,19 @@
 
 namespace {
 
-// Pointer to memory-mapped flash inside the macro recording region (XIP).
-inline const uint8_t * recFlashPtr(uint32_t layoutOffset)
+// Pointer to memory-mapped flash inside a recording slot (XIP).
+inline const uint8_t * recFlashPtr(uint8_t slot, uint32_t layoutOffset)
 {
     return reinterpret_cast<const uint8_t *>(
-        XIP_BASE + MACRO_REC_FLASH_OFFSET + layoutOffset);
+        XIP_BASE + MACRO_REC_FLASH_OFFSET +
+        static_cast<uint32_t>(slot) * MACRO_REC_SLOT_SIZE + layoutOffset);
 }
 
 // Flash offset (from flash base) expected by flash_range_* / FlashPROM wrappers.
-inline uint32_t recFlashOffset(uint32_t layoutOffset)
+inline uint32_t recFlashOffset(uint8_t slot, uint32_t layoutOffset)
 {
-    return MACRO_REC_FLASH_OFFSET + layoutOffset;
+    return MACRO_REC_FLASH_OFFSET +
+           static_cast<uint32_t>(slot) * MACRO_REC_SLOT_SIZE + layoutOffset;
 }
 
 // Pack the final output state into the recorded button mask.
@@ -33,10 +35,10 @@ bool InputMacro::available() {
     const MacroOptions& macroOptions = Storage::getInstance().getAddonOptions().macroOptions;
     for (int i = 0; i < MAX_MACRO_LIMIT; i++) {
         const Macro& macro = macroOptions.macroList[i];
-        // Record-mode macro 1 loads the addon even with zero edited steps.
+        // Recorded slots (macro 1/2) load with zero edited steps; edited
+        // macros (3-6) need at least one step.
         if (macro.enabled &&
-            (macro.macroInputs_count > 0 ||
-             (i == MACRO_REC_INDEX && macro.recordMode))) {
+            (isRecordedMacroIndex(i) || macro.macroInputs_count > 0)) {
             return true;
         }
     }
@@ -79,36 +81,22 @@ void InputMacro::setup() {
     inputMacroOptions = &Storage::getInstance().getAddonOptions().macroOptions;
     prevMacroInputPressed = false;
 
-    // Recording state
-    recActive = false;
-    recHotkeyPrev = false;
-    recStreamValid = false;
-    recHdrFrames = 0;
-    recHdrEvents = 0;
-    recStartUs = 0;
-    recFramesWritten = 0;
-    recEventCount = 0;
-    recEvtBytePos = 0;
-    recEvtPagePos = 0;
-    recFrmPagePos = 0;
-    recLastMask = 0;
-    recLastLt = 0;
-    recLastRt = 0;
-    recHasLastEvent = false;
-    recPlayActive = false;
-    recPlayEvtPtr = nullptr;
-    recPlayBytesLeft = 0;
-    recPlayEventsRead = 0;
-    recPlayMask = 0;
-    recPlayLt = 0;
-    recPlayRt = 0;
+    for (uint8_t slot = 0; slot < MACRO_REC_SLOT_COUNT; ++slot) {
+        MacroRecSlot & r = recs[slot];
+        memset(&r, 0, sizeof(r));
+        r.playEvtPtr = nullptr;
+    }
 
-    validateRecordingStream();
+    for (uint8_t slot = 0; slot < MACRO_REC_SLOT_COUNT; ++slot)
+        validateRecordingStream(slot);
+
     reset();
 }
 
 
 void InputMacro::reset() {
+    if (isRecordedMacroIndex(macroPosition))
+        recs[macroPosition].playActive = false;
     macroPosition = -1;
     pressedMacro = -1;
     isMacroRunning = false;
@@ -116,7 +104,6 @@ void InputMacro::reset() {
     macroInputPosition = 0;
     isMacroTriggerHeld = false;
     macroInputHoldTime = INPUT_HOLD_US;
-    recPlayActive = false;
 }
 
 void InputMacro::restart(Macro& macro) {
@@ -127,15 +114,15 @@ void InputMacro::restart(Macro& macro) {
     macroInputHoldTime = newMacroInputDuration <= 0 ? INPUT_HOLD_US : newMacroInputDuration;
 }
 
-bool InputMacro::isRecordedMacroEnabled() const {
+bool InputMacro::isRecordedMacroEnabled(uint8_t slot) const {
     return inputMacroOptions != nullptr &&
-           inputMacroOptions->macroList[MACRO_REC_INDEX].enabled &&
-           inputMacroOptions->macroList[MACRO_REC_INDEX].recordMode;
+           inputMacroOptions->macroList[slot].enabled;
 }
 
-bool InputMacro::validateRecordingStream() {
+bool InputMacro::validateRecordingStream(uint8_t slot) {
+    MacroRecSlot & r = recs[slot];
     const MacroRecHeader * hdr =
-        reinterpret_cast<const MacroRecHeader *>(recFlashPtr(MACRO_REC_HEADER_OFFSET));
+        reinterpret_cast<const MacroRecHeader *>(recFlashPtr(slot, MACRO_REC_HEADER_OFFSET));
     bool ok = hdr->magic[0] == 'G' && hdr->magic[1] == 'R' &&
               hdr->magic[2] == '0' && hdr->magic[3] == '1' &&
               hdr->version == MACRO_REC_VERSION &&
@@ -144,21 +131,21 @@ bool InputMacro::validateRecordingStream() {
               static_cast<uint64_t>(hdr->eventCount) * MACRO_REC_MAX_EVENT_BYTES
                   <= MACRO_REC_EVENT_SIZE;
     if (ok) {
-        recHdrFrames = hdr->totalFrames;
-        recHdrEvents = hdr->eventCount;
+        r.hdrFrames = hdr->totalFrames;
+        r.hdrEvents = hdr->eventCount;
     } else {
-        recHdrFrames = 0;
-        recHdrEvents = 0;
+        r.hdrFrames = 0;
+        r.hdrEvents = 0;
     }
-    recStreamValid = ok;
+    r.streamValid = ok;
 
     // Self-heal: metadata claims a recording but flash has no valid stream
     // (e.g. power loss during the start erase). Never replay 0xFF garbage.
-    Macro& macro0 = Storage::getInstance()
-                        .getAddonOptions().macroOptions.macroList[MACRO_REC_INDEX];
-    if (macro0.hasRecording && !ok) {
-        macro0.hasRecording = false;
-        macro0.recFrames = 0;
+    Macro& macroSlot = Storage::getInstance()
+                        .getAddonOptions().macroOptions.macroList[slot];
+    if (macroSlot.hasRecording && !ok) {
+        macroSlot.hasRecording = false;
+        macroSlot.recFrames = 0;
         EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(false));
     }
     return ok;
@@ -175,8 +162,8 @@ void InputMacro::checkMacroPress() {
         if (!macroConst.enabled)
             continue;
         const bool recordedMacro =
-            i == MACRO_REC_INDEX && macroConst.recordMode &&
-            macroConst.hasRecording && recStreamValid;
+            isRecordedMacroIndex(i) && macroConst.hasRecording &&
+            recs[i].streamValid;
         if (!recordedMacro && macroConst.macroInputs_count == 0)
             continue;
         Macro * macro = &inputMacroOptions->macroList[i];
@@ -225,7 +212,6 @@ void InputMacro::checkMacroAction() {
     } else if ( inputMacroOptions->macroList[macroPosition].macroType == ON_HOLD_REPEAT ) {
         isMacroTriggerHeld = macroInputPressed;
     } else if ( inputMacroOptions->macroList[macroPosition].macroType == ON_TOGGLE ) {
-        //isMacroTriggerHeld = macroInputPressed;
         if (!isMacroRunning ) {
             isMacroTriggerHeld = newPress;
         } else if (isMacroRunning && newPress) {
@@ -241,9 +227,10 @@ void InputMacro::checkMacroAction() {
         // New Macro to run
         macroPosition = pressedMacro; // Set current macro
         Macro& macro = inputMacroOptions->macroList[macroPosition];
-        if (macro.recordMode && macro.hasRecording && recStreamValid) {
+        if (isRecordedMacroIndex(macroPosition) && macro.hasRecording &&
+            recs[macroPosition].streamValid) {
             // Recorded stream carries its own timeline.
-            macroInputHoldTime = recHdrFrames * MACRO_REC_TICK_US;
+            macroInputHoldTime = recs[macroPosition].hdrFrames * MACRO_REC_TICK_US;
         } else {
             MacroInput& macroInput = macro.macroInputs[macroInputPosition];
             uint32_t macroInputDuration = macroInput.duration + macroInput.waitDuration;
@@ -254,62 +241,97 @@ void InputMacro::checkMacroAction() {
     }
 }
 
-void InputMacro::beginRecordedPlayback() {
-    recPlayActive = true;
-    recPlayEvtPtr = recFlashPtr(MACRO_REC_EVENT_OFFSET);
-    recPlayBytesLeft = MACRO_REC_EVENT_SIZE;
-    recPlayEventsRead = 0;
-    recPlayMask = 0;
-    recPlayLt = 0;
-    recPlayRt = 0;
+void InputMacro::beginRecordedPlayback(uint8_t slot) {
+    MacroRecSlot & r = recs[slot];
+    r.playActive = true;
+    r.playEvtPtr = recFlashPtr(slot, MACRO_REC_EVENT_OFFSET);
+    r.playBytesLeft = MACRO_REC_EVENT_SIZE;
+    r.playEventsRead = 0;
+    r.playMask = 0;
+    r.playLt = 0;
+    r.playRt = 0;
 }
 
-void InputMacro::runRecordedMacro(uint64_t now) {
-    if (!recPlayActive)
-        beginRecordedPlayback();
+void InputMacro::restartRecorded(uint8_t slot) {
+    macroStartTime = getMicro();
+    macroInputPosition = 0;
+    beginRecordedPlayback(slot);
+}
 
-    uint32_t tick = static_cast<uint32_t>((now - macroStartTime) / MACRO_REC_TICK_US);
+void InputMacro::runRecordedMacro(uint8_t slot, uint64_t now) {
+    MacroRecSlot & r = recs[slot];
+    if (!r.playActive)
+        beginRecordedPlayback(slot);
 
-    // ON_PRESS semantics: play the stream once, then stop.
-    if (tick >= recHdrFrames) {
+    const Macro& macro = inputMacroOptions->macroList[slot];
+    Gamepad * gamepad = Storage::getInstance().GetGamepad();
+
+    // Interruptible hold-repeat macros stop immediately when their trigger is released.
+    if (macro.macroType == ON_HOLD_REPEAT &&
+            macro.interruptible &&
+            !isMacroTriggerHeld) {
         reset();
         return;
     }
 
-    // Consume every event whose frame index has been reached.
-    while (recPlayEventsRead < recHdrEvents) {
-        uint32_t frame = 0, mask = 0;
-        uint8_t n1 = macroRecDecodeUVarint(recPlayEvtPtr, recPlayBytesLeft, frame);
-        if (n1 == 0 || static_cast<uint32_t>(n1) + 9 > recPlayBytesLeft) break;
-        if (frame > tick) break;
-        const uint8_t * p = recPlayEvtPtr + n1;
-        uint32_t left = recPlayBytesLeft - n1;
-        uint8_t n2 = macroRecDecodeUVarint(p, left, mask);
-        if (n2 == 0 || static_cast<uint32_t>(n2) + 2 > left) break;
-        recPlayMask = mask;
-        recPlayLt = p[n2];
-        recPlayRt = p[n2 + 1];
-        uint8_t used = n1 + n2 + 2;
-        recPlayEvtPtr += used;
-        recPlayBytesLeft -= used;
-        recPlayEventsRead++;
+    uint32_t tick = static_cast<uint32_t>((now - macroStartTime) / MACRO_REC_TICK_US);
+
+    // Same exclusive/interruptible split as edited macros (exclusive is always
+    // true for recorded slots, enforced on save).
+    if (!macro.interruptible) {
+        // Exclusive: drop all live user buttons/dpad for this pass.
+        gamepad->state.dpad = 0;
+        gamepad->state.buttons = 0;
+    } else {
+        if (macro.useMacroTriggerButton) {
+            // Remove the trigger button from the input state
+            gamepad->state.dpad &= ~(macro.macroTriggerButton >> 16);
+            gamepad->state.buttons &= ~macro.macroTriggerButton;
+        }
+        if (gamepad->state.buttons != 0 || gamepad->state.dpad != 0) {
+            // Interruptible and the user pressed something else.
+            reset();
+            return;
+        }
     }
 
-    Gamepad * gamepad = Storage::getInstance().GetGamepad();
-    gamepad->state.dpad = 0;
-    gamepad->state.buttons = 0;
-    if (recPlayMask & GAMEPAD_MASK_DU) gamepad->state.dpad |= GAMEPAD_MASK_UP;
-    if (recPlayMask & GAMEPAD_MASK_DD) gamepad->state.dpad |= GAMEPAD_MASK_DOWN;
-    if (recPlayMask & GAMEPAD_MASK_DL) gamepad->state.dpad |= GAMEPAD_MASK_LEFT;
-    if (recPlayMask & GAMEPAD_MASK_DR) gamepad->state.dpad |= GAMEPAD_MASK_RIGHT;
-    gamepad->state.buttons |= recPlayMask;
-}
+    // End of the recorded stream: play once, repeat while held, or loop.
+    if (tick >= r.hdrFrames) {
+        if (macro.macroType == ON_PRESS ||
+            (macro.macroType == ON_HOLD_REPEAT && !isMacroTriggerHeld)) {
+            reset();
+            return;
+        }
+        // ON_HOLD_REPEAT while held, or ON_TOGGLE: restart from the first frame
+        // and emit the initial state during this same loop iteration.
+        restartRecorded(slot);
+        tick = 0;
+    }
 
-static void applyManualAxes(GamepadState & state, const MacroInput & macroInput) {
-    if (macroInput.has_lx) state.lx = static_cast<uint16_t>(macroInput.lx);
-    if (macroInput.has_ly) state.ly = static_cast<uint16_t>(macroInput.ly);
-    if (macroInput.has_rx) state.rx = static_cast<uint16_t>(macroInput.rx);
-    if (macroInput.has_ry) state.ry = static_cast<uint16_t>(macroInput.ry);
+    // Consume every event whose frame index has been reached.
+    while (r.playEventsRead < r.hdrEvents) {
+        uint32_t frame = 0, mask = 0;
+        uint8_t n1 = macroRecDecodeUVarint(r.playEvtPtr, r.playBytesLeft, frame);
+        if (n1 == 0 || static_cast<uint32_t>(n1) + 9 > r.playBytesLeft) break;
+        if (frame > tick) break;
+        const uint8_t * p = r.playEvtPtr + n1;
+        uint32_t left = r.playBytesLeft - n1;
+        uint8_t n2 = macroRecDecodeUVarint(p, left, mask);
+        if (n2 == 0 || static_cast<uint32_t>(n2) + 2 > left) break;
+        r.playMask = mask;
+        r.playLt = p[n2];
+        r.playRt = p[n2 + 1];
+        uint8_t used = n1 + n2 + 2;
+        r.playEvtPtr += used;
+        r.playBytesLeft -= used;
+        r.playEventsRead++;
+    }
+
+    if (r.playMask & GAMEPAD_MASK_DU) gamepad->state.dpad |= GAMEPAD_MASK_UP;
+    if (r.playMask & GAMEPAD_MASK_DD) gamepad->state.dpad |= GAMEPAD_MASK_DOWN;
+    if (r.playMask & GAMEPAD_MASK_DL) gamepad->state.dpad |= GAMEPAD_MASK_LEFT;
+    if (r.playMask & GAMEPAD_MASK_DR) gamepad->state.dpad |= GAMEPAD_MASK_RIGHT;
+    gamepad->state.buttons |= r.playMask;
 }
 
 void InputMacro::runCurrentMacro() {
@@ -321,10 +343,10 @@ void InputMacro::runCurrentMacro() {
     Macro& macro = inputMacroOptions->macroList[macroPosition];
 
     // Recorded macro: dedicated timeline branch, no edited-step logic.
-    if (macroPosition == MACRO_REC_INDEX && macro.recordMode &&
-        macro.hasRecording && recStreamValid) {
+    if (isRecordedMacroIndex(macroPosition) && macro.hasRecording &&
+        recs[macroPosition].streamValid) {
         currentMicros = getMicro();
-        runRecordedMacro(currentMicros);
+        runRecordedMacro(static_cast<uint8_t>(macroPosition), currentMicros);
         return;
     }
 
@@ -362,7 +384,7 @@ void InputMacro::runCurrentMacro() {
     if ((currentMicros - macroStartTime) >= macroInputHoldTime) {
         macroStartTime = currentMicros;
         macroInputPosition++;
-        
+
         if (macroInputPosition >= (macro.macroInputs_count)) {
             if (macro.macroType == ON_PRESS ||
                 (macro.macroType == ON_HOLD_REPEAT && !isMacroTriggerHeld)) {
@@ -395,20 +417,66 @@ void InputMacro::runCurrentMacro() {
         }
         gamepad->state.buttons |= buttonMask;
 
-        // Analog axes (web editor writes full-scale/center values per direction).
-        applyManualAxes(gamepad->state, macroInput);
+        // Handle stick direction if set
+        if (macroInput.has_stickDirection && macroInput.stickDirection != 0) {
+            uint32_t stickDirection = macroInput.stickDirection;
+            uint16_t joystickMid = GAMEPAD_JOYSTICK_MID;
+
+            // Get joystick midpoint from driver if available
+            if (DriverManager::getInstance().getDriver() != nullptr) {
+                joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+            }
+
+            // Check for stick center commands
+            if (stickDirection == 0xFFFFFFFE) {
+                // Center left stick
+                gamepad->state.lx = joystickMid;
+                gamepad->state.ly = joystickMid;
+            } else if (stickDirection == 0xFFFFFFFD) {
+                // Center right stick
+                gamepad->state.rx = joystickMid;
+                gamepad->state.ry = joystickMid;
+            } else {
+                // Apply stick direction based on GpioAction value
+                switch (stickDirection) {
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_X_NEG:
+                        gamepad->state.lx = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_X_POS:
+                        gamepad->state.lx = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_Y_NEG:
+                        gamepad->state.ly = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_Y_POS:
+                        gamepad->state.ly = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_X_NEG:
+                        gamepad->state.rx = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_X_POS:
+                        gamepad->state.rx = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_Y_NEG:
+                        gamepad->state.ry = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_Y_POS:
+                        gamepad->state.ry = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    default:
+                        // Unknown stick direction, do nothing
+                        break;
+                }
+            }
+        }
     }
 }
 
 void InputMacro::checkRecordHotkey() {
-    if (!isRecordedMacroEnabled()) {
-        recHotkeyPrev = false;
-        return;
-    }
-
     // Don't toggle while any macro is playing back.
     if (isMacroRunning) {
-        recHotkeyPrev = false;
+        recs[0].hotkeyPrev = false;
+        recs[1].hotkeyPrev = false;
         return;
     }
 
@@ -426,22 +494,42 @@ void InputMacro::checkRecordHotkey() {
     };
 
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
-    bool pressed = false;
-    for (const HotkeyEntry & entry : entries) {
-        if (entry.action == HOTKEY_MACRO_RECORD_1 && gamepad->pressedHotkey(entry)) {
-            pressed = true;
-            break;
-        }
-    }
 
-    if (pressed && !recHotkeyPrev) {
-        if (recActive) {
-            stopRecording(false);
-        } else {
-            startRecording();
+    for (uint8_t slot = 0; slot < MACRO_REC_SLOT_COUNT; ++slot) {
+        MacroRecSlot & r = recs[slot];
+
+        if (!isRecordedMacroEnabled(slot)) {
+            r.hotkeyPrev = false;
+            continue;
         }
+
+        // Slots are mutually exclusive: only scan when no slot is recording,
+        // or this slot itself is active (its own hotkey then stops it). The
+        // active set is re-read every iteration (not snapshotted) so that
+        // starting slot 0 inside this very call prevents slot 1 from starting
+        // when both combos happen to be held at once.
+        const bool anySlotActive = recs[0].active || recs[1].active;
+        bool pressed = false;
+        if (!anySlotActive || r.active) {
+            const GamepadHotkey wanted = static_cast<GamepadHotkey>(
+                HOTKEY_MACRO_RECORD_1 + slot);
+            for (const HotkeyEntry & entry : entries) {
+                if (entry.action == wanted && gamepad->pressedHotkey(entry)) {
+                    pressed = true;
+                    break;
+                }
+            }
+        }
+
+        if (pressed && !r.hotkeyPrev) {
+            if (r.active) {
+                stopRecording(slot, false);
+            } else {
+                startRecording(slot);
+            }
+        }
+        r.hotkeyPrev = pressed;
     }
-    recHotkeyPrev = pressed;
 }
 
 void InputMacro::preprocess()
@@ -458,8 +546,8 @@ void InputMacro::preprocess()
 
     checkRecordHotkey();
 
-    // While recording, all macro playback/trigger logic is suspended.
-    if (recActive)
+    // While any slot is recording, all macro playback/trigger logic is suspended.
+    if (recs[0].active || recs[1].active)
         return;
 
     checkMacroPress();
@@ -480,19 +568,21 @@ void InputMacro::process()
     Macro& macro = inputMacroOptions->macroList[macroPosition];
 
     // Recorded stream: analog axes/triggers come straight from the frame/event tracks.
-    if (macroPosition == MACRO_REC_INDEX && macro.recordMode &&
-        macro.hasRecording && recStreamValid && recPlayActive) {
+    if (isRecordedMacroIndex(macroPosition) && macro.hasRecording &&
+        recs[macroPosition].streamValid && recs[macroPosition].playActive) {
+        MacroRecSlot & r = recs[macroPosition];
         uint32_t tick = static_cast<uint32_t>(
             (currentMicros - macroStartTime) / MACRO_REC_TICK_US);
-        if (tick >= recHdrFrames)
-            tick = recHdrFrames - 1;
-        const uint8_t * frame = recFlashPtr(MACRO_REC_FRAME_OFFSET + tick * 4u);
+        if (tick >= r.hdrFrames)
+            tick = r.hdrFrames - 1;
+        const uint8_t * frame = recFlashPtr(static_cast<uint8_t>(macroPosition),
+                                             MACRO_REC_FRAME_OFFSET + tick * 4u);
         gamepad->state.lx = macroRecRestoreAxis(frame[0]);
         gamepad->state.ly = macroRecRestoreAxis(frame[1]);
         gamepad->state.rx = macroRecRestoreAxis(frame[2]);
         gamepad->state.ry = macroRecRestoreAxis(frame[3]);
-        gamepad->state.lt = recPlayLt;
-        gamepad->state.rt = recPlayRt;
+        gamepad->state.lt = r.playLt;
+        gamepad->state.rt = r.playRt;
         return;
     }
 
@@ -500,21 +590,70 @@ void InputMacro::process()
 
     // Only reapply stick direction if we're still within the duration window
     if ((currentMicros - macroStartTime) <= macroInput.duration) {
-        applyManualAxes(gamepad->state, macroInput);
+        if (macroInput.has_stickDirection && macroInput.stickDirection != 0) {
+            uint32_t stickDirection = macroInput.stickDirection;
+            uint16_t joystickMid = GAMEPAD_JOYSTICK_MID;
+
+            if (DriverManager::getInstance().getDriver() != nullptr) {
+                joystickMid = DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+            }
+
+            if (stickDirection == 0xFFFFFFFE) {
+                gamepad->state.lx = joystickMid;
+                gamepad->state.ly = joystickMid;
+            } else if (stickDirection == 0xFFFFFFFD) {
+                gamepad->state.rx = joystickMid;
+                gamepad->state.ry = joystickMid;
+            } else {
+                switch (stickDirection) {
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_X_NEG:
+                        gamepad->state.lx = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_X_POS:
+                        gamepad->state.lx = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_Y_NEG:
+                        gamepad->state.ly = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_LS_Y_POS:
+                        gamepad->state.ly = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_X_NEG:
+                        gamepad->state.rx = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_X_POS:
+                        gamepad->state.rx = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_Y_NEG:
+                        gamepad->state.ry = GAMEPAD_JOYSTICK_MIN;
+                        break;
+                    case (uint32_t)GpioAction::ANALOG_DIRECTION_RS_Y_POS:
+                        gamepad->state.ry = GAMEPAD_JOYSTICK_MAX;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
     }
 }
 
 bool InputMacro::hasStickDirection() const
 {
-    if (recPlayActive)
-        return true;
+    // Recorded playback drives all four axes from the frame track.
+    for (uint8_t slot = 0; slot < MACRO_REC_SLOT_COUNT; ++slot) {
+        if (recs[slot].playActive)
+            return true;
+    }
 
     if (!isMacroRunning || macroPosition == -1)
         return false;
 
     const Macro& macro = inputMacroOptions->macroList[macroPosition];
-    if (macroPosition == MACRO_REC_INDEX && macro.recordMode &&
-        macro.hasRecording && recStreamValid) {
+
+    // Recorded macro about to run / running (process() may lag by one call).
+    if (isRecordedMacroIndex(macroPosition) && macro.hasRecording &&
+        recs[macroPosition].streamValid) {
         return true;
     }
 
@@ -522,90 +661,101 @@ bool InputMacro::hasStickDirection() const
     uint64_t now = getMicro();
 
     return (now - macroStartTime) <= macroInput.duration &&
-           (macroInput.has_lx || macroInput.has_ly ||
-            macroInput.has_rx || macroInput.has_ry);
+           macroInput.has_stickDirection &&
+           macroInput.stickDirection != 0;
 }
 
 // --- Recording ---
 
-void InputMacro::startRecording() {
-    // One-shot erase of the full 320KB before the first sample is taken.
-    // Typical ~0.75s stall (5 x 64KB block erases); no samples exist yet.
-    FlashPROM::eraseRange(MACRO_REC_FLASH_OFFSET, MACRO_REC_FLASH_SIZE);
+void InputMacro::startRecording(uint8_t slot) {
+    // One-shot erase of this slot's 192KB before the first sample is taken.
+    // Typical ~0.45s stall (3 x 64KB block erases); no samples exist yet.
+    FlashPROM::eraseRange(
+        MACRO_REC_FLASH_OFFSET + static_cast<uint32_t>(slot) * MACRO_REC_SLOT_SIZE,
+        MACRO_REC_SLOT_SIZE);
 
-    recFramesWritten = 0;
-    recEventCount = 0;
-    recEvtBytePos = 0;
-    recEvtPagePos = 0;
-    recFrmPagePos = 0;
-    recLastMask = 0;
-    recLastLt = 0;
-    recLastRt = 0;
-    recHasLastEvent = false;
-    recStreamValid = false;
-    recStartUs = getMicro();
-    recActive = true;
+    MacroRecSlot & r = recs[slot];
+    r.framesWritten = 0;
+    r.eventCount = 0;
+    r.evtBytePos = 0;
+    r.evtPagePos = 0;
+    r.frmPagePos = 0;
+    r.lastMask = 0;
+    r.lastLt = 0;
+    r.lastRt = 0;
+    r.hasLastEvent = false;
+    r.streamValid = false;
+    r.hdrFrames = 0;
+    r.hdrEvents = 0;
+    r.playActive = false;
+    r.startUs = getMicro();
+    r.active = true;
 
     Storage::getInstance().setMacroRecording(true);
 }
 
-void InputMacro::recordWriteBytes(const uint8_t * data, uint8_t len) {
+void InputMacro::recordWriteBytes(uint8_t slot, const uint8_t * data, uint8_t len) {
+    MacroRecSlot & r = recs[slot];
     for (uint8_t i = 0; i < len; ++i) {
-        recEvtPage[recEvtPagePos++] = data[i];
-        ++recEvtBytePos;
-        if (recEvtPagePos == 256)
-            flushEventPage();
+        r.evtPage[r.evtPagePos++] = data[i];
+        ++r.evtBytePos;
+        if (r.evtPagePos == 256)
+            flushEventPage(slot);
     }
 }
 
-void InputMacro::flushEventPage() {
-    if (recEvtPagePos == 0)
+void InputMacro::flushEventPage(uint8_t slot) {
+    MacroRecSlot & r = recs[slot];
+    if (r.evtPagePos == 0)
         return;
-    uint32_t pageLayout = MACRO_REC_EVENT_OFFSET + recEvtBytePos - recEvtPagePos;
-    while (recEvtPagePos < 256)
-        recEvtPage[recEvtPagePos++] = 0xFF;
-    FlashPROM::programPages(recFlashOffset(pageLayout), recEvtPage, 256);
-    recEvtPagePos = 0;
+    uint32_t pageLayout = MACRO_REC_EVENT_OFFSET + r.evtBytePos - r.evtPagePos;
+    while (r.evtPagePos < 256)
+        r.evtPage[r.evtPagePos++] = 0xFF;
+    FlashPROM::programPages(recFlashOffset(slot, pageLayout), r.evtPage, 256);
+    r.evtPagePos = 0;
 }
 
-void InputMacro::flushFramePage() {
-    if (recFrmPagePos == 0)
+void InputMacro::flushFramePage(uint8_t slot) {
+    MacroRecSlot & r = recs[slot];
+    if (r.frmPagePos == 0)
         return;
-    uint32_t frameBytesUsed = recFramesWritten * 4u;
-    uint32_t pageLayout = MACRO_REC_FRAME_OFFSET + frameBytesUsed - recFrmPagePos;
-    while (recFrmPagePos < 256)
-        recFrmPage[recFrmPagePos++] = 0xFF;
-    FlashPROM::programPages(recFlashOffset(pageLayout), recFrmPage, 256);
-    recFrmPagePos = 0;
+    uint32_t frameBytesUsed = r.framesWritten * 4u;
+    uint32_t pageLayout = MACRO_REC_FRAME_OFFSET + frameBytesUsed - r.frmPagePos;
+    while (r.frmPagePos < 256)
+        r.frmPage[r.frmPagePos++] = 0xFF;
+    FlashPROM::programPages(recFlashOffset(slot, pageLayout), r.frmPage, 256);
+    r.frmPagePos = 0;
 }
 
-bool InputMacro::appendRecordEvent(uint32_t frame, uint32_t mask, uint8_t lt, uint8_t rt) {
+bool InputMacro::appendRecordEvent(uint8_t slot, uint32_t frame, uint32_t mask, uint8_t lt, uint8_t rt) {
+    MacroRecSlot & r = recs[slot];
     uint8_t enc[MACRO_REC_MAX_EVENT_BYTES];
     uint8_t n1 = macroRecEncodeUVarint(frame, enc);
     uint8_t n2 = macroRecEncodeUVarint(mask, enc + n1);
     uint8_t total = n1 + n2 + 2;
-    if (recEvtBytePos + total > MACRO_REC_EVENT_SIZE)
+    if (r.evtBytePos + total > MACRO_REC_EVENT_SIZE)
         return false;
-    recordWriteBytes(enc, n1 + n2);
-    recEvtPage[recEvtPagePos++] = lt;
-    ++recEvtBytePos;
-    if (recEvtPagePos == 256) flushEventPage();
-    recEvtPage[recEvtPagePos++] = rt;
-    ++recEvtBytePos;
-    if (recEvtPagePos == 256) flushEventPage();
-    recEventCount++;
-    recLastMask = mask;
-    recLastLt = lt;
-    recLastRt = rt;
-    recHasLastEvent = true;
+    recordWriteBytes(slot, enc, n1 + n2);
+    r.evtPage[r.evtPagePos++] = lt;
+    ++r.evtBytePos;
+    if (r.evtPagePos == 256) flushEventPage(slot);
+    r.evtPage[r.evtPagePos++] = rt;
+    ++r.evtBytePos;
+    if (r.evtPagePos == 256) flushEventPage(slot);
+    r.eventCount++;
+    r.lastMask = mask;
+    r.lastLt = lt;
+    r.lastRt = rt;
+    r.hasLastEvent = true;
     return true;
 }
 
-void InputMacro::recordSample(uint64_t now) {
+void InputMacro::recordSample(uint8_t slot, uint64_t now) {
+    MacroRecSlot & r = recs[slot];
     GamepadState & s = Storage::getInstance().GetGamepad()->state;
 
-    uint32_t tick = static_cast<uint32_t>((now - recStartUs) / MACRO_REC_TICK_US);
-    // All 79,872 slots (frames 0..cap-1) used means the stream is full.
+    uint32_t tick = static_cast<uint32_t>((now - r.startUs) / MACRO_REC_TICK_US);
+    // All frame slots used means the stream is full.
     bool overflow = (tick >= MACRO_REC_FRAME_CAP);
     uint32_t targetTick = overflow ? MACRO_REC_FRAME_CAP - 1 : tick;
 
@@ -616,43 +766,46 @@ void InputMacro::recordSample(uint64_t now) {
         macroRecQuantAxis(s.lx), macroRecQuantAxis(s.ly),
         macroRecQuantAxis(s.rx), macroRecQuantAxis(s.ry)
     };
-    while (recFramesWritten <= targetTick && recFramesWritten < MACRO_REC_FRAME_CAP) {
-        recFrmPage[recFrmPagePos++] = q[0];
-        recFrmPage[recFrmPagePos++] = q[1];
-        recFrmPage[recFrmPagePos++] = q[2];
-        recFrmPage[recFrmPagePos++] = q[3];
-        ++recFramesWritten;
-        if (recFrmPagePos == 256)
-            flushFramePage();
+    while (r.framesWritten <= targetTick && r.framesWritten < MACRO_REC_FRAME_CAP) {
+        r.frmPage[r.frmPagePos++] = q[0];
+        r.frmPage[r.frmPagePos++] = q[1];
+        r.frmPage[r.frmPagePos++] = q[2];
+        r.frmPage[r.frmPagePos++] = q[3];
+        ++r.framesWritten;
+        if (r.frmPagePos == 256)
+            flushFramePage(slot);
     }
 
     // Change-driven button/trigger event paired with the current tick's frame.
     if (!overflow) {
         uint32_t mask = recStateMask(s);
-        if (!recHasLastEvent || mask != recLastMask ||
-            s.lt != recLastLt || s.rt != recLastRt) {
-            if (!appendRecordEvent(targetTick, mask, s.lt, s.rt))
+        if (!r.hasLastEvent || mask != r.lastMask ||
+            s.lt != r.lastLt || s.rt != r.lastRt) {
+            if (!appendRecordEvent(slot, targetTick, mask, s.lt, s.rt))
                 overflow = true;
         }
     }
 
     if (overflow)
-        stopRecording(true);
+        stopRecording(slot, true);
 }
 
 void InputMacro::postprocess(bool sent) {
     (void)sent;
-    if (recActive)
-        recordSample(getMicro());
+    for (uint8_t slot = 0; slot < MACRO_REC_SLOT_COUNT; ++slot) {
+        if (recs[slot].active)
+            recordSample(slot, getMicro());
+    }
 }
 
-void InputMacro::stopRecording(bool overflow) {
-    if (!recActive)
+void InputMacro::stopRecording(uint8_t slot, bool overflow) {
+    MacroRecSlot & r = recs[slot];
+    if (!r.active)
         return;
 
-    recActive = false;
-    flushFramePage();
-    flushEventPage();
+    r.active = false;
+    flushFramePage(slot);
+    flushEventPage(slot);
 
     // Header page last: power-loss before this point leaves an invalid stream.
     uint8_t headerPage[256];
@@ -661,29 +814,31 @@ void InputMacro::stopRecording(bool overflow) {
     hdr.magic[0] = 'G'; hdr.magic[1] = 'R'; hdr.magic[2] = '0'; hdr.magic[3] = '1';
     hdr.version = MACRO_REC_VERSION;
     hdr.reserved[0] = hdr.reserved[1] = hdr.reserved[2] = 0;
-    hdr.totalFrames = recFramesWritten;
-    hdr.eventCount = recEventCount;
+    hdr.totalFrames = r.framesWritten;
+    hdr.eventCount = r.eventCount;
     memcpy(headerPage, &hdr, sizeof(hdr));
-    FlashPROM::programPages(recFlashOffset(MACRO_REC_HEADER_OFFSET), headerPage, 256);
+    FlashPROM::programPages(recFlashOffset(slot, MACRO_REC_HEADER_OFFSET), headerPage, 256);
 
-    recStreamValid = recFramesWritten > 0;
-    recHdrFrames = recFramesWritten;
-    recHdrEvents = recEventCount;
+    r.streamValid = r.framesWritten > 0;
+    r.hdrFrames = r.framesWritten;
+    r.hdrEvents = r.eventCount;
 
-    Storage::getInstance().setMacroRecording(false);
+    // The other slot cannot be active while this one was, but keep the global
+    // hint truthful regardless.
+    Storage::getInstance().setMacroRecording(
+        recs[MACRO_REC_SLOT_COUNT - 1 - slot].active);
     if (overflow)
         Storage::getInstance().pulseMacroRecFull();
 
     // Commit metadata to config (stream itself is already on flash).
-    Macro& macro = inputMacroOptions->macroList[MACRO_REC_INDEX];
-    macro.recordMode = true;
+    // Recorded slots are always exclusive; macroType/interruptible are user
+    // configurable and left untouched.
+    Macro& macro = inputMacroOptions->macroList[slot];
     macro.enabled = true;
-    macro.macroType = ON_PRESS;
     macro.exclusive = true;
-    macro.interruptible = false;
     macro.macroInputs_count = 0;
-    macro.hasRecording = recFramesWritten > 0;
-    macro.recFrames = recFramesWritten;
+    macro.hasRecording = r.framesWritten > 0;
+    macro.recFrames = r.framesWritten;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(false));
 }
 
