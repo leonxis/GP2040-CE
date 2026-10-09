@@ -95,6 +95,11 @@ void InputMacro::setup() {
 
 
 void InputMacro::reset() {
+    // All playback terminations funnel through here — normal completion,
+    // user interruption (other button / toggle-off / trigger release).
+    // Emit the one-shot blue blink once per real playback session; the
+    // setup()-time call has isMacroRunning == false and must stay silent.
+    const bool wasRunning = isMacroRunning;
     if (isRecordedMacroIndex(macroPosition))
         recs[macroPosition].playActive = false;
     macroPosition = -1;
@@ -104,6 +109,8 @@ void InputMacro::reset() {
     macroInputPosition = 0;
     isMacroTriggerHeld = false;
     macroInputHoldTime = INPUT_HOLD_US;
+    if (wasRunning)
+        Storage::getInstance().pulseMacroHint();
 }
 
 void InputMacro::restart(Macro& macro) {
@@ -691,7 +698,8 @@ void InputMacro::startRecording(uint8_t slot) {
     r.startUs = getMicro();
     r.active = true;
 
-    Storage::getInstance().setMacroRecording(true);
+    // One-shot blue blink on recording start (no continuous recording light).
+    Storage::getInstance().pulseMacroHint();
 }
 
 void InputMacro::recordWriteBytes(uint8_t slot, const uint8_t * data, uint8_t len) {
@@ -823,10 +831,8 @@ void InputMacro::stopRecording(uint8_t slot, bool overflow) {
     r.hdrFrames = r.framesWritten;
     r.hdrEvents = r.eventCount;
 
-    // The other slot cannot be active while this one was, but keep the global
-    // hint truthful regardless.
-    Storage::getInstance().setMacroRecording(
-        recs[MACRO_REC_SLOT_COUNT - 1 - slot].active);
+    // Capacity-induced auto stop gets the red 3-blink warning; a manual
+    // hotkey stop stays silent (blue blink is only emitted at record start).
     if (overflow)
         Storage::getInstance().pulseMacroRecFull();
 

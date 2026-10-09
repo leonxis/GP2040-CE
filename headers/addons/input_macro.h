@@ -170,14 +170,14 @@ private:
     void runRecordedMacro(uint8_t slot, uint64_t now);
     void restartRecorded(uint8_t slot);
 
-    bool isMacroRunning;
-    bool isMacroTriggerHeld;
-    int macroPosition;
+    bool isMacroRunning = false;
+    bool isMacroTriggerHeld = false;
+    int macroPosition = -1;
     Mask_t macroButtonMask;
     Mask_t macroPinMasks[6];
     uint64_t macroStartTime;
     uint64_t currentMicros;
-    int pressedMacro;
+    int pressedMacro = -1;
     int macroInputPosition;
     uint32_t macroInputHoldTime;
     bool prevMacroInputPressed;

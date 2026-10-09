@@ -223,6 +223,23 @@ public:
 
 #define NeoPicoLEDName "NeoPicoLED"
 
+// RAM-only one-shot ambient hint. Armed on the rising edge of a Storage
+// sequence counter; runs blinkCount on/off cycles (each phase 150ms —
+// single lit time and inter-blink gap are identical), then disarms and the
+// normal ambient effect is restored. Even phase = lit, odd phase = off.
+struct AmbientOneShotBlink {
+    static constexpr uint32_t PHASE_MS = 150;
+
+    explicit AmbientOneShotBlink(uint8_t blinkCount)
+        : totalPhases(static_cast<uint8_t>(blinkCount * 2)) {}
+
+    uint32_t lastSeq = 0;
+    bool armed = false;
+    uint8_t phase = 0;          // 0..totalPhases-1; even = lit, odd = off
+    uint8_t totalPhases;
+    absolute_time_t nextPhaseAt{};
+};
+
 // NeoPico LED Addon
 class NeoPicoLEDAddon : public GPAddon {
 public:
@@ -245,6 +262,10 @@ private:
     uint8_t setupButtonPositions();
     GamepadHotkey animationHotkeys(Gamepad *gamepad);
     void ambientLightCustom();
+    /// Arm on a rising seq edge, then advance/disarm the one-shot phase machine.
+    void pollOneShotBlink(AmbientOneShotBlink& blink, uint32_t seq);
+    /// Paint the case-RGB region for an armed one-shot hint (even phase = color).
+    void renderOneShotBlink(const AmbientOneShotBlink& blink, uint32_t color);
     const uint32_t intervalMS = 10;
     absolute_time_t nextRunTime;
     int ledCount;
@@ -281,16 +302,13 @@ private:
     absolute_time_t blinkHintNextPhaseAt_;
     bool blinkHintPrev_ = false;
 
-    /// Macro-recording hints (Core0 sets Storage atomics; Core1 renders here):
-    /// green 200ms/300ms blink while capturing; one-shot red 3-blink when a
-    /// recording stops because flash capacity was reached.
-    bool recHintPrev_ = false;
-    uint8_t recGreenPhase_ = 0;              // 0 = on, 1 = off
-    absolute_time_t recGreenNextPhaseAt_;
-    uint32_t recPulseLastSeq_ = 0;
-    bool recPulseArmed_ = false;
-    uint8_t recPulsePhase_ = 0;
-    absolute_time_t recPulseNextPhaseAt_;
+    /// RAM-only one-shot hints (armed from Storage seq counters on Core0):
+    /// recFull: red 3-blink when recording stops on flash capacity;
+    /// macroHint: blue single blink on recording start / playback end;
+    /// turboToggle: green single blink when any turbo button is enabled/disabled.
+    AmbientOneShotBlink recFullBlink_ {3};
+    AmbientOneShotBlink macroHintBlink_ {1};
+    AmbientOneShotBlink turboToggleBlink_ {1};
 };
 
 #endif
