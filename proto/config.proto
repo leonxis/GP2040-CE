@@ -698,6 +698,7 @@ message MacroInput
     optional uint32 waitDuration = 3 [default = 0];
     optional uint32 stickDirection = 4 [default = 0];
     reserved 5, 6, 7, 8;              // ex lx/ly/rx/ry per-axis fields
+    optional uint32 stickDirectionR = 9 [default = 0]; // right-stick selector, applied together with stickDirection
 }
 
 message Macro

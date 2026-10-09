@@ -8,9 +8,7 @@ export default {
 	'input-macro-time-label-ms': 'ms',
 	'input-macro-time-label-frames': 'frame(s)',
 	'input-macro-macro-label-label': 'Bezeichnung',
-	'input-macro-type': {
-		press: 'Drücken',
-		'hold-repeat': 'Wiederholung Halten',
-		toggle: 'Umschalten',
-	},
+	'input-macro-type-press': 'Drücken',
+	'input-macro-type-hold-repeat': 'Wiederholung Halten',
+	'input-macro-type-toggle': 'Umschalten',
 };

@@ -2970,6 +2970,11 @@ std::string setMacroAddonOptions()
                 macroInput.stickDirection = input["stickDirection"].as<uint32_t>();
                 macroInput.has_stickDirection = true;
             }
+            macroInput.has_stickDirectionR = false;
+            if (input.containsKey("stickDirectionR") && input["stickDirectionR"].is<uint32_t>()) {
+                macroInput.stickDirectionR = input["stickDirectionR"].as<uint32_t>();
+                macroInput.has_stickDirectionR = true;
+            }
             if (++macroInputsIndex >= MAX_MACRO_INPUT_LIMIT) break;
         }
         macroOptions.macroList[macrosIndex].macroInputs_count = macroInputsIndex;
@@ -3020,6 +3025,8 @@ std::string getMacroAddonOptions()
             macroInput["waitDuration"] = mi.waitDuration;
             if (mi.has_stickDirection)
                 macroInput["stickDirection"] = mi.stickDirection;
+            if (mi.has_stickDirectionR)
+                macroInput["stickDirectionR"] = mi.stickDirectionR;
         }
     }
 
