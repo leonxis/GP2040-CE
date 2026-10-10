@@ -20,6 +20,7 @@ export const defaultPinData: MaskPayload = {
 	action: BUTTON_ACTIONS.NONE,
 	customButtonMask: 0,
 	customDpadMask: 0,
+	activatorMode: 0,
 };
 
 export function getMultiValue(pinData: MaskPayload) {
@@ -59,15 +60,16 @@ export function getMultiValue(pinData: MaskPayload) {
 export function getPayloadFromSelected(
 	selected: MultiValue<OptionType> | SingleValue<OptionType>,
 ): MaskPayload {
+	// activatorMode 与下拉正交，此处给默认值；调用方合并当前行设置
 	if (!selected || (Array.isArray(selected) && !selected.length)) {
-		return { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0 };
+		return { action: BUTTON_ACTIONS.NONE, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 };
 	}
 	if (Array.isArray(selected) && selected.length > 1) {
 		const hasKeyboard = selected.some((opt) => opt.type === 'keyboard');
 		const hasAction = selected.some((opt) => opt.type === 'action');
 		if (hasKeyboard || hasAction) {
 			const last = selected[selected.length - 1];
-			return { action: last.value, customButtonMask: 0, customDpadMask: 0 };
+			return { action: last.value, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 };
 		}
 		return selected.reduce(
 			(acc, option) => ({
@@ -81,11 +83,11 @@ export function getPayloadFromSelected(
 						? acc.customDpadMask ^ option.customDpadMask
 						: acc.customDpadMask,
 			}),
-			{ action: BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO, customButtonMask: 0, customDpadMask: 0 },
+			{ action: BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
 		);
 	}
 	const single = Array.isArray(selected) ? selected[0] : selected;
-	return { action: single.value, customButtonMask: 0, customDpadMask: 0 };
+	return { action: single.value, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 };
 }
 
 export function getPinKey(pin: number) {
@@ -93,13 +95,21 @@ export function getPinKey(pin: number) {
 }
 
 export function toMaskPayload(
-	m: { action?: number; customButtonMask?: number; customDpadMask?: number } | undefined,
+	m:
+		| {
+				action?: number;
+				customButtonMask?: number;
+				customDpadMask?: number;
+				activatorMode?: number;
+		  }
+		| undefined,
 ): MaskPayload {
 	return m
 		? {
 				action: (m.action ?? BUTTON_ACTIONS.NONE) as PinActionValues,
 				customButtonMask: m.customButtonMask ?? 0,
 				customDpadMask: m.customDpadMask ?? 0,
+				activatorMode: m.activatorMode ?? 0,
 			}
 		: defaultPinData;
 }

@@ -39,6 +39,7 @@
 #include "addons/linear_trigger.h"
 #include "addons/two_key_touchpad.h"
 #include "addons/hml_back_key.h"
+#include "addons/key_layer.h"
 #include "addons/tg16_input.h"
 
 // Pico includes
@@ -655,11 +656,19 @@ void GP2040::setup() {
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
 	addons.LoadAddon(new AnalogInput());
 	addons.LoadAddon(new LSM6DSRIMUAddon());
-	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new TwoKeyTouchpadAddon());
 	addons.LoadAddon(new HmlBackKeyAddon());
+	// 映射层：须在背键/触摸板之后（查其实际输出态）、LinearTrigger 之前（按最终位重算）
+	// available()=两层槽任一总闸开启；全关时插件不注册，bindExternal 须随之守卫
+	if (addons.LoadAddon(new KeyLayerAddon())) {
+		((KeyLayerAddon*)addons.GetAddon(KEY_LAYER_ADDON_NAME))->bindExternal(
+				(HmlBackKeyAddon*)addons.GetAddon(HML_BACK_KEY_ADDON_NAME),
+				(TwoKeyTouchpadAddon*)addons.GetAddon(TWO_KEY_TOUCHPAD_ADDON_NAME));
+	}
 	// 须在背键/触摸板/FN 电压映射之后：preprocess 内合并 ADC 与映射的 L2/R2（含 lt/rt）
 	addons.LoadAddon(new LinearTriggerAddon());
+	// HE 扳机直接写 state 位，须在 KeyLayer 重写/LinearTrigger 之后，否则激活帧位被抹掉
+	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new BootselButtonAddon());
 	addons.LoadAddon(new DualDirectionalInput());
 	addons.LoadAddon(new FocusModeAddon());

@@ -18,6 +18,7 @@ import {
 	mouseKeyOptions,
 	keyboardKeyOptions,
 } from './ActionMappingOptions';
+import { ActivatorButtons } from './KeySwapSettings';
 import MappingPresetShell, { PRESET_TAB_KEYS, PresetTabKey } from './MappingPresetShell';
 import {
 	getMultiValue,
@@ -39,6 +40,7 @@ const nonePayload = (): MaskPayload => ({
 	action: BUTTON_ACTIONS.NONE as PinActionValues,
 	customButtonMask: 0,
 	customDpadMask: 0,
+	activatorMode: 0,
 });
 
 // 背键映射 10 项，顺序即界面行序（一行两个）
@@ -81,7 +83,15 @@ const cloneBundle = (b: PresetBundle): PresetBundle => ({
 	backKeys: Object.fromEntries(Object.entries(b.backKeys).map(([k, v]) => [k, { ...v }])),
 });
 
-type MappingData = Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>;
+type MappingData = Record<
+	string,
+	{
+		action?: number;
+		customButtonMask?: number;
+		customDpadMask?: number;
+		activatorMode?: number;
+	}
+>;
 
 const parseMappingGroup = (
 	data: MappingData,
@@ -218,6 +228,7 @@ function BackPaddleSettingsBody({
 		data: MaskPayload,
 		onChange: (p: MaskPayload) => void,
 		id: string,
+		showActivator: boolean,
 	) => (
 		<Col sm={6} md={6} key={id}>
 			<div className="d-flex align-items-center">
@@ -235,9 +246,19 @@ function BackPaddleSettingsBody({
 					options={groupedMappingOptions}
 					isDisabled={isDisabled(data.action)}
 					getOptionLabel={getOptionLabel}
-					onChange={(sel) => onChange(getPayloadFromSelected(sel))}
+					onChange={(sel) => {
+						// 合并当前行 activatorMode，动作下拉不覆盖该字段
+						const payload = getPayloadFromSelected(sel);
+						onChange({ ...payload, activatorMode: data.activatorMode });
+					}}
 					value={getMultiValue(data)}
 				/>
+				{showActivator && (
+					<ActivatorButtons
+						value={data.activatorMode}
+						onSelect={(mode) => onChange({ ...data, activatorMode: mode })}
+					/>
+				)}
 			</div>
 		</Col>
 	);
@@ -269,15 +290,16 @@ function BackPaddleSettingsBody({
 						)}
 					</div>
 					<Row className="g-3">
-						{BACK_KEY_FIELDS.map((field) =>
-							selectRow(
-								BACK_KEY_LABELS[field],
-								backKeyOptions[field],
-								(p) => patchBackKey(field, p),
-								`bk-${field}`,
-							),
-						)}
-					</Row>
+							{BACK_KEY_FIELDS.map((field) =>
+								selectRow(
+									BACK_KEY_LABELS[field],
+									backKeyOptions[field],
+									(p) => patchBackKey(field, p),
+									`bk-${field}`,
+									true,
+								),
+							)}
+						</Row>
 					<Row className="mt-3">
 						<Col sm={4}>
 							<Button variant="primary" onClick={handleSaveAll} disabled={isSaving}>
@@ -304,9 +326,9 @@ function BackPaddleSettingsBody({
 				<Card.Body>
 					{twoKeyTouchpadEnabled ? (
 						<Row className="g-3">
-							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
-							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
-						</Row>
+								{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l', false)}
+								{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r', false)}
+							</Row>
 					) : (
 						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
 					)}

@@ -38,6 +38,11 @@ public:
     virtual void postprocess(bool) {}
     virtual std::string name() { return HML_BACK_KEY_ADDON_NAME; }
     virtual void reinit();
+
+    // KeyLayer 查询：该背键当前去抖稳定态（=本帧是否有输出）
+    bool isIndexStable(uint8_t index) const {
+        return index < HML_BACK_KEY_COUNT && debounce_[index].stable;
+    }
 private:
     void buildMappings();
 

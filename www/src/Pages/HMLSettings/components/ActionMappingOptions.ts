@@ -134,3 +134,74 @@ export const groupedMappingOptions = [
 		options: mouseKeyOptions,
 	},
 ];
+
+// 映射层槽禁用的复杂动作（按枚举名成组引用；吉他/鼓模式按前缀整组排除）
+const LAYER_BLOCKED_LABELS = new Set([
+	// DDI 四向
+	'BUTTON_PRESS_DDI_UP',
+	'BUTTON_PRESS_DDI_DOWN',
+	'BUTTON_PRESS_DDI_LEFT',
+	'BUTTON_PRESS_DDI_RIGHT',
+	// 持续十字键模式
+	'SUSTAIN_DP_MODE_DP',
+	'SUSTAIN_DP_MODE_LS',
+	'SUSTAIN_DP_MODE_RS',
+	// 持续 SOCD 模式
+	'SUSTAIN_SOCD_MODE_UP_PRIO',
+	'SUSTAIN_SOCD_MODE_NEUTRAL',
+	'SUSTAIN_SOCD_MODE_SECOND_WIN',
+	'SUSTAIN_SOCD_MODE_FIRST_WIN',
+	'SUSTAIN_SOCD_MODE_BYPASS',
+	'BUTTON_PRESS_TURBO',
+	// 模拟轴方向八向 + MOD
+	'ANALOG_DIRECTION_LS_X_NEG',
+	'ANALOG_DIRECTION_LS_X_POS',
+	'ANALOG_DIRECTION_LS_Y_NEG',
+	'ANALOG_DIRECTION_LS_Y_POS',
+	'ANALOG_DIRECTION_RS_X_NEG',
+	'ANALOG_DIRECTION_RS_X_POS',
+	'ANALOG_DIRECTION_RS_Y_NEG',
+	'ANALOG_DIRECTION_RS_Y_POS',
+	'ANALOG_DIRECTION_MOD_LOW',
+	'ANALOG_DIRECTION_MOD_HIGH',
+	'BUTTON_PRESS_INPUT_REVERSE',
+	'SUSTAIN_FOCUS_MODE',
+	'SUSTAIN_4_8_WAY_MODE',
+	// 菜单导航
+	'MENU_NAVIGATION_UP',
+	'MENU_NAVIGATION_DOWN',
+	'MENU_NAVIGATION_LEFT',
+	'MENU_NAVIGATION_RIGHT',
+	'MENU_NAVIGATION_SELECT',
+	'MENU_NAVIGATION_BACK',
+	'MENU_NAVIGATION_TOGGLE',
+]);
+
+const isLayerBlockedLabel = (label: string) =>
+	LAYER_BLOCKED_LABELS.has(label) ||
+	label.startsWith('MODE_GUITAR_') ||
+	label.startsWith('MODE_DRUM_');
+
+// 层槽选项：标准按键/方向等 mask 选项全保留，仅按黑名单剔除复杂动作
+export const layerMappingOptions = mappingOptions.filter(
+	(opt) => !isLayerBlockedLabel(opt.label),
+);
+
+export const groupedLayerMappingOptions = [
+	{
+		label: 'Buttons',
+		options: layerMappingOptions.filter(({ type }) => type !== 'action'),
+	},
+	{
+		label: 'Actions',
+		options: layerMappingOptions.filter((opt) => opt.type === 'action'),
+	},
+	{
+		label: 'Keyboard Keys',
+		options: keyboardKeyOptions,
+	},
+	{
+		label: 'Mouse',
+		options: mouseKeyOptions,
+	},
+];

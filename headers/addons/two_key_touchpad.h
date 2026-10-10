@@ -28,6 +28,10 @@ public:
     virtual void postprocess(bool) {}
     virtual std::string name() { return TWO_KEY_TOUCHPAD_ADDON_NAME; }
     virtual void reinit();
+
+    // KeyLayer 查询：该侧触摸本帧是否处于"最终会输出"状态
+    bool isSideActive(uint8_t side) const { return side < 2 && sideActive_[side]; }
+
 private:
     void buildMappings();
 
@@ -38,6 +42,7 @@ private:
 
     int8_t marker1_     = -1;   // 使能键标记：未按下时固定 -1，按下时每帧 +1（饱和）
     int8_t markertouch_ = -1;   // 触摸合并标记：无触摸时固定 -1，任一侧按下时每帧 +1（饱和）
+    bool sideActive_[2] = { false, false }; // 本帧左右触摸最终输出态
 };
 
 #endif

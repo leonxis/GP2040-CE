@@ -191,6 +191,8 @@ message GpioMappingInfo
     optional GpioDirection direction = 2;
     optional uint32 customDpadMask = 3 [default = 0];
     optional uint32 customButtonMask = 4 [default = 0];
+    // 映射层激活器：与 action 正交；层槽 sets[1]/sets[2] 内强制 OFF
+    optional ActivatorMode activatorMode = 5 [default = ACTIVATOR_OFF];
 }
 
 message GpioMappings
@@ -221,7 +223,8 @@ message AlternativePinMappings
 message ProfileOptions
 {
     repeated AlternativePinMappings deprecatedAlternativePinMappings = 1 [(nanopb).max_count = 3, deprecated = true];
-    repeated GpioMappings gpioMappingsSets = 2 [(nanopb).max_count = 5];
+    // 固定 3 组：sets[0]=基础映射2，sets[1]=映射层1，sets[2]=映射层2
+    repeated GpioMappings gpioMappingsSets = 2 [(nanopb).max_count = 3];
 }
 
 message DisplayOptions

@@ -751,3 +751,13 @@ enum CpuOverclockLevel
     CPU_OVERCLOCK_HEAVY = 2;     // 240MHz
     CPU_OVERCLOCK_EXTREME = 3;   // 288MHz
 };
+
+// 映射层激活器模式（挂在 GpioMappingInfo 上，与动作正交）
+enum ActivatorMode
+{
+    option (nanopb_enumopt).long_names = false;
+
+    ACTIVATOR_OFF = 0;    // 中：关闭
+    ACTIVATOR_HOLD = 1;   // 左：按住激活，松开取消
+    ACTIVATOR_TOGGLE = 2; // 右：按一次激活，再按一次取消（按下当帧即退出）
+};

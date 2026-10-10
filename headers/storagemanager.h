@@ -43,6 +43,8 @@ public:
 	AnimationOptions& getAnimationOptions() { return config.animationOptions; }
 	ProfileOptions& getProfileOptions() { return config.profileOptions; }
 	GpioMappingInfo* getProfilePinMappings() { return functionalPinMappings; }
+	// 当前基础映射对应的映射层槽位：profileNumber=1→sets[1]，=2→sets[2]
+	const GpioMappings& getLayerPinMappings() const;
 	PeripheralOptions& getPeripheralOptions() { return config.peripheralOptions; }
 
 	void init();

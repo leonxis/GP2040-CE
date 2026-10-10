@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Card, Row, Col, Button, Modal } from 'react-bootstrap';
+import { Card, Row, Col, Button, ButtonGroup, Form } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { omit } from 'lodash';
 import { MultiValue, SingleValue } from 'react-select';
@@ -12,6 +12,7 @@ import { getButtonLabels } from '../../../Data/Buttons';
 import {
 	OptionType,
 	groupedMappingOptions,
+	groupedLayerMappingOptions,
 	isDisabled,
 	mappingOptions,
 	mouseKeyOptions,
@@ -35,7 +36,7 @@ type AppContextShape = {
 // Share=S1(GPIO27) Options=S2(GPIO32) PS=A1(GPIO12) 触摸板=A2(GPIO24)
 // D-PAD LEFT=21 RIGHT=20
 // UP=22 DOWN=23 Circle=B2=7 Cross=B1=10 Triangle=B4=5 Square=B3=15
-// L1=17 R1=26 L2=41 R2=42 左摇杆=L3=6 右摇杆=R3=37
+// L1=17 R1=26 L2=40 R2=41 左摇杆=L3=47 右摇杆=R3=37
 const SWAP_GPIO_ROWS: SwapPinRow[] = [
 	{ rowId: '27', labelKey: 'hml-pin-share', pinKey: getPinKey(27) },
 	{ rowId: '32', labelKey: 'hml-pin-options', pinKey: getPinKey(32) },
@@ -51,34 +52,63 @@ const SWAP_GPIO_ROWS: SwapPinRow[] = [
 	{ rowId: '15', labelKey: 'hml-pin-square', pinKey: getPinKey(15) },
 	{ rowId: '17', labelKey: 'hml-pin-l1', pinKey: getPinKey(17) },
 	{ rowId: '26', labelKey: 'hml-pin-r1', pinKey: getPinKey(26) },
-	{ rowId: '41', labelKey: 'hml-pin-l2', pinKey: getPinKey(41) },
-	{ rowId: '42', labelKey: 'hml-pin-r2', pinKey: getPinKey(42) },
-	{ rowId: '6', labelKey: 'hml-pin-left-stick', pinKey: getPinKey(6) },
+	{ rowId: '40', labelKey: 'hml-pin-l2', pinKey: getPinKey(40) },
+	{ rowId: '41', labelKey: 'hml-pin-r2', pinKey: getPinKey(41) },
+	{ rowId: '47', labelKey: 'hml-pin-left-stick', pinKey: getPinKey(47) },
 	{ rowId: '37', labelKey: 'hml-pin-right-stick', pinKey: getPinKey(37) },
 ];
+
+// 激活器三段控件：关 / 按住 / 切换（与动作正交）
+export function ActivatorButtons({
+	value,
+	onSelect,
+}: {
+	value: number;
+	onSelect: (value: number) => void;
+}) {
+	const { t } = useTranslation('PinMapping');
+	const items = [
+		{ value: 0, label: t('activator-off'), title: t('activator-off-title') },
+		{ value: 1, label: t('activator-hold'), title: t('activator-hold-title') },
+		{ value: 2, label: t('activator-toggle'), title: t('activator-toggle-title') },
+	];
+	return (
+		<ButtonGroup size="sm" className="ms-2 flex-shrink-0">
+			{items.map((item) => (
+				<Button
+					key={item.value}
+					variant={value === item.value ? 'primary' : 'outline-secondary'}
+					title={item.title}
+					onClick={() => onSelect(item.value)}
+				>
+					{item.label}
+				</Button>
+			))}
+		</ButtonGroup>
+	);
+}
 
 function clampProfileTabIndex(profileNumber: number, profileCount: number): number {
 	if (profileCount <= 0) return 0;
 	return Math.min(Math.max(profileNumber - 1, 0), profileCount - 1);
 }
 
-function KeySwapSettingsBody({
-	profileIndex,
-	onProfileDeleted,
-}: {
-	profileIndex: number;
-	onProfileDeleted?: () => void;
-}) {
+function KeySwapSettingsBody({ profileIndex }: { profileIndex: number }) {
 	const { t } = useTranslation(['SettingsPage', 'Common', 'PinMapping']);
 	const appContext = useContext(AppContext);
 	const profile = useProfilesStore((state) => state.profiles[profileIndex]);
 	const setProfilePin = useProfilesStore((state) => state.setProfilePin);
-	const saveProfilesAndActivate = useProfilesStore((state) => state.saveProfilesAndActivate);
-	const deleteProfile = useProfilesStore((state) => state.deleteProfile);
+	const saveProfiles = useProfilesStore((state) => state.saveProfiles);
+	const saveProfilesAndActivate = useProfilesStore(
+		(state) => state.saveProfilesAndActivate,
+	);
+	const toggleProfileEnabled = useProfilesStore(
+		(state) => state.toggleProfileEnabled,
+	);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
-	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-	const [deleteMessage, setDeleteMessage] = useState('');
+
+	const isLayer = profileIndex >= 2;
 
 	const pins = useMemo(
 		() =>
@@ -103,9 +133,23 @@ function KeySwapSettingsBody({
 	const onChange = useCallback(
 		(pin: string) =>
 			(selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
-				setProfilePin(profileIndex, pin, getPayloadFromSelected(selected));
+				// 合并当前行 activatorMode，动作下拉不覆盖该字段
+				const current = pins[pin] || defaultPinData;
+				const payload = getPayloadFromSelected(selected);
+				setProfilePin(profileIndex, pin, {
+					...payload,
+					activatorMode: current.activatorMode,
+				});
 			},
-		[setProfilePin, profileIndex],
+		[setProfilePin, profileIndex, pins],
+	);
+
+	const onActivatorSelect = useCallback(
+		(pin: string, mode: number) => {
+			const current = pins[pin] || defaultPinData;
+			setProfilePin(profileIndex, pin, { ...current, activatorMode: mode });
+		},
+		[setProfilePin, profileIndex, pins],
 	);
 
 	const getOptionLabel = useCallback(
@@ -133,18 +177,26 @@ function KeySwapSettingsBody({
 		setSaveMessage('');
 		setIsLoading(true);
 		try {
-			const { mappingsOk, activateOk } = await saveProfilesAndActivate(profileIndex);
-			if (mappingsOk && activateOk) {
-				if (appContext) {
+			let ok: boolean;
+			if (isLayer) {
+				// 层槽：只保存，不改变当前 profileNumber
+				await saveProfiles();
+				ok = true;
+			} else {
+				const result = await saveProfilesAndActivate(profileIndex);
+				ok = result.mappingsOk && result.activateOk;
+				if (ok && appContext) {
 					const { updateUsedPins } = appContext as AppContextShape;
 					if (updateUsedPins) {
 						await updateUsedPins();
 					}
 				}
-				setSaveMessage(t('Common:saved-success-message'));
-			} else {
-				setSaveMessage(t('Common:saved-error-message'));
 			}
+			setSaveMessage(
+				ok
+					? t('Common:saved-success-message')
+					: t('Common:saved-error-message'),
+			);
 			setTimeout(() => setSaveMessage(''), 3000);
 		} catch (error) {
 			console.error('Failed to save pin mappings:', error);
@@ -153,30 +205,14 @@ function KeySwapSettingsBody({
 		} finally {
 			setIsLoading(false);
 		}
-	}, [saveProfilesAndActivate, profileIndex, appContext, t]);
-
-	const handleDelete = useCallback(async () => {
-		setDeleteMessage('');
-		setShowDeleteConfirm(false);
-		const deleted = await deleteProfile(profileIndex);
-		if (deleted) {
-			setDeleteMessage(t('PinMapping:profile-delete-success-message'));
-			if (appContext) {
-				const { updateUsedPins } = appContext as AppContextShape;
-				if (updateUsedPins) {
-					try {
-						await updateUsedPins();
-					} catch {
-						// ignore
-					}
-				}
-			}
-			if (onProfileDeleted) onProfileDeleted();
-		} else {
-			setDeleteMessage(t('PinMapping:profile-delete-error-message'));
-		}
-		setTimeout(() => setDeleteMessage(''), 3000);
-	}, [deleteProfile, profileIndex, appContext, onProfileDeleted, t]);
+	}, [
+		saveProfiles,
+		saveProfilesAndActivate,
+		profileIndex,
+		isLayer,
+		appContext,
+		t,
+	]);
 
 	return (
 		<>
@@ -185,7 +221,8 @@ function KeySwapSettingsBody({
 					const pinKey = 'pinKey' in row ? row.pinKey : undefined;
 					const pinData = pinKey ? pins[pinKey] || defaultPinData : defaultPinData;
 					const selectLocked = 'selectDisabled' in row && row.selectDisabled;
-					const mappingDisabled = selectLocked || (pinKey ? isDisabled(pinData.action) : true);
+					const mappingDisabled =
+						selectLocked || (pinKey ? isDisabled(pinData.action) : true);
 					return (
 						<Col sm={6} md={6} key={row.rowId}>
 							<div className="d-flex align-items-center">
@@ -202,65 +239,55 @@ function KeySwapSettingsBody({
 											(opt) => opt.value === pinData.action && opt.type === 'action',
 										)
 									}
-									options={groupedMappingOptions}
+									options={
+										isLayer ? groupedLayerMappingOptions : groupedMappingOptions
+									}
 									isDisabled={mappingDisabled}
 									getOptionLabel={getOptionLabel}
 									onChange={pinKey ? onChange(pinKey) : undefined}
 									value={getMultiValue(pinData)}
 								/>
+								{!isLayer && pinKey && (
+									<ActivatorButtons
+										value={pinData.activatorMode}
+										onSelect={(mode) => onActivatorSelect(pinKey, mode)}
+									/>
+								)}
 							</div>
 						</Col>
 					);
 				})}
 			</Row>
 			<Row className="mt-3">
-				<Col sm={12} className="d-flex align-items-center gap-3">
-					<Button variant="primary" onClick={handleSave} disabled={isLoading}>
-						{t('Common:button-save-label')}
-					</Button>
-					{profileIndex > 0 && (
-						<Button
-							variant="success"
-							onClick={() => setShowDeleteConfirm(true)}
-							disabled={isLoading}
-						>
-							{t('PinMapping:profile-delete-button')}
+				<Col sm={12} className="d-flex align-items-center justify-content-between gap-3">
+					<div className="d-flex align-items-center gap-3">
+						<Button variant="primary" onClick={handleSave} disabled={isLoading}>
+							{t('Common:button-save-label')}
 						</Button>
-					)}
-					{(saveMessage || deleteMessage) && (
-						<span
-							className={`ms-3 ${
-								saveMessage === t('Common:saved-success-message') ||
-								deleteMessage === t('PinMapping:profile-delete-success-message')
-									? 'text-success'
-									: 'text-danger'
-							}`}
-						>
-							{saveMessage || deleteMessage}
-						</span>
+						{saveMessage && (
+							<span
+								className={
+									saveMessage === t('Common:saved-success-message')
+										? 'text-success'
+										: 'text-danger'
+								}
+							>
+								{saveMessage}
+							</span>
+						)}
+					</div>
+					{isLayer && (
+						<Form.Check
+							type="switch"
+							id={`layer-master-switch-${profileIndex}`}
+							label={t('PinMapping:layer-enable-switch')}
+							checked={Boolean(profile?.enabled)}
+							onChange={() => toggleProfileEnabled(profileIndex)}
+							className="mb-0"
+						/>
 					)}
 				</Col>
 			</Row>
-			<Modal
-				show={showDeleteConfirm}
-				onHide={() => setShowDeleteConfirm(false)}
-				centered
-			>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('PinMapping:profile-delete-confirm-title')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<p className="mb-0">{t('PinMapping:profile-delete-confirm-text')}</p>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>
-						{t('PinMapping:profile-delete-cancel-button')}
-					</Button>
-					<Button variant="danger" onClick={handleDelete}>
-						{t('PinMapping:profile-delete-confirm-button')}
-					</Button>
-				</Modal.Footer>
-			</Modal>
 		</>
 	);
 }
@@ -285,7 +312,10 @@ export default function KeySwapSettings() {
 			const gamepadOptions = await WebApi.getGamepadOptions();
 			if (cancelled) return;
 			const count = useProfilesStore.getState().profiles.length;
-			const index = clampProfileTabIndex(Number(gamepadOptions?.profileNumber ?? 1), count);
+			const index = clampProfileTabIndex(
+				Number(gamepadOptions?.profileNumber ?? 1),
+				count,
+			);
 			setActiveKey(`profile-${index}`);
 			setInitialTabReady(true);
 		})();
@@ -330,12 +360,11 @@ export default function KeySwapSettings() {
 					<Card.Header>{t('SettingsPage:hml-key-swap-title')}</Card.Header>
 					<Card.Body>
 						<p className="text-muted small mb-3">
-							{t('SettingsPage:hml-key-swap-profile-manage-hint')}
+							{profileIndex >= 2
+								? t('PinMapping:layer-save-hint')
+								: t('SettingsPage:hml-key-swap-profile-manage-hint')}
 						</p>
-						<KeySwapSettingsBody
-							profileIndex={profileIndex}
-							onProfileDeleted={() => setActiveKey('profile-0')}
-						/>
+						<KeySwapSettingsBody profileIndex={profileIndex} />
 					</Card.Body>
 				</Card>
 			)}

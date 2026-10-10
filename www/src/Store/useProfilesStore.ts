@@ -1,9 +1,16 @@
 import { create } from 'zustand';
 import WebApi from '../Services/WebApi';
-import { PinActionValues } from '../Data/Pins';
+import { BUTTON_ACTIONS, PinActionValues } from '../Data/Pins';
 
-// Max number of profiles that can be created, including the base profile
-export const MAX_PROFILES = 6;
+// 固定槽位数：基础映射1 / 基础映射2 / 热切按键映射(层1) / 热切按键映射(层2)
+export const MAX_PROFILES = 4;
+
+// 固定槽位显示名（数组下标即槽位索引，不再可编辑）
+// index 0=基础映射1 1=基础映射2 2=热切按键映射(层1) 3=热切按键映射(层2)
+export const PROFILE_NAMES = ['基础映射1', '基础映射2', '热切按键映射', '热切按键映射'];
+
+// tab 显示顺序：层紧随其所属基础映射（与数组下标解耦）
+export const PROFILE_DISPLAY_ORDER = [0, 2, 1, 3];
 
 type CustomMasks = {
 	customButtonMask: number;
@@ -12,39 +19,11 @@ type CustomMasks = {
 
 export type MaskPayload = {
 	action: PinActionValues;
+	activatorMode: number;
 } & CustomMasks;
 
 export type PinsType = {
-	pin00: MaskPayload;
-	pin01: MaskPayload;
-	pin02: MaskPayload;
-	pin03: MaskPayload;
-	pin04: MaskPayload;
-	pin05: MaskPayload;
-	pin06: MaskPayload;
-	pin07: MaskPayload;
-	pin08: MaskPayload;
-	pin09: MaskPayload;
-	pin10: MaskPayload;
-	pin11: MaskPayload;
-	pin12: MaskPayload;
-	pin13: MaskPayload;
-	pin14: MaskPayload;
-	pin15: MaskPayload;
-	pin16: MaskPayload;
-	pin17: MaskPayload;
-	pin18: MaskPayload;
-	pin19: MaskPayload;
-	pin20: MaskPayload;
-	pin21: MaskPayload;
-	pin22: MaskPayload;
-	pin23: MaskPayload;
-	pin24: MaskPayload;
-	pin25: MaskPayload;
-	pin26: MaskPayload;
-	pin27: MaskPayload;
-	pin28: MaskPayload;
-	pin29: MaskPayload;
+	[key: `pin${number}`]: MaskPayload;
 	profileLabel: string;
 	enabled: boolean;
 };
@@ -57,7 +36,7 @@ type State = {
 export type SetProfilePinType = (
 	profileIndex: number,
 	pin: string,
-	{ action, customButtonMask, customDpadMask }: MaskPayload,
+	payload: MaskPayload,
 ) => void;
 
 type SaveProfilesAndActivateResult = {
@@ -66,13 +45,9 @@ type SaveProfilesAndActivateResult = {
 };
 
 type Actions = {
-	addProfile: () => void;
-	copyBaseProfile: (profileIndex: number) => void;
-	deleteProfile: (profileIndex: number) => Promise<boolean>;
 	fetchProfiles: () => Promise<boolean>;
 	saveProfiles: () => Promise<void>;
 	saveProfilesAndActivate: (profileIndex: number) => Promise<SaveProfilesAndActivateResult>;
-	setProfileLabel: (profileIndex: number, profileLabel: string) => void;
 	setProfilePin: SetProfilePinType;
 	toggleProfileEnabled: (profileIndex: number) => void;
 };
@@ -86,19 +61,6 @@ const INITIAL_STATE: State = {
 
 const useProfilesStore = create<State & Actions>()((set, get) => ({
 	...INITIAL_STATE,
-	addProfile: () => {
-		if (get().profiles.length < MAX_PROFILES) {
-			set((state) => ({
-				profiles: [
-					...state.profiles,
-					{
-						...state.profiles[0],
-						profileLabel: `Profile ${state.profiles.length + 1}`,
-					},
-				],
-			}));
-		}
-	},
 	fetchProfiles: async () => {
 		set({ loadingProfiles: true });
 		try {
@@ -106,11 +68,36 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 			if (!baseProfile) {
 				throw new Error('Failed to load base pin mappings');
 			}
-			const profiles = await WebApi.getProfileOptions();
-			set({
-				profiles: [baseProfile, ...(profiles ?? [])],
-				loadingProfiles: false,
+			const profileOptions = await WebApi.getProfileOptions();
+			const merged = [baseProfile, ...(profileOptions ?? [])];
+			const pinKeys = Object.keys(baseProfile).filter((key) => /^pin\d{2}$/.test(key));
+
+			// 固定 4 槽：不足补空槽，多余丢弃；标签与槽位语义固定
+			const profiles = PROFILE_NAMES.map((label, i) => {
+				const source = merged[i];
+				const pins = Object.fromEntries(
+					pinKeys.map((key) => {
+						const pin = source?.[key];
+						return [
+							key,
+							{
+								action: pin?.action ?? BUTTON_ACTIONS.NONE,
+								customButtonMask: pin?.customButtonMask ?? 0,
+								customDpadMask: pin?.customDpadMask ?? 0,
+								activatorMode: pin?.activatorMode ?? 0,
+							} as MaskPayload,
+						];
+					}),
+				);
+				return {
+					profileLabel: label,
+					// 基础映射槽默认启用；层槽默认关（左下角总闸）
+					enabled: source?.enabled ?? i < 2,
+					...pins,
+				} as PinsType;
 			});
+
+			set({ profiles, loadingProfiles: false });
 			return true;
 		} catch (error) {
 			console.error('Failed to load GPIO profiles:', error);
@@ -118,40 +105,13 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 			return false;
 		}
 	},
-	copyBaseProfile: (profileIndex) =>
-		set((state) => ({
-			...state,
-			profiles: state.profiles.map((profile, index) =>
-				index === profileIndex
-					? {
-							...profile,
-							...state.profiles[0],
-							profileLabel: profile.profileLabel,
-						}
-					: profile,
-			),
-		})),
-	setProfilePin: (
-		profileIndex,
-		pin,
-		{ action, customButtonMask = 0, customDpadMask = 0 },
-	) =>
+	setProfilePin: (profileIndex, pin, payload) =>
 		set((state) => {
 			const profiles = [...state.profiles];
 			profiles[profileIndex] = {
 				...profiles[profileIndex],
-				[pin]: {
-					action,
-					customButtonMask,
-					customDpadMask,
-				},
+				[pin]: { ...payload },
 			};
-			return { profiles };
-		}),
-	setProfileLabel: (profileIndex, profileLabel) =>
-		set((state) => {
-			const profiles = [...state.profiles];
-			profiles[profileIndex] = { ...profiles[profileIndex], profileLabel };
 			return { profiles };
 		}),
 	saveProfiles: async () => {
@@ -159,11 +119,10 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 		if (profiles.length === 0) {
 			throw new Error('No profiles loaded');
 		}
-		const [baseProfile, ...alternatives] = profiles;
 		// 必须串行发送：设备端 lwIP HTTP POST 使用单一全局接收缓冲区，
 		// 并发 POST 会互相覆盖导致保存静默失败
-		await WebApi.setPinMappings(baseProfile);
-		await WebApi.setProfileOptions(alternatives);
+		await WebApi.setPinMappings(profiles[0]);
+		await WebApi.setProfileOptions(profiles.slice(1, MAX_PROFILES));
 	},
 	saveProfilesAndActivate: async (profileIndex: number) => {
 		if (profileIndex < 0 || profileIndex >= get().profiles.length) {
@@ -193,46 +152,6 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 			};
 			return { ...state, profiles };
 		}),
-	deleteProfile: async (profileIndex: number) => {
-		const profiles = get().profiles;
-		if (profileIndex <= 0 || profileIndex >= profiles.length) {
-			return false;
-		}
-		const newProfiles = [...profiles];
-		newProfiles.splice(profileIndex, 1);
-		set({ profiles: newProfiles });
-		try {
-			await get().saveProfiles();
-		} catch (error) {
-			console.error('Failed to save after profile deletion:', error);
-			set({ profiles });
-			return false;
-		}
-		const gamepadOptions = await WebApi.getGamepadOptions();
-		if (!gamepadOptions) {
-			return true;
-		}
-		const currentProfileNumber = Number(gamepadOptions.profileNumber ?? 1);
-		const deletedProfileNumber = profileIndex + 1;
-		let newProfileNumber = currentProfileNumber;
-		if (currentProfileNumber === deletedProfileNumber) {
-			newProfileNumber = 1;
-		} else if (currentProfileNumber > deletedProfileNumber) {
-			newProfileNumber = currentProfileNumber - 1;
-		}
-		newProfileNumber = Math.max(1, Math.min(newProfileNumber, newProfiles.length));
-		if (newProfileNumber !== currentProfileNumber) {
-			try {
-				await WebApi.setGamepadOptions({
-					...gamepadOptions,
-					profileNumber: newProfileNumber,
-				});
-			} catch (error) {
-				console.error('Failed to update profileNumber after deletion:', error);
-			}
-		}
-		return true;
-	},
 }));
 
 export default useProfilesStore;

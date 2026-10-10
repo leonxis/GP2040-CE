@@ -40,6 +40,7 @@ const createPinMappings = ({ profileLabel = 'Profile', enabled = true }) => {
 			action: value,
 			customButtonMask: 0,
 			customDpadMask: 0,
+			activatorMode: 0,
 		};
 	}
 	return pinMappings;
@@ -333,10 +334,12 @@ app.get('/api/getPeripheralOptions', (req, res) => {
 });
 
 app.get('/api/getProfileOptions', (req, res) => {
+	// 固定 3 组：基础映射2 / 热切按键映射(层1) / 热切按键映射(层2)
 	return res.send({
 		alternativePinMappings: [
-			createPinMappings({ profileLabel: 'Profile 2' }),
-			createPinMappings({ profileLabel: 'Profile 3', enabled: false }),
+			createPinMappings({ profileLabel: '基础映射2' }),
+			createPinMappings({ profileLabel: '热切按键映射', enabled: false }),
+			createPinMappings({ profileLabel: '热切按键映射', enabled: false }),
 		],
 	});
 });
@@ -809,15 +812,43 @@ app.get('/api/calibrateLSM6DSRAccel', (req, res) => {
 	return res.send({ ok: false, offsetAccelX: 0, offsetAccelY: 0, offsetAccelZ: 0 });
 });
 
-const emptyMapping = { action: 0, customButtonMask: 0, customDpadMask: 0 };
+const emptyMapping = {
+	action: 0,
+	customButtonMask: 0,
+	customDpadMask: 0,
+	activatorMode: 0,
+};
+
+const BACK_KEY_STUB_FIELDS = [
+	'leftBack1',
+	'rightBack1',
+	'leftBack2',
+	'rightBack2',
+	'leftBack3',
+	'rightBack3',
+	'leftFn',
+	'rightFn',
+	'leftMt',
+	'rightMt',
+];
+
+// 完整空预设：左右触摸 + 10 背键字段
+const fullEmptyPreset = () =>
+	Object.fromEntries(
+		['leftKey', 'rightKey', ...BACK_KEY_STUB_FIELDS].map((key) => [
+			key,
+			{ ...emptyMapping },
+		]),
+	);
 
 const hmlTwoKeyPresetStubs = [
-	{ leftKey: emptyMapping, rightKey: emptyMapping },
+	fullEmptyPreset(),
 	{
-		leftKey: { action: 38, customButtonMask: 0, customDpadMask: 0 },
-		rightKey: { action: 39, customButtonMask: 0, customDpadMask: 0 },
+		...fullEmptyPreset(),
+		leftKey: { action: 38, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
+		rightKey: { action: 39, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
 	},
-	{ leftKey: emptyMapping, rightKey: emptyMapping },
+	fullEmptyPreset(),
 ];
 
 let hmlActivePreset = 0;
@@ -850,8 +881,7 @@ app.get('/api/getTwoKeyTouchpadOptions', (req, res) => {
 		return sendGlobalTwoKey(res);
 	}
 	return res.send({
-		leftKey: hmlTwoKeyPresetStubs[presetIndex].leftKey,
-		rightKey: hmlTwoKeyPresetStubs[presetIndex].rightKey,
+		...hmlTwoKeyPresetStubs[presetIndex],
 		activePreset: hmlActivePreset,
 	});
 });
@@ -862,8 +892,7 @@ app.get('/api/getTwoKeyTouchpadOptions/:presetIndex', (req, res) => {
 		return res.status(400).send({ error: 'invalid presetIndex' });
 	}
 	return res.send({
-		leftKey: hmlTwoKeyPresetStubs[presetIndex].leftKey,
-		rightKey: hmlTwoKeyPresetStubs[presetIndex].rightKey,
+		...hmlTwoKeyPresetStubs[presetIndex],
 		activePreset: hmlActivePreset,
 	});
 });
@@ -883,8 +912,21 @@ app.post('/api/setTwoKeyTouchpadOptions', (req, res) => {
 		const index = Number(body.presetIndex);
 		if (Number.isInteger(index) && index >= 0 && index <= 2) {
 			hmlTwoKeyPresetStubs[index] = {
+				...hmlTwoKeyPresetStubs[index],
 				leftKey: body.leftKey || emptyMapping,
 				rightKey: body.rightKey || emptyMapping,
+			};
+		}
+	}
+	if (body.presetIndex !== undefined && body.section === 'backKeys') {
+		const index = Number(body.presetIndex);
+		if (Number.isInteger(index) && index >= 0 && index <= 2) {
+			const entries = BACK_KEY_STUB_FIELDS
+				.filter((key) => body[key])
+				.map((key) => [key, body[key]]);
+			hmlTwoKeyPresetStubs[index] = {
+				...hmlTwoKeyPresetStubs[index],
+				...Object.fromEntries(entries),
 			};
 		}
 	}

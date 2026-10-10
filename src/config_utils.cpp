@@ -356,8 +356,6 @@
     #define GPIO_PIN_47 GpioAction::NONE
 #endif
 
-#define MAX_PROFILES (uint8_t)6
-
 // -----------------------------------------------------
 // Migration leftovers
 // -----------------------------------------------------
@@ -368,6 +366,26 @@
 #ifndef EXTRA_BUTTON_MASK
     #define EXTRA_BUTTON_MASK 0
 #endif
+
+// 固定 3 组映射槽播种（无任何旧 sets 时）：
+// sets[0]=基础映射2（空映射，启用），sets[1]=映射层1，sets[2]=映射层2（空映射，总闸关）
+static void seedFixedProfileOptions(Config& config)
+{
+    if (config.profileOptions.gpioMappingsSets_count != 0) return;
+
+    static const char* labels[3] = { "基础映射2", "热切按键映射", "热切按键映射" };
+    for (uint8_t i = 0; i < 3; i++) {
+        GpioMappings& set = config.profileOptions.gpioMappingsSets[i];
+        for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
+            set.pins[pin] = GpioMappingInfo_init_default;
+        }
+        set.pins_count = NUM_BANK0_GPIOS;
+        set.enabled = (i == 0);
+        strncpy(set.profileLabel, labels[i], sizeof(set.profileLabel) - 1);
+        set.profileLabel[sizeof(set.profileLabel) - 1] = '\0';
+    }
+    config.profileOptions.gpioMappingsSets_count = 3;
+}
 
 void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 {
@@ -1180,6 +1198,9 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.tg16Options, dataPin1, TG16_PAD_DATA_PIN1);
     INIT_UNSET_PROPERTY(config.addonOptions.tg16Options, dataPin2, TG16_PAD_DATA_PIN2);
     INIT_UNSET_PROPERTY(config.addonOptions.tg16Options, dataPin3, TG16_PAD_DATA_PIN3);
+
+    // 固定映射槽：无 sets 时播种 3 组（基础映射2 / 映射层1 / 映射层2）
+    seedFixedProfileOptions(config);
 }
 
 
@@ -1664,7 +1685,7 @@ void migrateTurboPinToGpio(Config& config) {
         Pin_t pin = turboOptions.deprecatedButtonPin;
         // previous config had a value we haven't migrated yet, it can/should apply in the new config
         config.gpioMappings.pins[pin].action = GpioAction::BUTTON_PRESS_TURBO;
-        for (uint8_t profileNum = 0; profileNum <= MAX_PROFILES-2; profileNum++) {
+        for (uint8_t profileNum = 0; profileNum < 3; profileNum++) {
             config.profileOptions.gpioMappingsSets[profileNum].pins[pin].action = GpioAction::BUTTON_PRESS_TURBO;
         }
         turboOptions.deprecatedButtonPin = -1; // set our turbo options to -1 for subsequent calls
@@ -1736,7 +1757,7 @@ void migrateMacroPinsToGpio(Config& config) {
     if (macroOptions.has_deprecatedPin && isValidPin(macroOptions.deprecatedPin) ) {
         Pin_t pin = macroOptions.deprecatedPin;
         config.gpioMappings.pins[pin].action = GpioAction::BUTTON_PRESS_MACRO;
-        for (uint8_t profileNum = 0; profileNum <= MAX_PROFILES-2; profileNum++) {
+        for (uint8_t profileNum = 0; profileNum < 3; profileNum++) {
             config.profileOptions.gpioMappingsSets[profileNum].pins[pin].action = GpioAction::BUTTON_PRESS_MACRO;
         }
         macroOptions.deprecatedPin = -1; // set our turbo options to -1 for subsequent calls
@@ -1752,7 +1773,7 @@ void migrateMacroPinsToGpio(Config& config) {
                     isValidPin(macroOptions.macroList[i].deprecatedMacroTriggerPin) ) {
                 Pin_t pin = macroOptions.macroList[i].deprecatedMacroTriggerPin;
                 config.gpioMappings.pins[pin].action = actionList[i];
-                for (uint8_t profileNum = 0; profileNum <= MAX_PROFILES-2; profileNum++) {
+                for (uint8_t profileNum = 0; profileNum < 3; profileNum++) {
                     config.profileOptions.gpioMappingsSets[profileNum].pins[pin].action = actionList[i];
                 }
                 macroOptions.macroList[i].deprecatedMacroTriggerPin = -1; // set our turbo options to -1 for subsequent calls

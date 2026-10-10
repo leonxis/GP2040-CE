@@ -362,9 +362,9 @@ static void sBackRMT(int v) {
   p.has_rightMtMapping = true;
 }
 
-// 按键配置档动态上限：gpioMappingsSets_count + 1（默认配置档1 + 自定义预设数）
+// 按键配置档范围固定 1..2（基础映射1 / 基础映射2；层槽不进选择路径）
 static int gProfileMax() {
-  return (int)Storage::getInstance().getProfileOptions().gpioMappingsSets_count + 1;
+  return 2;
 }
 
 // 环境光亮度 - 智能映射当前动画模式对应的亮度字段
@@ -582,9 +582,8 @@ static void resetListAnim() {
 
 static void snapshot() {
   LiteSection& s = curSection();
-  // 动态更新按键配置档上限为网页端已设置的预设数量
-  int pmax = gProfileMax();
-  optConfig[1].max = pmax > 0 ? pmax : 1;
+  // 按键配置档范围固定 1..2
+	optConfig[1].max = gProfileMax();
   for (int i = 0; i < s.count && i < 8; i++) {
     if (s.opts[i].type == OPT_ACTION || s.opts[i].type == OPT_RESERVED || s.opts[i].type == OPT_SUBMENU) { snap[i] = 0; continue; }
     snap[i] = s.opts[i].get();

@@ -85,6 +85,7 @@ void TwoKeyTouchpadAddon::reinit() {
 }
 
 void TwoKeyTouchpadAddon::preprocess() {
+    sideActive_[0] = sideActive_[1] = false;
     if (!isValidPin(pin_left) || !isValidPin(pin_right)) return;
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
@@ -114,12 +115,14 @@ void TwoKeyTouchpadAddon::preprocess() {
             ActionMappingCommon::clearActionMappingEntry(gamepad, *enableEntry);
         }
         if (leftRaw) {
+            sideActive_[0] = true;
             const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(LEFT_TOUCH);
             if (entry != nullptr) {
                 outputScope_.apply(gamepad, *entry);
             }
         }
         if (rightRaw) {
+            sideActive_[1] = true;
             const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(RIGHT_TOUCH);
             if (entry != nullptr) {
                 outputScope_.apply(gamepad, *entry);
