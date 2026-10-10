@@ -51,12 +51,8 @@ fi
 echo "==> 编译（build 目录：${BUILD_DIR}）"
 idf.py -C "${ESP_DIR}" -B "${BUILD_DIR}" build
 
-BIN_FILE="${BUILD_DIR}/wireless_tx_2354.bin"
-
-# 将编译后的固件复制到 images 目录覆盖同名文件（该目录另含 CMake 收集的
-# bootloader.bin / partition-table.bin / app.bin 三分体镜像）
+# 编译后固件由 CMake collect_images 自动收集为 images/app.bin
+# （另含 bootloader.bin / partition-table.bin），无需额外复制。
 IMAGES_DIR="${BUILD_DIR}/images"
-mkdir -p "${IMAGES_DIR}"
-cp -f "${BIN_FILE}" "${IMAGES_DIR}/"
-echo "==> 编译完成，固件已复制到 ${IMAGES_DIR}/"
+echo "==> 编译完成，镜像输出（${IMAGES_DIR}/，app.bin 刷写 0x10000）："
 ls -1 "${IMAGES_DIR}"
