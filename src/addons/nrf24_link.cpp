@@ -39,12 +39,12 @@ void NRF24LinkAddon::setup() {
     gpio_put(cePin_, 0);
     sleep_ms(10);  // 等待 nRF24 上电稳定
 
-    // 3. nRF24 寄存器配置（与 ESP32 端 nrf24.h 完全一致以确保互通）
+    // 3. nRF24 寄存器配置（与接收端固件共享同一组链路参数，两端必须一致）
     writeReg(NRF24_REG_CONFIG, 0x00);            // power down
     writeReg(NRF24_REG_EN_AA, 0x01);             // EN_AA: 仅 pipe0（auto-ack）
     writeReg(NRF24_REG_EN_RXADDR, 0x01);         // EN_RXADDR: 仅 pipe0
     writeReg(NRF24_REG_SETUP_AW, 0x03);           // SETUP_AW: 5-byte addresses
-    writeReg(NRF24_REG_SETUP_RETR, 0x13);         // SETUP_RETR: 250us, 3 retries
+    writeReg(NRF24_REG_SETUP_RETR, 0x03);         // SETUP_RETR: ARD=250us, ARC=3
     writeReg(NRF24_REG_RF_CH, NRF24_CHANNEL);     // RF_CH
     writeReg(NRF24_REG_RF_SETUP, 0x0E);           // RF_SETUP: 2Mbps, 0dBm
     static const uint8_t addr[5] = {0xE7, 0xE7, 0xE7, 0xE7, 0xE7};
@@ -52,6 +52,11 @@ void NRF24LinkAddon::setup() {
     writeRegBuf(NRF24_REG_RX_ADDR_P0, addr, 5);   // RX_ADDR_P0 (auto-ack pipe)
     writeReg(NRF24_REG_RX_PW_P0, NRF24_PAYLOAD);  // RX_PW_P0
     writeReg(NRF24_REG_STATUS, 0x70);             // clear STATUS
+    // FIFO 内容在断电与寄存器重配置后都会保留：MCU 热重启或 ReinitializeAddons()
+    // 后模块仍常供电，上一轮残包会成为开机首包（接收端拿到一帧冻结旧输入），
+    // 配置完成后必须显式清空两个 FIFO（与接收端 begin() 行为一致）
+    flushTx();
+    flushRx();
     writeReg(NRF24_REG_CONFIG, 0x0E);             // PWR_UP + 2字节CRC
     sleep_ms(2);  // PowerUp + OscSettling 时间
 
@@ -102,6 +107,13 @@ void NRF24LinkAddon::flushTx() {
     spi_->deselect();
 }
 
+void NRF24LinkAddon::flushRx() {
+    if (!spi_) return;
+    spi_->select(csPin_);
+    spi_->transfer(NRF24_CMD_FLUSH_RX);
+    spi_->deselect();
+}
+
 void NRF24LinkAddon::cePulse(uint32_t us) {
     gpio_put(cePin_, 1);
     busy_wait_us(us);
@@ -122,7 +134,7 @@ void NRF24LinkAddon::submitPacket(const uint8_t *data) {
 
 int8_t NRF24LinkAddon::pollTxComplete() {
     // 软件超时优先（纯时间比较，无额外 SPI 开销）：
-    // SETUP_RETR(0x13) 下硬件事务最长 ~2ms，超时判芯片异常并恢复
+    // SETUP_RETR(0x03：ARD=250us/ARC=3) 下硬件事务最长 ~1.14ms，超时判芯片异常并恢复
     if (static_cast<int32_t>(time_us_32() - txStartUs) >=
             NRF24_TX_POLL_TIMEOUT_US) {
         writeReg(NRF24_REG_STATUS, 0x70);
@@ -232,7 +244,7 @@ void NRF24LinkAddon::postprocess(bool sent) {
     // 恒流 1ms 定频：距上次发送 ≥1ms 无条件发当前快照，
     // 静止时也不断流。旧"变化触发+50ms 心跳"策略会在摇杆静止时留下长包
     // 间隙，周期性触发接收器回中闪现（2026-09-23 定位），已废弃。
-    // 门控循环 ~0.95~1.04ms 每轮必满足；在飞重发最坏 ~2ms 拉长单事务而非堆积。
+    // 门控循环 ~0.95~1.04ms 每轮必满足；在飞重发最坏 ~1.14ms 拉长单事务而非堆积。
     if ((now - lastSentUs) >= NRF24_SEND_INTERVAL_US) {
         const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
         uint8_t inputMode = static_cast<uint8_t>(options.inputMode);

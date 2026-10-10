@@ -31,9 +31,9 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI1_PIN_NRF_CE;  // nRF24 CE
 // SPI 速率：8MHz
 #define NRF24_SPI_HZ          8000000u
 
-// nRF24 RF 配置（与 ESP32 端完全一致以确保互通）
+// nRF24 RF 配置（与接收端固件共享同一组链路参数，两端必须一致）
 #define NRF24_PAYLOAD         15
-#define NRF24_CHANNEL         100   // 2.500 GHz
+#define NRF24_CHANNEL         84    // 2.484 GHz（WiFi 1~13 信道之上、频段上沿之下）
 
 // nRF24 寄存器地址
 #define NRF24_REG_CONFIG      0x00
@@ -52,6 +52,7 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI1_PIN_NRF_CE;  // nRF24 CE
 #define NRF24_CMD_R_RX_PAYLOAD 0x61
 #define NRF24_CMD_W_TX_PAYLOAD 0xA0
 #define NRF24_CMD_FLUSH_TX     0xE1
+#define NRF24_CMD_FLUSH_RX     0xE2
 
 // STATUS 位
 #define NRF24_STATUS_TX_DS     0x20
@@ -61,13 +62,14 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI1_PIN_NRF_CE;  // nRF24 CE
 // INPUT 帧恒流发送间隔（微秒）：芯片空闲且距上次发送 ≥1ms 即无条件发当前
 // 状态快照。接收器带丢包超时回中
 // 保护（摇杆静止时 50ms 心跳间隙会周期性触发回中闪现），恒流保证包间隙
-// 最多为在飞事务时长（最坏 ~2ms），远低于回中阈值。
+// 最多为在飞事务时长（最坏 ~1.2ms），远低于回中阈值。
 #define NRF24_SEND_INTERVAL_US      1000
 
 // 异步 TX：CE 高电平保持（datasheet 要求 >10us 触发单包发射）
 #define NRF24_CE_PULSE_US           15
-// 异步 TX 软件超时：SETUP_RETR(0x13：250us/3次重发) 下硬件最长事务 ~2ms，
-// 2.5ms 无 TX_DS/MAX_RT 判芯片异常，flush 后恢复
+// 异步 TX 软件超时：SETUP_RETR(0x03：ARD=250us/ARC=3，共 4 次尝试) 下硬件
+// 最长事务 = 4×97us + 3×250us ≈ 1.14ms；2.5ms 仍无 TX_DS/MAX_RT 判芯片异常
+//（余量 >1.3ms，不会在正常重传结束前误触发），flush 后恢复
 #define NRF24_TX_POLL_TIMEOUT_US    2500
 
 // 接收端在线去抖：连续 N 次 ACK 判在线；ACK 静默超过超时（≈20 个心跳）判离线。
@@ -78,7 +80,7 @@ static constexpr int8_t  NRF24_HW_CE_PIN    = SPI1_PIN_NRF_CE;  // nRF24 CE
 // 异步 TX 设计：postprocess 不等待 RF ACK。提交帧只做 W_TX_PAYLOAD（~35us
 // SPI）+ CE 脉冲（15us）即返回；后续帧 postprocess 每次只读一次 STATUS（~5us）
 // 判定 TX_DS/MAX_RT/超时。在飞期间不写第二个 W_TX_PAYLOAD（txPending 门控，
-// nRF24 TX FIFO 恒为 ≤1 包，重发只拉长单事务到最坏 ~2ms），芯片空闲即按恒流
+// nRF24 TX FIFO 恒为 ≤1 包，重发只拉长单事务到最坏 ~1.14ms），芯片空闲即按恒流
 // 间隔发最新快照（数据不缓存，始终从 Storage 读取）。postprocess 对主循环
 // 占用稳定 ≤ ~70us，与接收端是否在线无关。
 
@@ -98,6 +100,7 @@ private:
     void writeRegBuf(uint8_t reg, const uint8_t *data, uint8_t len);
     uint8_t readReg(uint8_t reg);
     void flushTx();
+    void flushRx();
     // 拉高 CE 指定微秒数（TX 触发 / RX 使能）
     void cePulse(uint32_t us);
     // 将 payload 写入 TX FIFO 并脉冲 CE 触发发射（不等待 ACK），置 txPending
