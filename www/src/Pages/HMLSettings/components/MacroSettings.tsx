@@ -24,6 +24,7 @@ import {
 	BUTTONS,
 	BUTTON_MASKS_OPTIONS,
 } from '../../../Data/Buttons';
+import { BUTTON_ACTIONS } from '../../../Data/Pins';
 
 const MACRO_TYPES = [
 	{ label: 'InputMacroAddon:input-macro-type.press', value: 1 },
@@ -32,23 +33,25 @@ const MACRO_TYPES = [
 ];
 const MACRO_INPUTS_MAX = 30;
 const MACRO_LIMIT = 6;
-const MACRO_REC_INDEX = 0;
-const AXIS_CENTER = 32767;
+// Macro 1/2 (indices 0/1) are pure recorded macros; macro 3-6 are edited macros.
+const MACRO_REC_SLOT_COUNT = 2;
 
-// Per-axis analog override. '' = axis not driven by this step; 0/32767/65535
-// map to full-scale negative, center and full-scale positive respectively.
-const AXIS_OPTIONS = [
-	{ value: '', labelKey: 'input-macro-axis-none' },
-	{ value: 0, labelKey: 'input-macro-axis-min' },
-	{ value: AXIS_CENTER, labelKey: 'input-macro-axis-center' },
-	{ value: 65535, labelKey: 'input-macro-axis-max' },
+// Stick-direction sentinels (must match the firmware switch in input_macro.cpp).
+const STICK_DIRECTION_LEFT_CENTER = 0xfffffffe;
+const STICK_DIRECTION_RIGHT_CENTER = 0xfffffffd;
+
+const STICK_DIRECTION_OPTIONS = [
+	{ label: 'ANALOG_DIRECTION_LS_X_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_X_NEG },
+	{ label: 'ANALOG_DIRECTION_LS_X_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_X_POS },
+	{ label: 'ANALOG_DIRECTION_LS_Y_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_Y_NEG },
+	{ label: 'ANALOG_DIRECTION_LS_Y_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_Y_POS },
+	{ label: 'STICK_DIRECTION_LEFT_CENTER', value: STICK_DIRECTION_LEFT_CENTER },
+	{ label: 'ANALOG_DIRECTION_RS_X_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_NEG },
+	{ label: 'ANALOG_DIRECTION_RS_X_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_POS },
+	{ label: 'ANALOG_DIRECTION_RS_Y_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_NEG },
+	{ label: 'ANALOG_DIRECTION_RS_Y_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_POS },
+	{ label: 'STICK_DIRECTION_RIGHT_CENTER', value: STICK_DIRECTION_RIGHT_CENTER },
 ];
-const AXIS_FIELDS = [
-	{ name: 'lx', labelKey: 'input-macro-axis-lx' },
-	{ name: 'ly', labelKey: 'input-macro-axis-ly' },
-	{ name: 'rx', labelKey: 'input-macro-axis-rx' },
-	{ name: 'ry', labelKey: 'input-macro-axis-ry' },
-] as const;
 
 const schema = yup.object().shape({
 	macroList: yup.array().of(
@@ -61,7 +64,6 @@ const schema = yup.object().shape({
 			showFrames: yup.number(),
 			useMacroTriggerButton: yup.number(),
 			macroTriggerButton: yup.number(),
-			recordMode: yup.number().optional(),
 			hasRecording: yup.number().optional(),
 			recFrames: yup.number().optional(),
 			macroInputs: yup
@@ -72,10 +74,7 @@ const schema = yup.object().shape({
 						buttonMask: yup.number().required(),
 						duration: yup.number().required(),
 						waitDuration: yup.number().required(),
-						lx: yup.mixed().nullable().optional(),
-						ly: yup.mixed().nullable().optional(),
-						rx: yup.mixed().nullable().optional(),
-						ry: yup.mixed().nullable().optional(),
+						stickDirection: yup.number().optional(),
 					}),
 				),
 		}),
@@ -86,13 +85,10 @@ const defaultMacroInput = {
 	buttonMask: 0,
 	duration: 16666,
 	waitDuration: 0,
-	lx: '',
-	ly: '',
-	rx: '',
-	ry: '',
+	stickDirection: 0,
 };
 
-const createDefaultMacroItem = () => ({
+const createDefaultMacroItem = (index?: number) => ({
 	macroType: 1,
 	macroLabel: '',
 	enabled: 0,
@@ -101,15 +97,19 @@ const createDefaultMacroItem = () => ({
 	showFrames: 1,
 	useMacroTriggerButton: 0,
 	macroTriggerButton: 0,
-	recordMode: 0,
 	hasRecording: 0,
 	recFrames: 0,
 	clearRecording: 0,
-	macroInputs: [{ ...defaultMacroInput }],
+	macroInputs:
+		index != null && index < MACRO_REC_SLOT_COUNT
+			? []
+			: [{ ...defaultMacroInput }],
 });
 
 const defaultValues = {
-	macroList: Array.from({ length: MACRO_LIMIT }, createDefaultMacroItem),
+	macroList: Array.from({ length: MACRO_LIMIT }, (_, i) =>
+		createDefaultMacroItem(i),
+	),
 };
 
 const ONE_FRAME_US = 16666;
@@ -139,7 +139,6 @@ const FormContext = () => {
 							...macro,
 							macroLabel:
 								macro.macroLabel == null ? '' : String(macro.macroLabel),
-							recordMode: macro.recordMode ?? 0,
 							hasRecording: macro.hasRecording ?? 0,
 							recFrames: macro.recFrames ?? 0,
 							clearRecording: 0,
@@ -148,11 +147,7 @@ const FormContext = () => {
 										buttonMask: input.buttonMask ?? 0,
 										duration: input.duration ?? 16666,
 										waitDuration: input.waitDuration ?? 0,
-										// Absent key = axis not driven by this step.
-										lx: input.lx === undefined ? '' : input.lx,
-										ly: input.ly === undefined ? '' : input.ly,
-										rx: input.rx === undefined ? '' : input.rx,
-										ry: input.ry === undefined ? '' : input.ry,
+										stickDirection: input.stickDirection || 0,
 									}))
 								: [],
 						}))
@@ -192,43 +187,6 @@ const ButtonMasksComponent = (props) => {
 	);
 };
 
-const AxisSelectsComponent = (props) => {
-	const { id: key, input, setFieldValue, translation: t } = props;
-	return (
-		<Col xs="auto">
-			<div className="d-flex gap-1">
-				{AXIS_FIELDS.map((axis) => (
-					<InputGroup size="sm" key={`${key}.${axis.name}`} style={{ width: 118 }}>
-						<InputGroup.Text className="px-1">
-							{t(`InputMacroAddon:${axis.labelKey}`)}
-						</InputGroup.Text>
-						<Form.Select
-							name={`${key}.${axis.name}`}
-							value={input[axis.name] ?? ''}
-							onChange={(e) => {
-								const raw = e.target.value;
-								setFieldValue(
-									`${key}.${axis.name}`,
-									raw === '' ? '' : parseInt(raw),
-								);
-							}}
-						>
-							{AXIS_OPTIONS.map((option) => (
-								<option
-									key={`${key}.${axis.name}.${option.value}`}
-									value={option.value}
-								>
-									{t(`InputMacroAddon:${option.labelKey}`)}
-								</option>
-							))}
-						</Form.Select>
-					</InputGroup>
-				))}
-			</div>
-		</Col>
-	);
-};
-
 const MacroInputComponent = (props) => {
 	const {
 		value,
@@ -244,6 +202,7 @@ const MacroInputComponent = (props) => {
 	const duration = input.duration ?? 16666;
 	const buttonMask = input.buttonMask ?? 0;
 	const waitDuration = input.waitDuration ?? 0;
+	const stickDirection = input.stickDirection ?? 0;
 
 	return (
 		<Row className="align-content-start align-items-center row-gap-2 gx-2 pb-2">
@@ -305,12 +264,39 @@ const MacroInputComponent = (props) => {
 					buttonMasks={BUTTON_MASKS_OPTIONS}
 				/>
 			</Col>
-			<AxisSelectsComponent
-				id={key}
-				input={input}
-				setFieldValue={setFieldValue}
-				translation={t}
-			/>
+			<Col xs="auto">
+				<Form.Select
+					size="sm"
+					name={`${key}.stickDirection`}
+					value={stickDirection || 0}
+					isInvalid={errors?.stickDirection}
+					onChange={(e) => {
+						setFieldValue(`${key}.stickDirection`, parseInt(e.target.value) || 0);
+					}}
+				>
+					<option value={0}>
+						{t('InputMacroAddon:input-macro-stick-direction-none')}
+					</option>
+					{STICK_DIRECTION_OPTIONS.map((option) => (
+						<option
+							key={`${key}.stickDirection.${option.value}`}
+							value={option.value}
+						>
+							{option.label === 'STICK_DIRECTION_LEFT_CENTER'
+								? t(
+										'InputMacroAddon:input-macro-stick-direction-left-center',
+									)
+								: option.label === 'STICK_DIRECTION_RIGHT_CENTER'
+									? t(
+											'InputMacroAddon:input-macro-stick-direction-right-center',
+										)
+									: t(`Proto:GpioAction.${option.label}`, {
+											defaultValue: option.label,
+										})}
+						</option>
+					))}
+				</Form.Select>
+			</Col>
 			<Col xs="auto" style={{ width: 290 }}>
 				<InputGroup size="sm">
 					<InputGroup.Text>
@@ -351,14 +337,20 @@ const MacroInputComponent = (props) => {
 };
 
 const RecordedMacroPanel = (props) => {
-	const { id: key, value: macroValue, setFieldValue, translation: t } = props;
+	const {
+		id: key,
+		value: macroValue,
+		macroNumber,
+		setFieldValue,
+		translation: t,
+	} = props;
 	const hasRecording = Boolean(macroValue?.hasRecording);
 	const recFrames = macroValue?.recFrames ?? 0;
 
 	return (
 		<div className="mt-3">
 			<Alert variant="info" className="small">
-				{t('InputMacroAddon:input-macro-record-hint')}
+				{t('InputMacroAddon:input-macro-record-hint', { macroNumber })}
 				<br />
 				{t('InputMacroAddon:input-macro-record-forced')}
 			</Alert>
@@ -386,6 +378,7 @@ const RecordedMacroPanel = (props) => {
 										window.confirm(
 											t(
 												'InputMacroAddon:input-macro-record-clear-confirm',
+												{ macroNumber },
 											),
 										)
 									) {
@@ -401,7 +394,9 @@ const RecordedMacroPanel = (props) => {
 					</>
 				) : (
 					<Col sm="auto">
-						<em>{t('InputMacroAddon:input-macro-record-none')}</em>
+						<em>
+							{t('InputMacroAddon:input-macro-record-none', { macroNumber })}
+						</em>
 					</Col>
 				)}
 			</Row>
@@ -436,11 +431,9 @@ const MacroComponent = (props) => {
 		showFrames,
 		useMacroTriggerButton,
 		macroTriggerButton,
-		recordMode,
 	} = macroValue;
 
-	const isRecordMacro = index === MACRO_REC_INDEX;
-	const recordingMode = isRecordMacro && Boolean(recordMode);
+	const isRecordSlot = index < MACRO_REC_SLOT_COUNT;
 
 	return (
 		<div key={key}>
@@ -458,26 +451,11 @@ const MacroComponent = (props) => {
 						isInvalid={false}
 					/>
 				</Col>
-				{isRecordMacro && (
-					<Col sm={'auto'}>
-						<Form.Check
-							name={`${key}.recordMode`}
-							label={t('InputMacroAddon:input-macro-record-mode')}
-							type="switch"
-							className="form-select-sm"
-							checked={recordingMode}
-							onChange={(e) => {
-								const on = e.target.checked;
-								setFieldValue(`${key}.recordMode`, on ? 1 : 0);
-								if (on) {
-									// Recording playback is always ON_PRESS + exclusive + non-interruptible.
-									setFieldValue(`${key}.macroType`, 1);
-									setFieldValue(`${key}.exclusive`, 1);
-									setFieldValue(`${key}.interruptible`, 0);
-								}
-							}}
-							isInvalid={false}
-						/>
+				{isRecordSlot && (
+					<Col sm="auto" className="d-flex align-items-center">
+						<Badge bg="info">
+							{t('InputMacroAddon:input-macro-record-badge')}
+						</Badge>
 					</Col>
 				)}
 			</Row>
@@ -505,8 +483,7 @@ const MacroComponent = (props) => {
 					<Form.Select
 						name={`${key}.macroType`}
 						className="form-select-sm sm-1"
-						value={recordingMode ? 1 : macroType}
-						disabled={recordingMode}
+						value={macroType}
 						onChange={(e) => {
 							setFieldValue(`${key}.macroType`, parseInt(e.target.value));
 						}}
@@ -529,8 +506,7 @@ const MacroComponent = (props) => {
 						label={t('InputMacroAddon:input-macro-macro-interruptible')}
 						type="switch"
 						className="form-select-sm"
-						disabled={recordingMode}
-						checked={recordingMode ? false : Boolean(interruptible)}
+						checked={Boolean(interruptible)}
 						onChange={(e) => {
 							setFieldValue(`${key}.interruptible`, e.target.checked ? 1 : 0);
 						}}
@@ -545,8 +521,9 @@ const MacroComponent = (props) => {
 						label={t('InputMacroAddon:input-macro-macro-exclusive')}
 						type="switch"
 						className="form-select-sm"
-						disabled={recordingMode}
-						checked={recordingMode ? true : Boolean(exclusive)}
+						// Recorded slots are always exclusive (enforced in firmware).
+						disabled={isRecordSlot}
+						checked={isRecordSlot ? true : Boolean(exclusive)}
 						onChange={(e) => {
 							setFieldValue(`${key}.exclusive`, e.target.checked ? 1 : 0);
 						}}
@@ -603,10 +580,11 @@ const MacroComponent = (props) => {
 					</Col>
 				)}
 			</Row>
-			{recordingMode ? (
+			{isRecordSlot ? (
 				<RecordedMacroPanel
 					id={key}
 					value={macroValue}
+					macroNumber={index + 1}
 					setFieldValue={setFieldValue}
 					translation={t}
 				/>
@@ -716,42 +694,38 @@ export default function MacroSettings() {
 		const cleanedValues = {
 			...values,
 			macroList: values.macroList.map((macro, mi) => {
-				const macroInputs = (macro.macroInputs ?? []).map((input) => {
-					const step = {
-						buttonMask: input.buttonMask ?? 0,
-						duration: input.duration ?? 16666,
-						waitDuration: input.waitDuration ?? 0,
-					};
-					// Analog axes are only sent when driven (key present = has_lx/...).
-					for (const axis of ['lx', 'ly', 'rx', 'ry'] as const) {
-						if (input[axis] !== '' && input[axis] != null) {
-							step[axis] = Number(input[axis]);
-						}
-					}
-					return step;
-				});
-
-				const out = {
+				const common = {
 					macroType: macro.macroType,
 					macroLabel: macro.macroLabel ?? '',
 					useMacroTriggerButton: macro.useMacroTriggerButton,
 					macroTriggerButton: macro.macroTriggerButton,
 					enabled: macro.enabled,
-					exclusive: macro.exclusive,
 					interruptible: macro.interruptible,
 					showFrames: macro.showFrames,
-					macroInputs,
 				};
 
-				if (mi === MACRO_REC_INDEX) {
-					out['recordMode'] = macro.recordMode ? 1 : 0;
-					out['hasRecording'] = macro.hasRecording ? 1 : 0;
-					out['recFrames'] = macro.recFrames ?? 0;
-					if (macro.clearRecording) {
-						out['clearRecording'] = 1;
-					}
+				if (mi < MACRO_REC_SLOT_COUNT) {
+					// Recorded slot: no edited steps; exclusive is fixed by firmware.
+					return {
+						...common,
+						exclusive: 1,
+						macroInputs: [],
+						hasRecording: macro.hasRecording ? 1 : 0,
+						recFrames: macro.recFrames ?? 0,
+						clearRecording: macro.clearRecording ? 1 : 0,
+					};
 				}
-				return out;
+
+				return {
+					...common,
+					exclusive: macro.exclusive,
+					macroInputs: (macro.macroInputs ?? []).map((input) => ({
+						buttonMask: input.buttonMask ?? 0,
+						duration: input.duration ?? 16666,
+						waitDuration: input.waitDuration ?? 0,
+						stickDirection: input.stickDirection || 0,
+					})),
+				};
 			}),
 		};
 		const success = await WebApi.setMacroAddonOptions(cleanedValues);
@@ -860,7 +834,7 @@ export default function MacroSettings() {
 																			})()}
 																		</td>
 																		<td>
-																			{macro.recordMode ? (
+																			{i < MACRO_REC_SLOT_COUNT ? (
 																				<Badge bg="info">
 																					{t(
 																						'InputMacroAddon:input-macro-record-badge',
@@ -907,15 +881,14 @@ export default function MacroSettings() {
 																			</td>
 																		)}
 																		<td>
-																			{macro.recordMode
+																			{i < MACRO_REC_SLOT_COUNT
 																				? (macro.hasRecording
 																					? formatRecDuration(macro.recFrames, t)
 																					: '---')
 																				: (macro.macroInputs ?? []).length}
 																		</td>
 																		<td>
-																			{macro.enabled === 1 ||
-																			macro.enabled === true ? (
+																			{Boolean(macro.enabled) ? (
 																				<Badge bg="success">
 																					{t(
 																						'InputMacroAddon:input-macro-macro-enabled-badge',

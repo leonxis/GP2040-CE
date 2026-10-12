@@ -19,30 +19,35 @@
 #define INPUT_HOLD_US 16666
 
 // ---------------------------------------------------------------------------
-// Macro recording flash layout (macro 1 only)
+// Macro recording flash layout (two slots: macro 1 index 0, macro 2 index 1)
 //
-// Region: MACRO_REC_FLASH_OFFSET..+MACRO_REC_FLASH_SIZE (320KB, 5 x 64KB,
-// defined in FlashPROM.h). Erased as one range when recording starts; only
-// 256B page programs happen while recording.
+// Region: MACRO_REC_FLASH_OFFSET..+MACRO_REC_FLASH_SIZE (384KB, 6 x 64KB
+// blocks, defined in FlashPROM.h). Each slot occupies MACRO_REC_SLOT_SIZE
+// (192KB, 3 x 64KB blocks) and is erased as one range when recording starts;
+// only 256B page programs happen while recording.
 //
+// Per slot:
 //   offset 0x000000 : header page (256B, written last -> power-loss safe)
 //   offset 0x000100 : event track (variable length, 7936B)
-//   offset 0x002000 : frame track (4B/frame, 312KB = 79,872 frames)
+//   offset 0x002000 : frame track (4B/frame, 188,416B = 47,104 frames)
 //
 // Event wire format: [frameIndex uvarint][mask uvarint32][lt u8][rt u8]
 // mask packs state.buttons plus dpad low nibble shifted to bits 16..19.
 // ---------------------------------------------------------------------------
-#define MACRO_REC_INDEX            0u                 // Only macro 1 supports recording
+#define MACRO_REC_SLOT_COUNT       2u
+#define MACRO_REC_SLOT_SIZE        0x00030000u        // 192KB per slot
 #define MACRO_REC_TICK_US          4000u              // 250Hz
 #define MACRO_REC_HEADER_OFFSET    0x00000000u
 #define MACRO_REC_EVENT_OFFSET     0x00000100u
 #define MACRO_REC_EVENT_SIZE       (0x00002000u - MACRO_REC_EVENT_OFFSET)  // 7936B
 #define MACRO_REC_FRAME_OFFSET     0x00002000u
-#define MACRO_REC_FRAME_SIZE       (MACRO_REC_FLASH_SIZE - MACRO_REC_FRAME_OFFSET) // 312KB
-#define MACRO_REC_FRAME_CAP        (MACRO_REC_FRAME_SIZE / 4u)           // 79,872 frames
+#define MACRO_REC_FRAME_SIZE       (MACRO_REC_SLOT_SIZE - MACRO_REC_FRAME_OFFSET) // 188,416B
+#define MACRO_REC_FRAME_CAP        (MACRO_REC_FRAME_SIZE / 4u)           // 47,104 frames
 #define MACRO_REC_CENTER_DEADZONE  2000
 #define MACRO_REC_VERSION          1u
 #define MACRO_REC_MAX_EVENT_BYTES  10u
+
+static inline bool isRecordedMacroIndex(int i) { return i >= 0 && i < (int)MACRO_REC_SLOT_COUNT; }
 
 #pragma pack(push, 1)
 struct MacroRecHeader
@@ -54,6 +59,38 @@ struct MacroRecHeader
     uint32_t eventCount;
 };
 #pragma pack(pop)
+
+// Per-slot recording + playback state.
+struct MacroRecSlot
+{
+    // Recording state
+    bool active;            // Currently capturing input
+    bool streamValid;       // Flash stream passes magic/version check
+    uint32_t hdrFrames;     // totalFrames read from flash header
+    uint32_t hdrEvents;     // eventCount read from flash header
+    uint64_t startUs;
+    uint32_t framesWritten;
+    uint32_t eventCount;
+    uint32_t evtBytePos;    // Bytes used inside the event track
+    uint16_t evtPagePos;
+    uint16_t frmPagePos;
+    uint8_t evtPage[256];
+    uint8_t frmPage[256];
+    uint32_t lastMask;
+    uint8_t lastLt;
+    uint8_t lastRt;
+    bool hasLastEvent;
+    bool hotkeyPrev;        // Rising edge for this slot's record hotkey
+
+    // Recorded-stream playback
+    bool playActive;
+    const uint8_t * playEvtPtr;
+    uint32_t playBytesLeft;
+    uint32_t playEventsRead;
+    uint32_t playMask;
+    uint8_t playLt;
+    uint8_t playRt;
+};
 
 static inline uint8_t macroRecEncodeUVarint(uint32_t value, uint8_t * out)
 {
@@ -118,19 +155,20 @@ private:
     void reset();
     void restart(Macro& macro);
 
-    // --- Macro recording (macro 1 only) ---
-    bool isRecordedMacroEnabled() const;
+    // --- Macro recording (macro 1 / macro 2, one slot each) ---
+    bool isRecordedMacroEnabled(uint8_t slot) const;
     void checkRecordHotkey();
-    bool validateRecordingStream();
-    void startRecording();
-    void stopRecording(bool overflow);
-    void recordSample(uint64_t now);
-    bool appendRecordEvent(uint32_t frame, uint32_t mask, uint8_t lt, uint8_t rt);
-    void recordWriteBytes(const uint8_t * data, uint8_t len);
-    void flushEventPage();
-    void flushFramePage();
-    void beginRecordedPlayback();
-    void runRecordedMacro(uint64_t now);
+    bool validateRecordingStream(uint8_t slot);
+    void startRecording(uint8_t slot);
+    void stopRecording(uint8_t slot, bool overflow);
+    void recordSample(uint8_t slot, uint64_t now);
+    bool appendRecordEvent(uint8_t slot, uint32_t frame, uint32_t mask, uint8_t lt, uint8_t rt);
+    void recordWriteBytes(uint8_t slot, const uint8_t * data, uint8_t len);
+    void flushEventPage(uint8_t slot);
+    void flushFramePage(uint8_t slot);
+    void beginRecordedPlayback(uint8_t slot);
+    void runRecordedMacro(uint8_t slot, uint64_t now);
+    void restartRecorded(uint8_t slot);
 
     bool isMacroRunning;
     bool isMacroTriggerHeld;
@@ -145,33 +183,7 @@ private:
     bool prevMacroInputPressed;
     MacroOptions * inputMacroOptions;
 
-    // Recording state
-    bool recActive;           // Currently capturing input
-    bool recStreamValid;      // Flash stream passes magic/version check
-    uint32_t recHdrFrames;    // totalFrames read from flash header
-    uint32_t recHdrEvents;    // eventCount read from flash header
-    uint64_t recStartUs;
-    uint32_t recFramesWritten;
-    uint32_t recEventCount;
-    uint32_t recEvtBytePos;   // Bytes used inside the event track
-    uint16_t recEvtPagePos;
-    uint16_t recFrmPagePos;
-    uint8_t recEvtPage[256];
-    uint8_t recFrmPage[256];
-    uint32_t recLastMask;
-    uint8_t recLastLt;
-    uint8_t recLastRt;
-    bool recHasLastEvent;
-    bool recHotkeyPrev;       // Rising edge for the record hotkey
-
-    // Recorded-stream playback
-    bool recPlayActive;
-    const uint8_t * recPlayEvtPtr;
-    uint32_t recPlayBytesLeft;
-    uint32_t recPlayEventsRead;
-    uint32_t recPlayMask;
-    uint8_t recPlayLt;
-    uint8_t recPlayRt;
+    MacroRecSlot recs[MACRO_REC_SLOT_COUNT];
 };
 
-#endif  // _InputMacro_H_
+#endif  // _InputMacro_H

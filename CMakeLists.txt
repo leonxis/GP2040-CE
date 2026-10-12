@@ -191,7 +191,7 @@ add_compile_definitions(PICO_STACK_SIZE=0x1000)
 
 # Config/web/USB-CDC path (never part of the 1ms input hot loop): keep these
 # translation units at -Os so the firmware image stays below the macro
-# recording flash region (0x1A0000). -Os only overrides -O3 for these files.
+# recording flash region (0x190000). -Os only overrides -O3 for these files.
 set_source_files_properties(
     src/webconfig.cpp
     src/config_utils.cpp

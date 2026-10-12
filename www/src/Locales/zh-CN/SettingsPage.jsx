@@ -148,6 +148,7 @@ export default {
 		'right-stick-press-preset-3': '右摇杆下压预设 3',
 		'right-stick-press-preset-clear': '右摇杆下压预设清除',
 		'macro-record-1': '宏1 开始/停止录制',
+		'macro-record-2': '宏2 开始/停止录制',
 	},
 	'4-way-joystick-mode-label': '4向摇杆模式',
 	'dpad-trigger-threshold-label': '方向键斜向触发阈值',
