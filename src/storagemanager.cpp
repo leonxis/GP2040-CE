@@ -173,14 +173,14 @@ bool Storage::isAmbientWebConfigOverrideActive() const
 	return ambientWebConfigOverrideActive.load(std::memory_order_acquire);
 }
 
-void Storage::setMacroRecording(bool active)
+void Storage::pulseMacroHint()
 {
-	macroRecording.store(active, std::memory_order_release);
+	macroHintPulseSeqValue.fetch_add(1, std::memory_order_acq_rel);
 }
 
-bool Storage::isMacroRecording() const
+uint32_t Storage::macroHintPulseSeq() const
 {
-	return macroRecording.load(std::memory_order_acquire);
+	return macroHintPulseSeqValue.load(std::memory_order_acquire);
 }
 
 void Storage::pulseMacroRecFull()
@@ -191,4 +191,14 @@ void Storage::pulseMacroRecFull()
 uint32_t Storage::macroRecPulseSeq() const
 {
 	return macroRecPulseSeqValue.load(std::memory_order_acquire);
+}
+
+void Storage::pulseTurboToggle()
+{
+	turboPulseSeqValue.fetch_add(1, std::memory_order_acq_rel);
+}
+
+uint32_t Storage::turboPulseSeq() const
+{
+	return turboPulseSeqValue.load(std::memory_order_acquire);
 }

@@ -563,8 +563,9 @@ enum AmbientEffectType
     AL_CUSTOM_EFFECT_BREATH = 3;		// Breathing
     AL_CUSTOM_EFFECT_STATIC_THEME = 4;	// Custom Static
     AL_CUSTOM_EFFECT_WEB_CONFIG_HINT = 5;   // Web-config session hint (not persisted as user mode)
-    AL_CUSTOM_EFFECT_MACRO_RECORDING = 9;   // Macro recording in progress: green slow blink (RAM-only hint)
     AL_CUSTOM_EFFECT_MACRO_REC_FULL = 10;   // Macro recording stopped by capacity: one-shot red 3-blink (RAM-only hint)
+    AL_CUSTOM_EFFECT_TURBO_TOGGLE = 11;     // Turbo button enable/disable: one-shot green single blink (RAM-only hint)
+    AL_CUSTOM_EFFECT_MACRO_HINT = 12;       // Macro recording start / playback end: one-shot blue single blink (RAM-only hint)
 };
 
 enum AnimationColor // Sync with Animation.h
