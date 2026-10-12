@@ -27,9 +27,21 @@ import {
 import { BUTTON_ACTIONS } from '../../../Data/Pins';
 
 const MACRO_TYPES = [
-	{ label: 'InputMacroAddon:input-macro-type.press', value: 1 },
-	{ label: 'InputMacroAddon:input-macro-type.hold-repeat', value: 2 },
-	{ label: 'InputMacroAddon:input-macro-type.toggle', value: 3 },
+	{
+		label: 'InputMacroAddon:input-macro-type-press',
+		desc: 'InputMacroAddon:input-macro-type-press-desc',
+		value: 1,
+	},
+	{
+		label: 'InputMacroAddon:input-macro-type-hold-repeat',
+		desc: 'InputMacroAddon:input-macro-type-hold-repeat-desc',
+		value: 2,
+	},
+	{
+		label: 'InputMacroAddon:input-macro-type-toggle',
+		desc: 'InputMacroAddon:input-macro-type-toggle-desc',
+		value: 3,
+	},
 ];
 const MACRO_INPUTS_MAX = 30;
 const MACRO_LIMIT = 6;
@@ -40,17 +52,33 @@ const MACRO_REC_SLOT_COUNT = 2;
 const STICK_DIRECTION_LEFT_CENTER = 0xfffffffe;
 const STICK_DIRECTION_RIGHT_CENTER = 0xfffffffd;
 
-const STICK_DIRECTION_OPTIONS = [
-	{ label: 'ANALOG_DIRECTION_LS_X_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_X_NEG },
-	{ label: 'ANALOG_DIRECTION_LS_X_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_X_POS },
-	{ label: 'ANALOG_DIRECTION_LS_Y_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_Y_NEG },
-	{ label: 'ANALOG_DIRECTION_LS_Y_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_Y_POS },
-	{ label: 'STICK_DIRECTION_LEFT_CENTER', value: STICK_DIRECTION_LEFT_CENTER },
-	{ label: 'ANALOG_DIRECTION_RS_X_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_NEG },
-	{ label: 'ANALOG_DIRECTION_RS_X_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_POS },
-	{ label: 'ANALOG_DIRECTION_RS_Y_NEG', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_NEG },
-	{ label: 'ANALOG_DIRECTION_RS_Y_POS', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_POS },
-	{ label: 'STICK_DIRECTION_RIGHT_CENTER', value: STICK_DIRECTION_RIGHT_CENTER },
+// Left/right stick selectors are separate fields (stickDirection /
+// stickDirectionR) so one macro step can drive both sticks at once. Option
+// labels are InputMacroAddon i18n keys (up/down/left/right/center).
+const LEFT_STICK_DIRECTION_OPTIONS = [
+	{ label: 'input-macro-stick-direction-left-up', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_Y_NEG },
+	{ label: 'input-macro-stick-direction-left-down', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_Y_POS },
+	{ label: 'input-macro-stick-direction-left-left', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_X_NEG },
+	{ label: 'input-macro-stick-direction-left-right', value: BUTTON_ACTIONS.ANALOG_DIRECTION_LS_X_POS },
+	{ label: 'input-macro-stick-direction-left-center', value: STICK_DIRECTION_LEFT_CENTER },
+];
+
+const RIGHT_STICK_DIRECTION_OPTIONS = [
+	{ label: 'input-macro-stick-direction-right-up', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_NEG },
+	{ label: 'input-macro-stick-direction-right-down', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_POS },
+	{ label: 'input-macro-stick-direction-right-left', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_NEG },
+	{ label: 'input-macro-stick-direction-right-right', value: BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_POS },
+	{ label: 'input-macro-stick-direction-right-center', value: STICK_DIRECTION_RIGHT_CENTER },
+];
+
+// Legacy single-selector values that targeted the right stick; on load these
+// are migrated from stickDirection into stickDirectionR.
+const LEGACY_RIGHT_STICK_VALUES = [
+	BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_NEG,
+	BUTTON_ACTIONS.ANALOG_DIRECTION_RS_X_POS,
+	BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_NEG,
+	BUTTON_ACTIONS.ANALOG_DIRECTION_RS_Y_POS,
+	STICK_DIRECTION_RIGHT_CENTER,
 ];
 
 const schema = yup.object().shape({
@@ -75,6 +103,7 @@ const schema = yup.object().shape({
 						duration: yup.number().required(),
 						waitDuration: yup.number().required(),
 						stickDirection: yup.number().optional(),
+						stickDirectionR: yup.number().optional(),
 					}),
 				),
 		}),
@@ -86,6 +115,7 @@ const defaultMacroInput = {
 	duration: 16666,
 	waitDuration: 0,
 	stickDirection: 0,
+	stickDirectionR: 0,
 };
 
 const createDefaultMacroItem = (index?: number) => ({
@@ -143,12 +173,22 @@ const FormContext = () => {
 							recFrames: macro.recFrames ?? 0,
 							clearRecording: 0,
 							macroInputs: macro.macroInputs
-								? macro.macroInputs.map((input) => ({
-										buttonMask: input.buttonMask ?? 0,
-										duration: input.duration ?? 16666,
-										waitDuration: input.waitDuration ?? 0,
-										stickDirection: input.stickDirection || 0,
-									}))
+								? macro.macroInputs.map((input) => {
+										// Legacy configs stored a right-stick action in the
+										// single stickDirection field; move it to the R selector.
+										const legacyDir = input.stickDirection || 0;
+										const isLegacyRight =
+											LEGACY_RIGHT_STICK_VALUES.includes(legacyDir);
+										return {
+											buttonMask: input.buttonMask ?? 0,
+											duration: input.duration ?? 16666,
+											waitDuration: input.waitDuration ?? 0,
+											stickDirection: isLegacyRight ? 0 : legacyDir,
+											stickDirectionR: isLegacyRight
+												? legacyDir
+												: input.stickDirectionR || 0,
+										};
+									})
 								: [],
 						}))
 					: defaultValues.macroList,
@@ -203,6 +243,7 @@ const MacroInputComponent = (props) => {
 	const buttonMask = input.buttonMask ?? 0;
 	const waitDuration = input.waitDuration ?? 0;
 	const stickDirection = input.stickDirection ?? 0;
+	const stickDirectionR = input.stickDirectionR ?? 0;
 
 	return (
 		<Row className="align-content-start align-items-center row-gap-2 gx-2 pb-2">
@@ -265,37 +306,60 @@ const MacroInputComponent = (props) => {
 				/>
 			</Col>
 			<Col xs="auto">
-				<Form.Select
-					size="sm"
-					name={`${key}.stickDirection`}
-					value={stickDirection || 0}
-					isInvalid={errors?.stickDirection}
-					onChange={(e) => {
-						setFieldValue(`${key}.stickDirection`, parseInt(e.target.value) || 0);
-					}}
-				>
-					<option value={0}>
-						{t('InputMacroAddon:input-macro-stick-direction-none')}
-					</option>
-					{STICK_DIRECTION_OPTIONS.map((option) => (
-						<option
-							key={`${key}.stickDirection.${option.value}`}
-							value={option.value}
-						>
-							{option.label === 'STICK_DIRECTION_LEFT_CENTER'
-								? t(
-										'InputMacroAddon:input-macro-stick-direction-left-center',
-									)
-								: option.label === 'STICK_DIRECTION_RIGHT_CENTER'
-									? t(
-											'InputMacroAddon:input-macro-stick-direction-right-center',
-										)
-									: t(`Proto:GpioAction.${option.label}`, {
-											defaultValue: option.label,
-										})}
+				<InputGroup size="sm">
+					<InputGroup.Text>
+						{t('InputMacroAddon:input-macro-stick-direction-left-label')}
+					</InputGroup.Text>
+					<Form.Select
+						size="sm"
+						name={`${key}.stickDirection`}
+						value={stickDirection || 0}
+						isInvalid={errors?.stickDirection}
+						onChange={(e) => {
+							setFieldValue(`${key}.stickDirection`, parseInt(e.target.value) || 0);
+						}}
+					>
+						<option value={0}>
+							{t('InputMacroAddon:input-macro-stick-direction-none')}
 						</option>
-					))}
-				</Form.Select>
+						{LEFT_STICK_DIRECTION_OPTIONS.map((option) => (
+							<option
+								key={`${key}.stickDirection.${option.value}`}
+								value={option.value}
+							>
+								{t(`InputMacroAddon:${option.label}`)}
+							</option>
+						))}
+					</Form.Select>
+				</InputGroup>
+			</Col>
+			<Col xs="auto">
+				<InputGroup size="sm">
+					<InputGroup.Text>
+						{t('InputMacroAddon:input-macro-stick-direction-right-label')}
+					</InputGroup.Text>
+					<Form.Select
+						size="sm"
+						name={`${key}.stickDirectionR`}
+						value={stickDirectionR || 0}
+						isInvalid={errors?.stickDirectionR}
+						onChange={(e) => {
+							setFieldValue(`${key}.stickDirectionR`, parseInt(e.target.value) || 0);
+						}}
+					>
+						<option value={0}>
+							{t('InputMacroAddon:input-macro-stick-direction-none')}
+						</option>
+						{RIGHT_STICK_DIRECTION_OPTIONS.map((option) => (
+							<option
+								key={`${key}.stickDirectionR.${option.value}`}
+								value={option.value}
+							>
+								{t(`InputMacroAddon:${option.label}`)}
+							</option>
+						))}
+					</Form.Select>
+				</InputGroup>
 			</Col>
 			<Col xs="auto" style={{ width: 290 }}>
 				<InputGroup size="sm">
@@ -434,6 +498,7 @@ const MacroComponent = (props) => {
 	} = macroValue;
 
 	const isRecordSlot = index < MACRO_REC_SLOT_COUNT;
+	const macroTypeEntry = MACRO_TYPES.find((o) => o.value === macroType);
 
 	return (
 		<div key={key}>
@@ -475,11 +540,11 @@ const MacroComponent = (props) => {
 					/>
 				</Col>
 			</Row>
-			<Row className="my-2">
+			<Row className="my-2 align-items-center">
 				<Col sm="auto" className="mb-2">
 					{t('InputMacroAddon:macro-activation-type')}:
 				</Col>
-				<Col sm={'auto'}>
+				<Col sm={'auto'} className="mb-2">
 					<Form.Select
 						name={`${key}.macroType`}
 						className="form-select-sm sm-1"
@@ -495,6 +560,13 @@ const MacroComponent = (props) => {
 						))}
 					</Form.Select>
 				</Col>
+				{macroTypeEntry && (
+					<Col sm="auto" className="mb-2">
+						<Form.Text className="text-muted">
+							{t(macroTypeEntry.desc)}
+						</Form.Text>
+					</Col>
+				)}
 			</Row>
 
 			<hr className="mt-4" />
@@ -724,6 +796,7 @@ export default function MacroSettings() {
 						duration: input.duration ?? 16666,
 						waitDuration: input.waitDuration ?? 0,
 						stickDirection: input.stickDirection || 0,
+						stickDirectionR: input.stickDirectionR || 0,
 					})),
 				};
 			}),
