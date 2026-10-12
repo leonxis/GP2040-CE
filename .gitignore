@@ -21,3 +21,8 @@ env.ini
 *docker-compose.yml
 www/src_gen/enums.ts
 /lib/NeoPico/src/generated/ws2812.pio.h
+
+# Build-time generated
+/_deps/
+/headers/version.h
+/.trae/
