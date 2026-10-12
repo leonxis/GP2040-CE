@@ -172,3 +172,23 @@ bool Storage::isAmbientWebConfigOverrideActive() const
 {
 	return ambientWebConfigOverrideActive.load(std::memory_order_acquire);
 }
+
+void Storage::setMacroRecording(bool active)
+{
+	macroRecording.store(active, std::memory_order_release);
+}
+
+bool Storage::isMacroRecording() const
+{
+	return macroRecording.load(std::memory_order_acquire);
+}
+
+void Storage::pulseMacroRecFull()
+{
+	macroRecPulseSeqValue.fetch_add(1, std::memory_order_acq_rel);
+}
+
+uint32_t Storage::macroRecPulseSeq() const
+{
+	return macroRecPulseSeqValue.load(std::memory_order_acquire);
+}

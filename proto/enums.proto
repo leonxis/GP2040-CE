@@ -503,6 +503,7 @@ enum GamepadHotkey
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_2 = 89;
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_3 = 90;
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_CLEAR = 91;
+    HOTKEY_MACRO_RECORD_1 = 92;              // Macro 1 record start/stop toggle
 }
 
 enum AnimationEffects
@@ -560,7 +561,9 @@ enum AmbientEffectType
     AL_CUSTOM_EFFECT_CHASE = 2;		    // Chase
     AL_CUSTOM_EFFECT_BREATH = 3;		// Breathing
     AL_CUSTOM_EFFECT_STATIC_THEME = 4;	// Custom Static
-    AL_CUSTOM_EFFECT_WEB_CONFIG_HINT = 5;	// Web-config session hint (not persisted as user mode)
+    AL_CUSTOM_EFFECT_WEB_CONFIG_HINT = 5;   // Web-config session hint (not persisted as user mode)
+    AL_CUSTOM_EFFECT_MACRO_RECORDING = 9;   // Macro recording in progress: green slow blink (RAM-only hint)
+    AL_CUSTOM_EFFECT_MACRO_REC_FULL = 10;   // Macro recording stopped by capacity: one-shot red 3-blink (RAM-only hint)
 };
 
 enum AnimationColor // Sync with Animation.h

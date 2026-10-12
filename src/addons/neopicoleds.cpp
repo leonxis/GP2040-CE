@@ -322,8 +322,53 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	if (effectIdx > AL_CUSTOM_EFFECT_STATIC_THEME) {
 		effectIdx = AL_CUSTOM_EFFECT_STATIC_THEME;
 	}
-	if (DriverManager::getInstance().isConfigMode() &&
-	    Storage::getInstance().isAmbientWebConfigOverrideActive()) {
+	const bool webHintActive =
+	    DriverManager::getInstance().isConfigMode() &&
+	    Storage::getInstance().isAmbientWebConfigOverrideActive();
+
+	// Macro-recording hints take priority over the web-config hint.
+	// Green = capture in progress; red one-shot = capacity-induced stop.
+	static const uint32_t kRecPulsePhaseMs[] = {100, 100, 100, 100, 100, 500};
+	const bool macroRecording = Storage::getInstance().isMacroRecording();
+	const uint32_t macroPulseSeq = Storage::getInstance().macroRecPulseSeq();
+	if (macroPulseSeq != recPulseLastSeq_) {
+		recPulseLastSeq_ = macroPulseSeq;
+		recPulseArmed_ = true;
+		recPulsePhase_ = 0;
+		recPulseNextPhaseAt_ =
+		    delayed_by_ms(get_absolute_time(), kRecPulsePhaseMs[0]);
+	}
+	if (recPulseArmed_) {
+		// Run one full 6-phase cycle (on/off x3 + 500ms tail = 1000ms), then disarm.
+		while (time_reached(recPulseNextPhaseAt_)) {
+			if (recPulsePhase_ == 5) {
+				recPulseArmed_ = false;
+				break;
+			}
+			recPulsePhase_++;
+			recPulseNextPhaseAt_ = delayed_by_ms(
+			    get_absolute_time(), kRecPulsePhaseMs[recPulsePhase_]);
+		}
+	}
+	// Continuous green 200ms on / 300ms off while recording.
+	if (macroRecording && !recHintPrev_) {
+		recGreenPhase_ = 0;
+		recGreenNextPhaseAt_ = delayed_by_ms(get_absolute_time(), 200);
+	}
+	recHintPrev_ = macroRecording;
+	if (macroRecording) {
+		while (time_reached(recGreenNextPhaseAt_)) {
+			recGreenPhase_ ^= 1;
+			recGreenNextPhaseAt_ = delayed_by_ms(
+			    get_absolute_time(), recGreenPhase_ == 0 ? 200 : 300);
+		}
+	}
+
+	if (recPulseArmed_) {
+		effectIdx = AL_CUSTOM_EFFECT_MACRO_REC_FULL;
+	} else if (macroRecording) {
+		effectIdx = AL_CUSTOM_EFFECT_MACRO_RECORDING;
+	} else if (webHintActive) {
 		effectIdx = AL_CUSTOM_EFFECT_WEB_CONFIG_HINT;
 	}
 
@@ -485,6 +530,38 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 				? AMBIENT_DEFAULT_COLOR.value(LED_FORMAT_RGB)
 				: options.alCustomStaticColorIndex;
 			RGB amb(static_cast<uint32_t>(configuredColor));
+			if (on) {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] =
+					    amb.value(Animation::format, options.alStaticBrightnessCustomThemeX);
+				}
+			} else {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] = 0;
+				}
+			}
+			break;
+		}
+		// Macro recording in progress: continuous green 200ms/300ms blink.
+		case AL_CUSTOM_EFFECT_MACRO_RECORDING: {
+			RGB amb(0x00FF00);
+			if (recGreenPhase_ == 0) {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] =
+					    amb.value(Animation::format, options.alStaticBrightnessCustomThemeX);
+				}
+			} else {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] = 0;
+				}
+			}
+			break;
+		}
+		// Capacity stop: one-shot red 3-blink (shared 6-phase rhythm).
+		case AL_CUSTOM_EFFECT_MACRO_REC_FULL: {
+			const bool on =
+			    (recPulsePhase_ == 0 || recPulsePhase_ == 2 || recPulsePhase_ == 4);
+			RGB amb(0xFF0000);
 			if (on) {
 				for (int i = 0; i < maxFrame; i++) {
 					frame[alStartIndex + i] =
