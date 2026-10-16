@@ -169,6 +169,10 @@ static void controller_task(void *arg) {
             g_input.take(&snap);
             s_pad->update(&snap);
             vTaskDelayUntil(&lastSend, pdMS_TO_TICKS(BLE_SEND_PERIOD_MS));
+        } else if (!bleRunning) {
+            // BLE stopped: slow poll to save power; UART RX task wakes the
+            // link the moment bytes arrive (g_uartLastActiveTick updates).
+            vTaskDelay(pdMS_TO_TICKS(200));
         } else {
             vTaskDelay(pdMS_TO_TICKS(BLE_IDLE_POLL_MS));
         }

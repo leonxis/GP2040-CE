@@ -492,7 +492,7 @@ static LiteOpt optLed[] = {
 
 static LiteSection secSettings[] = {
   {"配置", optConfig, 5},
-  {"手柄", optHandle, 7},
+  {"手柄", optHandle, 6},
   {"摇杆", optStick, 5},
   {"功能", optFunc, 5},
 };

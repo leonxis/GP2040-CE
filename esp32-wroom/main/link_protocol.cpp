@@ -26,6 +26,11 @@ void lp_parser_init(lp_parser_t *p,
 }
 
 static void lp_dispatch(lp_parser_t *p) {
+    // Only a fully validated frame counts as link activity, so line noise
+    // (e.g. floating TX when the peer has its UART link disabled) cannot
+    // falsely keep the link "alive" and prevent BLE auto-shutdown.
+    if (p->onActivity) p->onActivity();
+
     if (p->type == LP_TYPE_INPUT && p->len == 13) {
         if (p->onInput) {
             lp_input_t in;
@@ -51,9 +56,6 @@ static void lp_dispatch(lp_parser_t *p) {
 }
 
 void lp_feed(lp_parser_t *p, uint8_t b) {
-    // Any byte counts as link activity, valid frame or not.
-    if (p->onActivity) p->onActivity();
-
     switch (p->state) {
         case 0:
             if (b == LP_MAGIC) p->state = 1;

@@ -16,6 +16,8 @@
 #define GP_B4  (1U << 3)
 #define GP_L1  (1U << 4)
 #define GP_R1  (1U << 5)
+#define GP_L2  (1U << 6)
+#define GP_R2  (1U << 7)
 #define GP_S1  (1U << 8)
 #define GP_S2  (1U << 9)
 #define GP_L3  (1U << 10)
@@ -200,8 +202,11 @@ void XboxOneGamepad::update(const InputSnapshot *snap) {
     ip.Rz = snap->ry;
 
     // Linear triggers 0..255 -> 0..1023
-    ip.LT = (uint16_t)(((uint32_t)snap->lt * 1023U) / 255U);
-    ip.RT = (uint16_t)(((uint32_t)snap->rt * 1023U) / 255U);
+    // Digital L2/R2 pressed but no analog value → force full press (matches USB XInput driver).
+    uint8_t lt = ((b & GP_L2) && snap->lt == 0) ? 255 : snap->lt;
+    uint8_t rt = ((b & GP_R2) && snap->rt == 0) ? 255 : snap->rt;
+    ip.LT = (uint16_t)(((uint32_t)lt * 1023U) / 255U);
+    ip.RT = (uint16_t)(((uint32_t)rt * 1023U) / 255U);
 
     // dpad bitmask: bit0 up / bit1 down / bit2 left / bit3 right
     ip.hat = dirKey2DPadValue(snap->dpad & 0x01,        // up

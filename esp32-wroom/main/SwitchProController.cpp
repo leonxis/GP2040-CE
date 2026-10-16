@@ -72,6 +72,8 @@
 #define GP_B4  (1U << 3)
 #define GP_L1  (1U << 4)
 #define GP_R1  (1U << 5)
+#define GP_L2  (1U << 6)
+#define GP_R2  (1U << 7)
 #define GP_S1  (1U << 8)
 #define GP_S2  (1U << 9)
 #define GP_L3  (1U << 10)
@@ -291,8 +293,13 @@ void SwitchProController::setSTDOrFullInputPacket(const InputSnapshot *snap)
     ipacket.btn.Home = (b & GP_A1) != 0;
     ipacket.btn.Minus = (b & GP_S1) != 0;
     ipacket.btn.Capture = (b & GP_A2) != 0;
-    ipacket.btn.ZL = snap->lt > 0;
-    ipacket.btn.ZR = snap->rt > 0;
+    // Digital L2/R2 pressed but no analog value → force full press.
+    {
+        uint8_t lt = ((b & GP_L2) && snap->lt == 0) ? 255 : snap->lt;
+        uint8_t rt = ((b & GP_R2) && snap->rt == 0) ? 255 : snap->rt;
+        ipacket.btn.ZL = lt > 0;
+        ipacket.btn.ZR = rt > 0;
+    }
     ipacket.btn.Up = (snap->dpad & 0x01) != 0;
     ipacket.btn.Down = (snap->dpad & 0x02) != 0;
     ipacket.btn.Left = (snap->dpad & 0x04) != 0;
@@ -316,9 +323,17 @@ void SwitchProController::setSTDOrFullInputPacket(const InputSnapshot *snap)
     ipacket.motorStatus = (motorL > 0 || motorR > 0) ? 1 : 0;
 
     // No motion sensor on this board: IMU report slots stay zero-filled.
-    memset(&ipacket.imuData0, 0, sizeof(ipacket.imuData0));
-    memset(&ipacket.imuData1, 0, sizeof(ipacket.imuData1));
-    memset(&ipacket.imuData2, 0, sizeof(ipacket.imuData2));
+    // imuData0 shares the union with subcmdReply/subcmdReplyID/data[].
+    // When a subcommand ACK is pending (subcmdReply != 0), the ACK payload
+    // in data[] occupies the same bytes as imuData0/1/2 — zeroing IMU would
+    // corrupt the reply (e.g. device info MAC, SPI calibration data) and the
+    // host may disconnect. Skip the zeroing while an ACK is queued; sendPacket
+    // clears subcmdReply after the report goes out.
+    if (ipacket.subcmdReply == 0) {
+        memset(&ipacket.imuData0, 0, sizeof(ipacket.imuData0));
+        memset(&ipacket.imuData1, 0, sizeof(ipacket.imuData1));
+        memset(&ipacket.imuData2, 0, sizeof(ipacket.imuData2));
+    }
 }
 
 void SwitchProController::update(const InputSnapshot *snap)
@@ -328,7 +343,6 @@ void SwitchProController::update(const InputSnapshot *snap)
     case HID_RPT_ID_INPUT_FULL:
     {
         setSTDOrFullInputPacket(snap);
-        packetTimer += 2;
         this->sendPacket(_iRptChara_Full, INPUT_REPORT_FULL_SIZE);
         break;
     }
@@ -350,8 +364,13 @@ void SwitchProController::update(const InputSnapshot *snap)
         ip.btnHome = (b & GP_A1) != 0;
         ip.btnMinus = (b & GP_S1) != 0;
         ip.btnCapture = (b & GP_A2) != 0;
-        ip.btnZL = snap->lt > 0;
-        ip.btnZR = snap->rt > 0;
+        // Digital L2/R2 pressed but no analog value → force full press.
+        {
+            uint8_t lt = ((b & GP_L2) && snap->lt == 0) ? 255 : snap->lt;
+            uint8_t rt = ((b & GP_R2) && snap->rt == 0) ? 255 : snap->rt;
+            ip.btnZL = lt > 0;
+            ip.btnZR = rt > 0;
+        }
 
         ip.x = snap->lx;
         ip.y = snap->ly;
@@ -430,11 +449,13 @@ void SwitchProController::handleOutputRptRumbleSubCMD(const Output_Rumble_SubCMD
             break;
         case RPT_MODE_STANDARD:
             ipRptMode = HID_RPT_ID_INPUT_FULL;
+            ipacket.data[0] = RPT_MODE_STANDARD; // echo back the chosen mode
             break;
         case RPT_MODE_NFC_IR:
             break;
         case RPT_MODE_SIMPLE_HID:
             ipRptMode = HID_RPT_ID_INPUT;
+            ipacket.data[0] = RPT_MODE_SIMPLE_HID;
             break;
         default:
             break;
@@ -503,6 +524,8 @@ void SwitchProController::handleOutputRptRumbleSubCMD(const Output_Rumble_SubCMD
     default:
         break;
     }
+    // Subcommand replies are always sent on the standard input report
+    // characteristic (0x21) which the host subscribes to during handshake.
     this->sendPacket(_iRptChara_STD, INPUT_REPORT_STAND_SIZE);
 }
 
@@ -515,6 +538,10 @@ void SwitchProController::sendPacket(NimBLECharacteristic *chara, uint16_t len)
     if (chara->getSubscribedCount())
         chara->notify((uint8_t *)&ipacket, len, true,
                       BLE_HCI_LE_CONN_HANDLE_MAX + 1);
+    // Subcommand ACK is consumed after one report; clear it so subsequent
+    // reports don't carry a stale ACK.
+    ipacket.subcmdReply = 0;
+    ipacket.subcmdReplyID = 0;
 }
 
 void SwitchProController::onWrite(NimBLECharacteristic *pCharacteristic,

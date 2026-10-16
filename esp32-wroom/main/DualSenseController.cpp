@@ -48,11 +48,16 @@
 #define GP_B4  (1U << 3)
 #define GP_L1  (1U << 4)
 #define GP_R1  (1U << 5)
+#define GP_L2  (1U << 6)
+#define GP_R2  (1U << 7)
 #define GP_S1  (1U << 8)
 #define GP_S2  (1U << 9)
 #define GP_L3  (1U << 10)
 #define GP_R3  (1U << 11)
 #define GP_A1  (1U << 12)
+#define GP_A2  (1U << 13)
+#define GP_A3  (1U << 14)
+#define GP_A4  (1U << 15)
 
 static const uint8_t reportmap[] = {
     0x05, 0x01,       // Usage Page (Generic Desktop Ctrls)
@@ -278,18 +283,21 @@ void DualSenseController::_handleReportIn01(const InputSnapshot *snap)
     ip01.State.ButtonTriangle = (b & GP_B4) != 0;
     ip01.State.ButtonL1 = (b & GP_L1) != 0;
     ip01.State.ButtonR1 = (b & GP_R1) != 0;
-    ip01.State.ButtonL2 = snap->lt > 0;
-    ip01.State.ButtonR2 = snap->rt > 0;
+    // Digital L2/R2 pressed but no analog value → force full press.
+    uint8_t lt01 = ((b & GP_L2) && snap->lt == 0) ? 255 : snap->lt;
+    uint8_t rt01 = ((b & GP_R2) && snap->rt == 0) ? 255 : snap->rt;
+    ip01.State.ButtonL2 = lt01 > 0;
+    ip01.State.ButtonR2 = rt01 > 0;
     ip01.State.ButtonShare = (b & GP_S1) != 0;
     ip01.State.ButtonOptions = (b & GP_S2) != 0;
     ip01.State.ButtonL3 = (b & GP_L3) != 0;
     ip01.State.ButtonR3 = (b & GP_R3) != 0;
     ip01.State.ButtonHome = (b & GP_A1) != 0;
-    ip01.State.ButtonPad = 0;
+    ip01.State.ButtonPad = (b & (GP_A2 | GP_A3 | GP_A4)) != 0;
 
-    // Triggers already 0..255 — direct pass-through.
-    ip01.State.TriggerLeft = snap->lt;
-    ip01.State.TriggerRight = snap->rt;
+    // Triggers already 0..255 — direct pass-through (with digital fallback).
+    ip01.State.TriggerLeft = lt01;
+    ip01.State.TriggerRight = rt01;
 
     // 16-bit sticks -> 8-bit.
     ip01.State.LeftStickX = (uint8_t)(snap->lx >> 8);
@@ -329,17 +337,25 @@ void DualSenseController::_handleReportIn31(const InputSnapshot *snap)
     ip31.Data.State.StateData.ButtonTriangle = (b & GP_B4) != 0;
     ip31.Data.State.StateData.ButtonL1 = (b & GP_L1) != 0;
     ip31.Data.State.StateData.ButtonR1 = (b & GP_R1) != 0;
-    ip31.Data.State.StateData.ButtonL2 = snap->lt > 0;
-    ip31.Data.State.StateData.ButtonR2 = snap->rt > 0;
+    // Digital L2/R2 pressed but no analog value → force full press.
+    uint8_t lt31 = ((b & GP_L2) && snap->lt == 0) ? 255 : snap->lt;
+    uint8_t rt31 = ((b & GP_R2) && snap->rt == 0) ? 255 : snap->rt;
+    ip31.Data.State.StateData.ButtonL2 = lt31 > 0;
+    ip31.Data.State.StateData.ButtonR2 = rt31 > 0;
     ip31.Data.State.StateData.ButtonCreate = (b & GP_S1) != 0;
     ip31.Data.State.StateData.ButtonOptions = (b & GP_S2) != 0;
     ip31.Data.State.StateData.ButtonL3 = (b & GP_L3) != 0;
     ip31.Data.State.StateData.ButtonR3 = (b & GP_R3) != 0;
     ip31.Data.State.StateData.ButtonHome = (b & GP_A1) != 0;
-    ip31.Data.State.StateData.ButtonPad = 0;
+    ip31.Data.State.StateData.ButtonPad = (b & (GP_A2 | GP_A3 | GP_A4)) != 0;
 
-    ip31.Data.State.StateData.TriggerLeft = snap->lt;
-    ip31.Data.State.StateData.TriggerRight = snap->rt;
+    // No physical touchpad: mark both fingers as not touching, otherwise the
+    // zero-initialized NotTouching=0 is interpreted as a touch at (0,0).
+    ip31.Data.State.StateData.TouchData.Finger[0].NotTouching = 1;
+    ip31.Data.State.StateData.TouchData.Finger[1].NotTouching = 1;
+
+    ip31.Data.State.StateData.TriggerLeft = lt31;
+    ip31.Data.State.StateData.TriggerRight = rt31;
 
     ip31.Data.State.StateData.LeftStickX = (uint8_t)(snap->lx >> 8);
     ip31.Data.State.StateData.LeftStickY = (uint8_t)(snap->ly >> 8);

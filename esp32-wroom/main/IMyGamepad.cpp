@@ -71,7 +71,8 @@ void IMyGamepad::clearBond() {
 }
 
 int IMyGamepad::dirKey2DPadValue(int up, int right, int down, int left) {
-    uint8_t dir = up | (right << 1) | (down << 2) | (left << 3);
+    // Normalize to 0/1: callers may pass raw bitmask values (e.g. dpad & 0x08).
+    uint8_t dir = (up ? 1 : 0) | (right ? 2 : 0) | (down ? 4 : 0) | (left ? 8 : 0);
     switch (dir) {
         case 1:
         case 11: return 1;   // up
