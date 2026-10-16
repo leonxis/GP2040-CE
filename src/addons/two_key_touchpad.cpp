@@ -6,7 +6,7 @@
 #include "hardware/gpio.h"
 #include "helper.h"
 
-#define TOUCHPAD_ENABLE_PIN_2KEY 12
+#define TOUCHPAD_ENABLE_PIN_2KEY 24
 
 // 阈值与主循环帧率相关；标记自 -1 起每帧递增（按住时）。
 // marker1_ > OUTPUT_MIN：使能连续按住约从 -1→7 共 8 帧后才可能输出。
@@ -66,7 +66,7 @@ void TwoKeyTouchpadAddon::setup() {
     gpio_set_dir((uint)pin_right, GPIO_IN);
     gpio_pull_up((uint)pin_right);
 
-    // GPIO12 由正常 GPIO 映射系统初始化，此处确保上拉
+    // GPIO24(使能键) 由正常 GPIO 映射系统初始化，此处确保上拉
     gpio_init(TOUCHPAD_ENABLE_PIN_2KEY);
     gpio_set_dir(TOUCHPAD_ENABLE_PIN_2KEY, GPIO_IN);
     gpio_pull_up(TOUCHPAD_ENABLE_PIN_2KEY);

@@ -617,8 +617,8 @@ static void readMapping(GpioMappingInfo& m, const DynamicJsonDocument& doc, cons
     docToValue(m.activatorMode, doc, key, "activatorMode");
 }
 
-// GPIO12 = 2键触摸板使能键；开启时主循环不映射该引脚，由插件输出 enableKey/leftKey/rightKey
-static constexpr Pin_t TWO_KEY_TOUCHPAD_ENABLE_GPIO = 12;
+// GPIO24 = 2键触摸板使能键（A2/触摸板）；开启时主循环不映射该引脚，由插件输出 enableKey/leftKey/rightKey
+static constexpr Pin_t TWO_KEY_TOUCHPAD_ENABLE_GPIO = 24;
 
 static std::string serializeTwoKeyTouchpadGlobalDoc() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
@@ -648,10 +648,10 @@ static std::string applySetTwoKeyTouchpadGlobal(const DynamicJsonDocument& doc) 
 
     GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;
     ProfileOptions& profiles = Storage::getInstance().getProfileOptions();
-    Pin_t pin12 = TWO_KEY_TOUCHPAD_ENABLE_GPIO;
+    Pin_t enablePin = TWO_KEY_TOUCHPAD_ENABLE_GPIO;
 
     if (opts.enabled && !oldEnabled) {
-        GpioMappingInfo captured = gpioMappings[pin12];
+        GpioMappingInfo captured = gpioMappings[enablePin];
         if (captured.action == GpioAction::ASSIGNED_TO_ADDON || captured.action == GpioAction::RESERVED) {
             if (opts.enableKeyMapping.action != GpioAction::ASSIGNED_TO_ADDON &&
                 opts.enableKeyMapping.action != GpioAction::RESERVED) {
@@ -666,27 +666,32 @@ static std::string applySetTwoKeyTouchpadGlobal(const DynamicJsonDocument& doc) 
         opts.has_enableKeyMapping = true;
     }
 
-    if (opts.enabled) {
-        gpioMappings[pin12].action = GpioAction::NONE;
-        gpioMappings[pin12].customButtonMask = 0;
-        gpioMappings[pin12].customDpadMask = 0;
-        gpioMappings[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
-        for (int i = 0; i < 3; i++) {
-            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::NONE;
-            profiles.gpioMappingsSets[i].pins[pin12].customButtonMask = 0;
-            profiles.gpioMappingsSets[i].pins[pin12].customDpadMask = 0;
-            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
-        }
-    } else {
-        GpioMappingInfo restored = opts.enableKeyMapping;
-        if (restored.action == GpioAction::ASSIGNED_TO_ADDON || restored.action == GpioAction::RESERVED) {
-            restored.action = GpioAction::BUTTON_PRESS_A2;
-            restored.customButtonMask = 0;
-            restored.customDpadMask = 0;
-        }
-        gpioMappings[pin12] = restored;
-        for (int i = 0; i < 3; i++) {
-            profiles.gpioMappingsSets[i].pins[pin12] = restored;
+    // 仅在 2 键触摸板使能状态发生跳变时才改写使能引脚(GPIO24)：
+    // 否则每次全局保存（如硬件配置页保存蓝牙开关）都会用 enableKeyMapping
+    // 覆盖用户在按键交换页对触摸板键(GPIO24)的最新设置，导致其被还原/清空。
+    if (opts.enabled != oldEnabled) {
+        if (opts.enabled) {
+            gpioMappings[enablePin].action = GpioAction::NONE;
+            gpioMappings[enablePin].customButtonMask = 0;
+            gpioMappings[enablePin].customDpadMask = 0;
+            gpioMappings[enablePin].action = GpioAction::ASSIGNED_TO_ADDON;
+            for (int i = 0; i < 3; i++) {
+                profiles.gpioMappingsSets[i].pins[enablePin].action = GpioAction::NONE;
+                profiles.gpioMappingsSets[i].pins[enablePin].customButtonMask = 0;
+                profiles.gpioMappingsSets[i].pins[enablePin].customDpadMask = 0;
+                profiles.gpioMappingsSets[i].pins[enablePin].action = GpioAction::ASSIGNED_TO_ADDON;
+            }
+        } else {
+            GpioMappingInfo restored = opts.enableKeyMapping;
+            if (restored.action == GpioAction::ASSIGNED_TO_ADDON || restored.action == GpioAction::RESERVED) {
+                restored.action = GpioAction::BUTTON_PRESS_A2;
+                restored.customButtonMask = 0;
+                restored.customDpadMask = 0;
+            }
+            gpioMappings[enablePin] = restored;
+            for (int i = 0; i < 3; i++) {
+                profiles.gpioMappingsSets[i].pins[enablePin] = restored;
+            }
         }
     }
 

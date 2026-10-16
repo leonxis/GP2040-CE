@@ -1128,7 +1128,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, 0);
 #endif
     if (!config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping) {
-        config.addonOptions.twoKeyTouchpadOptions.enableKeyMapping = config.gpioMappings.pins[12];
+        config.addonOptions.twoKeyTouchpadOptions.enableKeyMapping = config.gpioMappings.pins[24];
         config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping = true;
     }
     config.addonOptions.has_twoKeyTouchpadOptions = true;
@@ -1496,13 +1496,13 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed(LINEAR_L2_PIN);
     }
 
-    // 2-key touchpad uses I2C1 SDA/SCL as left/right inputs, and GPIO12 as dedicated enable key.
+    // 2-key touchpad uses I2C1 SDA/SCL as left/right inputs, and GPIO24 as dedicated enable key.
     if (config.addonOptions.twoKeyTouchpadOptions.enabled) {
         if (isValidPin(peripheralOptions.blockI2C1.sda))
             markAddonPinIfUsed(peripheralOptions.blockI2C1.sda);
         if (isValidPin(peripheralOptions.blockI2C1.scl))
             markAddonPinIfUsed(peripheralOptions.blockI2C1.scl);
-        markAddonPinIfUsed(12);
+        markAddonPinIfUsed(24);
     }
 
     // migrate I2C addons to use peripheral manager
