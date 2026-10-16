@@ -11,7 +11,7 @@
 #include <string.h>
 
 #define NRF24_PAYLOAD 15
-#define NRF24_CHANNEL 100 // 2.500 GHz, above the WiFi band
+#define NRF24_CHANNEL 84  // 2.484 GHz（WiFi 1~13 信道之上、频段上沿之下），与发射端一致
 
 class NRF24 {
 public:
@@ -26,7 +26,7 @@ public:
     writeReg(0x01, 0x01);            // EN_AA: 仅 pipe0（auto-ack）
     writeReg(0x02, 0x01);            // EN_RXADDR: 仅 pipe0
     writeReg(0x03, 0x03);            // SETUP_AW: 5-byte addresses
-    writeReg(0x04, 0x13);            // SETUP_RETR: 250us, 3 retries
+    writeReg(0x04, 0x03);            // SETUP_RETR: ARD=250us, ARC=3（与发射端一致）
     writeReg(0x05, NRF24_CHANNEL);   // RF_CH
     writeReg(0x06, 0x0E);            // RF_SETUP: 2Mbps, 0dBm（已验证）
     static const uint8_t addr[5] = {0xE7, 0xE7, 0xE7, 0xE7, 0xE7};
