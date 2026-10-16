@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Modal, Button, ProgressBar } from 'react-bootstrap';
+import { Modal, Button, Spinner } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 
 interface RangeCalibrationModalProps {
@@ -13,10 +13,6 @@ interface RangeCalibrationModalProps {
 }
 
 const CIRCULARITY_DATA_SIZE = 48;
-const REQUIRED_FULL_CYCLES = 4; // Number of full rotations required
-const JOYSTICK_EXTREME_THRESHOLD = 0.35; // Minimum scale to count as valid data (must be pushed to extreme)
-const CIRCLE_FILL_THRESHOLD = 0.95; // Percentage of angles that must have data to complete a cycle
-const DEFAULT_ADC_MAX = 4095;
 
 const RangeCalibrationModal = ({
 	show,
@@ -29,200 +25,120 @@ const RangeCalibrationModal = ({
 }: RangeCalibrationModalProps) => {
 	const { t } = useTranslation();
 	const [isCollecting, setIsCollecting] = useState(false);
-	const [progress, setProgress] = useState(0);
-	const [buttonText, setButtonText] = useState('');
-	const [dataProgress, setDataProgress] = useState(0); // Track number of indices with data
-	const rangeDataRef = useRef<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0)); // Accumulated max values across all cycles
-	const cycleDataRef = useRef<number[]>(new Array(CIRCULARITY_DATA_SIZE).fill(0)); // Current cycle data
-	const nonZeroCountRef = useRef(0);
-	const fullCyclesRef = useRef(0);
-	const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [isCompleted, setIsCompleted] = useState(false);
+	const [errorMsg, setErrorMsg] = useState('');
+	const abortRef = useRef(false);
 
-	// Reset state when modal opens/closes
+	// Reset state when modal opens/closes.
+	// 注意：不在 show=true 时重置 abortRef，避免上一轮未完成的 fetch 在重开后
+	// 返回并写入过期数据。abortRef 仅在 startCalibration 中重置为 false。
 	useEffect(() => {
 		if (show) {
 			setIsCollecting(false);
-			setProgress(0);
-			setDataProgress(0);
-			setButtonText(t('AddonsConfig:joystick-range-calibration-modal-start'));
-			rangeDataRef.current = new Array(CIRCULARITY_DATA_SIZE).fill(0);
-			cycleDataRef.current = new Array(CIRCULARITY_DATA_SIZE).fill(0);
-			nonZeroCountRef.current = 0;
-			fullCyclesRef.current = 0;
+			setIsCompleted(false);
+			setErrorMsg('');
 		} else {
-			// Cleanup intervals
-			if (progressIntervalRef.current) {
-				clearInterval(progressIntervalRef.current);
-				progressIntervalRef.current = null;
-			}
+			abortRef.current = true;
 		}
-	}, [show, t]);
+	}, [show]);
 
-
-	const checkDataProgress = async () => {
-		try {
-			const apiEndpoint = stickNumber === 1 ? '/api/getJoystickRaw' : '/api/getJoystickRaw2';
-			const res = await fetch(apiEndpoint);
-			
-			if (!res.ok) {
-				return;
-			}
-			
-			const data = await res.json();
-			
-			if (!data.success) {
-				return;
-			}
-
-			// Use runtime adcMax from backend (12-bit/16-bit compatible),
-			// fallback to 12-bit for legacy/missing responses.
-			const adcMaxValue = Number(data?.adcMax) > 0 ? Number(data.adcMax) : DEFAULT_ADC_MAX;
-			const adcCenterValue = adcMaxValue / 2.0;
-			const centerXValue = (centerX !== undefined && centerX > 0) ? centerX : adcCenterValue;
-			const centerYValue = (centerY !== undefined && centerY > 0) ? centerY : adcCenterValue;
-			
-			// Step 2: Coordinate translation (offset transformation)
-			// Calculate center offset values
-			const dX_value = centerXValue - adcCenterValue;
-			const dY_value = centerYValue - adcCenterValue;
-			
-			// Apply offset transformation
-			const offset_x = data.x - dX_value;  // adc_offset coordinate system
-			const offset_y = data.y - dY_value;  // adc_offset coordinate system
-			
-			// Step 3: Move to adc_offset_center coordinate system
-			const offset_center_x = offset_x - adcCenterValue;
-			const offset_center_y = offset_y - adcCenterValue;
-			
-			// Calculate distance and angle in adc_offset_center coordinate system
-			const distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
-			const angle = Math.atan2(offset_center_y, offset_center_x);
-			
-			// Calculate scale: distance / standard outer radius (adc center for current source)
-			const scale = distance / adcCenterValue;
-			
-			// Only collect data if stick is pushed to extreme (near maximum range)
-			// Check if scale is above threshold (scale = distance / ADC_CENTER)
-			if (scale > JOYSTICK_EXTREME_THRESHOLD) {
-				// Calculate angle index (0 to CIRCULARITY_DATA_SIZE-1)
-				const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
-				
-				// Update current cycle data (keep maximum scale for each angle in this cycle)
-				const oldCycleValue = cycleDataRef.current[angleIndex] || 0;
-				if (scale > oldCycleValue) {
-					cycleDataRef.current[angleIndex] = scale;
-					// Also update accumulated max values
-					const oldMaxValue = rangeDataRef.current[angleIndex] || 0;
-					if (scale > oldMaxValue) {
-						rangeDataRef.current[angleIndex] = scale;
-					}
-				}
-			}
-			
-			// Check progress: count how many angles have scale above threshold in current cycle
-			const currentNonZeroCount = cycleDataRef.current.filter(v => v > JOYSTICK_EXTREME_THRESHOLD).length;
-			const fillRatio = currentNonZeroCount / CIRCULARITY_DATA_SIZE;
-			
-			// If we've filled enough angles, complete a cycle
-			if (fillRatio >= CIRCLE_FILL_THRESHOLD) {
-				// Only increment if we haven't already counted this cycle
-				if (currentNonZeroCount > nonZeroCountRef.current || nonZeroCountRef.current === 0) {
-					fullCyclesRef.current++;
-					// Reset cycle data for next cycle (but keep accumulated max values)
-					cycleDataRef.current.fill(0);
-					nonZeroCountRef.current = 0;
-				}
-			} else {
-				nonZeroCountRef.current = currentNonZeroCount;
-			}
-			
-			// Update progress based on completed cycles
-			const cycleProgress = (fullCyclesRef.current / REQUIRED_FULL_CYCLES) * 100;
-			const currentCycleProgress = (currentNonZeroCount / CIRCULARITY_DATA_SIZE) * (100 / REQUIRED_FULL_CYCLES);
-			setProgress(Math.min(100, cycleProgress + currentCycleProgress));
-			
-			// Update data progress (number of indices with non-zero data)
-			const collectedIndices = rangeDataRef.current.filter(v => v > 0.0).length;
-			setDataProgress(collectedIndices);
-		} catch (error) {
-			console.error('Failed to fetch joystick data:', error);
-		}
-	};
-
-	const startCalibration = () => {
+	const startCalibration = async () => {
 		setIsCollecting(true);
-		setButtonText(t('AddonsConfig:joystick-range-calibration-modal-collecting') || '采样中');
-		
-		// Start collecting data
-		progressIntervalRef.current = setInterval(checkDataProgress, 100); // Check every 100ms
-	};
+		setErrorMsg('');
+		abortRef.current = false;
 
-	const handleComplete = () => {
-		// Get the final range data (use accumulated max values from all cycles)
-		const finalData = [...rangeDataRef.current];
-		
-		// Check if all 48 indices have non-zero data
-		const nonZeroIndices = finalData.filter(v => v > 0.0).length;
-		
-		// This should not happen if button is only enabled when all data is collected
-		// But keep as safety check
-		if (nonZeroIndices < CIRCULARITY_DATA_SIZE) {
-			return;
+		try {
+			// 后端高频采样：按轮统计（每轮需48角度全覆盖），完成3轮后返回跨轮最大值
+			const res = await fetch('/api/calibrateJoystickRange', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					stick: stickNumber,
+					centerX: centerX ?? 0,
+					centerY: centerY ?? 0,
+				}),
+			});
+
+			if (abortRef.current) return;
+
+			if (!res.ok) {
+				throw new Error(`HTTP error! status: ${res.status}`);
+			}
+
+			const data = await res.json();
+			if (abortRef.current) return;
+
+			if (!data.success) {
+				throw new Error(data.error || 'Calibration incomplete');
+			}
+
+			// 校验返回的 rangeData 必须是完整的48个非零值
+			const rangeData: number[] = Array.isArray(data.rangeData) ? data.rangeData : [];
+			if (rangeData.length !== CIRCULARITY_DATA_SIZE ||
+				rangeData.some(v => typeof v !== 'number' || !(v > 0))) {
+				throw new Error('Invalid calibration data received');
+			}
+
+			setIsCompleted(true);
+			// 仅在后端返回成功且数据完整时写入校准数据
+			onComplete(rangeData);
+		} catch (error) {
+			if (abortRef.current) return;
+			console.error('Range calibration error:', error);
+			const msg = error instanceof Error ? error.message : String(error);
+			setErrorMsg(msg);
+			alert(t('AddonsConfig:analog-calibration-failed', { error: msg }));
+		} finally {
+			if (!abortRef.current) {
+				setIsCollecting(false);
+			}
 		}
-		
-		// All indices have data, stop intervals and complete calibration
-		if (progressIntervalRef.current) {
-			clearInterval(progressIntervalRef.current);
-			progressIntervalRef.current = null;
-		}
-		
-		// Complete calibration
-		onComplete(finalData);
-		onHide();
 	};
 
 	const handleCancel = () => {
-		// Stop intervals and discard current sampling data
-		if (progressIntervalRef.current) {
-			clearInterval(progressIntervalRef.current);
-			progressIntervalRef.current = null;
-		}
-		// Close modal and discard sampling data (don't call onComplete)
+		abortRef.current = true;
+		setIsCollecting(false);
+		setIsCompleted(false);
 		onHide();
 	};
 
-	// Check if all 48 indices have non-zero data to enable complete button
-	const checkAllDataCollected = () => {
-		const nonZeroIndices = rangeDataRef.current.filter(v => v > 0.0).length;
-		return nonZeroIndices >= CIRCULARITY_DATA_SIZE;
-	};
-
-	// Update button text based on data collection status
-	useEffect(() => {
+	const getContent = () => {
+		if (isCompleted) {
+			return (
+				<div>
+					<h4>{t('AddonsConfig:joystick-range-calibration-modal-done') || '采样完成'}</h4>
+					<p>外圈校准数据已采集完毕，已写入配置。</p>
+				</div>
+			);
+		}
 		if (isCollecting) {
-			if (checkAllDataCollected()) {
-				setButtonText(t('AddonsConfig:joystick-range-calibration-modal-done') || '完成');
-			} else {
-				setButtonText(t('AddonsConfig:joystick-range-calibration-modal-collecting') || '采样中');
-			}
+			return (
+				<div className="text-center py-3">
+					<Spinner animation="border" role="status" className="mb-3">
+						<span className="visually-hidden">Loading...</span>
+					</Spinner>
+					<h4>{t('AddonsConfig:joystick-range-calibration-modal-collecting-title') || '正在采样'}</h4>
+					<p>
+						请缓慢转动{stickLabel}画圈，覆盖所有方向。
+					</p>
+					<p className="small text-muted">
+						系统将在所有角度采样完成后自动结束。
+					</p>
+				</div>
+			);
 		}
-	}, [isCollecting, t]);
-
-	// Update button text when data changes
-	useEffect(() => {
-		if (isCollecting && progressIntervalRef.current) {
-			// Check periodically if all data is collected
-			const checkInterval = setInterval(() => {
-				if (checkAllDataCollected()) {
-					setButtonText(t('AddonsConfig:joystick-range-calibration-modal-done') || '完成');
-				} else {
-					setButtonText(t('AddonsConfig:joystick-range-calibration-modal-collecting') || '采样中');
-				}
-			}, 500); // Check every 500ms
-			
-			return () => clearInterval(checkInterval);
-		}
-	}, [isCollecting, t]);
+		return (
+			<div>
+				<h4>{t('AddonsConfig:joystick-range-calibration-modal-welcome-title')}</h4>
+				<p>{t('AddonsConfig:joystick-range-calibration-modal-welcome-text', { stick: stickLabel })}</p>
+				<p>
+					<em>{t('AddonsConfig:joystick-range-calibration-modal-warning')}</em>
+				</p>
+				<p>{t('AddonsConfig:joystick-range-calibration-modal-welcome-instruction')}</p>
+				{errorMsg && <p className="text-danger small">{errorMsg}</p>}
+			</div>
+		);
+	};
 
 	return (
 		<Modal
@@ -237,65 +153,24 @@ const RangeCalibrationModal = ({
 				<Modal.Title>{t('AddonsConfig:joystick-range-calibration-modal-title', { stick: stickLabel })}</Modal.Title>
 			</Modal.Header>
 			<Modal.Body>
-				{!isCollecting ? (
-					<div>
-						<h4>{t('AddonsConfig:joystick-range-calibration-modal-welcome-title')}</h4>
-						<p>{t('AddonsConfig:joystick-range-calibration-modal-welcome-text', { stick: stickLabel })}</p>
-						<p>
-							<em>{t('AddonsConfig:joystick-range-calibration-modal-warning')}</em>
-						</p>
-						<p>{t('AddonsConfig:joystick-range-calibration-modal-welcome-instruction')}</p>
-					</div>
-				) : (
-					<div>
-						<h4>{t('AddonsConfig:joystick-range-calibration-modal-collecting-title')}</h4>
-						<p>
-							{t('AddonsConfig:joystick-range-calibration-modal-collecting-text', { 
-								stick: stickLabel,
-								cycles: fullCyclesRef.current,
-								required: REQUIRED_FULL_CYCLES
-							})}
-							{' '}
-							{t('AddonsConfig:joystick-range-calibration-data-progress') || '已采样数据'}
-							{' '}
-							{dataProgress}/{CIRCULARITY_DATA_SIZE}
-						</p>
-						
-						<ProgressBar 
-							now={progress} 
-							label={`${Math.round(progress)}%`}
-							className="mt-3"
-						/>
-						
-						<p className="mt-3 small text-muted">
-							{t('AddonsConfig:joystick-range-calibration-modal-progress-hint')}
-						</p>
-					</div>
-				)}
+				{getContent()}
 			</Modal.Body>
 			<Modal.Footer>
-				{!isCollecting ? (
+				{!isCompleted ? (
 					<>
-						<Button variant="secondary" onClick={handleCancel}>
+						<Button variant="secondary" onClick={handleCancel} disabled={isCollecting}>
 							{t('AddonsConfig:joystick-range-calibration-modal-cancel')}
 						</Button>
-						<Button variant="primary" onClick={startCalibration}>
-							{buttonText}
-						</Button>
+						{!isCollecting && (
+							<Button variant="primary" onClick={startCalibration}>
+								{t('AddonsConfig:joystick-range-calibration-modal-start')}
+							</Button>
+						)}
 					</>
 				) : (
-					<>
-						<Button variant="secondary" onClick={handleCancel}>
-							{t('AddonsConfig:joystick-range-calibration-modal-cancel')}
-						</Button>
-						<Button 
-							variant="primary" 
-							onClick={handleComplete}
-							disabled={!checkAllDataCollected()}
-						>
-							{buttonText}
-						</Button>
-					</>
+					<Button variant="primary" onClick={onHide}>
+						{t('AddonsConfig:joystick-range-calibration-modal-done') || '完成'}
+					</Button>
 				)}
 			</Modal.Footer>
 		</Modal>
@@ -303,5 +178,3 @@ const RangeCalibrationModal = ({
 };
 
 export default RangeCalibrationModal;
-
-
