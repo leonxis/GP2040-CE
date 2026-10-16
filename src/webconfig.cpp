@@ -3204,6 +3204,26 @@ std::string getHmlBackKeyPins()
     return serialize_json(doc);
 }
 
+// 返回 10 个背键当前是否按下（低电平有效），供背键设置页常态轮询实现按键高亮。
+// 非阻塞即时返回，前端以 ~100ms 间隔轮询；非 RP2350B 版型返回空数组。
+std::string getHmlBackKeyState()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(2) + JSON_ARRAY_SIZE(HML_BACK_KEY_COUNT)
+        + HML_BACK_KEY_COUNT * JSON_OBJECT_SIZE(2) + 200;
+    DynamicJsonDocument doc(capacity);
+
+    JsonArray states = doc.createNestedArray("states");
+#if HML_BACK_KEY_SUPPORTED
+    for (uint8_t i = 0; i < HML_BACK_KEY_COUNT; i++) {
+        JsonObject state = states.createNestedObject();
+        state["field"] = kHmlBackKeyDefs[i].fieldName;
+        state["pressed"] = !gpio_get(kHmlBackKeyDefs[i].pin);
+    }
+#endif
+
+    return serialize_json(doc);
+}
+
 std::string getConfig()
 {
     return ConfigUtils::toJSON(Storage::getInstance().getConfig());
@@ -3444,6 +3464,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getHeldPins", getHeldPins },
     { "/api/abortGetHeldPins", abortGetHeldPins },
     { "/api/getHmlBackKeyPins", getHmlBackKeyPins },
+    { "/api/getHmlBackKeyState", getHmlBackKeyState },
     { "/api/getUsedPins", getUsedPins },
     { "/api/getConfig", getConfig },
     { "/api/getJoystickRaw", getJoystickRaw },

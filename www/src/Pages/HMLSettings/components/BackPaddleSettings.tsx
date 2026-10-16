@@ -1,12 +1,11 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Card, Row, Col, Button } from 'react-bootstrap';
+import { Card, Row, Col, Button } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { omit } from 'lodash';
 
 import { AppContext } from '../../../Contexts/AppContext';
 import { MaskPayload } from '../../../Store/useProfilesStore';
 import CustomSelect from '../../../Components/CustomSelect';
-import CaptureButton from '../../../Components/CaptureButton';
 import { getButtonLabels } from '../../../Data/Buttons';
 import { BUTTON_ACTIONS, PinActionValues } from '../../../Data/Pins';
 import WebApi from '../../../Services/WebApi';
@@ -25,6 +24,7 @@ import {
 	getPayloadFromSelected,
 	toMaskPayload,
 } from './backMappingShared';
+import './BackPaddleSettings.scss';
 
 type AppContextShape = {
 	updateUsedPins?: () => void | Promise<void>;
@@ -122,33 +122,57 @@ function BackPaddleSettingsBody({
 	const appContext = useContext(AppContext);
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isSaving, setIsSaving] = useState(false);
-	const [backKeyPinMap, setBackKeyPinMap] = useState<Map<number, string>>(new Map());
-	const [detectResult, setDetectResult] = useState<
-		{ kind: 'back'; field: string } | { kind: 'other' } | null
-	>(null);
+	// 常态轮询背键按下状态，按下沿触发对应设置框红色发光闪烁
+	const [flashingFields, setFlashingFields] = useState<Set<string>>(new Set());
+	const prevPressedRef = useRef<Set<string>>(new Set());
+	const flashTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-	// 拉取背键引脚→字段映射（引脚号固件内硬编码，仅 RP2350B 版型有数据）
+	// 轮询背键实时状态（非阻塞 API），检测按下沿时触发闪烁
 	useEffect(() => {
-		(async () => {
-			const data = await WebApi.getHmlBackKeyPins();
-			const entries: [number, string][] = Array.isArray(data?.pins)
-				? data.pins
-					.filter((p: { pin?: unknown; field?: unknown }) =>
-						typeof p?.pin === 'number' && typeof p?.field === 'string')
-					.map((p: { pin: number; field: string }) => [p.pin, p.field])
-				: [];
-			setBackKeyPinMap(new Map(entries));
-		})();
-	}, []);
+		let cancelled = false;
+		const interval = setInterval(async () => {
+			if (cancelled) return;
+			const data = await WebApi.getHmlBackKeyState();
+			if (cancelled || !Array.isArray(data?.states)) return;
+			const currentPressed = new Set<string>();
+			for (const s of data.states) {
+				if (s?.pressed && typeof s.field === 'string') currentPressed.add(s.field);
+			}
+			const prev = prevPressedRef.current;
+			const pressedEdges: string[] = [];
+			for (const field of currentPressed) {
+				if (!prev.has(field)) pressedEdges.push(field);
+			}
+			prevPressedRef.current = currentPressed;
+			if (pressedEdges.length === 0) return;
 
-	const handleDetectBackKey = useCallback(
-		(_label: string, pin: number) => {
-			if (pin === undefined || pin === null || Number.isNaN(pin)) return;
-			const field = backKeyPinMap.get(pin);
-			setDetectResult(field ? { kind: 'back', field } : { kind: 'other' });
-		},
-		[backKeyPinMap],
-	);
+			setFlashingFields((prevSet) => {
+				const next = new Set(prevSet);
+				for (const field of pressedEdges) next.add(field);
+				return next;
+			});
+			for (const field of pressedEdges) {
+				const old = flashTimersRef.current.get(field);
+				if (old) clearTimeout(old);
+				const timer = setTimeout(() => {
+					setFlashingFields((prevSet) => {
+						const next = new Set(prevSet);
+						next.delete(field);
+						return next;
+					});
+					flashTimersRef.current.delete(field);
+				}, 550);
+				flashTimersRef.current.set(field, timer);
+			}
+		}, 100);
+
+		return () => {
+			cancelled = true;
+			clearInterval(interval);
+			flashTimersRef.current.forEach((t) => clearTimeout(t));
+			flashTimersRef.current.clear();
+		};
+	}, []);
 
 	const twoKeyOptions = bundle.twoKey;
 	const backKeyOptions = bundle.backKeys;
@@ -229,9 +253,10 @@ function BackPaddleSettingsBody({
 		onChange: (p: MaskPayload) => void,
 		id: string,
 		showActivator: boolean,
+		flashing: boolean,
 	) => (
 		<Col sm={6} md={6} key={id}>
-			<div className="d-flex align-items-center">
+			<div className={`back-key-row d-flex align-items-center ${flashing ? 'back-key-press-flash' : ''}`}>
 				<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
 					<label>{t(`CalibrationSettings:${labelKey}`)}</label>
 				</div>
@@ -268,27 +293,6 @@ function BackPaddleSettingsBody({
 			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>{t('SettingsPage:hml-tab-back-buttons')}</Card.Header>
 				<Card.Body>
-					<div className="d-flex align-items-center gap-3 mb-3 flex-wrap">
-						{backKeyPinMap.size > 0 && (
-							<CaptureButton
-								buttonLabel={t('CalibrationSettings:hml-back-detect-button')}
-								labels={['']}
-								onChange={handleDetectBackKey}
-							/>
-						)}
-						{detectResult?.kind === 'back' && (
-							<Alert variant="info" className="mb-0 py-2 px-3">
-								{t('CalibrationSettings:hml-back-detected', {
-									name: t(`CalibrationSettings:${BACK_KEY_LABELS[detectResult.field]}`),
-								})}
-							</Alert>
-						)}
-						{detectResult?.kind === 'other' && (
-							<Alert variant="warning" className="mb-0 py-2 px-3">
-								{t('CalibrationSettings:hml-back-detected-other')}
-							</Alert>
-						)}
-					</div>
 					<Row className="g-3">
 							{BACK_KEY_FIELDS.map((field) =>
 								selectRow(
@@ -297,6 +301,7 @@ function BackPaddleSettingsBody({
 									(p) => patchBackKey(field, p),
 									`bk-${field}`,
 									true,
+									flashingFields.has(field),
 								),
 							)}
 						</Row>
@@ -326,8 +331,8 @@ function BackPaddleSettingsBody({
 				<Card.Body>
 					{twoKeyTouchpadEnabled ? (
 						<Row className="g-3">
-								{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l', false)}
-								{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r', false)}
+								{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l', false, false)}
+								{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r', false, false)}
 							</Row>
 					) : (
 						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>

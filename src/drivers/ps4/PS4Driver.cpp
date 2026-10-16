@@ -94,10 +94,11 @@ void PS4Driver::initialize() {
             deviceDescriptor[11] = MSB(PS4_WHEEL_PRODUCT_ID);
         } else {
             // assume gamepad if not special cased
-            deviceDescriptor[8] = LSB(PS4_VENDOR_ID);
-            deviceDescriptor[9] = MSB(PS4_VENDOR_ID);
-            deviceDescriptor[10] = LSB(PS4_PRODUCT_ID);
-            deviceDescriptor[11] = MSB(PS4_PRODUCT_ID);
+            // VID/PID 与 PS4B 模式保持一致（DS4: 0x054C/0x09CC）
+            deviceDescriptor[8] = LSB(DS4_VENDOR_ID);
+            deviceDescriptor[9] = MSB(DS4_VENDOR_ID);
+            deviceDescriptor[10] = LSB(DS4_PRODUCT_ID);
+            deviceDescriptor[11] = MSB(DS4_PRODUCT_ID);
         }
     } else {
         deviceDescriptor[8] = LSB(DS4_VENDOR_ID);

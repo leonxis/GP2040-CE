@@ -20,7 +20,7 @@ extern const HmlBackKeyDef kHmlBackKeyDefs[HML_BACK_KEY_COUNT] = {
     { 45, "leftFn",     &HmlBackMappingPreset::leftFnMapping     }, // 左FN
     { 44, "rightFn",    &HmlBackMappingPreset::rightFnMapping    }, // 右FN
     { 46, "leftMt",     &HmlBackMappingPreset::leftMtMapping     }, // 左MT
-    { 33, "rightMt",    &HmlBackMappingPreset::rightMtMapping    }, // 右MT
+    { 43, "rightMt",    &HmlBackMappingPreset::rightMtMapping    }, // 右MT
 };
 
 bool HmlBackKeyAddon::available() {

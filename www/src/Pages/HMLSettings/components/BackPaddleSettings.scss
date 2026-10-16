@@ -1,0 +1,25 @@
+@keyframes back-key-press-flash {
+	0% {
+		box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.9);
+		border-color: #dc3545;
+	}
+	40% {
+		box-shadow: 0 0 12px 4px rgba(220, 53, 69, 0.7);
+		border-color: #dc3545;
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+		border-color: transparent;
+	}
+}
+
+.back-key-press-flash {
+	animation: back-key-press-flash 0.55s ease-out;
+}
+
+.back-key-row {
+	border: 2px solid transparent;
+	border-radius: 6px;
+	padding: 4px 6px;
+	transition: border-color 0.15s ease;
+}
