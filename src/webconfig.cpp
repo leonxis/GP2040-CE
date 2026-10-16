@@ -22,6 +22,7 @@
 #include <vector>
 #include <memory>
 #include <set>
+#include <cmath>
 
 #include <pico/types.h>
 #include <pico/time.h>
@@ -3336,6 +3337,138 @@ std:: string getJoystickRaw2() {
     return serialize_json(doc);
 }
 
+// 中心点校准：后端阻塞采样多次取平均，避免前端逐次 HTTP 轮询
+// POST { stick: 1|2 }
+std::string calibrateJoystickCenter() {
+    DynamicJsonDocument doc = get_post_data();
+    uint8_t stick = doc["stick"] | 1;
+    if (stick < 1 || stick > 2) stick = 1;
+
+    const int SAMPLE_COUNT = 100;
+    const uint32_t SAMPLE_INTERVAL_MS = 2;
+    uint64_t sumX = 0, sumY = 0;
+    int valid = 0;
+
+    for (int i = 0; i < SAMPLE_COUNT; i++) {
+        uint32_t x = 0, y = 0, adcMax = 0;
+        if (readJoystickADC(stick - 1, x, y, adcMax)) {
+            sumX += x;
+            sumY += y;
+            valid++;
+        }
+        busy_wait_ms(SAMPLE_INTERVAL_MS);
+    }
+
+    JsonObject o = doc.to<JsonObject>();
+    if (valid == 0) {
+        o["success"] = false;
+        o["error"] = "No joystick ADC source is available";
+    } else {
+        o["success"] = true;
+        o["x"] = (uint32_t)(sumX / (uint64_t)valid);
+        o["y"] = (uint32_t)(sumY / (uint64_t)valid);
+    }
+    return serialize_json(doc);
+}
+
+// 外圈校准：后端高频采样，按"轮"统计——每轮要求48个角度全部采到值才算完成一轮，
+// 累计完成 REQUIRED_CYCLES 轮后取各角度跨轮最大值返回。避免单角度连续命中导致的漏采样。
+// POST { stick: 1|2, centerX, centerY }
+std::string calibrateJoystickRange() {
+    DynamicJsonDocument doc = get_post_data();
+    uint8_t stick = doc["stick"] | 1;
+    if (stick < 1 || stick > 2) stick = 1;
+    float centerX = doc["centerX"] | 0.0f;
+    float centerY = doc["centerY"] | 0.0f;
+
+    const int BINS = 48;
+    const float EXTREME_THRESHOLD = 0.35f;
+    const int REQUIRED_CYCLES = 3;        // 需完成3轮完整48点采样
+    const uint32_t TIMEOUT_MS = 15000;    // 安全超时，避免无限阻塞
+
+    float rangeData[BINS];   // 跨轮累积最大值（最终输出）
+    float cycleData[BINS];   // 当前轮各角度最大值
+    for (int i = 0; i < BINS; i++) {
+        rangeData[i] = 0.0f;
+        cycleData[i] = 0.0f;
+    }
+    int fullCycles = 0;
+
+    const float PI_F = 3.14159265358979323846f;
+    uint32_t startMs = to_ms_since_boot(get_absolute_time());
+
+    while (true) {
+        uint32_t x = 0, y = 0, adcMax = 0;
+        if (readJoystickADC(stick - 1, x, y, adcMax)) {
+            const float adcCenter = (float)adcMax * 0.5f;
+            const float cx = (centerX > 0.0f) ? centerX : adcCenter;
+            const float cy = (centerY > 0.0f) ? centerY : adcCenter;
+            // 与前端 offset_center 计算一致：ox = x - centerX, oy = y - centerY
+            const float ox = (float)x - cx;
+            const float oy = (float)y - cy;
+            const float distance = sqrtf(ox * ox + oy * oy);
+            const float scale = distance / adcCenter;
+
+            if (scale > EXTREME_THRESHOLD) {
+                const float angle = atan2f(oy, ox);
+                int idx = (int)roundf((angle + PI_F) * (float)BINS / (2.0f * PI_F));
+                idx = ((idx % BINS) + BINS) % BINS;
+                // 当前轮取最大值
+                if (scale > cycleData[idx]) {
+                    cycleData[idx] = scale;
+                }
+                // 跨轮累积最大值
+                if (scale > rangeData[idx]) {
+                    rangeData[idx] = scale;
+                }
+            }
+        }
+
+        // 检查当前轮是否48个角度全部采到值
+        bool cycleFull = true;
+        for (int i = 0; i < BINS; i++) {
+            if (cycleData[i] <= 0.0f) {
+                cycleFull = false;
+                break;
+            }
+        }
+        if (cycleFull) {
+            fullCycles++;
+            // 重置当前轮缓冲，开始下一轮
+            for (int i = 0; i < BINS; i++) {
+                cycleData[i] = 0.0f;
+            }
+            if (fullCycles >= REQUIRED_CYCLES) break;
+        }
+
+        if (to_ms_since_boot(get_absolute_time()) - startMs > TIMEOUT_MS) break;
+        busy_wait_ms(1);
+    }
+
+    // 最终校验：必须完成 REQUIRED_CYCLES 轮，且48桶全部有值
+    bool allFilled = (fullCycles >= REQUIRED_CYCLES);
+    if (allFilled) {
+        for (int i = 0; i < BINS; i++) {
+            if (!(rangeData[i] > 0.0f)) {
+                allFilled = false;
+                break;
+            }
+        }
+    }
+
+    JsonObject o = doc.to<JsonObject>();
+    o["success"] = allFilled;
+    if (allFilled) {
+        JsonArray arr = o.createNestedArray("rangeData");
+        for (int i = 0; i < BINS; i++) {
+            arr.add(rangeData[i]);
+        }
+    } else {
+        o["error"] = "Calibration incomplete: not all angles sampled";
+    }
+    return serialize_json(doc);
+}
+
 std::string getBoardDefinition() {
     const size_t capacity = JSON_OBJECT_SIZE(100);
     DynamicJsonDocument doc(capacity);
@@ -3469,6 +3602,8 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getConfig", getConfig },
     { "/api/getJoystickRaw", getJoystickRaw },
     { "/api/getJoystickRaw2", getJoystickRaw2 },
+    { "/api/calibrateJoystickCenter", calibrateJoystickCenter },
+    { "/api/calibrateJoystickRange", calibrateJoystickRange },
     { "/api/getBoardDefinition", getBoardDefinition },
 #if !defined(NDEBUG)
     { "/api/echo", echo },
