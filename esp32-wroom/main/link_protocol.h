@@ -28,10 +28,8 @@ typedef struct {
     uint8_t  lt, rt;    // 0..255 linear triggers
 } lp_input_t;
 
-// STATUS frame payload (len=3)
+// STATUS frame payload (len=3): only inputMode is consumed by the ESP32.
 typedef struct {
-    uint8_t socdMode;
-    uint8_t dpadMode;
     uint8_t inputMode;
 } lp_status_t;
 
@@ -50,7 +48,7 @@ typedef struct {
 
     lp_input_cb_t    onInput;
     lp_status_cb_t   onStatus;
-    lp_activity_cb_t onActivity;   // fired for EVERY received byte
+    lp_activity_cb_t onActivity;   // fired for CRC-valid frames only
 } lp_parser_t;
 
 void lp_parser_init(lp_parser_t *p,

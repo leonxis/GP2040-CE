@@ -1,9 +1,6 @@
 #include "IMyGamepad.h"
 #include "NimBLEDevice.h"
 #include "ble_uuid.h"
-#include "esp_log.h"
-
-static const char *TAG = "mygamepad";
 
 static const uint8_t FIXED_BATTERY_LEVEL = 100;
 
@@ -65,11 +62,6 @@ size_t IMyGamepad::getConnectedCount() {
     return pServer->getConnectedCount();
 }
 
-void IMyGamepad::clearBond() {
-    NimBLEDevice::deleteAllBonds();
-    ESP_LOGW(TAG, "all bonds cleared");
-}
-
 int IMyGamepad::dirKey2DPadValue(int up, int right, int down, int left) {
     // Normalize to 0/1: callers may pass raw bitmask values (e.g. dpad & 0x08).
     uint8_t dir = (up ? 1 : 0) | (right ? 2 : 0) | (down ? 4 : 0) | (left ? 8 : 0);
@@ -101,12 +93,12 @@ void IMyGamepad::onConnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo) {
 void IMyGamepad::onDisconnect(NimBLEServer *pServer, NimBLEConnInfo &connInfo, int reason) {
     (void)pServer;
     (void)connInfo;
-    ESP_LOGI(TAG, "disconnected, reason %d", reason);
+    (void)reason;
 }
 
 void IMyGamepad::onMTUChange(uint16_t MTU, NimBLEConnInfo &connInfo) {
     (void)connInfo;
-    ESP_LOGI(TAG, "MTU %u", MTU);
+    (void)MTU;
 }
 
 uint32_t IMyGamepad::onPassKeyRequest() {
@@ -121,10 +113,7 @@ bool IMyGamepad::onConfirmPIN(uint32_t pin) {
 void IMyGamepad::onAuthenticationComplete(NimBLEConnInfo &connInfo) {
     if (!connInfo.isEncrypted()) {
         NimBLEDevice::getServer()->disconnect(connInfo.getConnHandle());
-        ESP_LOGW(TAG, "encryption failed; disconnecting");
-        return;
     }
-    ESP_LOGI(TAG, "authentication complete");
 }
 
 uint8_t getRptID(NimBLECharacteristic *pCharacteristic) {

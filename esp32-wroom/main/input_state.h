@@ -58,6 +58,6 @@ private:
 // Global shared instances (defined in main.cpp)
 extern InputState g_input;
 
-// Tick of the last byte received from the RP2354 (any byte, frame-valid or
-// not). 32-bit aligned volatile access is atomic on ESP32.
+// Tick of the last CRC-valid frame received from the RP2354.
+// 32-bit aligned volatile access is atomic on ESP32.
 extern volatile TickType_t g_uartLastActiveTick;

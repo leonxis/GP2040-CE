@@ -44,7 +44,6 @@ public:
     void start();
     void stop();
     size_t getConnectedCount();
-    void clearBond();
 };
 
 uint8_t getRptID(NimBLECharacteristic *pCharacteristic);

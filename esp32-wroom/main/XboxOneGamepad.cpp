@@ -222,10 +222,8 @@ void XboxOneGamepad::update(const InputSnapshot *snap) {
 
 void XboxOneGamepad::onWrite(NimBLECharacteristic *pCharacteristic,
                              NimBLEConnInfo &connInfo) {
+    (void)pCharacteristic;
     (void)connInfo;
     // Vibration output channel retained for protocol compatibility;
     // no actuators wired on this board.
-    if (pCharacteristic == _oRptChara) {
-        // intentionally empty
-    }
 }

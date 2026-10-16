@@ -2,11 +2,8 @@
 
 #include "nvs_flash.h"
 #include "esp_system.h"
-#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
-static const char *TAG = "mode_mgr";
 
 #define APP_NVS_NAMESPACE "app"
 #define APP_NVS_KEY_MODE  "mode"
@@ -82,8 +79,6 @@ void mode_manager_request_switch(uint8_t inputMode) {
     if (requested == currentMode) {
         return;
     }
-    ESP_LOGW(TAG, "switch BLE mode %d -> %d, rebooting",
-             (int)currentMode, (int)requested);
     mode_manager_save(requested);
     vTaskDelay(pdMS_TO_TICKS(100));  // let NVS write settle
     esp_restart();

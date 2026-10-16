@@ -6,7 +6,6 @@
 #include "nvs.h"
 #include "driver/uart.h"
 #include "driver/gpio.h"
-#include "esp_log.h"
 #include "esp_mac.h"
 
 #include "board_config.h"
@@ -25,7 +24,6 @@ const char *NIMBLE_NVS_NAMESPACE;
 InputState g_input;
 volatile TickType_t g_uartLastActiveTick = 0;
 
-static const char *TAG = "main";
 static BleMode s_mode;
 static IMyGamepad *s_pad = nullptr;
 
@@ -72,7 +70,6 @@ static void wipe_all_nvs_preserving_mode(BleMode mode) {
     ESP_ERROR_CHECK(nvs_flash_erase());
     ESP_ERROR_CHECK(nvs_flash_init());
     mode_manager_save(mode);
-    ESP_LOGW(TAG, "all bond data erased; BLE mode preserved");
 }
 
 // ---------------------------------------------------------------------------

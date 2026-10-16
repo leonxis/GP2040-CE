@@ -47,8 +47,6 @@ static void lp_dispatch(lp_parser_t *p) {
     } else if (p->type == LP_TYPE_STATUS && p->len == 3) {
         if (p->onStatus) {
             lp_status_t st;
-            st.socdMode = p->payload[0];
-            st.dpadMode = p->payload[1];
             st.inputMode = p->payload[2];
             p->onStatus(&st);
         }
