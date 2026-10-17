@@ -180,10 +180,10 @@ public:
 	static constexpr uint8_t TOUCHPAD_SWIPE_MASK_RIGHT = (1U << 1);
 	static constexpr uint8_t TOUCHPAD_SWIPE_MASK_UP    = (1U << 2);
 	static constexpr uint8_t TOUCHPAD_SWIPE_MASK_DOWN  = (1U << 3);
-	inline bool __attribute__((always_inline)) pressedTouchpadSwipeLeft()  { return (debouncedGpio & mapTouchpadSwipeLeft->pinMask)  != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_LEFT)  != 0; }
-	inline bool __attribute__((always_inline)) pressedTouchpadSwipeRight() { return (debouncedGpio & mapTouchpadSwipeRight->pinMask) != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_RIGHT) != 0; }
-	inline bool __attribute__((always_inline)) pressedTouchpadSwipeUp()    { return (debouncedGpio & mapTouchpadSwipeUp->pinMask)    != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_UP)    != 0; }
-	inline bool __attribute__((always_inline)) pressedTouchpadSwipeDown()  { return (debouncedGpio & mapTouchpadSwipeDown->pinMask)  != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_DOWN)  != 0; }
+	inline bool __attribute__((always_inline)) pressedTouchpadSwipeLeft()  { return (debouncedGpio & mapTouchpadSwipeLeft->pinMask)  != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_LEFT)  != 0 || (hotkeyTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_LEFT)  != 0; }
+       inline bool __attribute__((always_inline)) pressedTouchpadSwipeRight() { return (debouncedGpio & mapTouchpadSwipeRight->pinMask) != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_RIGHT) != 0 || (hotkeyTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_RIGHT) != 0; }
+       inline bool __attribute__((always_inline)) pressedTouchpadSwipeUp()    { return (debouncedGpio & mapTouchpadSwipeUp->pinMask)    != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_UP)    != 0 || (hotkeyTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_UP)    != 0; }
+       inline bool __attribute__((always_inline)) pressedTouchpadSwipeDown()  { return (debouncedGpio & mapTouchpadSwipeDown->pinMask)  != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_DOWN)  != 0 || (hotkeyTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_DOWN)  != 0; }
 
 	// 驱动 auxState.sensors.touchpad[0] 输出滑动轨迹；每帧调用
 	void processTouchpadSwipe();
@@ -309,7 +309,11 @@ public:
 	uint8_t addonMacroTriggerMask = 0;
 
 	// Addon-driven touchpad swipe mask: bit0=LEFT, bit1=RIGHT, bit2=UP, bit3=DOWN
-	uint8_t addonTouchpadSwipeMask = 0;
+       uint8_t addonTouchpadSwipeMask = 0;
+
+       // Hotkey-driven touchpad swipe mask (same bit layout as addonTouchpadSwipeMask)
+       // 热键在 process() 之后执行，需独立掩码避免被 read() 重置
+       uint8_t hotkeyTouchpadSwipeMask = 0;
 
 	// DS4/DS5 触摸板滑动状态机：0=无, 1=左, 2=右, 3=上, 4=下
 	uint8_t touchpadSwipeDir = 0;

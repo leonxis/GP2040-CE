@@ -149,6 +149,7 @@ enum InputMode
     INPUT_MODE_P5GENERAL = 16;
     INPUT_MODE_PS4B = 17;
     INPUT_MODE_XINPUTB = 18;
+    // 19 为已废弃的 INPUT_MODE_BLE 编号，蓝牙现由 bluetoothLinkEnabled 开关控制，编号不再复用
     INPUT_MODE_CONFIG = 255;
 }
 
@@ -510,6 +511,12 @@ enum GamepadHotkey
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_2 = 89;
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_3 = 90;
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_CLEAR = 91;
+    HOTKEY_MACRO_RECORD_1 = 92;              // Macro 1 record start/stop toggle
+    HOTKEY_MACRO_RECORD_2 = 93;              // Macro 2 record start/stop toggle
+    HOTKEY_TOUCHPAD_SWIPE_LEFT   = 94;       // DS4/DS5 触摸板左滑
+    HOTKEY_TOUCHPAD_SWIPE_RIGHT  = 95;       // DS4/DS5 触摸板右滑
+    HOTKEY_TOUCHPAD_SWIPE_UP     = 96;       // DS4/DS5 触摸板上滑
+    HOTKEY_TOUCHPAD_SWIPE_DOWN   = 97;       // DS4/DS5 触摸板下滑
 }
 
 enum AnimationEffects
@@ -568,6 +575,12 @@ enum AmbientEffectType
     AL_CUSTOM_EFFECT_BREATH = 3;		// Breathing
     AL_CUSTOM_EFFECT_STATIC_THEME = 4;	// Custom Static
     AL_CUSTOM_EFFECT_WEB_CONFIG_HINT = 5;	// Web-config session hint (not persisted as user mode)
+    AL_CUSTOM_EFFECT_NRF24_UNLINKED = 6;	// Onboard nRF24 direct link unpaired/no-ACK yellow blink (not persisted as user mode)
+    AL_CUSTOM_EFFECT_BLE_UNLINKED = 7;	// UART BLE host not connected blue blink (not persisted as user mode)
+    AL_CUSTOM_EFFECT_COMPANION_OFFLINE = 8;	// UART companion (ESP32) absent/no heartbeat red blink (not persisted as user mode)
+    AL_CUSTOM_EFFECT_MACRO_REC_FULL = 10;	// Macro recording stopped by capacity: one-shot red 3-blink (RAM-only hint)
+    AL_CUSTOM_EFFECT_TURBO_TOGGLE = 11;	// Turbo button enable/disable: one-shot green single blink (RAM-only hint)
+    AL_CUSTOM_EFFECT_MACRO_HINT = 12;	// Macro recording start / playback end: one-shot blue single blink (RAM-only hint)
 };
 
 enum AnimationColor // Sync with Animation.h
@@ -679,16 +692,6 @@ enum RotaryEncoderPinMode
     ENCODER_MODE_VOLUME = 9;
 };
 
-enum ReactiveLEDMode
-{
-    option (nanopb_enumopt).long_names = false;
-
-    REACTIVE_LED_STATIC_OFF = 0;
-    REACTIVE_LED_STATIC_ON = 1;
-    REACTIVE_LED_FADE_IN = 2;
-    REACTIVE_LED_FADE_OUT = 3;
-};
-
 enum PS4ControllerIDMode
 {
     option (nanopb_enumopt).long_names = false;
@@ -754,8 +757,18 @@ enum CpuOverclockLevel
 {
     option (nanopb_enumopt).long_names = false;
 
-    CPU_OVERCLOCK_NORMAL = 0;    // 144MHz (default)
-    CPU_OVERCLOCK_MODERATE = 1;  // 156MHz
-    CPU_OVERCLOCK_HEAVY = 2;     // 168MHz
-    CPU_OVERCLOCK_EXTREME = 3;   // 180MHz
+    CPU_OVERCLOCK_NORMAL = 0;    // 180MHz (default)
+    CPU_OVERCLOCK_MODERATE = 1;  // 204MHz
+    CPU_OVERCLOCK_HEAVY = 2;     // 240MHz
+    CPU_OVERCLOCK_EXTREME = 3;   // 288MHz
+};
+
+// 映射层激活器模式（挂在 GpioMappingInfo 上，与动作正交）
+enum ActivatorMode
+{
+    option (nanopb_enumopt).long_names = false;
+
+    ACTIVATOR_OFF = 0;    // 中：关闭
+    ACTIVATOR_HOLD = 1;   // 左：按住激活，松开取消
+    ACTIVATOR_TOGGLE = 2; // 右：按一次激活，再按一次取消（按下当帧即退出）
 };
