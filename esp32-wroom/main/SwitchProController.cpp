@@ -56,8 +56,6 @@
 #define RPT_MODE_IR_CAM       0x3
 #define RPT_MODE_STANDARD     0x30
 #define RPT_MODE_NFC_IR       0x31
-#define RPT_MODE_33           0x33
-#define RPT_MODE_35           0x35
 #define RPT_MODE_SIMPLE_HID   0x3F
 
 // Fixed power state: no battery/charging hardware on this board.
@@ -202,24 +200,23 @@ static uint8_t userCalibration[] = {
 static void copyCalibration2Buf(uint16_t addr, uint8_t *buf, int16_t len)
 {
     memset(buf, 0xFF, len);
+
     int16_t _addr;
     int16_t n;
     const uint8_t *calibration;
     if (addr & 0x8000)
     {
-        _addr = addr - 0x8010;
+        _addr = (int16_t)addr - 0x8010;
         n = sizeof(userCalibration);
         calibration = userCalibration;
     }
     else
     {
-        _addr = addr - 0x6020;
+        _addr = (int16_t)addr - 0x6020;
         n = sizeof(factoryCalibration);
         calibration = factoryCalibration;
     }
     if (_addr >= n)
-        return;
-    if ((_addr + len) <= 0)
         return;
 
     int16_t bufind0 = 0;
@@ -229,9 +226,14 @@ static void copyCalibration2Buf(uint16_t addr, uint8_t *buf, int16_t len)
         bufind0 = -_addr;
         startind = 0;
     }
-    int16_t len0 = len - bufind0 + startind;
-    len = len0 < len ? len0 : len;
-    memcpy(&buf[bufind0], &calibration[startind], len);
+
+    int16_t copyLen = len - bufind0;
+    if (copyLen <= 0)
+        return;
+    if (startind + copyLen > n)
+        copyLen = n - startind;
+
+    memcpy(&buf[bufind0], &calibration[startind], copyLen);
 }
 
 static Input_Report ipacket;
@@ -257,21 +259,19 @@ SwitchProController::SwitchProController(const std::string &deviceName)
     _iRptChara_STD->setCallbacks(this);
     _iRptChara_Full = pHidDev->inputReport((uint8_t)HID_RPT_ID_INPUT_FULL);
     _iRptChara_Full->setCallbacks(this);
-    _iRptChara_NFC_MCU = pHidDev->inputReport((uint8_t)HID_RPT_ID_INPUT_NFC_MCU);
-    _iRptChara_NFC_MCU->setCallbacks(this);
-    _iRptChara_Unknown1 = pHidDev->inputReport((uint8_t)HID_RPT_ID_INPUT_UNKNOWN1);
-    _iRptChara_Unknown1->setCallbacks(this);
-    _iRptChara_Unknown2 = pHidDev->inputReport((uint8_t)HID_RPT_ID_INPUT_UNKNOWN2);
-    _iRptChara_Unknown2->setCallbacks(this);
+    // NFC/MCU and unknown input reports exist only to satisfy the report map;
+    // they are never notified on, so their pointers are not retained.
+    pHidDev->inputReport((uint8_t)HID_RPT_ID_INPUT_NFC_MCU)->setCallbacks(this);
+    pHidDev->inputReport((uint8_t)HID_RPT_ID_INPUT_UNKNOWN1)->setCallbacks(this);
+    pHidDev->inputReport((uint8_t)HID_RPT_ID_INPUT_UNKNOWN2)->setCallbacks(this);
 
     _oRptChara_Rumble_SubCMD = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_RUMBLE_SUBCMD);
     _oRptChara_Rumble_SubCMD->setCallbacks(this);
     _oRptChara_Rumble = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_RUMBLE);
     _oRptChara_Rumble->setCallbacks(this);
-    _oRptChara_ReqNFC_Rumble = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_REQ_NFC_OR_RUMBLE);
-    _oRptChara_ReqNFC_Rumble->setCallbacks(this);
-    _oRptChara_Unknown = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_UNKNOWN);
-    _oRptChara_Unknown->setCallbacks(this);
+    // NFC/IR request and unknown output reports exist only for the report map.
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_REQ_NFC_OR_RUMBLE)->setCallbacks(this);
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_UNKNOWN)->setCallbacks(this);
 }
 
 SwitchProController::~SwitchProController() {}
@@ -505,7 +505,7 @@ void SwitchProController::handleOutputRptRumbleSubCMD(const Output_Rumble_SubCMD
         // Home LED not present; acknowledge only.
         break;
     case SUB_CMD_ENABLE_IMU:
-        isIMUEnable = subcmdPacket->subcmd40.enable;
+        // No motion sensor on this board; acknowledge only.
         break;
     case SUB_CMD_SET_IMU_SENSITIVITY:
         break;

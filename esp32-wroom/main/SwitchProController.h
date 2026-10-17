@@ -283,20 +283,14 @@ private:
     NimBLECharacteristic *_iRptChara;
     NimBLECharacteristic *_iRptChara_STD;
     NimBLECharacteristic *_iRptChara_Full;
-    NimBLECharacteristic *_iRptChara_NFC_MCU;
-    NimBLECharacteristic *_iRptChara_Unknown1;
-    NimBLECharacteristic *_iRptChara_Unknown2;
     NimBLECharacteristic *_oRptChara_Rumble_SubCMD;
     NimBLECharacteristic *_oRptChara_Rumble;
-    NimBLECharacteristic *_oRptChara_ReqNFC_Rumble;
-    NimBLECharacteristic *_oRptChara_Unknown;
     uint8_t mac[6] = {};
     uint8_t packetTimer = 0;
 
     void onWrite(NimBLECharacteristic *pCharacteristic, NimBLEConnInfo &connInfo) override;
 
     uint8_t ipRptMode;
-    uint8_t isIMUEnable = 0;
     // Tracked rumble levels (no physical actuators on this board).
     uint8_t motorL = 0, motorR = 0;
 

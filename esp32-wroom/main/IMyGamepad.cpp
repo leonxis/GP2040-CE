@@ -19,8 +19,10 @@ class MyBattCharaCallback : public NimBLECharacteristicCallbacks {
 
 IMyGamepad::IMyGamepad(const std::string &deviceName) {
     NimBLEDevice::init(deviceName);
-    NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_YESNO);
-    NimBLEDevice::setSecurityAuth(true, true, true);
+    // Just Works pairing: no MITM, bond only. DS/NS Pro/Xbox BLE HID all
+    // pair without a passkey; DisplayYesNo would pop an unusable dialog.
+    NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
+    NimBLEDevice::setSecurityAuth(true, false, false);
     // Too low TX power increases latency; boosted again in start().
     NimBLEDevice::setPower(ESP_PWR_LVL_P9, ESP_BLE_PWR_TYPE_DEFAULT);
 
@@ -111,9 +113,10 @@ bool IMyGamepad::onConfirmPIN(uint32_t pin) {
 }
 
 void IMyGamepad::onAuthenticationComplete(NimBLEConnInfo &connInfo) {
-    if (!connInfo.isEncrypted()) {
-        NimBLEDevice::getServer()->disconnect(connInfo.getConnHandle());
-    }
+    (void)connInfo;
+    // Stay connected even if encryption did not complete. Disconnecting here
+    // causes DS/NS Pro hosts to loop reconnection after a power cycle; the
+    // host will retry pairing on its own while we simply send no data.
 }
 
 uint8_t getRptID(NimBLECharacteristic *pCharacteristic) {

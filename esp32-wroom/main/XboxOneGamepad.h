@@ -35,18 +35,6 @@ typedef struct
     unsigned char Record : 1;
     unsigned char : 7;          // Pad
 } Gamepad_Input_Xbox;
-typedef struct
-{
-    unsigned char enableAcutator : 4;
-    unsigned char : 4;
-    unsigned char lTMagnitude;
-    unsigned char rTMagnitude;
-    unsigned char strongMagnitude;
-    unsigned char weakMagnitude;
-    unsigned char duration;
-    unsigned char startDelay;
-    unsigned char loopCount;
-} OutputVibration;
 #pragma pack(pop)
 
 class XboxOneGamepad : public IMyGamepad, public NimBLECharacteristicCallbacks

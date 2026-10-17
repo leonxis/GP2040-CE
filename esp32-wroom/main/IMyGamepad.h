@@ -4,11 +4,12 @@
 #include "NimBLEHIDDevice.h"
 #include "input_state.h"
 
-// High-performance only: connection interval 6 units (7.5 ms).
+// High-performance: 7.5 ms connection interval, 10 s supervision timeout
+// (1000 x 10 ms) to avoid spurious disconnects at the aggressive interval.
 #define DESIRED_MIN_CONN_INTERVAL 6
 #define DESIRED_MAX_CONN_INTERVAL 6
 #define DESIRED_SLAVE_LATENCY    0
-#define SUPERVISION_TIMEOUT       300
+#define SUPERVISION_TIMEOUT       1000
 
 #define MAX_ADVERTISING_TIME_MS   0   // 0 = advertise forever
 

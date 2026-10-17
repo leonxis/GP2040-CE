@@ -218,30 +218,32 @@ DualSenseController::DualSenseController(const std::string &deviceName)
 
     _oRptChara31 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_31);
     _oRptChara31->setCallbacks(this);
-    _oRptChara32 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_32);
-    _oRptChara33 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_33);
-    _oRptChara34 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_34);
-    _oRptChara35 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_35);
-    _oRptChara36 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_36);
-    _oRptChara37 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_37);
-    _oRptChara38 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_38);
-    _oRptChara39 = pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_39);
+    // Output reports 0x32-0x39 exist only to satisfy the report map; the
+    // host never writes meaningful data to them on this firmware.
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_32);
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_33);
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_34);
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_35);
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_36);
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_37);
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_38);
+    pHidDev->outputReport((uint8_t)HID_RPT_ID_OUTPUT_39);
 
     _fRptChara05 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_05);
     _fRptChara05->setCallbacks(this);
-    _fRptChara08 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_08);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_08);
     _fRptChara09 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_09);
     _fRptChara09->setCallbacks(this);
     _fRptChara20 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_20);
     _fRptChara20->setCallbacks(this);
-    _fRptChara22 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_22);
-    _fRptChara80 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_80);
-    _fRptChara81 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_81);
-    _fRptChara82 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_82);
-    _fRptChara83 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_83);
-    _fRptCharaF0 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_F0);
-    _fRptCharaF1 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_F1);
-    _fRptCharaF2 = pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_F2);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_22);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_80);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_81);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_82);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_83);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_F0);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_F1);
+    pHidDev->featureReport((uint8_t)HID_RPT_ID_FEAT_F2);
 
     _initStaticCharaValues();
 }
@@ -328,7 +330,7 @@ void DualSenseController::_handleReportIn31(const InputSnapshot *snap)
     uint8_t dir;
 
     ip31.Data.HasHID = 1;
-    ip31.Data.State.StateData.SeqNo = 0x01;
+    ip31.Data.SeqNo = seqNo++ & 0x0F;
 
     const uint16_t b = snap->buttons;
     ip31.Data.State.StateData.ButtonCross = (b & GP_B1) != 0;
