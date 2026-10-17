@@ -1,0 +1,4549 @@
+From b79e39850a4f9af6107af2ce8518251d51f4c763 Mon Sep 17 00:00:00 2001
+From: Leonxis <leonxis@example.com>
+Date: Fri, 16 Oct 2026 18:35:37 +0800
+Subject: [PATCH] =?UTF-8?q?feat(oled):=20=E7=A7=BB=E6=A4=8D=20astra-ui-ast?=
+ =?UTF-8?q?ra=20=E6=A1=86=E6=9E=B6=E6=9B=BF=E6=8D=A2=20miniled=20=E8=8F=9C?=
+ =?UTF-8?q?=E5=8D=95?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- 新增 lib/AstraUI 静态库（menu/list/tile/selector/camera/widget/launcher），
+  去除 u8g2 依赖，6 键路由，非阻塞 toast，ActionItem 一键动作
+- 新增 HALPico：直接操作 SSD1306 帧缓冲实现绘图原语，复用
+  GP_Font_Standard(ASCII) + cn_font_lite(CJK) 双字体，dpadOriginal 边沿
+  扫描 + 方向键连发
+- 新增 AstraMenuScreen：5 磁贴（配置/手柄/摇杆/功能/彩灯）+ 背键二级
+  List，backing 表同步回写 Storage，保存/校准/恢复默认一键执行
+- display.cpp 切换至 AstraMenuScreen；BoardConfig 启用 I2C0/SSD1306
+- 物理删除 GPFusionMenuScreen/LiteCustomLayoutScreen 及
+  miniMenuGamepadInput 全链路（proto/config_utils/webconfig/www）
+- 修复：Widget value 改为引用绑定 backing，toggle/select/add 写回；
+  屏幕析构递归释放菜单树与 launcher，防内存泄漏
+---
+ CMakeLists.txt                                |    5 +-
+ configs/HML2354/BoardConfig.h                 |    7 +-
+ headers/display/GPGFX_UI_screens.h            |    3 +-
+ headers/display/hal_pico.h                    |   60 +
+ headers/display/ui/screens/AstraMenuScreen.h  |   34 +
+ .../display/ui/screens/GPFusionMenuScreen.h   |   16 -
+ .../ui/screens/LiteCustomLayoutScreen.h       |   16 -
+ headers/interfaces/i2c/ssd1306/tiny_ssd1306.h |    3 +
+ lib/AstraUI/CMakeLists.txt                    |   15 +
+ lib/AstraUI/include/astra/action_item.h       |   38 +
+ lib/AstraUI/include/astra/camera.h            |   50 +
+ lib/AstraUI/include/astra/config.h            |   87 ++
+ lib/AstraUI/include/astra/hal.h               |  225 ++++
+ lib/AstraUI/include/astra/item.h              |   51 +
+ lib/AstraUI/include/astra/launcher.h          |   54 +
+ lib/AstraUI/include/astra/menu.h              |  143 +++
+ lib/AstraUI/include/astra/selector.h          |   43 +
+ lib/AstraUI/include/astra/widget.h            |  151 +++
+ lib/AstraUI/src/action_item.cpp               |    5 +
+ lib/AstraUI/src/camera.cpp                    |  136 ++
+ lib/AstraUI/src/hal.cpp                       |   52 +
+ lib/AstraUI/src/launcher.cpp                  |  177 +++
+ lib/AstraUI/src/menu.cpp                      |  277 ++++
+ lib/AstraUI/src/selector.cpp                  |  119 ++
+ lib/AstraUI/src/widget.cpp                    |  199 +++
+ lib/CMakeLists.txt                            |    1 +
+ proto/config.proto                            |    1 -
+ src/addons/display.cpp                        |    4 +-
+ src/addons/uart_link.cpp                      |    2 +-
+ src/config_utils.cpp                          |    5 -
+ src/display/hal_pico.cpp                      |  293 +++++
+ src/display/ui/screens/AstraMenuScreen.cpp    |  530 ++++++++
+ src/display/ui/screens/GPFusionMenuScreen.cpp | 1130 -----------------
+ .../ui/screens/LiteCustomLayoutScreen.cpp     |  170 ---
+ src/gp2040.cpp                                |    2 +-
+ src/webconfig.cpp                             |    2 -
+ www/server/app.js                             |    1 -
+ www/src/Pages/SettingsPage.jsx                |   20 -
+ 38 files changed, 2754 insertions(+), 1373 deletions(-)
+ create mode 100644 headers/display/hal_pico.h
+ create mode 100644 headers/display/ui/screens/AstraMenuScreen.h
+ delete mode 100644 headers/display/ui/screens/GPFusionMenuScreen.h
+ delete mode 100644 headers/display/ui/screens/LiteCustomLayoutScreen.h
+ create mode 100644 lib/AstraUI/CMakeLists.txt
+ create mode 100644 lib/AstraUI/include/astra/action_item.h
+ create mode 100644 lib/AstraUI/include/astra/camera.h
+ create mode 100644 lib/AstraUI/include/astra/config.h
+ create mode 100644 lib/AstraUI/include/astra/hal.h
+ create mode 100644 lib/AstraUI/include/astra/item.h
+ create mode 100644 lib/AstraUI/include/astra/launcher.h
+ create mode 100644 lib/AstraUI/include/astra/menu.h
+ create mode 100644 lib/AstraUI/include/astra/selector.h
+ create mode 100644 lib/AstraUI/include/astra/widget.h
+ create mode 100644 lib/AstraUI/src/action_item.cpp
+ create mode 100644 lib/AstraUI/src/camera.cpp
+ create mode 100644 lib/AstraUI/src/hal.cpp
+ create mode 100644 lib/AstraUI/src/launcher.cpp
+ create mode 100644 lib/AstraUI/src/menu.cpp
+ create mode 100644 lib/AstraUI/src/selector.cpp
+ create mode 100644 lib/AstraUI/src/widget.cpp
+ create mode 100644 src/display/hal_pico.cpp
+ create mode 100644 src/display/ui/screens/AstraMenuScreen.cpp
+ delete mode 100644 src/display/ui/screens/GPFusionMenuScreen.cpp
+ delete mode 100644 src/display/ui/screens/LiteCustomLayoutScreen.cpp
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 395c77e5..d8ed0faf 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -261,8 +261,8 @@ src/display/ui/elements/GPShape.cpp
+ src/display/ui/elements/GPSprite.cpp
+ src/display/ui/screens/ButtonLayoutScreen.cpp
+ src/display/ui/screens/ConfigScreen.cpp
+-src/display/ui/screens/GPFusionMenuScreen.cpp
+-src/display/ui/screens/LiteCustomLayoutScreen.cpp
++src/display/ui/screens/AstraMenuScreen.cpp
++src/display/hal_pico.cpp
+ src/display/ui/screens/PinViewerScreen.cpp
+ src/display/ui/screens/RestartScreen.cpp
+ src/display/ui/screens/StatsScreen.cpp
+@@ -350,6 +350,7 @@ PicoPeripherals
+ SNESpad
+ pico_mbedtls
+ nanopb
++AstraUI
+ )
+ 
+ target_include_directories(${PROJECT_NAME} PUBLIC
+diff --git a/configs/HML2354/BoardConfig.h b/configs/HML2354/BoardConfig.h
+index b62b8be4..368f1e72 100644
+--- a/configs/HML2354/BoardConfig.h
++++ b/configs/HML2354/BoardConfig.h
+@@ -207,16 +207,15 @@
+ // Input Modes
+ #define DEFAULT_INPUT_MODE INPUT_MODE_PS4B
+ 
+-// mini led
+-#define MINI_MENU_GAMEPAD_INPUT 1
+-#define HAS_I2C_DISPLAY 0
++// OLED 菜单（I2C0 SSD1306 128x64）
++#define HAS_I2C_DISPLAY 1
+ // HML 显示屏走 I2C0（I2C1 仅由外设映射开关控制）
+ #define DISPLAY_I2C_BLOCK i2c0
+ #ifndef I2C1_ENABLED
+ #define I2C1_ENABLED 0
+ #endif
+ #ifndef I2C0_ENABLED
+-#define I2C0_ENABLED 0
++#define I2C0_ENABLED 1
+ #endif
+ #ifndef I2C0_PIN_SDA
+ #define I2C0_PIN_SDA 16
+diff --git a/headers/display/GPGFX_UI_screens.h b/headers/display/GPGFX_UI_screens.h
+index cf5ba829..d4177480 100644
+--- a/headers/display/GPGFX_UI_screens.h
++++ b/headers/display/GPGFX_UI_screens.h
+@@ -16,8 +16,7 @@ enum DisplayMode {
+ #include "ui/screens/ButtonLayoutScreen.h"
+ #include "ui/screens/ConfigScreen.h"
+ #include "ui/screens/DisplaySaverScreen.h"
+-#include "ui/screens/GPFusionMenuScreen.h"
+-#include "ui/screens/LiteCustomLayoutScreen.h"
++#include "ui/screens/AstraMenuScreen.h"
+ #include "ui/screens/PinViewerScreen.h"
+ #include "ui/screens/RestartScreen.h"
+ #include "ui/screens/SplashScreen.h"
+diff --git a/headers/display/hal_pico.h b/headers/display/hal_pico.h
+new file mode 100644
+index 00000000..923d5e69
+--- /dev/null
++++ b/headers/display/hal_pico.h
+@@ -0,0 +1,60 @@
++#pragma once
++#ifndef HAL_PICO_H
++#define HAL_PICO_H
++
++#include "astra/hal.h"
++
++class GPGFX;
++
++class HALPico : public HAL {
++public:
++  static HALPico& getInstance();
++
++  void begin(GPGFX* gfx);
++
++  // HAL 接口
++  void* _getCanvasBuffer() override;
++  unsigned char _getBufferTileWidth() override;
++  unsigned char _getBufferTileHeight() override;
++  void _canvasClear() override;
++  void _canvasUpdate() override {}  // GPScreen::draw 负责 flush
++  void _setFont(const unsigned char*) override {}
++
++  unsigned char _getFontWidth(std::string &_text) override;
++  unsigned char _getFontHeight() override { return 12; }
++
++  void _setDrawType(unsigned char _type) override { drawType = _type; }
++  void _drawPixel(float _x, float _y) override;
++
++  void _drawEnglish(float _x, float _y, const std::string &_text) override;
++  void _drawChinese(float _x, float _y, const std::string &_text) override;
++
++  void _drawVDottedLine(float _x, float _y, float _h) override;
++  void _drawHDottedLine(float _x, float _y, float _l) override;
++  void _drawVLine(float _x, float _y, float _h) override;
++  void _drawHLine(float _x, float _y, float _l) override;
++  void _drawBMP(float _x, float _y, float _w, float _h, const unsigned char *_bitMap) override;
++  void _drawBox(float _x, float _y, float _w, float _h) override;
++  void _drawRBox(float _x, float _y, float _w, float _h, float _r) override;
++  void _drawFrame(float _x, float _y, float _w, float _h) override;
++  void _drawRFrame(float _x, float _y, float _w, float _h, float _r) override;
++
++  unsigned long _millis() override;
++  void _delay(unsigned long _mill) override;
++
++  void _keyScan() override;
++
++private:
++  HALPico() = default;
++  ~HALPico() override = default;
++  HALPico(const HALPico&) = delete;
++  HALPico& operator=(const HALPico&) = delete;
++
++  uint8_t* fb = nullptr;
++  unsigned char drawType = 1;
++
++  void applyPx(int x, int y);
++  void drawMixed(float _x, float _y, const std::string &_text);
++};
++
++#endif // HAL_PICO_H
+diff --git a/headers/display/ui/screens/AstraMenuScreen.h b/headers/display/ui/screens/AstraMenuScreen.h
+new file mode 100644
+index 00000000..b25db5b6
+--- /dev/null
++++ b/headers/display/ui/screens/AstraMenuScreen.h
+@@ -0,0 +1,34 @@
++#pragma once
++
++#include "GPGFX_UI_widgets.h"
++#include "config.pb.h"
++
++#include "astra/launcher.h"
++#include "astra/action_item.h"
++#include "display/hal_pico.h"
++
++#include <vector>
++#include <string>
++
++class AstraMenuScreen : public GPScreen {
++  public:
++    AstraMenuScreen() {}
++    AstraMenuScreen(GPGFX* renderer) { setRenderer(renderer); }
++    virtual ~AstraMenuScreen();
++
++    virtual int8_t update();
++    virtual void init();
++    virtual void shutdown();
++
++  protected:
++    virtual void drawScreen();
++
++  private:
++    astra::Launcher* launcher = nullptr;
++    astra::Menu* root = nullptr;
++    bool b1Prev = false;
++
++    void buildTree();
++    void destroyTree(astra::Menu* menu);
++    void refreshBacking();
++};
+diff --git a/headers/display/ui/screens/GPFusionMenuScreen.h b/headers/display/ui/screens/GPFusionMenuScreen.h
+deleted file mode 100644
+index 64df3824..00000000
+--- a/headers/display/ui/screens/GPFusionMenuScreen.h
++++ /dev/null
+@@ -1,16 +0,0 @@
+-#pragma once
+-
+-#include "GPGFX_UI_widgets.h"
+-#include "config.pb.h"
+-
+-class GPFusionMenuScreen : public GPScreen {
+-  public:
+-    GPFusionMenuScreen() {}
+-    GPFusionMenuScreen(GPGFX* renderer) { setRenderer(renderer); }
+-    virtual ~GPFusionMenuScreen() {}
+-    virtual int8_t update();
+-    virtual void init();
+-    virtual void shutdown();
+-  protected:
+-    virtual void drawScreen();
+-};
+diff --git a/headers/display/ui/screens/LiteCustomLayoutScreen.h b/headers/display/ui/screens/LiteCustomLayoutScreen.h
+deleted file mode 100644
+index 1997b9f3..00000000
+--- a/headers/display/ui/screens/LiteCustomLayoutScreen.h
++++ /dev/null
+@@ -1,16 +0,0 @@
+-#pragma once
+-
+-#include "GPGFX_UI_widgets.h"
+-#include "config.pb.h"
+-
+-class LiteCustomLayoutScreen : public GPScreen {
+-  public:
+-    LiteCustomLayoutScreen() {}
+-    LiteCustomLayoutScreen(GPGFX* renderer) { setRenderer(renderer); }
+-    virtual ~LiteCustomLayoutScreen() {}
+-    virtual int8_t update();
+-    virtual void init();
+-    virtual void shutdown();
+-  protected:
+-    virtual void drawScreen();
+-};
+diff --git a/headers/interfaces/i2c/ssd1306/tiny_ssd1306.h b/headers/interfaces/i2c/ssd1306/tiny_ssd1306.h
+index 254103f4..fad211e8 100644
+--- a/headers/interfaces/i2c/ssd1306/tiny_ssd1306.h
++++ b/headers/interfaces/i2c/ssd1306/tiny_ssd1306.h
+@@ -46,6 +46,9 @@ class GPGFX_TinySSD1306 : public GPGFX_DisplayBase {
+ 
+         bool isSPI() { return this->_isSPI; }
+         bool isI2C() { return this->_isI2C; }
++
++        // HALPico 直接操作帧缓冲（SSD1306 page 列主序，1024 字节）
++        uint8_t* getFrameBuffer() { return frameBuffer; }
+     private:
+         typedef enum {
+             SET_LOW_COLUMN = 0x00,
+diff --git a/lib/AstraUI/CMakeLists.txt b/lib/AstraUI/CMakeLists.txt
+new file mode 100644
+index 00000000..7af79bb6
+--- /dev/null
++++ b/lib/AstraUI/CMakeLists.txt
+@@ -0,0 +1,15 @@
++add_library(AstraUI
++  src/hal.cpp
++  src/menu.cpp
++  src/selector.cpp
++  src/camera.cpp
++  src/widget.cpp
++  src/launcher.cpp
++  src/action_item.cpp
++)
++target_include_directories(AstraUI PUBLIC
++  include
++)
++target_link_libraries(AstraUI
++  pico_stdlib
++)
+diff --git a/lib/AstraUI/include/astra/action_item.h b/lib/AstraUI/include/astra/action_item.h
+new file mode 100644
+index 00000000..28b8bed5
+--- /dev/null
++++ b/lib/AstraUI/include/astra/action_item.h
+@@ -0,0 +1,38 @@
++#pragma once
++#ifndef ASTRA_ACTION_ITEM__H
++#define ASTRA_ACTION_ITEM__H
++
++#include <functional>
++#include <string>
++#include "astra/menu.h"
++
++namespace astra {
++
++// 即时动作项：作为叶子挂在 childMenu 中，选中后按 B2 直接执行回调，不进入子页面。
++class ActionItem : public Menu {
++public:
++  [[nodiscard]] std::string getType() const override { return "Action"; }
++
++  std::string info;  // 执行后弹出的 toast 文案（可空）
++
++  ActionItem(const std::string &_title, std::function<void()> _fn, std::string _info = "")
++      : info(std::move(_info)), fn(std::move(_fn)) {
++    title = _title;
++    pic = generateDefaultPic();
++    selectIndex = 0;
++    parent = nullptr;
++  }
++
++  void run() {
++    if (fn) fn();
++  }
++
++  [[nodiscard]] const std::string &getInfo() const { return info; }
++
++private:
++  std::function<void()> fn;
++};
++
++}
++
++#endif //ASTRA_ACTION_ITEM__H
+diff --git a/lib/AstraUI/include/astra/camera.h b/lib/AstraUI/include/astra/camera.h
+new file mode 100644
+index 00000000..2bbfd55c
+--- /dev/null
++++ b/lib/AstraUI/include/astra/camera.h
+@@ -0,0 +1,50 @@
++//
++// Created by Fir on 2024/4/14 014.
++//
++
++#pragma once
++#ifndef ASTRA_CORE_SRC_ASTRA_UI_ELEMENT_CAMERA_CAMERA_H_
++#define ASTRA_CORE_SRC_ASTRA_UI_ELEMENT_CAMERA_CAMERA_H_
++
++#include "astra/selector.h"
++
++namespace astra {
++
++class Camera : public Item {
++private:
++  float xInit, yInit;
++
++public:
++  float x, y;
++  float xTrg, yTrg;
++
++  Camera();
++  Camera(float _x, float _y);
++
++  unsigned char outOfView(float _x, float _y);
++  unsigned char outOfView(std::vector<float> _pos) { return outOfView(_pos[0], _pos[1]); }
++  [[nodiscard]] std::vector<float> getPosition();
++  [[nodiscard]] std::vector<float> getPositionTrg();
++
++  void init(const std::string &_type);
++
++  void go(float _x, float _y);
++  void go(const std::vector<float> &_pos);
++  void goDirect(float _x, float _y);
++
++  void move(float _x, float _y);
++  void moveDirect(float _x, float _y);
++
++  void goToListItemRolling(List *_menu);
++  void goToTileItem(unsigned char _index);
++
++  void reset();
++  void resetDirect();
++
++  void update(Menu *_menu, Selector *_selector);
++  void render();
++};
++
++}
++
++#endif //ASTRA_CORE_SRC_ASTRA_UI_ELEMENT_CAMERA_CAMERA_H_
+diff --git a/lib/AstraUI/include/astra/config.h b/lib/AstraUI/include/astra/config.h
+new file mode 100644
+index 00000000..ddcb9368
+--- /dev/null
++++ b/lib/AstraUI/include/astra/config.h
+@@ -0,0 +1,87 @@
++//
++// Created by Fir on 2024/1/25.
++// 移植版：移除 u8g2 依赖，字体由 HALPico 统一处理（GP_Font_Standard + cn_font_lite）。
++
++#pragma once
++#ifndef ASTRA_CORE_SRC_SYSTEM_H_
++#define ASTRA_CORE_SRC_SYSTEM_H_
++
++namespace astra {
++/**
++ * @brief config of astra ui. astra ui的配置结构体
++ */
++struct config {
++  float tileAnimationSpeed = 70;
++  float listAnimationSpeed = 70;
++  float selectorYAnimationSpeed = 60;
++  float selectorXAnimationSpeed = 70;
++  float selectorWidthAnimationSpeed = 70;
++  float selectorHeightAnimationSpeed = 55;
++  float windowAnimationSpeed = 25;
++  float sideBarAnimationSpeed = 15;
++  float fadeAnimationSpeed = 100;
++  float cameraAnimationSpeed = 80;
++  float logoAnimationSpeed = 70;
++
++  bool tileUnfold = true;
++  bool listUnfold = true;
++
++  bool menuLoop = true;
++
++  bool backgroundBlur = true;
++  bool lightMode = false;
++
++  float listBarWeight = 5;
++  float listTextHeight = 8;
++  float listTextMargin = 4;
++  float listLineHeight = 16;
++  float selectorRadius = 0.5f;
++  float selectorMargin = 4;
++  float selectorTopMargin = 2;
++
++  float tilePicWidth = 30;
++  float tilePicHeight = 30;
++  float tilePicMargin = 8;
++  float tilePicTopMargin = 8;
++  float tileArrowWidth = 6;
++  float tileArrowMargin = 4;
++
++  float tileDottedLineBottomMargin = 18;
++  float tileArrowBottomMargin = 8;
++  float tileTextBottomMargin = 12;
++
++  float tileBarHeight = 2;
++
++  float tileSelectBoxLineLength = 5;
++  float tileSelectBoxMargin = 3;
++  float tileSelectBoxWidth = tileSelectBoxMargin * 2 + tilePicWidth;
++  float tileSelectBoxHeight = tileSelectBoxMargin * 2 + tilePicHeight;
++  float tileTitleHeight = 8;
++
++  float tileBtnMargin = 16;
++
++  float popMargin = 4;
++  float popRadius = 2;
++  float popSpeed = 90;
++
++  float logoStarLength = 2;
++  float logoTextHeight = 14;
++  float logoCopyRightHeight = 8;
++  unsigned char logoStarNum = 16;
++
++  // 字体由 HALPico 固定处理，不再使用 u8g2 字体指针。
++  // 移除 logoTitleFont / logoCopyRightFont / mainFont。
++
++  float checkBoxWidth = 8;
++  float checkBoxHeight = 8;
++  float checkBoxTopMargin = 4;
++  float checkBoxRightMargin = 10;
++  float checkBoxRadius = 1;
++};
++
++static config &getUIConfig() {
++  static config astraConfig;
++  return astraConfig;
++}
++}
++#endif //ASTRA_CORE_SRC_SYSTEM_H_
+diff --git a/lib/AstraUI/include/astra/hal.h b/lib/AstraUI/include/astra/hal.h
+new file mode 100644
+index 00000000..dd701905
+--- /dev/null
++++ b/lib/AstraUI/include/astra/hal.h
+@@ -0,0 +1,225 @@
++//
++// Created by Fir on 2024/2/8.
++// 移植版：按键扩为 6 键（上下左右 + B1/B2）。
++
++#pragma once
++#ifndef ASTRA_CORE_SRC_HAL_HAL_H_
++#define ASTRA_CORE_SRC_HAL_HAL_H_
++
++#include <string>
++#include <utility>
++#include <array>
++#include <vector>
++#include "astra/config.h"
++
++namespace oled {
++
++}
++
++namespace key {
++typedef enum keyFilter {
++  CHECKING = 0,
++  KEY_0_CONFIRM,
++  KEY_1_CONFIRM,
++  RELEASED,
++} KEY_FILTER;
++
++typedef enum keyAction {
++  INVALID = 0,
++  CLICK,
++  PRESS,
++} KEY_ACTION;
++
++typedef enum KeyType {
++  KEY_NOT_PRESSED = 0,
++  KEY_PRESSED,
++} KEY_TYPE;
++
++typedef enum keyIndex {
++  KEY_UP = 0,
++  KEY_DOWN,
++  KEY_LEFT,
++  KEY_RIGHT,
++  KEY_B1,
++  KEY_B2,
++  KEY_NUM,
++} KEY_INDEX;
++}
++
++namespace buzzer {
++
++}
++
++namespace led {
++
++}
++
++namespace sys {
++struct config {
++  unsigned char screenWeight = 128;
++  unsigned char screenHeight = 64;
++  float screenBright = 255;
++};
++
++static config &getSystemConfig() {
++  static config sysConfig;
++  return sysConfig;
++}
++}
++
++/**
++ * @brief hardware abstraction layer.
++ */
++class HAL {
++private:
++  static HAL *hal;
++
++public:
++  static HAL *get();
++  static bool check();
++
++  static bool inject(HAL *_hal);
++  static void destroy();
++
++  virtual ~HAL() = default;
++
++  virtual std::string type() { return "Base"; }
++
++  virtual void init() {}
++
++protected:
++  sys::config config;
++
++public:
++  static void *getCanvasBuffer() { return get()->_getCanvasBuffer(); }
++  virtual void *_getCanvasBuffer() { return nullptr; }
++
++  static unsigned char getBufferTileHeight() { return get()->_getBufferTileHeight(); }
++  virtual unsigned char _getBufferTileHeight() { return 0; }
++
++  static unsigned char getBufferTileWidth() { return get()->_getBufferTileWidth(); }
++  virtual unsigned char _getBufferTileWidth() { return 0; }
++
++  static void canvasUpdate() { get()->_canvasUpdate(); }
++  virtual void _canvasUpdate() {}
++
++  static void canvasClear() { get()->_canvasClear(); }
++  virtual void _canvasClear() {}
++
++  static void setFont(const unsigned char *_font) { get()->_setFont(_font); }
++  virtual void _setFont(const unsigned char *_font) {}
++
++  static unsigned char getFontWidth(std::string &_text) { return get()->_getFontWidth(_text); }
++  virtual unsigned char _getFontWidth(std::string &_text) { return 0; }
++
++  static unsigned char getFontHeight() { return get()->_getFontHeight(); }
++  virtual unsigned char _getFontHeight() { return 0; }
++
++  static void setDrawType(unsigned char _type) { get()->_setDrawType(_type); }
++  virtual void _setDrawType(unsigned char _type) {}
++
++  static void drawPixel(float _x, float _y) { get()->_drawPixel(_x, _y); }
++  virtual void _drawPixel(float _x, float _y) {}
++
++  // _x和_y是字体左下角坐标
++  static void drawEnglish(float _x, float _y, const std::string &_text) { get()->_drawEnglish(_x, _y, _text); }
++  virtual void _drawEnglish(float _x, float _y, const std::string &_text) {}
++
++  static void drawChinese(float _x, float _y, const std::string &_text) { get()->_drawChinese(_x, _y, _text); }
++  virtual void _drawChinese(float _x, float _y, const std::string &_text) {}
++
++  static void drawVDottedLine(float _x, float _y, float _h) { get()->_drawVDottedLine(_x, _y, _h); }
++  virtual void _drawVDottedLine(float _x, float _y, float _h) {}
++
++  static void drawHDottedLine(float _x, float _y, float _l) { get()->_drawHDottedLine(_x, _y, _l); }
++  virtual void _drawHDottedLine(float _x, float _y, float _l) {}
++
++  static void drawVLine(float _x, float _y, float _h) { get()->_drawVLine(_x, _y, _h); }
++  virtual void _drawVLine(float _x, float _y, float _h) {}
++
++  static void drawHLine(float _x, float _y, float _l) { get()->_drawHLine(_x, _y, _l); }
++  virtual void _drawHLine(float _x, float _y, float _l) {}
++
++  static void drawBMP(float _x, float _y, float _w, float _h, const unsigned char *_bitMap) {
++    get()->_drawBMP(_x, _y, _w, _h, _bitMap);
++  }
++  virtual void _drawBMP(float _x, float _y, float _w, float _h, const unsigned char *_bitMap) {}
++
++  static void drawBox(float _x, float _y, float _w, float _h) { get()->_drawBox(_x, _y, _w, _h); }
++  virtual void _drawBox(float _x, float _y, float _w, float _h) {}
++
++  static void drawRBox(float _x, float _y, float _w, float _h, float _r) {
++    get()->_drawRBox(_x, _y, _w, _h, _r);
++  }
++  virtual void _drawRBox(float _x, float _y, float _w, float _h, float _r) {}
++
++  static void drawFrame(float _x, float _y, float _w, float _h) { get()->_drawFrame(_x, _y, _w, _h); }
++  virtual void _drawFrame(float _x, float _y, float _w, float _h) {}
++
++  static void drawRFrame(float _x, float _y, float _w, float _h, float _r) {
++    get()->_drawRFrame(_x, _y, _w, _h, _r);
++  }
++  virtual void _drawRFrame(float _x, float _y, float _w, float _h, float _r) {}
++
++  static void printInfo(std::string _msg) { get()->_printInfo(std::move(_msg)); }
++  virtual void _printInfo(std::string _msg);
++
++public:
++  static void delay(unsigned long _mill) { get()->_delay(_mill); }
++  virtual void _delay(unsigned long _mill) {}
++
++  static unsigned long millis() { return get()->_millis(); }
++  virtual unsigned long _millis() { return 0; }
++
++  static unsigned long getTick() { return get()->_getTick(); }
++  virtual unsigned long _getTick() { return 0; }
++
++  static unsigned long getRandomSeed() { return get()->_getRandomSeed(); }
++  virtual unsigned long _getRandomSeed() { return 0; }
++
++public:
++  static void beep(float _freq) { get()->_beep(_freq); }
++  virtual void _beep(float _freq) {}
++
++  static void beepStop() { get()->_beepStop(); }
++  virtual void _beepStop() {}
++
++  static void setBeepVol(unsigned char _vol) { get()->_setBeepVol(_vol); }
++  virtual void _setBeepVol(unsigned char _vol) {}
++
++  static void screenOn() { get()->_screenOn(); }
++  virtual void _screenOn() {}
++
++  static void screenOff() { get()->_screenOff(); }
++  virtual void _screenOff() {}
++
++public:
++  key::KEY_ACTION key[key::KEY_NUM] = {static_cast<key::keyAction>(0)};
++  key::KEY_TYPE keyFlag { static_cast<key::KEY_TYPE>(0) };
++
++public:
++  static bool getKey(key::KEY_INDEX _keyIndex) { return get()->_getKey(_keyIndex); }
++  virtual bool _getKey(key::KEY_INDEX _keyIndex) { return false; }
++
++  static bool getAnyKey() { return get()->_getAnyKey(); }
++  virtual bool _getAnyKey();
++
++  static key::KEY_ACTION *getKeyMap() { return get()->key; }
++  static key::KEY_TYPE *getKeyFlag() { return &get()->keyFlag; }
++
++public:
++  static void keyScan() { get()->_keyScan(); }
++  virtual void _keyScan();
++
++  static void keyTest() { return get()->_keyTest(); }
++  virtual void _keyTest();
++
++public:
++  static sys::config &getSystemConfig() { return get()->config; }
++  static void setSystemConfig(sys::config _cfg) { get()->config = _cfg; }
++
++  static void updateConfig() { get()->_updateConfig(); }
++  virtual void _updateConfig() {}
++};
++
++#endif //ASTRA_CORE_SRC_HAL_HAL_H_
+diff --git a/lib/AstraUI/include/astra/item.h b/lib/AstraUI/include/astra/item.h
+new file mode 100644
+index 00000000..0ccca590
+--- /dev/null
++++ b/lib/AstraUI/include/astra/item.h
+@@ -0,0 +1,51 @@
++//
++// Created by Fir on 2024/4/14 014.
++//
++#pragma once
++#ifndef ASTRA_CORE_SRC_ASTRA_UI_ITEM_ITEM_H_
++#define ASTRA_CORE_SRC_ASTRA_UI_ITEM_ITEM_H_
++
++#include <cmath>
++#include "astra/hal.h"
++#include "astra/config.h"
++
++namespace astra {
++
++class Item {
++protected:
++  sys::config systemConfig;
++  config astraConfig;
++
++  inline void updateConfig() {
++    this->systemConfig = HAL::getSystemConfig();
++    this->astraConfig = getUIConfig();
++  }
++};
++
++class Animation {
++public:
++  static void entry();
++  static void exit();
++  static void blur();
++  static void move(float *_pos, float _posTrg, float _speed);
++};
++
++inline void Animation::entry() { }
++
++inline void Animation::exit() {
++  // 未实现：直接空操作，避免阻塞主循环。
++}
++
++inline void Animation::blur() {
++  // 未实现：空操作。
++}
++
++inline void Animation::move(float *_pos, float _posTrg, float _speed) {
++  if (*_pos != _posTrg) {
++    if (std::fabs(*_pos - _posTrg) <= 1.0f) *_pos = _posTrg;
++    else *_pos += (_posTrg - *_pos) / ((100 - _speed) / 1.0f);
++  }
++}
++}
++
++#endif //ASTRA_CORE_SRC_ASTRA_UI_ITEM_ITEM_H_
+diff --git a/lib/AstraUI/include/astra/launcher.h b/lib/AstraUI/include/astra/launcher.h
+new file mode 100644
+index 00000000..832d1a32
+--- /dev/null
++++ b/lib/AstraUI/include/astra/launcher.h
+@@ -0,0 +1,54 @@
++//
++// Created by Fir on 2024/2/2.
++// 移植版：拆分为 inputStep / renderStep，toast 非阻塞，6 键路由，支持 ActionItem。
++
++#pragma once
++#ifndef ASTRA_CORE_SRC_ASTRA_UI_SCHEDULER_H_
++#define ASTRA_CORE_SRC_ASTRA_UI_SCHEDULER_H_
++
++#include "astra/menu.h"
++#include "astra/selector.h"
++#include "astra/camera.h"
++#include <string>
++
++namespace astra {
++
++class Launcher {
++private:
++  Menu* currentMenu;
++  Widget* currentWidget = nullptr;
++  Selector* selector;
++  Camera* camera;
++
++  Menu* rootMenu = nullptr;
++
++  // 非阻塞 toast 状态
++  bool popActive = false;
++  std::string popMsg;
++  uint32_t popStartTime = 0;
++  uint32_t popDuration = 900;
++  float popY = 0;
++  float popYTrg = 0;
++  bool popExiting = false;
++
++public:
++  void popInfo(std::string _info, uint16_t _time);
++
++  void init(Menu* _rootPage);
++
++  ~Launcher();
++
++  bool open();
++  bool close();
++
++  bool atRoot();  // 当前是否在根页（用于屏幕层判断 B1 退出菜单）
++
++  void inputStep();   // 只处理按键与状态推进
++  void renderStep();  // 只渲染（含 toast 叠加）
++
++  Camera* getCamera() { return camera; }
++  Selector* getSelector() { return selector; }
++};
++}
++
++#endif //ASTRA_CORE_SRC_ASTRA_UI_SCHEDULER_H_
+diff --git a/lib/AstraUI/include/astra/menu.h b/lib/AstraUI/include/astra/menu.h
+new file mode 100644
+index 00000000..e038ccdd
+--- /dev/null
++++ b/lib/AstraUI/include/astra/menu.h
+@@ -0,0 +1,143 @@
++//
++// Created by Fir on 2024/1/21.
++//
++
++#pragma once
++#ifndef ASTRA_ASTRA__H
++#define ASTRA_ASTRA__H
++
++#include "cstdint"
++#include "string"
++#include <vector>
++#include <functional>
++#include "astra/item.h"
++#include "astra/widget.h"
++
++namespace astra {
++
++class Menu : public Item {
++public:
++  [[nodiscard]] virtual std::string getType() const { return "Base"; }
++
++public:
++  std::vector<float> cameraPosMemory = {};
++  void rememberCameraPos(const std::vector<float> &_camera) {
++    cameraPosMemory = _camera;
++    cameraPosMemoryFlag = true;
++  }
++  [[nodiscard]] std::vector<float> getCameraMemoryPos() const { return cameraPosMemory; }
++  void resetCameraMemoryPos() { cameraPosMemory = {0, 0}; }
++  bool cameraPosMemoryFlag = false;
++
++public:
++  typedef struct Position {
++    float x, xTrg;
++    float y, yTrg;
++  } Position;
++
++  Position position{};
++
++  [[nodiscard]] Position getItemPosition(unsigned char _index) const;
++  virtual void childPosInit(const std::vector<float> &_camera) {}
++  virtual void forePosInit() {}
++
++public:
++  std::string title;
++  std::vector<unsigned char> pic;
++
++  // 编辑后的回写钩子（由屏幕层设置，用于把 backing 值写回 Storage）。
++  std::function<void()> sync;
++
++protected:
++  std::vector<unsigned char> picDefault = {};
++  [[nodiscard]] std::vector<unsigned char> generateDefaultPic();
++
++public:
++  Menu *parent{};
++  std::vector<Menu *> childMenu;
++  std::vector<Widget *> childWidget;
++  unsigned char selectIndex{};
++
++  [[nodiscard]] unsigned char getItemNum() const;
++  [[nodiscard]] Menu *getNextMenu() const;
++  [[nodiscard]] Menu *getPreview() const;
++
++public:
++  bool initFlag = false;
++
++public:
++  Menu() = default;
++  ~Menu() = default;
++
++public:
++  void init(const std::vector<float>& _camera);
++  void deInit();
++
++public:
++  virtual void render(const std::vector<float> &_camera) {}
++
++public:
++  bool addItem(Menu *_page);
++  bool addItem(Menu *_page, Widget* _anyWidget);
++};
++
++class List : public Menu {
++public:
++  [[nodiscard]] std::string getType() const override { return "List"; }
++
++public:
++  typedef struct PositionForeground {
++    float hBar, hBarTrg;
++    float xBar, xBarTrg;
++  } PositionForeground;
++
++  PositionForeground positionForeground{};
++
++public:
++  void childPosInit(const std::vector<float> &_camera) override;
++  void forePosInit() override;
++
++  List();
++  explicit List(const std::string &_title);
++  explicit List(const std::vector<unsigned char>& _pic);
++  List(const std::string &_title, const std::vector<unsigned char>& _pic);
++
++public:
++  std::vector<unsigned char> boundary = {0, static_cast<unsigned char>(systemConfig.screenHeight / astraConfig.listLineHeight - 1)};
++  [[nodiscard]] std::vector<unsigned char> getBoundary() const { return boundary; }
++  void refreshBoundary(unsigned char _l, unsigned char _r) { boundary = {_l, _r}; }
++
++public:
++  void render(const std::vector<float> &_camera) override;
++};
++
++class Tile : public Menu {
++public:
++  [[nodiscard]] std::string getType() const override { return "Tile"; }
++
++public:
++  typedef struct PositionForeground {
++    float wBar, wBarTrg;
++    float yBar, yBarTrg;
++    float yArrow, yArrowTrg;
++    float yDottedLine, yDottedLineTrg;
++  } PositionForeground;
++
++  PositionForeground positionForeground{};
++
++public:
++  void childPosInit(const std::vector<float> &_camera) override;
++  void forePosInit() override;
++
++  Tile();
++  explicit Tile(const std::string &_title);
++  explicit Tile(const std::vector<unsigned char> &_pic);
++  Tile(const std::string &_title, const std::vector<unsigned char> &_pic);
++
++public:
++  void render(const std::vector<float> &_camera) override;
++};
++
++}
++
++#endif //ASTRA_ASTRA__H
+diff --git a/lib/AstraUI/include/astra/selector.h b/lib/AstraUI/include/astra/selector.h
+new file mode 100644
+index 00000000..c269cccf
+--- /dev/null
++++ b/lib/AstraUI/include/astra/selector.h
+@@ -0,0 +1,43 @@
++//
++// Created by Fir on 2024/4/14 014.
++//
++
++#pragma once
++#ifndef ASTRA_CORE_SRC_ASTRA_UI_ELEMENT_SELECTOR_SELECTOR_H_
++#define ASTRA_CORE_SRC_ASTRA_UI_ELEMENT_SELECTOR_SELECTOR_H_
++#include "astra/menu.h"
++
++namespace astra {
++class Selector : public Item {
++private:
++  Menu *menu;
++
++public:
++  float x, xTrg;
++  float y, yTrg;
++
++  /*LIST*/
++  float w, wTrg;
++  float h, hTrg;
++  /*LIST*/
++
++  /*TILE*/
++  float yText, yTextTrg;
++  /*TILE*/
++
++  Selector() = default;
++
++  std::vector<float> getPosition();
++  void setPosition();
++
++  void go(unsigned char _index);
++  void goNext();
++  void goPreview();
++
++  bool inject(Menu *_menu);
++  bool destroy();
++
++  void render(std::vector<float> _camera);
++};
++}
++#endif //ASTRA_CORE_SRC_ASTRA_UI_ELEMENT_SELECTOR_SELECTOR_H_
+diff --git a/lib/AstraUI/include/astra/widget.h b/lib/AstraUI/include/astra/widget.h
+new file mode 100644
+index 00000000..3c6c9f09
+--- /dev/null
++++ b/lib/AstraUI/include/astra/widget.h
+@@ -0,0 +1,151 @@
++#pragma once
++#ifndef ASTRA_WIDGET__H
++#define ASTRA_WIDGET__H
++
++#include "astra/item.h"
++
++namespace astra {
++
++class Widget : public Item {
++public:
++  void *parent{};
++  unsigned char value{};
++
++public:
++  [[nodiscard]] virtual std::string getType() const { return "base"; }
++
++public:
++  Widget() = default;
++
++public:
++  virtual void init() {}
++  virtual void deInit() {}
++
++public:
++  // 绘制控件在列表中的指示器
++  virtual void renderIndicator(float _x, float _y, const std::vector<float> &_camera) {}
++
++public:
++  virtual void render(const std::vector<float> &_camera) {}
++};
++
++class CheckBox : public Widget {
++public:
++  [[nodiscard]] std::string getType() const override { return "CheckBox"; }
++
++private:
++  bool isCheck;
++  bool& refValue;  // 绑定外部 backing 变量，toggle/check/uncheck 同步写回
++
++public:
++  explicit CheckBox(bool &_value);
++
++public:
++  bool check();
++  bool uncheck();
++  bool toggle();
++
++public:
++  void init() override;
++  void deInit() override;
++
++public:
++  void renderIndicator(float _x, float _y, const std::vector<float> &_camera) override;
++
++public:
++  void render(const std::vector<float> &_camera) override;
++};
++
++class PopUp : public Widget {
++public:
++  [[nodiscard]] std::string getType() const override { return "PopUp"; }
++
++public:
++  typedef struct Position {
++    float x, xTrg;
++    float y, yTrg;
++  } Position;
++
++  Position position{};
++
++private:
++  std::string title;
++  std::vector<std::string> options;
++  unsigned char direction;
++  unsigned char boundary;
++  unsigned char& refValue;  // 绑定外部 backing 变量
++
++public:
++  // 0: left 1: top 2: right 3: bottom
++  PopUp(unsigned char _direction,
++        const std::string &_title,
++        const std::vector<std::string> &_options,
++        unsigned char &_value);
++
++public:
++  void selectNext();
++  void selectPreview();
++  bool select(unsigned char _index);
++  [[nodiscard]] const std::string &getCurrentText() const;
++
++public:
++  void init() override;
++  void deInit() override;
++
++public:
++  void renderIndicator(float _x, float _y, const std::vector<float> &_camera) override;
++
++public:
++  void render(const std::vector<float> &_camera) override;
++};
++
++class Slider : public Widget {
++public:
++  [[nodiscard]] std::string getType() const override { return "Slider"; }
++
++public:
++  typedef struct Position {
++    float x, xTrg;
++    float y, yTrg;
++
++    float l, lTrg;
++  } Position;
++
++  Position position{};
++
++private:
++  std::string title;
++  unsigned char maxLength;
++  unsigned char min;
++  unsigned char max;
++  unsigned char step;
++
++  bool valueOverflow;
++
++  unsigned char lengthIndicator;
++  unsigned char& refValue;  // 绑定外部 backing 变量
++
++public:
++  Slider(const std::string &_title,
++         unsigned char _min,
++         unsigned char _max,
++         unsigned char _step,
++         unsigned char &_value);
++
++public:
++  unsigned char add();
++  unsigned char sub();
++
++public:
++  void init() override;
++  void deInit() override;
++
++public:
++  void renderIndicator(float _x, float _y, const std::vector<float> &_camera) override;
++
++public:
++  void render(const std::vector<float> &_camera) override;
++};
++}
++
++#endif //ASTRA_WIDGET__H
+diff --git a/lib/AstraUI/src/action_item.cpp b/lib/AstraUI/src/action_item.cpp
+new file mode 100644
+index 00000000..7be998bd
+--- /dev/null
++++ b/lib/AstraUI/src/action_item.cpp
+@@ -0,0 +1,5 @@
++#include "astra/action_item.h"
++
++namespace astra {
++// ActionItem 实现在头文件内联（构造/run），此处预留编译单元。
++}
+diff --git a/lib/AstraUI/src/camera.cpp b/lib/AstraUI/src/camera.cpp
+new file mode 100644
+index 00000000..e88e559b
+--- /dev/null
++++ b/lib/AstraUI/src/camera.cpp
+@@ -0,0 +1,136 @@
++//
++// Created by Fir on 2024/4/14 014.
++//
++
++#include "astra/camera.h"
++
++#include <cmath>
++
++namespace astra {
++Camera::Camera() {
++  this->xInit = 0;
++  this->yInit = 0;
++
++  this->x = 0;
++  this->y = 0;
++
++  this->xTrg = 0;
++  this->yTrg = 0;
++}
++
++Camera::Camera(float _x, float _y) {
++  this->xInit = 0 - _x;
++  this->yInit = 0 - _y;
++
++  this->x = 0 - _x;
++  this->y = 0 - _y;
++
++  this->xTrg = 0 - _x;
++  this->yTrg = 0 - _y;
++}
++
++unsigned char Camera::outOfView(float _x, float _y) {
++  if (_x < 0 - this->x | _y < 0 - this->y) return 1;
++  if (_x > (0 - this->x) + systemConfig.screenWeight - 1 | _y > (0 - this->y) + systemConfig.screenHeight - 1) return 2;
++  return 0;
++}
++
++std::vector<float> Camera::getPosition() {
++  return {x, y};
++}
++
++std::vector<float> Camera::getPositionTrg() {
++  return {xTrg, yTrg};
++}
++
++void Camera::init(const std::string &_type) {
++  if (_type == "List") {
++    this->goDirect(0, static_cast<float>((0 - sys::getSystemConfig().screenHeight) * 10));
++  }
++  else if (_type == "Tile") {
++    this->goDirect(static_cast<float>((0 - sys::getSystemConfig().screenWeight) * 10), 0);
++  }
++}
++
++void Camera::go(float _x, float _y) {
++  this->xTrg = 0 - _x;
++  this->yTrg = 0 - _y;
++}
++
++void Camera::go(const std::vector<float> &_pos) {
++  this->xTrg = 0 - _pos[0];
++  this->yTrg = 0 - _pos[1];
++}
++
++void Camera::goDirect(float _x, float _y) {
++  this->x = 0 - _x;
++  this->y = 0 - _y;
++  this->xTrg = 0 - _x;
++  this->yTrg = 0 - _y;
++}
++
++void Camera::move(float _x, float _y) {
++  this->xTrg -= _x;
++  this->yTrg -= _y;
++}
++
++void Camera::moveDirect(float _x, float _y) {
++  this->x -= _x;
++  this->y -= _y;
++  this->xTrg -= _x;
++  this->yTrg -= _y;
++}
++
++void Camera::goToListItemRolling(List *_menu) {
++  static const unsigned char maxItemPerPage = systemConfig.screenHeight / astraConfig.listLineHeight;
++
++  if (!_menu->initFlag) {
++    go(0,0);
++    _menu->initFlag = true;
++  }
++
++  if (_menu->selectIndex < _menu->getBoundary()[0]) {
++    move(0, (_menu->selectIndex - _menu->getBoundary()[0]) * astraConfig.listLineHeight);
++    _menu->refreshBoundary(_menu->selectIndex, _menu->selectIndex + maxItemPerPage - 1);
++    return;
++  }
++  else if (_menu->selectIndex > _menu->getBoundary()[1]) {
++    move(0, (_menu->selectIndex - _menu->getBoundary()[1]) * astraConfig.listLineHeight);
++    _menu->refreshBoundary(_menu->selectIndex - maxItemPerPage + 1, _menu->selectIndex);
++    return;
++  }
++  else return;
++}
++
++void Camera::goToTileItem(unsigned char _index) {
++  go(_index * (astraConfig.tilePicWidth + astraConfig.tilePicMargin), 0);
++}
++
++void Camera::reset() {
++  go(this->xInit, this->yInit);
++}
++
++void Camera::resetDirect() {
++  goDirect(this->xInit, this->yInit);
++}
++
++void Camera::render() {
++  Animation::move(&this->x, this->xTrg, astraConfig.cameraAnimationSpeed);
++  Animation::move(&this->y, this->yTrg, astraConfig.cameraAnimationSpeed);
++}
++
++void Camera::update(Menu *_menu, Selector *_selector) {
++  (void)_selector;
++
++  if (_menu->cameraPosMemoryFlag) {
++    go(0 - _menu->getCameraMemoryPos()[0], 0 - _menu->getCameraMemoryPos()[1]);
++    _menu->cameraPosMemoryFlag = false;
++    _menu->resetCameraMemoryPos();
++  }
++
++  if (_menu->getType() == "List") goToListItemRolling(static_cast<List*>(_menu));
++  else if (_menu->getType() == "Tile") goToTileItem(_menu->selectIndex);
++
++  this->render();
++}
++}
+diff --git a/lib/AstraUI/src/hal.cpp b/lib/AstraUI/src/hal.cpp
+new file mode 100644
+index 00000000..79b3f9c2
+--- /dev/null
++++ b/lib/AstraUI/src/hal.cpp
+@@ -0,0 +1,52 @@
++//
++// Created by Fir on 2024/2/8.
++// 移植版：默认 _keyScan 为空（由 HALPico 实现），去除对 KEY_0/KEY_1 的引用。
++
++#include <cstring>
++#include "astra/hal.h"
++
++HAL *HAL::hal = nullptr;
++
++HAL *HAL::get() {
++  return hal;
++}
++
++bool HAL::check() {
++  return hal != nullptr;
++}
++
++bool HAL::inject(HAL *_hal) {
++  if (_hal == nullptr) {
++    return false;
++  }
++
++  _hal->init();
++  hal = _hal;
++  return true;
++}
++
++void HAL::destroy() {
++  if (hal == nullptr) return;
++
++  delete hal;
++  hal = nullptr;
++}
++
++void HAL::_printInfo(std::string _msg) {
++  // 移植版：不使用屏幕日志，空实现。
++  (void)_msg;
++}
++
++bool HAL::_getAnyKey() {
++  for (int i = 0; i < key::KEY_NUM; i++) {
++    if (getKey(static_cast<key::KEY_INDEX>(i))) return true;
++  }
++  return false;
++}
++
++// 默认按键扫描：HALPico 会覆盖此方法。
++void HAL::_keyScan() {
++}
++
++void HAL::_keyTest() {
++}
+diff --git a/lib/AstraUI/src/launcher.cpp b/lib/AstraUI/src/launcher.cpp
+new file mode 100644
+index 00000000..8022ec70
+--- /dev/null
++++ b/lib/AstraUI/src/launcher.cpp
+@@ -0,0 +1,177 @@
++//
++// Created by Fir on 2024/2/2.
++// 移植版：非阻塞 toast、6 键路由、ActionItem、input/render 拆分。
++
++#include "astra/launcher.h"
++#include "astra/action_item.h"
++
++namespace astra {
++
++void Launcher::popInfo(std::string _info, uint16_t _time) {
++  popMsg = std::move(_info);
++  popDuration = _time;
++  popStartTime = HAL::millis();
++  popActive = true;
++  popExiting = false;
++
++  float hPop = (float)HAL::getFontHeight() + 2 * getUIConfig().popMargin;
++  popY = 0 - hPop - 8;
++  popYTrg = (HAL::getSystemConfig().screenHeight - hPop) / 3;
++}
++
++void Launcher::init(Menu *_rootPage) {
++  currentMenu = _rootPage;
++  rootMenu = _rootPage;
++
++  camera = new Camera(0, 0);
++  _rootPage->childPosInit(camera->getPosition());
++
++  selector = new Selector();
++  selector->inject(_rootPage);
++
++  camera->init(_rootPage->getType());
++}
++
++Launcher::~Launcher() {
++  delete camera;
++  delete selector;
++  camera = nullptr;
++  selector = nullptr;
++}
++
++bool Launcher::open() {
++  Menu *next = currentMenu->getNextMenu();
++  if (next == nullptr) return false;
++  // ActionItem 不进入子页
++  if (next->getType() == "Action") return false;
++
++  currentMenu->rememberCameraPos(camera->getPositionTrg());
++  currentMenu = next;
++  currentMenu->forePosInit();
++  currentMenu->childPosInit(camera->getPosition());
++
++  selector->inject(currentMenu);
++
++  return true;
++}
++
++bool Launcher::close() {
++  if (currentMenu->getPreview() == nullptr) return false;
++
++  currentMenu->rememberCameraPos(camera->getPositionTrg());
++  currentMenu = currentMenu->getPreview();
++  currentMenu->forePosInit();
++  currentMenu->childPosInit(camera->getPosition());
++
++  selector->inject(currentMenu);
++
++  return true;
++}
++
++bool Launcher::atRoot() {
++  return currentMenu == rootMenu;
++}
++
++void Launcher::inputStep() {
++  HAL::keyScan();
++
++  if (*HAL::getKeyFlag() != key::KEY_PRESSED) return;
++  *HAL::getKeyFlag() = key::KEY_NOT_PRESSED;
++
++  auto *km = HAL::getKeyMap();
++
++  for (unsigned char i = 0; i < key::KEY_NUM; i++) {
++    if (km[i] != key::CLICK) continue;
++
++    switch (i) {
++      case key::KEY_UP:
++        selector->goPreview();
++        break;
++      case key::KEY_DOWN:
++        selector->goNext();
++        break;
++      case key::KEY_LEFT:
++        if (currentMenu->getType() == "Tile") {
++          selector->goPreview();
++        } else {
++          Menu *item = currentMenu->getNextMenu();
++          if (item && !item->childWidget.empty()) {
++            Widget *w = item->childWidget[0];
++            std::string wt = w->getType();
++            if (wt == "CheckBox") static_cast<CheckBox*>(w)->toggle();
++            else if (wt == "PopUp") static_cast<PopUp*>(w)->selectPreview();
++            else if (wt == "Slider") static_cast<Slider*>(w)->sub();
++            if (item->sync) item->sync();
++          }
++        }
++        break;
++      case key::KEY_RIGHT:
++        if (currentMenu->getType() == "Tile") {
++          selector->goNext();
++        } else {
++          Menu *item = currentMenu->getNextMenu();
++          if (item && !item->childWidget.empty()) {
++            Widget *w = item->childWidget[0];
++            std::string wt = w->getType();
++            if (wt == "CheckBox") static_cast<CheckBox*>(w)->toggle();
++            else if (wt == "PopUp") static_cast<PopUp*>(w)->selectNext();
++            else if (wt == "Slider") static_cast<Slider*>(w)->add();
++            if (item->sync) item->sync();
++          }
++        }
++        break;
++      case key::KEY_B2: {
++        Menu *item = currentMenu->getNextMenu();
++        if (item == nullptr) break;
++        if (item->getType() == "Action") {
++          auto *act = static_cast<ActionItem*>(item);
++          act->run();
++          if (!act->getInfo().empty()) popInfo(act->getInfo(), 900);
++        } else {
++          open();
++        }
++        break;
++      }
++      case key::KEY_B1:
++        close();
++        break;
++      default: break;
++    }
++  }
++
++  std::fill(HAL::getKeyMap(), HAL::getKeyMap() + key::KEY_NUM, key::INVALID);
++  *HAL::getKeyFlag() = key::KEY_NOT_PRESSED;
++}
++
++void Launcher::renderStep() {
++  currentMenu->render(camera->getPosition());
++  selector->render(camera->getPosition());
++  camera->update(currentMenu, selector);
++
++  // 非阻塞 toast 叠加
++  if (popActive) {
++    float hPop = (float)HAL::getFontHeight() + 2 * getUIConfig().popMargin;
++    float wPop = (float)HAL::getFontWidth(popMsg) + 2 * getUIConfig().popMargin;
++    float xPop = (HAL::getSystemConfig().screenWeight - wPop) / 2;
++
++    if (!popExiting && HAL::millis() - popStartTime >= popDuration) {
++      popExiting = true;
++      popYTrg = 0 - hPop - 8;
++    }
++
++    Animation::move(&popY, popYTrg, getUIConfig().popSpeed);
++
++    HAL::setDrawType(0);
++    HAL::drawRBox(xPop - 4, popY - 4, wPop + 8, hPop + 8, getUIConfig().popRadius + 2);
++    HAL::setDrawType(1);
++    HAL::drawRFrame(xPop - 1, popY - 1, wPop + 2, hPop + 2, getUIConfig().popRadius);
++    HAL::drawEnglish(xPop + getUIConfig().popMargin,
++                     popY + getUIConfig().popMargin + HAL::getFontHeight(),
++                     popMsg);
++
++    if (popExiting && popY == 0 - hPop - 8) {
++      popActive = false;
++    }
++  }
++}
++}
+diff --git a/lib/AstraUI/src/menu.cpp b/lib/AstraUI/src/menu.cpp
+new file mode 100644
+index 00000000..8e26d23b
+--- /dev/null
++++ b/lib/AstraUI/src/menu.cpp
+@@ -0,0 +1,277 @@
++//
++// Created by Fir on 2024/1/21.
++//
++
++#include "astra/menu.h"
++
++namespace astra {
++Menu::Position Menu::getItemPosition(unsigned char _index) const { return childMenu[_index]->position; }
++
++std::vector<unsigned char> Menu::generateDefaultPic() {
++  this->picDefault.resize(120, 0xFF);
++  return this->picDefault;
++}
++
++unsigned char Menu::getItemNum() const { return childMenu.size(); }
++
++Menu *Menu::getNextMenu() const { return childMenu[selectIndex]; }
++
++Menu *Menu::getPreview() const { return parent; }
++
++void Menu::init(const std::vector<float>& _camera) { }
++
++void Menu::deInit() {
++  // 不调用 Animation::exit()（空实现且可能阻塞）。
++}
++
++bool Menu::addItem(Menu *_page) {
++  if (_page == nullptr) return false;
++  if (!_page->childWidget.empty()) return false;
++
++  _page->parent = this;
++  this->childMenu.push_back(_page);
++  this->forePosInit();
++  return true;
++}
++
++bool Menu::addItem(Menu *_page, Widget *_anyWidget) {
++  if (_anyWidget == nullptr) return false;
++  if (this->addItem(_page)) {
++    _page->childWidget.push_back(_anyWidget);
++    _anyWidget->parent = _page;
++    _anyWidget->init();
++    return true;
++  } else return false;
++}
++
++void List::childPosInit(const std::vector<float> &_camera) {
++  unsigned char _index = 0;
++
++  for (auto _iter : childMenu) {
++    _iter->position.x = astraConfig.listTextMargin;
++    _iter->position.xTrg = astraConfig.listTextMargin;
++    _iter->position.yTrg = _index * astraConfig.listLineHeight;
++
++    _index++;
++
++    if (_iter->parent->parent == nullptr) { _iter->position.y = _iter->position.yTrg; continue; }
++    if (astraConfig.listUnfold) { _iter->position.y = _camera[1] - astraConfig.listLineHeight; continue; }
++  }
++}
++
++void List::forePosInit() {
++  positionForeground.xBarTrg = systemConfig.screenWeight - astraConfig.listBarWeight;
++
++  if (astraConfig.listUnfold) positionForeground.hBar = 0;
++  else positionForeground.hBar = positionForeground.hBarTrg;
++
++  positionForeground.xBar = systemConfig.screenWeight;
++}
++
++List::List() {
++  this->title = "-unknown";
++  this->pic = generateDefaultPic();
++  this->selectIndex = 0;
++  this->parent = nullptr;
++  this->childMenu.clear();
++  this->childWidget.clear();
++  this->position = {};
++  this->positionForeground = {};
++}
++
++List::List(const std::string &_title) {
++  this->title = _title;
++  this->pic = generateDefaultPic();
++  this->selectIndex = 0;
++  this->parent = nullptr;
++  this->childMenu.clear();
++  this->childWidget.clear();
++  this->position = {};
++  this->positionForeground = {};
++}
++
++List::List(const std::vector<unsigned char> &_pic) {
++  this->title = "-unknown";
++  this->pic = _pic;
++  this->selectIndex = 0;
++  this->parent = nullptr;
++  this->childMenu.clear();
++  this->childWidget.clear();
++  this->position = {};
++  this->positionForeground = {};
++}
++
++List::List(const std::string &_title, const std::vector<unsigned char> &_pic) {
++  this->title = _title;
++  this->pic = _pic;
++  this->selectIndex = 0;
++  this->parent = nullptr;
++  this->childMenu.clear();
++  this->childWidget.clear();
++  this->position = {};
++  this->positionForeground = {};
++}
++
++void List::render(const std::vector<float> &_camera) {
++  Item::updateConfig();
++
++  HAL::setDrawType(1);
++  for (auto _iter : childMenu) {
++    if (!_iter->childWidget.empty()) {
++      for (auto _widget : _iter->childWidget) {
++        _widget->renderIndicator(
++            systemConfig.screenWeight - astraConfig.checkBoxRightMargin - astraConfig.checkBoxWidth,
++            _iter->position.y + astraConfig.checkBoxTopMargin,
++            _camera);
++      }
++    }
++    HAL::drawChinese(_iter->position.x + _camera[0],
++                     _iter->position.y + astraConfig.listTextHeight +
++                     astraConfig.listTextMargin + _camera[1],
++                     _iter->title);
++    Animation::move(&_iter->position.y, _iter->position.yTrg, astraConfig.listAnimationSpeed);
++  }
++
++  positionForeground.hBarTrg = (selectIndex + 1) * ((float) systemConfig.screenHeight / getItemNum());
++  HAL::drawHLine(systemConfig.screenWeight - astraConfig.listBarWeight, 0, astraConfig.listBarWeight);
++  HAL::drawHLine(systemConfig.screenWeight - astraConfig.listBarWeight,
++                 systemConfig.screenHeight - 1,
++                 astraConfig.listBarWeight);
++  HAL::drawVLine(systemConfig.screenWeight - (unsigned char)ceilf((float) astraConfig.listBarWeight / 2.0f),
++                 0,
++                 systemConfig.screenHeight);
++  HAL::drawBox(positionForeground.xBar, 0, astraConfig.listBarWeight, positionForeground.hBar);
++
++  if (astraConfig.lightMode) {
++    HAL::setDrawType(2);
++    HAL::drawBox(0, 0, systemConfig.screenWeight, systemConfig.screenHeight);
++    HAL::setDrawType(1);
++  }
++
++  Animation::move(&positionForeground.hBar, positionForeground.hBarTrg, astraConfig.listAnimationSpeed);
++  Animation::move(&positionForeground.xBar, positionForeground.xBarTrg, astraConfig.listAnimationSpeed);
++}
++
++void Tile::childPosInit(const std::vector<float> &_camera) {
++  unsigned char _index = 0;
++
++  for (auto _iter : childMenu) {
++    _iter->position.y = 0;
++    _iter->position.xTrg = systemConfig.screenWeight / 2 - astraConfig.tilePicWidth / 2 +
++                           (_index) * (astraConfig.tilePicMargin + astraConfig.tilePicWidth);
++    _iter->position.yTrg = astraConfig.tilePicTopMargin;
++
++    _index++;
++
++    if (_iter->parent->parent == nullptr) { _iter->position.x = _iter->position.xTrg; continue; }
++    if (astraConfig.tileUnfold) { _iter->position.x = _camera[0] - astraConfig.tilePicWidth; continue; }
++  }
++}
++
++void Tile::forePosInit() {
++  positionForeground.yBarTrg = 0;
++  positionForeground.yArrowTrg = systemConfig.screenHeight - astraConfig.tileArrowBottomMargin;
++  positionForeground.yDottedLineTrg = systemConfig.screenHeight - astraConfig.tileDottedLineBottomMargin;
++
++  if (astraConfig.tileUnfold) positionForeground.wBar = 0;
++  else positionForeground.wBar = positionForeground.wBarTrg;
++
++  positionForeground.yArrow = systemConfig.screenHeight;
++  positionForeground.yDottedLine = systemConfig.screenHeight;
++
++  positionForeground.yBar = 0 - astraConfig.tileBarHeight;
++}
++
++Tile::Tile() {
++  this->title = "-unknown";
++  this->pic = generateDefaultPic();
++  this->selectIndex = 0;
++  this->parent = nullptr;
++  this->childMenu.clear();
++  this->childWidget.clear();
++  this->position = {};
++  this->positionForeground = {};
++}
++
++Tile::Tile(const std::string &_title) {
++  this->title = _title;
++  this->pic = generateDefaultPic();
++  this->selectIndex = 0;
++  this->parent = nullptr;
++  this->childMenu.clear();
++  this->childWidget.clear();
++  this->position = {};
++  this->positionForeground = {};
++}
++
++Tile::Tile(const std::vector<unsigned char> &_pic) {
++  this->title = "-unknown";
++  this->pic = _pic;
++  this->selectIndex = 0;
++  this->parent = nullptr;
++  this->childMenu.clear();
++  this->childWidget.clear();
++  this->position = {};
++  this->positionForeground = {};
++}
++
++Tile::Tile(const std::string &_title, const std::vector<unsigned char> &_pic) {
++  this->title = _title;
++  this->pic = _pic;
++  this->selectIndex = 0;
++  this->parent = nullptr;
++  this->childMenu.clear();
++  this->childWidget.clear();
++  this->position = {};
++  this->positionForeground = {};
++}
++
++void Tile::render(const std::vector<float> &_camera) {
++  Item::updateConfig();
++
++  HAL::setDrawType(1);
++  for (auto _iter : childMenu) {
++    HAL::drawBMP(_iter->position.x + _camera[0],
++                 astraConfig.tilePicTopMargin + _camera[1],
++                 astraConfig.tilePicWidth,
++                 astraConfig.tilePicHeight,
++                 _iter->pic.data());
++    Animation::move(&_iter->position.x,
++                    _iter->position.xTrg,
++                    astraConfig.tileAnimationSpeed);
++  }
++
++  positionForeground.wBarTrg = (selectIndex + 1) * ((float) systemConfig.screenWeight / getItemNum());
++  HAL::drawBox(0, positionForeground.yBar, positionForeground.wBar, astraConfig.tileBarHeight);
++
++  HAL::drawHLine(astraConfig.tileArrowMargin, positionForeground.yArrow, astraConfig.tileArrowWidth);
++  HAL::drawPixel(astraConfig.tileArrowMargin + 1, positionForeground.yArrow + 1);
++  HAL::drawPixel(astraConfig.tileArrowMargin + 2, positionForeground.yArrow + 2);
++  HAL::drawPixel(astraConfig.tileArrowMargin + 1, positionForeground.yArrow - 1);
++  HAL::drawPixel(astraConfig.tileArrowMargin + 2, positionForeground.yArrow - 2);
++
++  HAL::drawHLine(systemConfig.screenWeight - astraConfig.tileArrowWidth - astraConfig.tileArrowMargin,
++                 positionForeground.yArrow,
++                 astraConfig.tileArrowWidth);
++  HAL::drawPixel(systemConfig.screenWeight - astraConfig.tileArrowWidth, positionForeground.yArrow + 1);
++  HAL::drawPixel(systemConfig.screenWeight - astraConfig.tileArrowWidth - 1, positionForeground.yArrow + 2);
++  HAL::drawPixel(systemConfig.screenWeight - astraConfig.tileArrowWidth, positionForeground.yArrow - 1);
++  HAL::drawPixel(systemConfig.screenWeight - astraConfig.tileArrowWidth - 1, positionForeground.yArrow - 2);
++
++  HAL::drawHLine(astraConfig.tileBtnMargin, positionForeground.yArrow + 2, 9);
++  HAL::drawBox(astraConfig.tileBtnMargin + 2, positionForeground.yArrow + 2 - 4, 5, 4);
++
++  HAL::drawHLine(systemConfig.screenWeight - astraConfig.tileBtnMargin - 9, positionForeground.yArrow + 2, 9);
++  HAL::drawBox(systemConfig.screenWeight - astraConfig.tileBtnMargin - 9 + 2,
++               positionForeground.yArrow + 2 - 4,
++               5,
++               4);
++
++  HAL::drawHDottedLine(0, positionForeground.yDottedLine, systemConfig.screenWeight);
++
++  Animation::move(&positionForeground.yDottedLine, positionForeground.yDottedLineTrg, astraConfig.tileAnimationSpeed);
++  Animation::move(&positionForeground.yArrow, positionForeground.yArrowTrg, astraConfig.tileAnimationSpeed);
++  Animation::move(&positionForeground.wBar, positionForeground.wBarTrg, astraConfig.tileAnimationSpeed);
++  Animation::move(&positionForeground.yBar, positionForeground.yBarTrg, astraConfig.tileAnimationSpeed);
++}
++}
+diff --git a/lib/AstraUI/src/selector.cpp b/lib/AstraUI/src/selector.cpp
+new file mode 100644
+index 00000000..10f5312a
+--- /dev/null
++++ b/lib/AstraUI/src/selector.cpp
+@@ -0,0 +1,119 @@
++//
++// Created by Fir on 2024/4/14 014.
++//
++
++#include "astra/selector.h"
++
++namespace astra {
++
++void Selector::setPosition() {
++  if (menu->getType() == "Tile") {
++    xTrg = menu->childMenu[menu->selectIndex]->position.xTrg - astraConfig.tileSelectBoxMargin;
++    yTrg = menu->childMenu[menu->selectIndex]->position.yTrg - astraConfig.tileSelectBoxMargin;
++
++    yText = systemConfig.screenHeight;
++    yTextTrg = systemConfig.screenHeight - astraConfig.tileTextBottomMargin;
++
++    wTrg = astraConfig.tileSelectBoxWidth;
++    hTrg = astraConfig.tileSelectBoxHeight;
++  } else if (menu->getType() == "List") {
++    xTrg = menu->childMenu[menu->selectIndex]->position.xTrg - astraConfig.selectorMargin;
++    yTrg = menu->childMenu[menu->selectIndex]->position.yTrg;
++
++    wTrg = (float) HAL::getFontWidth(menu->childMenu[menu->selectIndex]->title) + astraConfig.listTextMargin * 2;
++    hTrg = astraConfig.listLineHeight;
++  }
++}
++
++void Selector::go(unsigned char _index) {
++  Item::updateConfig();
++
++  if (_index > menu->childMenu.size() - 1) return;
++  if (_index < 0) return;
++  menu->selectIndex = _index;
++
++  setPosition();
++}
++
++void Selector::goNext() {
++  if (this->menu->selectIndex == this->menu->childMenu.size() - 1) {
++    if (astraConfig.menuLoop) go(0);
++    else return;
++  } else go(menu->selectIndex + 1);
++  setPosition();
++}
++
++void Selector::goPreview() {
++  if (this->menu->selectIndex == 0) {
++    if (astraConfig.menuLoop) go(this->menu->childMenu.size() - 1);
++    else return;
++  } else go(menu->selectIndex - 1);
++  setPosition();
++}
++
++bool Selector::inject(Menu *_menu) {
++  if (_menu == nullptr) return false;
++
++  this->menu = _menu;
++
++  go(this->menu->selectIndex);
++
++  return true;
++}
++
++bool Selector::destroy() {
++  if (this->menu == nullptr) return false;
++
++  delete this->menu;
++  this->menu = nullptr;
++  return true;
++}
++
++void Selector::render(std::vector<float> _camera) {
++  Item::updateConfig();
++
++  Animation::move(&x, xTrg, astraConfig.selectorXAnimationSpeed);
++  Animation::move(&y, yTrg, astraConfig.selectorYAnimationSpeed);
++  Animation::move(&h, hTrg, astraConfig.selectorHeightAnimationSpeed);
++  Animation::move(&w, wTrg, astraConfig.selectorWidthAnimationSpeed);
++
++  if (menu->getType() == "Tile") {
++    Animation::move(&yText, yTextTrg, astraConfig.selectorYAnimationSpeed);
++
++    HAL::setDrawType(1);
++    HAL::drawChinese((systemConfig.screenWeight -
++                      (float) HAL::getFontWidth(menu->childMenu[menu->selectIndex]->title)) / 2.0f,
++                     yText + astraConfig.tileTitleHeight,
++                     menu->childMenu[menu->selectIndex]->title);
++
++    HAL::setDrawType(2);
++    HAL::drawPixel(x + _camera[0], y + _camera[1]);
++    HAL::drawHLine(x + _camera[0], y + _camera[1], astraConfig.tileSelectBoxLineLength + 1);
++    HAL::drawVLine(x + _camera[0], y + _camera[1], astraConfig.tileSelectBoxLineLength + 1);
++    HAL::drawHLine(x + _camera[0], y + _camera[1] + h - 1, astraConfig.tileSelectBoxLineLength + 1);
++    HAL::drawVLine(x + _camera[0],
++                   y + _camera[1] + h - astraConfig.tileSelectBoxLineLength - 1,
++                   astraConfig.tileSelectBoxLineLength);
++    HAL::drawHLine(x + _camera[0] + w - astraConfig.tileSelectBoxLineLength - 1,
++                   y + _camera[1],
++                   astraConfig.tileSelectBoxLineLength);
++    HAL::drawVLine(x + _camera[0] + w - 1, y + _camera[1], astraConfig.tileSelectBoxLineLength + 1);
++    HAL::drawHLine(x + _camera[0] + w - astraConfig.tileSelectBoxLineLength - 1,
++                   y + _camera[1] + h - 1,
++                   astraConfig.tileSelectBoxLineLength);
++    HAL::drawVLine(x + _camera[0] + w - 1,
++                   y + _camera[1] + h - astraConfig.tileSelectBoxLineLength - 1,
++                   astraConfig.tileSelectBoxLineLength);
++
++    HAL::drawPixel(x + _camera[0] + w - 1, y + _camera[1] + h - 1);
++  } else if (menu->getType() == "List") {
++    HAL::setDrawType(2);
++    HAL::drawRBox(x + _camera[0], y + _camera[1], w, h - 1, astraConfig.selectorRadius);
++    HAL::setDrawType(1);
++  }
++}
++
++std::vector<float> Selector::getPosition() {
++  return {xTrg, yTrg};
++}
++}
+diff --git a/lib/AstraUI/src/widget.cpp b/lib/AstraUI/src/widget.cpp
+new file mode 100644
+index 00000000..c4b8efac
+--- /dev/null
++++ b/lib/AstraUI/src/widget.cpp
+@@ -0,0 +1,199 @@
++#include "astra/widget.h"
++#include <cmath>
++#include <string>
++
++namespace astra {
++
++CheckBox::CheckBox(bool &_value) : refValue(_value) {
++  value = _value ? 1 : 0;
++  isCheck = _value;
++  this->parent = nullptr;
++}
++
++bool CheckBox::check() {
++  value = 1;
++  isCheck = true;
++  refValue = true;
++  return isCheck;
++}
++
++bool CheckBox::uncheck() {
++  value = 0;
++  isCheck = false;
++  refValue = false;
++  return isCheck;
++}
++
++bool CheckBox::toggle() {
++  value = !value;
++  isCheck = !isCheck;
++  refValue = isCheck;
++  return isCheck;
++}
++
++void CheckBox::init() {
++  isCheck = refValue;
++  value = isCheck ? 1 : 0;
++}
++
++void CheckBox::deInit() {
++  // 不执行 delete this；菜单树静态持有，由进程结束回收。
++}
++
++void CheckBox::renderIndicator(float _x, float _y, const std::vector<float> &_camera) {
++  Item::updateConfig();
++  HAL::setDrawType(1);
++  HAL::drawRFrame(_x + _camera[0],
++                  _y + _camera[1],
++                  astraConfig.checkBoxWidth,
++                  astraConfig.checkBoxHeight,
++                  astraConfig.checkBoxRadius);
++  if (isCheck)
++    HAL::drawBox(_x + _camera[0] + astraConfig.checkBoxWidth / 4,
++                 _y + _camera[1] + astraConfig.checkBoxHeight / 4,
++                 astraConfig.checkBoxWidth / 2,
++                 astraConfig.checkBoxHeight / 2);
++}
++
++void CheckBox::render(const std::vector<float> &_camera) {
++  (void)_camera;
++}
++
++PopUp::PopUp(unsigned char _direction,
++             const std::string &_title,
++             const std::vector<std::string> &_options,
++             unsigned char &_value) : refValue(_value) {
++  direction = _direction;
++  title = _title;
++  options = _options;
++  boundary = options.size();
++  value = _value;
++  this->parent = nullptr;
++}
++
++void PopUp::selectNext() {
++  if (value == boundary - 1) value = 0;
++  else value++;
++  refValue = value;
++}
++
++void PopUp::selectPreview() {
++  if (value == 0) value = boundary - 1;
++  else value--;
++  refValue = value;
++}
++
++bool PopUp::select(unsigned char _index) {
++  if (_index > boundary - 1) return false;
++  if (_index < 0) return false;
++  value = _index;
++  refValue = value;
++  return true;
++}
++
++const std::string &PopUp::getCurrentText() const {
++  static const std::string empty = "";
++  if (value >= options.size()) return empty;
++  return options[value];
++}
++
++void PopUp::init() { }
++
++void PopUp::deInit() {
++  // 静态持有，不 delete this。
++}
++
++void PopUp::renderIndicator(float _x, float _y, const std::vector<float> &_camera) {
++  Item::updateConfig();
++  HAL::setDrawType(1);
++  // 行内显示当前选项名，右对齐到屏幕右侧内边距。
++  const std::string &txt = getCurrentText();
++  float w = (float)HAL::getFontWidth((std::string &)txt);
++  float drawX = systemConfig.screenWeight - w - astraConfig.checkBoxRightMargin;
++  HAL::drawEnglish(drawX + _camera[0],
++                   _y + _camera[1] + astraConfig.listTextHeight,
++                   txt);
++}
++
++void PopUp::render(const std::vector<float> &_camera) {
++  (void)_camera;
++}
++
++Slider::Slider(const std::string &_title,
++               unsigned char _min,
++               unsigned char _max,
++               unsigned char _step,
++               unsigned char &_value) : refValue(_value) {
++  title = _title;
++  maxLength = 0;
++  min = _min;
++  max = _max;
++  step = _step;
++  value = _value;
++  lengthIndicator = 0;
++  this->parent = nullptr;
++
++  if (value > max) valueOverflow = true;
++  else valueOverflow = false;
++}
++
++unsigned char Slider::add() {
++  if (value + step > max) value = max;
++  else value = (unsigned char)(value + step);
++  valueOverflow = false;
++  refValue = value;
++  return this->value;
++}
++
++unsigned char Slider::sub() {
++  if (value < step) value = min;
++  else value = (unsigned char)(value - step);
++  valueOverflow = false;
++  refValue = value;
++  return this->value;
++}
++
++void Slider::init() {
++  maxLength = (unsigned char)std::floor(HAL::getSystemConfig().screenWeight * 0.35f);
++  if (max > min)
++    position.lTrg = (float)std::floor(((float)(value - min) / (float)(max - min)) * maxLength);
++  else
++    position.lTrg = 0;
++  lengthIndicator = 0;
++  if (valueOverflow) {
++    position.lTrg = maxLength;
++  }
++}
++
++void Slider::deInit() {
++  // 静态持有，不 delete this。
++}
++
++void Slider::renderIndicator(float _x, float _y, const std::vector<float> &_camera) {
++  Item::updateConfig();
++
++  if (max > min)
++    position.lTrg = (float)std::floor(((float)(value - min) / (float)(max - min)) * maxLength);
++  else
++    position.lTrg = 0;
++  if (valueOverflow) position.lTrg = maxLength;
++
++  Animation::move(&position.l, position.lTrg, astraConfig.listAnimationSpeed);
++
++  HAL::setDrawType(1);
++  // 槽框
++  HAL::drawRFrame(_x + _camera[0] - 1, _y + _camera[1] - 1, maxLength + 2, 6, 1);
++  // 填充
++  HAL::drawBox(_x + _camera[0], _y + _camera[1], position.l, 4);
++  // 数值文字
++  std::string num = std::to_string((int)value);
++  float nw = (float)HAL::getFontWidth(num);
++  HAL::drawEnglish(_x + _camera[0] + maxLength + 4,
++                   _y + _camera[1] + astraConfig.listTextHeight,
++                   num);
++}
++
++void Slider::render(const std::vector<float> &_camera) {
++  (void)_camera;
++}
++}
+diff --git a/lib/CMakeLists.txt b/lib/CMakeLists.txt
+index edc3511a..e55b638c 100644
+--- a/lib/CMakeLists.txt
++++ b/lib/CMakeLists.txt
+@@ -8,3 +8,4 @@ add_subdirectory(OneBitDisplay)
+ add_subdirectory(PicoPeripherals)
+ add_subdirectory(rndis)
+ add_subdirectory(SNESpad)
++add_subdirectory(AstraUI)
+diff --git a/proto/config.proto b/proto/config.proto
+index 2085e4eb..49d2519c 100644
+--- a/proto/config.proto
++++ b/proto/config.proto
+@@ -28,7 +28,6 @@ message GamepadOptions
+     optional bool usbOverrideID = 29;
+     optional uint32 usbProductID = 30;
+     optional uint32 usbVendorID = 31;
+-    optional uint32 miniMenuGamepadInput = 32;
+     optional InputModeDeviceType inputDeviceType = 33;
+     optional uint32 dpadTriggerThreshold = 34;
+     optional uint32 dpadDeadzone = 35;
+diff --git a/src/addons/display.cpp b/src/addons/display.cpp
+index b322086a..a2a119e2 100644
+--- a/src/addons/display.cpp
++++ b/src/addons/display.cpp
+@@ -14,7 +14,7 @@
+ #include "version.h"
+ #include "config.pb.h"
+ #include "class/hid/hid.h"
+-#include "display/ui/screens/GPFusionMenuScreen.h"
++#include "display/ui/screens/AstraMenuScreen.h"
+ 
+ // 跨核标志位定义：Core1 的 DisplayAddon 设置，Core0 的主循环读取。
+ volatile bool g_screenOperationActive = false;
+@@ -108,7 +108,7 @@ bool DisplayAddon::updateDisplayScreen() {
+             gpScreen = new SplashScreen(gpDisplay);
+             break;
+         case MAIN_MENU:
+-            gpScreen = new GPFusionMenuScreen(gpDisplay);
++            gpScreen = new AstraMenuScreen(gpDisplay);
+             break;
+         case BUTTONS:
+             gpScreen = new ButtonLayoutScreen(gpDisplay);
+diff --git a/src/addons/uart_link.cpp b/src/addons/uart_link.cpp
+index 91440578..51250c2b 100644
+--- a/src/addons/uart_link.cpp
++++ b/src/addons/uart_link.cpp
+@@ -15,7 +15,7 @@ static uint16_t crc16_update(uint16_t crc, uint8_t b) {
+     return crc;
+ }
+ 
+-// available() 由蓝牙开关驱动（网页/miniled）：bluetoothLinkEnabled 走 BLE 蓝牙路径。
++// available() 由蓝牙开关驱动（网页/OLED 菜单）：bluetoothLinkEnabled 走 BLE 蓝牙路径。
+ // config_utils 初始化时已通过 INIT_UNSET_PROPERTY 写入板级默认值并置 has_ 标志，
+ // 此处直接读取值即可。
+ bool UARTLinkAddon::available() {
+diff --git a/src/config_utils.cpp b/src/config_utils.cpp
+index 03725e56..52fde814 100644
+--- a/src/config_utils.cpp
++++ b/src/config_utils.cpp
+@@ -207,10 +207,6 @@
+    #define DEFAULT_USB_PRODUCT_ID 0x82C0
+ #endif
+ 
+-#ifndef MINI_MENU_GAMEPAD_INPUT
+-   #define MINI_MENU_GAMEPAD_INPUT 0
+-#endif
+-
+ #ifndef GPIO_PIN_00
+     #define GPIO_PIN_00 GpioAction::NONE
+ #endif
+@@ -422,7 +418,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
+     INIT_UNSET_PROPERTY(config.gamepadOptions, usbOverrideID, DEFAULT_USB_ID_OVERRIDE);
+     INIT_UNSET_PROPERTY(config.gamepadOptions, usbVendorID, DEFAULT_USB_VENDOR_ID);
+     INIT_UNSET_PROPERTY(config.gamepadOptions, usbProductID, DEFAULT_USB_PRODUCT_ID);
+-    INIT_UNSET_PROPERTY(config.gamepadOptions, miniMenuGamepadInput, MINI_MENU_GAMEPAD_INPUT);
+     INIT_UNSET_PROPERTY(config.gamepadOptions, bluetoothLinkEnabled, DEFAULT_BLUETOOTH_LINK_ENABLED);
+     INIT_UNSET_PROPERTY(config.gamepadOptions, nrf24LinkEnabled, DEFAULT_NRF24_LINK_ENABLED);
+ 
+diff --git a/src/display/hal_pico.cpp b/src/display/hal_pico.cpp
+new file mode 100644
+index 00000000..2bcd4cc2
+--- /dev/null
++++ b/src/display/hal_pico.cpp
+@@ -0,0 +1,293 @@
++#include "display/hal_pico.h"
++
++#include "GPGFX.h"
++#include "interfaces/i2c/ssd1306/tiny_ssd1306.h"
++#include "storagemanager.h"
++#include "GamepadState.h"
++#include "cn_font_lite.h"
++#include "fonts/GP_Font_Standard.h"
++#include "pico/stdlib.h"
++
++#include <cmath>
++#include <cstring>
++
++HALPico& HALPico::getInstance() {
++  static HALPico instance;
++  return instance;
++}
++
++void HALPico::begin(GPGFX* gfx) {
++  if (gfx && gfx->getDriver()) {
++    auto* drv = static_cast<GPGFX_TinySSD1306*>(gfx->getDriver());
++    if (drv) fb = drv->getFrameBuffer();
++  }
++}
++
++void* HALPico::_getCanvasBuffer() { return fb; }
++unsigned char HALPico::_getBufferTileWidth() { return 16; }
++unsigned char HALPico::_getBufferTileHeight() { return 8; }
++
++void HALPico::_canvasClear() {
++  if (fb) memset(fb, 0, 1024);
++}
++
++void HALPico::applyPx(int x, int y) {
++  if (!fb || x < 0 || x >= 128 || y < 0 || y >= 64) return;
++  uint8_t mask = (uint8_t)(1 << (y & 7));
++  uint16_t idx = (uint16_t)((y >> 3) * 128 + x);
++  switch (drawType) {
++    case 0: fb[idx] &= ~mask; break;
++    case 1: fb[idx] |= mask; break;
++    case 2: fb[idx] ^= mask; break;
++    default: break;
++  }
++}
++
++void HALPico::_drawPixel(float _x, float _y) {
++  applyPx((int)roundf(_x), (int)roundf(_y));
++}
++
++void HALPico::_drawHLine(float _x, float _y, float _l) {
++  int x = (int)roundf(_x), y = (int)roundf(_y);
++  int l = (int)roundf(_l);
++  if (l < 0) { x += l; l = -l; }
++  for (int i = 0; i < l; i++) applyPx(x + i, y);
++}
++
++void HALPico::_drawVLine(float _x, float _y, float _h) {
++  int x = (int)roundf(_x), y = (int)roundf(_y);
++  int h = (int)roundf(_h);
++  if (h < 0) { y += h; h = -h; }
++  for (int i = 0; i < h; i++) applyPx(x, y + i);
++}
++
++void HALPico::_drawHDottedLine(float _x, float _y, float _l) {
++  int x = (int)roundf(_x), y = (int)roundf(_y);
++  int l = (int)roundf(_l);
++  // 5 实 3 空
++  for (int i = 0; i < l; i++) {
++    if ((i % 8) < 5) applyPx(x + i, y);
++  }
++}
++
++void HALPico::_drawVDottedLine(float _x, float _y, float _h) {
++  int x = (int)roundf(_x), y = (int)roundf(_y);
++  int h = (int)roundf(_h);
++  for (int i = 0; i < h; i++) {
++    if ((i % 8) < 5) applyPx(x, y + i);
++  }
++}
++
++void HALPico::_drawBox(float _x, float _y, float _w, float _h) {
++  int x = (int)roundf(_x), y = (int)roundf(_y);
++  int w = (int)roundf(_w), h = (int)roundf(_h);
++  if (w < 0) { x += w; w = -w; }
++  if (h < 0) { y += h; h = -h; }
++  for (int yy = 0; yy < h; yy++)
++    for (int xx = 0; xx < w; xx++)
++      applyPx(x + xx, y + yy);
++}
++
++void HALPico::_drawFrame(float _x, float _y, float _w, float _h) {
++  int x = (int)roundf(_x), y = (int)roundf(_y);
++  int w = (int)roundf(_w), h = (int)roundf(_h);
++  if (w <= 0 || h <= 0) return;
++  _drawHLine(x, y, w);
++  _drawHLine(x, y + h - 1, w);
++  _drawVLine(x, y, h);
++  _drawVLine(x + w - 1, y, h);
++}
++
++static bool inRoundedRect(int xx, int yy, int w, int h, int r) {
++  if (r <= 0) return true;
++  int dx = 0, dy = 0;
++  if (xx < r) dx = r - xx;
++  else if (xx >= w - r) dx = xx - (w - r - 1);
++  if (yy < r) dy = r - yy;
++  else if (yy >= h - r) dy = yy - (h - r - 1);
++  if (dx == 0 || dy == 0) return true;
++  return dx * dx + dy * dy <= r * r;
++}
++
++void HALPico::_drawRBox(float _x, float _y, float _w, float _h, float _r) {
++  int x = (int)roundf(_x), y = (int)roundf(_y);
++  int w = (int)roundf(_w), h = (int)roundf(_h);
++  int r = (int)roundf(_r);
++  if (w <= 0 || h <= 0) return;
++  int maxr = (w < h ? w : h) / 2;
++  if (r > maxr) r = maxr;
++  for (int yy = 0; yy < h; yy++)
++    for (int xx = 0; xx < w; xx++)
++      if (inRoundedRect(xx, yy, w, h, r)) applyPx(x + xx, y + yy);
++}
++
++void HALPico::_drawRFrame(float _x, float _y, float _w, float _h, float _r) {
++  int x = (int)roundf(_x), y = (int)roundf(_y);
++  int w = (int)roundf(_w), h = (int)roundf(_h);
++  int r = (int)roundf(_r);
++  if (w <= 0 || h <= 0) return;
++  int maxr = (w < h ? w : h) / 2;
++  if (r > maxr) r = maxr;
++  for (int yy = 0; yy < h; yy++) {
++    for (int xx = 0; xx < w; xx++) {
++      if (!inRoundedRect(xx, yy, w, h, r)) continue;
++      bool edge = !inRoundedRect(xx + 1, yy, w, h, r) ||
++                  !inRoundedRect(xx - 1, yy, w, h, r) ||
++                  !inRoundedRect(xx, yy + 1, w, h, r) ||
++                  !inRoundedRect(xx, yy - 1, w, h, r);
++      if (edge) applyPx(x + xx, y + yy);
++    }
++  }
++}
++
++void HALPico::_drawBMP(float _x, float _y, float _w, float _h, const unsigned char *_bitMap) {
++  if (!_bitMap) return;
++  int x0 = (int)roundf(_x), y0 = (int)roundf(_y);
++  int w = (int)roundf(_w), h = (int)roundf(_h);
++  int rowBytes = (w + 7) / 8;
++  for (int py = 0; py < h; py++) {
++    for (int px = 0; px < w; px++) {
++      uint8_t b = _bitMap[py * rowBytes + px / 8];
++      if (b & (0x80 >> (px & 7))) applyPx(x0 + px, y0 + py);
++    }
++  }
++}
++
++// ---- 文字 ----
++static int findCJK(uint16_t cp) {
++  int lo = 0, hi = CN_FONT_NUM - 1;
++  while (lo <= hi) {
++    int mid = (lo + hi) / 2;
++    if (CN_FONT_CODES[mid] == cp) return mid;
++    if (CN_FONT_CODES[mid] < cp) lo = mid + 1; else hi = mid - 1;
++  }
++  return -1;
++}
++
++static void drawCJKPx(int x, int y, uint16_t cp) {
++  int idx = findCJK(cp);
++  if (idx < 0) return;
++  const uint8_t* g = CN_FONT_GLYPHS[idx];
++  for (int row = 0; row < CN_FONT_SIZE; row++) {
++    uint16_t bits = ((uint16_t)g[row * 2] << 8) | g[row * 2 + 1];
++    for (int col = 0; col < CN_FONT_SIZE; col++) {
++      if (bits & (0x8000 >> col)) {
++        // 直接写帧缓冲（与 applyPx 同布局），避免虚函数开销
++        HALPico::getInstance()._drawPixel((float)(x + col), (float)(y + row));
++      }
++    }
++  }
++}
++
++static void drawAsciiPx(int x, int y, uint8_t c) {
++  if (c >= GPGFX_FONT_CHAR_OFFSET && c < GPGFX_FONT_CHAR_OFFSET + 96) {
++    const uint8_t* g = &GP_Font_Standard[(c - GPGFX_FONT_CHAR_OFFSET) * 5];
++    for (int col = 0; col < 5; col++) {
++      uint8_t byte = g[col];
++      for (int row = 0; row < 8; row++) {
++        if (byte & (1 << row)) HALPico::getInstance()._drawPixel((float)(x + col), (float)(y + row));
++      }
++    }
++  }
++}
++
++void HALPico::drawMixed(float _x, float _y, const std::string &_text) {
++  int x = (int)roundf(_x);
++  int yBase = (int)roundf(_y);
++  const char* s = _text.c_str();
++  while (*s) {
++    uint8_t c = (uint8_t)*s;
++    if (c < 0x80) {
++      drawAsciiPx(x, yBase - 8, c);
++      x += 6;
++      s++;
++    } else {
++      uint16_t cp = 0;
++      int len = 0;
++      if ((c & 0xE0) == 0xC0) { cp = (uint16_t)(c & 0x1F) << 6; len = 2; }
++      else if ((c & 0xF0) == 0xE0) { cp = (uint16_t)(c & 0x0F) << 12; len = 3; }
++      else { s++; continue; }
++      s++;
++      for (int i = 1; i < len; i++) {
++        if (!*s) break;
++        cp = (cp << 6) | (uint16_t)((uint8_t)*s & 0x3F);
++        s++;
++      }
++      drawCJKPx(x, yBase - 12, cp);
++      x += CN_FONT_SIZE;
++    }
++  }
++}
++
++void HALPico::_drawEnglish(float _x, float _y, const std::string &_text) { drawMixed(_x, _y, _text); }
++void HALPico::_drawChinese(float _x, float _y, const std::string &_text) { drawMixed(_x, _y, _text); }
++
++unsigned char HALPico::_getFontWidth(std::string &_text) {
++  int w = 0;
++  const char* s = _text.c_str();
++  while (*s) {
++    uint8_t c = (uint8_t)*s;
++    if (c < 0x80) { w += 6; s++; }
++    else if ((c & 0xE0) == 0xC0) { w += 12; s += 2; }
++    else if ((c & 0xF0) == 0xE0) { w += 12; s += 3; }
++    else s++;
++  }
++  return (unsigned char)w;
++}
++
++unsigned long HALPico::_millis() { return (unsigned long)getMillis(); }
++void HALPico::_delay(unsigned long _mill) { busy_wait_ms(_mill); }
++
++// ---- 按键 ----
++void HALPico::_keyScan() {
++  Gamepad* gamepad = Storage::getInstance().GetGamepad();
++  if (!gamepad) return;
++
++  static struct {
++    bool last;
++    uint32_t t;
++    bool rep;
++  } st[6] = {};
++
++  uint8_t dpad = gamepad->state.dpadOriginal;
++  uint32_t buttons = gamepad->state.buttons;
++
++  bool pressed[6];
++  pressed[0] = (dpad & 0x01) != 0;  // UP
++  pressed[1] = (dpad & 0x02) != 0;  // DOWN
++  pressed[2] = (dpad & 0x04) != 0;  // LEFT
++  pressed[3] = (dpad & 0x08) != 0;  // RIGHT
++  pressed[4] = (buttons & GAMEPAD_MASK_B1) != 0;
++  pressed[5] = (buttons & GAMEPAD_MASK_B2) != 0;
++
++  uint32_t now = getMillis();
++
++  for (int i = 0; i < 6; i++) {
++    if (pressed[i] && !st[i].last) {
++      key[i] = key::CLICK;
++      keyFlag = key::KEY_PRESSED;
++      st[i].t = now;
++      st[i].rep = false;
++    } else if (pressed[i]) {
++      // B1/B2 不连发
++      if (i >= 4) { st[i].last = pressed[i]; continue; }
++      if (!st[i].rep) {
++        if (now - st[i].t >= 420) {
++          key[i] = key::CLICK;
++          keyFlag = key::KEY_PRESSED;
++          st[i].t = now;
++          st[i].rep = true;
++        }
++      } else {
++        if (now - st[i].t >= 160) {
++          key[i] = key::CLICK;
++          keyFlag = key::KEY_PRESSED;
++          st[i].t = now;
++        }
++      }
++    } else {
++      st[i].rep = false;
++    }
++    st[i].last = pressed[i];
++  }
++}
+diff --git a/src/display/ui/screens/AstraMenuScreen.cpp b/src/display/ui/screens/AstraMenuScreen.cpp
+new file mode 100644
+index 00000000..46374862
+--- /dev/null
++++ b/src/display/ui/screens/AstraMenuScreen.cpp
+@@ -0,0 +1,530 @@
++#include "ui/screens/AstraMenuScreen.h"
++
++#include "enums.pb.h"
++#include "storagemanager.h"
++#include "drivermanager.h"
++#include "addons/display.h"
++#include "GamepadState.h"
++#include "eventmanager.h"
++#include "events/GPStorageSaveEvent.h"
++#include "events/GPRestartEvent.h"
++#include "hml_back_mapping_preset.h"
++#include "addons/analog.h"
++#include "addons/mcp3208_adc.h"
++#include "pico/stdlib.h"
++
++#include <cstring>
++#include <vector>
++#include <string>
++#include <functional>
++
++using namespace astra;
++
++// ===================== config access =====================
++static GamepadOptions& GOP() { return Storage::getInstance().getGamepadOptions(); }
++static DisplayOptions& DOP() { return Storage::getInstance().getDisplayOptions(); }
++static AnimationOptions& AOP() { return Storage::getInstance().getAnimationOptions(); }
++static LEDOptions& LOP() { return Storage::getInstance().getLedOptions(); }
++static AddonOptions& AOP2() { return Storage::getInstance().getAddonOptions(); }
++static PeripheralOptions& POP() { return Storage::getInstance().getPeripheralOptions(); }
++
++static bool needsReboot = false;
++static bool calibDone = false;
++static uint32_t calibBackup[4] = {0, 0, 0, 0};
++static int lastSavedInputMode = -1;
++
++static void maybeRebootIfNeeded() {
++  int cur = (int)GOP().inputMode;
++  if (cur != lastSavedInputMode) {
++    lastSavedInputMode = cur;
++    needsReboot = true;
++  }
++  if (needsReboot) {
++    needsReboot = false;
++    EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
++  }
++}
++
++static const int INPUT_MAP[] = {
++  0, 18, 4, 17, 15, 16, 5, 2, 13, 3, 6, 7, 8, 9, 10, 11, 12, 14,
++};
++static const int INPUT_MAP_COUNT = 18;
++static const char* const N_INPUT[] = {
++  "XInput","XInput PC","PS4","PS4 PC","SW PRO","P5","XB1","PS3","PS5","KBD",
++  "MD Mini","NEOGEO","PCE Mini","EGRET II","ASTRO","PS Classic","XB Orig","HID"
++};
++static const char* const N_SOCD[] = {"UP","NEU","2ND","1ST","BYP"};
++static const char* const N_DPAD[] = {"十字键","左摇杆","右摇杆"};
++static const char* const N_ANIM[] = {"静态","渐变","追逐","呼吸"};
++static const char* const N_COLOR[] = {"BLK","WHT","RED","ORG","YEL","LME","GRN","SEA",
++                                      "AQU","SKY","BLU","PUR","PNK","MAG","IND","VIO"};
++
++static int gInput() {
++  int cur = (int)GOP().inputMode;
++  for (int i = 0; i < INPUT_MAP_COUNT; i++) if (INPUT_MAP[i] == cur) return i;
++  return 0;
++}
++static void sInput(int v) { if (v >= 0 && v < INPUT_MAP_COUNT) GOP().inputMode = (InputMode)INPUT_MAP[v]; }
++static int gSocd() { return (int)GOP().socdMode; }
++static void sSocd(int v) { GOP().socdMode = (SOCDMode)v; }
++static int gDpad() { return (int)GOP().dpadMode; }
++static void sDpad(int v) { GOP().dpadMode = (DpadMode)v; }
++static int gFour() { return GOP().fourWayMode ? 1 : 0; }
++static void sFour(int v) { GOP().fourWayMode = v ? true : false; }
++static int gInvX() { return GOP().invertXAxis ? 1 : 0; }
++static void sInvX(int v) { GOP().invertXAxis = v ? true : false; }
++static int gInvY() { return GOP().invertYAxis ? 1 : 0; }
++static void sInvY(int v) { GOP().invertYAxis = v ? true : false; }
++static int gDebounce() { return (int)GOP().debounceDelay; }
++static void sDebounce(int v) { GOP().debounceDelay = (uint32_t)v; }
++static int gProfile() { return (int)GOP().profileNumber; }
++static void sProfile(int v) { GOP().profileNumber = (uint32_t)v; }
++
++static const uint32_t COLOR_RGB[] = {
++  0x000000, 0xFFFFFF, 0xFF0000, 0xFFA500, 0xFFFF00, 0x00FF00, 0x008000, 0x2E8B57,
++  0x00FFFF, 0x87CEEB, 0x0000FF, 0x800080, 0xFFC0CB, 0xFF00FF, 0x4B0082, 0xEE82EE
++};
++static int gColor() {
++  uint32_t c = AOP().alCustomStaticColorIndex;
++  for (int i = 0; i < 16; i++) if (COLOR_RGB[i] == c) return i;
++  return 1;
++}
++static void sColor(int v) { if (v >= 0 && v < 16) AOP().alCustomStaticColorIndex = COLOR_RGB[v]; }
++
++static int gLedOff() { return LOP().turnOffWhenSuspended ? 1 : 0; }
++static void sLedOff(int v) { LOP().turnOffWhenSuspended = v ? true : false; }
++
++static int gGyro() { return AOP2().lsm6dsrOptions.enabled ? 1 : 0; }
++static void sGyro(int v) {
++  AOP2().lsm6dsrOptions.enabled = v ? true : false;
++  POP().blockSPI1.enabled = AOP2().lsm6dsrOptions.enabled || GOP().nrf24LinkEnabled;
++  needsReboot = true;
++}
++
++static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
++static void sUsbAuth(int v) {
++  POP().blockUSB0.enabled = v ? 1 : 0;
++  if (v) { GOP().bluetoothLinkEnabled = false; GOP().nrf24LinkEnabled = false; }
++  needsReboot = true;
++}
++
++static int gBle() { return GOP().bluetoothLinkEnabled ? 1 : 0; }
++static void sBle(int v) {
++  GOP().bluetoothLinkEnabled = v ? true : false;
++  if (v) { GOP().nrf24LinkEnabled = false; POP().blockUSB0.enabled = 0; }
++  needsReboot = true;
++}
++
++static int gNrf24() { return GOP().nrf24LinkEnabled ? 1 : 0; }
++static void sNrf24(int v) {
++  GOP().nrf24LinkEnabled = v ? true : false;
++  if (v) { GOP().bluetoothLinkEnabled = false; POP().blockUSB0.enabled = 0; }
++  POP().blockSPI1.enabled = GOP().nrf24LinkEnabled || AOP2().lsm6dsrOptions.enabled;
++  needsReboot = true;
++}
++
++static int gInnerDz() { return (int)AOP2().analogOptions.inner_deadzone; }
++static void sInnerDz(int v) { AOP2().analogOptions.inner_deadzone = (uint32_t)v; needsReboot = true; }
++static int gAntiDz() { return (int)AOP2().analogOptions.anti_deadzone; }
++static void sAntiDz(int v) { AOP2().analogOptions.anti_deadzone = (uint32_t)v; needsReboot = true; }
++static int gInnerDz2() { return (int)AOP2().analogOptions.inner_deadzone2; }
++static void sInnerDz2(int v) { AOP2().analogOptions.inner_deadzone2 = (uint32_t)v; needsReboot = true; }
++static int gAntiDz2() { return (int)AOP2().analogOptions.anti_deadzone2; }
++static void sAntiDz2(int v) { AOP2().analogOptions.anti_deadzone2 = (uint32_t)v; needsReboot = true; }
++
++static bool readRawStick(uint8_t stickNum, uint16_t& rawX, uint16_t& rawY) {
++  uint16_t xCenter, yCenter, adcMax;
++  bool xValid, yValid;
++  if (AnalogInput::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
++    return xValid && yValid;
++  if (MCP3208ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
++    return xValid && yValid;
++  return false;
++}
++
++static void doCalib() {
++  uint32_t sumLX = 0, sumLY = 0, sumRX = 0, sumRY = 0;
++  uint8_t validCount = 0;
++  for (int i = 0; i < 5; i++) {
++    uint16_t lx, ly, rx, ry;
++    if (readRawStick(0, lx, ly) && readRawStick(1, rx, ry)) {
++      sumLX += lx; sumLY += ly; sumRX += rx; sumRY += ry;
++      validCount++;
++    }
++    busy_wait_us_32(2000);
++  }
++  if (validCount == 0) return;
++  AnalogOptions& ao = AOP2().analogOptions;
++  calibBackup[0] = ao.joystick_center_x;
++  calibBackup[1] = ao.joystick_center_y;
++  calibBackup[2] = ao.joystick_center_x2;
++  calibBackup[3] = ao.joystick_center_y2;
++  ao.joystick_center_x = sumLX / validCount;
++  ao.joystick_center_y = sumLY / validCount;
++  ao.joystick_center_x2 = sumRX / validCount;
++  ao.joystick_center_y2 = sumRY / validCount;
++  calibDone = true;
++  needsReboot = true;
++}
++
++static void doSave() {
++  EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
++  maybeRebootIfNeeded();
++}
++
++static void doReset() {
++  Storage::getInstance().ResetSettings();
++  Storage::getInstance().save();
++}
++
++static int gBackPreset() { return (int)getHmlBackMappingActivePresetIndex(AOP2()) + 1; }
++static void sBackPreset(int v) {
++  HmlBackMappingPresetOptions& opts = getHmlBackMappingPresetOptions(AOP2());
++  opts.activePreset = (uint32_t)(v - 1);
++  opts.has_activePreset = true;
++}
++
++static const int BACK_ACTION_MAP[] = {-10, 1, 2, 3, 4, 7, 8, 6, 5, 14, 13, 9, 11, 10, 12, 17, 18};
++static const char* const N_BACK_ACTION[] = {
++  "无","上","下","左","右","方块","三角","圆","叉","菜单","选项","L1","L2","R1","R2","L3","R3","OTHER"
++};
++static const int BACK_ACTION_COUNT = 18;
++static const int BACK_ACTION_OTHER_IDX = 17;
++static int backActionToIndex(int action) {
++  for (int i = 0; i < BACK_ACTION_COUNT - 1; i++) if (BACK_ACTION_MAP[i] == action) return i;
++  return BACK_ACTION_OTHER_IDX;
++}
++
++static int gBackLB1() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack1Mapping.action); }
++static int gBackRB1() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack1Mapping.action); }
++static int gBackLB2() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack2Mapping.action); }
++static int gBackRB2() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack2Mapping.action); }
++static int gBackLB3() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack3Mapping.action); }
++static int gBackRB3() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack3Mapping.action); }
++static int gBackLFN() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftFnMapping.action); }
++static int gBackRFN() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightFnMapping.action); }
++static int gBackLMT() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftMtMapping.action); }
++static int gBackRMT() { return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightMtMapping.action); }
++
++#define SET_BACK(field) \
++  static void s##field(int v) { \
++    if (v == BACK_ACTION_OTHER_IDX) return; \
++    HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2()); \
++    p.field.action = (GpioAction)BACK_ACTION_MAP[v]; \
++    p.field.has_action = true; \
++    p.has_##field = true; \
++  }
++SET_BACK(leftBack1Mapping)
++SET_BACK(rightBack1Mapping)
++SET_BACK(leftBack2Mapping)
++SET_BACK(rightBack2Mapping)
++SET_BACK(leftBack3Mapping)
++SET_BACK(rightBack3Mapping)
++SET_BACK(leftFnMapping)
++SET_BACK(rightFnMapping)
++SET_BACK(leftMtMapping)
++SET_BACK(rightMtMapping)
++#undef SET_BACK
++
++static int gAmbientBright() {
++  int idx = (int)AOP().ambientLightEffectsCountIndex;
++  float b = 0.0f;
++  switch (idx) {
++    case 4: b = AOP().alStaticBrightnessCustomThemeX; break;
++    case 1: b = AOP().alGradientBrightnessCustomX; break;
++    case 2: b = AOP().alChaseBrightnessCustomX; break;
++    case 3: b = AOP().alBreathBrightnessCustomX; break;
++    default: b = 0.0f; break;
++  }
++  int v = (int)(b * 100.0f + 0.5f);
++  return v < 0 ? 0 : (v > 100 ? 100 : v);
++}
++static void sAmbientBright(int v) {
++  if (v < 0) v = 0;
++  if (v > 100) v = 100;
++  float f = v / 100.0f;
++  int idx = (int)AOP().ambientLightEffectsCountIndex;
++  switch (idx) {
++    case 4: AOP().alStaticBrightnessCustomThemeX = f; break;
++    case 1: AOP().alGradientBrightnessCustomX = f; break;
++    case 2: AOP().alChaseBrightnessCustomX = f; break;
++    case 3: AOP().alBreathBrightnessCustomX = f; break;
++  }
++}
++
++static const int ANIM_MAP[] = {4, 1, 2, 3};
++static const int ANIM_MAP_COUNT = 4;
++static int gAnimMode() {
++  int cur = (int)AOP().ambientLightEffectsCountIndex;
++  for (int i = 0; i < ANIM_MAP_COUNT; i++) if (ANIM_MAP[i] == cur) return i;
++  return 0;
++}
++static void sAnimMode(int v) { if (v >= 0 && v < ANIM_MAP_COUNT) AOP().ambientLightEffectsCountIndex = (uint32_t)ANIM_MAP[v]; }
++
++static int gGradientSpd() {
++  int v = (int)AOP().ambientLightGradientSpeed;
++  return v < 1 ? 1 : (v > 10 ? 10 : v);
++}
++static void sGradientSpd(int v) {
++  if (v < 1) v = 1;
++  if (v > 10) v = 10;
++  AOP().ambientLightGradientSpeed = (uint32_t)v;
++}
++
++static int gChaseSpd() {
++  int s = (int)AOP().ambientLightChaseSpeed;
++  int v = 100 - s;
++  return v < 0 ? 0 : (v > 100 ? 100 : v);
++}
++static void sChaseSpd(int v) {
++  if (v < 0) v = 0;
++  if (v > 100) v = 100;
++  AOP().ambientLightChaseSpeed = 100 - v;
++}
++
++static int gBreathSpd() {
++  int v = (int)(AOP().ambientLightBreathSpeed * 100.0f + 0.5f);
++  return v < 1 ? 1 : (v > 10 ? 10 : v);
++}
++static void sBreathSpd(int v) {
++  if (v < 1) v = 1;
++  if (v > 10) v = 10;
++  AOP().ambientLightBreathSpeed = (float)v / 100.0f;
++}
++
++// ===================== backing store =====================
++struct Backing {
++  unsigned char input, socd, dpad, debounce, profile, color, animMode;
++  unsigned char gradSpd, chaseSpd, breathSpd, ambientBright;
++  unsigned char innerDz, antiDz, innerDz2, antiDz2;
++  unsigned char backPreset;
++  unsigned char back[10]; // LB1,RB1,LB2,RB2,LB3,RB3,LFN,RFN,LMT,RMT
++  bool four, invX, invY, ledOff, gyro, usbAuth, ble, nrf24;
++} static B;
++
++static std::vector<std::string> opts(const char* const* arr, int n) {
++  std::vector<std::string> v;
++  for (int i = 0; i < n; i++) v.emplace_back(arr[i]);
++  return v;
++}
++
++void AstraMenuScreen::refreshBacking() {
++  B.input = (unsigned char)gInput();
++  B.socd = (unsigned char)gSocd();
++  B.dpad = (unsigned char)gDpad();
++  B.four = gFour() != 0;
++  B.invX = gInvX() != 0;
++  B.invY = gInvY() != 0;
++  B.debounce = (unsigned char)gDebounce();
++  B.profile = (unsigned char)gProfile();
++  B.color = (unsigned char)gColor();
++  B.ledOff = gLedOff() != 0;
++  B.gyro = gGyro() != 0;
++  B.usbAuth = gUsbAuth() != 0;
++  B.ble = gBle() != 0;
++  B.nrf24 = gNrf24() != 0;
++  B.innerDz = (unsigned char)gInnerDz();
++  B.antiDz = (unsigned char)gAntiDz();
++  B.innerDz2 = (unsigned char)gInnerDz2();
++  B.antiDz2 = (unsigned char)gAntiDz2();
++  B.backPreset = (unsigned char)gBackPreset();
++  B.back[0] = (unsigned char)gBackLB1();
++  B.back[1] = (unsigned char)gBackRB1();
++  B.back[2] = (unsigned char)gBackLB2();
++  B.back[3] = (unsigned char)gBackRB2();
++  B.back[4] = (unsigned char)gBackLB3();
++  B.back[5] = (unsigned char)gBackRB3();
++  B.back[6] = (unsigned char)gBackLFN();
++  B.back[7] = (unsigned char)gBackRFN();
++  B.back[8] = (unsigned char)gBackLMT();
++  B.back[9] = (unsigned char)gBackRMT();
++  B.animMode = (unsigned char)gAnimMode();
++  B.gradSpd = (unsigned char)gGradientSpd();
++  B.chaseSpd = (unsigned char)gChaseSpd();
++  B.breathSpd = (unsigned char)gBreathSpd();
++  B.ambientBright = (unsigned char)gAmbientBright();
++}
++
++// ===================== tree builders =====================
++static Menu* mkItem(const std::string& title) {
++  auto* m = new Menu();
++  m->title = title;
++  return m;
++}
++
++// PopUp 项
++static void addPopUp(List* parent, const std::string& title,
++                     const std::vector<std::string>& options, unsigned char& val,
++                     std::function<void()> sync) {
++  auto* item = mkItem(title);
++  auto* pu = new PopUp(2 /*right*/, title, options, val);
++  parent->addItem(item, pu);
++  item->sync = std::move(sync);
++}
++
++// Slider 项
++static void addSlider(List* parent, const std::string& title,
++                      unsigned char min, unsigned char max, unsigned char step,
++                      unsigned char& val, std::function<void()> sync) {
++  auto* item = mkItem(title);
++  auto* sl = new Slider(title, min, max, step, val);
++  parent->addItem(item, sl);
++  item->sync = std::move(sync);
++}
++
++// CheckBox 项
++static void addCheck(List* parent, const std::string& title, bool& val,
++                     std::function<void()> sync) {
++  auto* item = mkItem(title);
++  auto* cb = new CheckBox(val);
++  parent->addItem(item, cb);
++  item->sync = std::move(sync);
++}
++
++static void addAction(List* parent, const std::string& title,
++                      std::function<void()> fn, const std::string& info) {
++  auto* act = new ActionItem(title, std::move(fn), info);
++  parent->addItem(act);
++}
++
++void AstraMenuScreen::buildTree() {
++  root = new Tile("主菜单");
++  // ---------- 配置 ----------
++  auto* cfg = new List("配置");
++  root->addItem(cfg);
++  addPopUp(cfg, "输入模式", opts(N_INPUT, INPUT_MAP_COUNT), B.input,
++           []{ sInput(B.input); });
++  addPopUp(cfg, "SOCD", opts(N_SOCD, 5), B.socd,
++           []{ sSocd(B.socd); });
++  addPopUp(cfg, "十字键", opts(N_DPAD, 3), B.dpad,
++           []{ sDpad(B.dpad); });
++  addCheck(cfg, "四向模式", B.four, []{ sFour(B.four ? 1 : 0); });
++  addCheck(cfg, "反转X轴", B.invX, []{ sInvX(B.invX ? 1 : 0); });
++  addCheck(cfg, "反转Y轴", B.invY, []{ sInvY(B.invY ? 1 : 0); });
++  addSlider(cfg, "按键防抖", 0, 20, 1, B.debounce,
++            []{ sDebounce(B.debounce); });
++  addSlider(cfg, "按键配置档", 1, 2, 1, B.profile,
++            []{ sProfile(B.profile); });
++
++  // ---------- 手柄 ----------
++  auto* pad = new List("手柄");
++  root->addItem(pad);
++  addCheck(pad, "USB验证器", B.usbAuth, []{ sUsbAuth(B.usbAuth ? 1 : 0); });
++  addCheck(pad, "蓝牙模式", B.ble, []{ sBle(B.ble ? 1 : 0); });
++  addCheck(pad, "无线模式", B.nrf24, []{ sNrf24(B.nrf24 ? 1 : 0); });
++  addCheck(pad, "体感", B.gyro, []{ sGyro(B.gyro ? 1 : 0); });
++
++  // ---------- 摇杆 ----------
++  auto* stick = new List("摇杆");
++  root->addItem(stick);
++  addSlider(stick, "内死区L", 0, 200, 1, B.innerDz, []{ sInnerDz(B.innerDz); });
++  addSlider(stick, "反死区L", 0, 200, 1, B.antiDz, []{ sAntiDz(B.antiDz); });
++  addSlider(stick, "内死区R", 0, 200, 1, B.innerDz2, []{ sInnerDz2(B.innerDz2); });
++  addSlider(stick, "反死区R", 0, 200, 1, B.antiDz2, []{ sAntiDz2(B.antiDz2); });
++  addAction(stick, "摇杆校准", []{ doCalib(); }, "校准完成");
++
++  // ---------- 功能 ----------
++  auto* func = new List("功能");
++  root->addItem(func);
++
++  // 背键映射子菜单
++  auto* back = new List("背键映射");
++  func->addItem(back);
++  addPopUp(back, "背键配置档", {"1","2","3"}, B.backPreset,
++           []{ sBackPreset(B.backPreset); });
++  const char* const BTN[] = {"LB1","RB1","LB2","RB2","LB3","RB3","LFN","RFN","LMT","RMT"};
++  for (int i = 0; i < 10; i++) {
++    int idx = i;
++    addPopUp(back, BTN[i], opts(N_BACK_ACTION, BACK_ACTION_COUNT), B.back[idx],
++             [idx]{
++               switch (idx) {
++                 case 0: sleftBack1Mapping(B.back[0]); break;
++                 case 1: srightBack1Mapping(B.back[1]); break;
++                 case 2: sleftBack2Mapping(B.back[2]); break;
++                 case 3: srightBack2Mapping(B.back[3]); break;
++                 case 4: sleftBack3Mapping(B.back[4]); break;
++                 case 5: srightBack3Mapping(B.back[5]); break;
++                 case 6: sleftFnMapping(B.back[6]); break;
++                 case 7: srightFnMapping(B.back[7]); break;
++                 case 8: sleftMtMapping(B.back[8]); break;
++                 case 9: srightMtMapping(B.back[9]); break;
++               }
++             });
++  }
++
++  addAction(func, "保存设置", []{ doSave(); }, "已保存");
++  addAction(func, "恢复默认", []{ doReset(); }, "已恢复默认");
++
++  // ---------- 彩灯 ----------
++  auto* led = new List("彩灯");
++  root->addItem(led);
++  addPopUp(led, "动画模式", opts(N_ANIM, 4), B.animMode,
++           []{ sAnimMode(B.animMode); });
++  addSlider(led, "亮度", 0, 100, 1, B.ambientBright,
++            []{ sAmbientBright(B.ambientBright); });
++  addPopUp(led, "颜色", opts(N_COLOR, 16), B.color,
++           []{ sColor(B.color); });
++  addSlider(led, "渐变速度", 1, 10, 1, B.gradSpd, []{ sGradientSpd(B.gradSpd); });
++  addSlider(led, "追逐速度", 0, 100, 1, B.chaseSpd, []{ sChaseSpd(B.chaseSpd); });
++  addSlider(led, "呼吸速度", 1, 10, 1, B.breathSpd, []{ sBreathSpd(B.breathSpd); });
++  addCheck(led, "挂起时关LED", B.ledOff, []{ sLedOff(B.ledOff ? 1 : 0); });
++}
++
++void AstraMenuScreen::destroyTree(astra::Menu* menu) {
++  if (!menu) return;
++  for (auto* w : menu->childWidget) delete w;
++  menu->childWidget.clear();
++  for (auto* c : menu->childMenu) destroyTree(c);
++  menu->childMenu.clear();
++  delete menu;
++}
++
++AstraMenuScreen::~AstraMenuScreen() {
++  if (launcher) {
++    delete launcher;
++    launcher = nullptr;
++  }
++  if (root) {
++    destroyTree(root);
++    root = nullptr;
++  }
++}
++
++// ===================== screen lifecycle =====================
++void AstraMenuScreen::init() {
++  HALPico& hal = HALPico::getInstance();
++  if (!HAL::check()) {
++    HAL::inject(&hal);
++  }
++  hal.begin(getRenderer());
++  refreshBacking();
++  buildTree();
++  launcher = new Launcher();
++  launcher->init(root);
++  // 初始化 B1 边沿状态：若进入菜单时 B1 正被按住，不立即触发退出
++  Gamepad* gp0 = Storage::getInstance().GetGamepad();
++  b1Prev = gp0 && (gp0->state.buttons & GAMEPAD_MASK_B1);
++}
++
++void AstraMenuScreen::shutdown() {
++  // 树与 launcher 在析构函数中销毁，shutdown 仅做状态收尾
++}
++
++int8_t AstraMenuScreen::update() {
++  if (!launcher) return -1;
++  launcher->inputStep();
++
++  // 根页 B1 按下沿 → 退出菜单
++  Gamepad* gp = Storage::getInstance().GetGamepad();
++  bool b1Now = gp && (gp->state.buttons & GAMEPAD_MASK_B1);
++  if (launcher->atRoot() && b1Now && !b1Prev) {
++    b1Prev = b1Now;
++    return (int8_t)DisplayMode::BUTTONS;
++  }
++  b1Prev = b1Now;
++  return -1;
++}
++
++void AstraMenuScreen::drawScreen() {
++  if (launcher) launcher->renderStep();
++}
+diff --git a/src/display/ui/screens/GPFusionMenuScreen.cpp b/src/display/ui/screens/GPFusionMenuScreen.cpp
+deleted file mode 100644
+index 6a736e15..00000000
+--- a/src/display/ui/screens/GPFusionMenuScreen.cpp
++++ /dev/null
+@@ -1,1130 +0,0 @@
+-// GP-Fusion Lite 滑动菜单：设置 / 灯光
+-#include "GPFusionMenuScreen.h"
+-
+-#include "enums.pb.h"
+-#include "storagemanager.h"
+-#include "drivermanager.h"
+-#include "addons/display.h"
+-#include "GamepadState.h"
+-#include "cn_font_lite.h"
+-#include "fonts/GP_Font_Standard.h"
+-#include "eventmanager.h"
+-#include "events/GPStorageSaveEvent.h"
+-#include "events/GPRestartEvent.h"
+-#include "hml_back_mapping_preset.h"
+-#include "addons/analog.h"
+-#include "addons/mcp3208_adc.h"
+-
+-#include <cstring>
+-#include "pico/stdlib.h"
+-
+-enum OptType { OPT_ENUM, OPT_BOOL, OPT_INT, OPT_ACTION, OPT_SLIDER, OPT_RESERVED, OPT_DEC, OPT_SUBMENU };
+-
+-struct LiteOpt {
+-  const char* label;
+-  uint8_t type;
+-  int min, max, step;
+-  const char* const* names;
+-  int nameCount;
+-  const char* unit;
+-  int (*get)();
+-  void (*set)(int);
+-};
+-
+-struct LiteSection {
+-  const char* title;
+-  LiteOpt* opts;
+-  int count;
+-};
+-
+-// ---- config access ----
+-static GamepadOptions& GOP() { return Storage::getInstance().getGamepadOptions(); }
+-static DisplayOptions& DOP() { return Storage::getInstance().getDisplayOptions(); }
+-static AnimationOptions& AOP() { return Storage::getInstance().getAnimationOptions(); }
+-static LEDOptions& LOP() { return Storage::getInstance().getLedOptions(); }
+-static AddonOptions& AOP2() { return Storage::getInstance().getAddonOptions(); }
+-static PeripheralOptions& POP() { return Storage::getInstance().getPeripheralOptions(); }
+-
+-static bool needsReboot = false;
+-static bool calibDone = false;
+-static uint32_t calibBackup[4] = {0, 0, 0, 0};
+-
+-static void maybeRebootIfNeeded();
+-
+-// 输入模式映射表：菜单序号 -> InputMode 枚举值
+-static const int INPUT_MAP[] = {
+-  0,   // XInput
+-  18,  // XInput for PC
+-  4,   // PS4
+-  17,  // PS4 for PC
+-  15,  // Switch Pro
+-  16,  // P5 General
+-  5,   // Xbox One
+-  2,   // PS3
+-  13,  // PS5
+-  3,   // Keyboard
+-  6,   // Sega Genesis Mini
+-  7,   // NEOGEO mini
+-  8,   // PC Engine Mini
+-  9,   // EGRET II mini
+-  10,  // ASTROCITY Mini
+-  11,  // Playstation Classic
+-  12,  // Original Xbox
+-  14,  // Generic HID
+-};
+-static const int INPUT_MAP_COUNT = 18;
+-static const char* const N_INPUT[] = {
+-  "XInput","XInput PC","PS4","PS4 PC","SW PRO","P5","XB1","PS3","PS5","KBD",
+-  "MD Mini","NEOGEO","PCE Mini","EGRET II","ASTRO","PS Classic","XB Orig","HID"
+-};
+-static const char* const N_SOCD[] = {"UP","NEU","2ND","1ST","BYP"};
+-static const char* const N_DPAD[] = {"十字键","左摇杆","右摇杆"};
+-static const char* const N_ANIM[] = {"静态","渐变","追逐","呼吸"};
+-static const char* const N_COLOR[] = {"BLK","WHT","RED","ORG","YEL","LME","GRN","SEA",
+-                                      "AQU","SKY","BLU","PUR","PNK","MAG","IND","VIO"};
+-
+-static int gInput() {
+-  int cur = (int)GOP().inputMode;
+-  for (int i = 0; i < INPUT_MAP_COUNT; i++) if (INPUT_MAP[i] == cur) return i;
+-  return 0;
+-}
+-static void sInput(int v) {
+-  if (v >= 0 && v < INPUT_MAP_COUNT) GOP().inputMode = (InputMode)INPUT_MAP[v];
+-}
+-static int gSocd() { return (int)GOP().socdMode; }
+-static void sSocd(int v) { GOP().socdMode = (SOCDMode)v; }
+-static int gDpad() { return (int)GOP().dpadMode; }
+-static void sDpad(int v) { GOP().dpadMode = (DpadMode)v; }
+-static int gFour() { return GOP().fourWayMode ? 1 : 0; }
+-static void sFour(int v) { GOP().fourWayMode = v ? true : false; }
+-static int gInvX() { return GOP().invertXAxis ? 1 : 0; }
+-static void sInvX(int v) { GOP().invertXAxis = v ? true : false; }
+-static int gInvY() { return GOP().invertYAxis ? 1 : 0; }
+-static void sInvY(int v) { GOP().invertYAxis = v ? true : false; }
+-static int gDebounce() { return (int)GOP().debounceDelay; }
+-static void sDebounce(int v) { GOP().debounceDelay = (uint32_t)v; }
+-static int gProfile() { return (int)GOP().profileNumber; }
+-static void sProfile(int v) { GOP().profileNumber = (uint32_t)v; }
+-// 静态颜色：alCustomStaticColorIndex 存储的是 0x00RRGGBB 值，需映射到 16 色枚举
+-static const uint32_t COLOR_RGB[] = {
+-  0x000000, 0xFFFFFF, 0xFF0000, 0xFFA500, 0xFFFF00, 0x00FF00, 0x008000, 0x2E8B57,
+-  0x00FFFF, 0x87CEEB, 0x0000FF, 0x800080, 0xFFC0CB, 0xFF00FF, 0x4B0082, 0xEE82EE
+-};
+-static int gColor() {
+-  uint32_t c = AOP().alCustomStaticColorIndex;
+-  for (int i = 0; i < 16; i++) if (COLOR_RGB[i] == c) return i;
+-  return 1;
+-}
+-static void sColor(int v) {
+-  if (v >= 0 && v < 16) AOP().alCustomStaticColorIndex = COLOR_RGB[v];
+-}
+-static int gLedOff() { return LOP().turnOffWhenSuspended ? 1 : 0; }
+-static void sLedOff(int v) { LOP().turnOffWhenSuspended = v ? true : false; }
+-static int gGyro() { return AOP2().lsm6dsrOptions.enabled ? 1 : 0; }
+-static void sGyro(int v) {
+-    AOP2().lsm6dsrOptions.enabled = v ? true : false;
+-    // SPI1 由 LSM6DSR 体感与 nRF24 直连共享：任一开启即使能，全关才关闭
+-    POP().blockSPI1.enabled =
+-        AOP2().lsm6dsrOptions.enabled ||
+-        GOP().nrf24LinkEnabled;
+-    needsReboot = true;
+-}
+-
+-// USB 验证器开关（对应网页配置 GNS设置-硬件配置 中的 USB验证器，即 blockUSB0.enabled）
+-static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
+-static void sUsbAuth(int v) {
+-    POP().blockUSB0.enabled = v ? 1 : 0;
+-    // 三互斥：开启 USB 验证器时自动关闭蓝牙模式与无线模式（GPIO18/19 复用冲突）
+-    if (v) {
+-        GOP().bluetoothLinkEnabled = false;
+-        GOP().nrf24LinkEnabled = false;
+-    }
+-    needsReboot = true;
+-}
+-
+-// 蓝牙模式开关（BLE 输出路径，对应网页 硬件配置 中的 蓝牙模式开关）
+-static int gBle() { return GOP().bluetoothLinkEnabled ? 1 : 0; }
+-static void sBle(int v) {
+-    GOP().bluetoothLinkEnabled = v ? true : false;
+-    // 三互斥：开启蓝牙时自动关闭无线模式与 USB 验证器（GPIO18/19 复用冲突）
+-    if (v) {
+-        GOP().nrf24LinkEnabled = false;
+-        POP().blockUSB0.enabled = 0;
+-    }
+-    needsReboot = true;
+-}
+-
+-// 无线模式开关（nRF24 直连 SPI1，对应网页 硬件配置 中的 无线模式开关）
+-static int gNrf24() { return GOP().nrf24LinkEnabled ? 1 : 0; }
+-static void sNrf24(int v) {
+-    GOP().nrf24LinkEnabled = v ? true : false;
+-    // 三互斥：开启 nRF24 直连时自动关闭蓝牙与 USB 验证器
+-    if (v) {
+-        GOP().bluetoothLinkEnabled = false;
+-        POP().blockUSB0.enabled = 0;
+-    }
+-    // SPI1 由 nRF24 直连与 LSM6DSR 体感共享：任一开启即使能，全关才关闭
+-    POP().blockSPI1.enabled =
+-        GOP().nrf24LinkEnabled ||
+-        Storage::getInstance().getAddonOptions().lsm6dsrOptions.enabled;
+-    needsReboot = true;
+-}
+-
+-// 摇杆死区/反死区（原始值0-200，对应0.0%-20.0%，0.1%步进）
+-static int gInnerDz() { return (int)AOP2().analogOptions.inner_deadzone; }
+-static void sInnerDz(int v) { AOP2().analogOptions.inner_deadzone = (uint32_t)v; needsReboot = true; }
+-static int gAntiDz() { return (int)AOP2().analogOptions.anti_deadzone; }
+-static void sAntiDz(int v) { AOP2().analogOptions.anti_deadzone = (uint32_t)v; needsReboot = true; }
+-static int gInnerDz2() { return (int)AOP2().analogOptions.inner_deadzone2; }
+-static void sInnerDz2(int v) { AOP2().analogOptions.inner_deadzone2 = (uint32_t)v; needsReboot = true; }
+-static int gAntiDz2() { return (int)AOP2().analogOptions.anti_deadzone2; }
+-static void sAntiDz2(int v) { AOP2().analogOptions.anti_deadzone2 = (uint32_t)v; needsReboot = true; }
+-
+-// 读取摇杆原始ADC值（尝试两种源）
+-static bool readRawStick(uint8_t stickNum, uint16_t& rawX, uint16_t& rawY) {
+-    uint16_t xCenter, yCenter, adcMax;
+-    bool xValid, yValid;
+-    if (AnalogInput::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
+-        return xValid && yValid;
+-    if (MCP3208ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
+-        return xValid && yValid;
+-    return false;
+-}
+-
+-// 摇杆中心校准：连续读取5次取平均，返回1标记需要保存
+-static int gCalib() {
+-    uint32_t sumLX = 0, sumLY = 0, sumRX = 0, sumRY = 0;
+-    uint8_t validCount = 0;
+-    for (int i = 0; i < 5; i++) {
+-        uint16_t lx, ly, rx, ry;
+-        if (readRawStick(0, lx, ly) && readRawStick(1, rx, ry)) {
+-            sumLX += lx; sumLY += ly; sumRX += rx; sumRY += ry;
+-            validCount++;
+-        }
+-        busy_wait_us_32(2000);
+-    }
+-    if (validCount == 0) return 0;
+-    AnalogOptions& ao = AOP2().analogOptions;
+-    calibBackup[0] = ao.joystick_center_x;
+-    calibBackup[1] = ao.joystick_center_y;
+-    calibBackup[2] = ao.joystick_center_x2;
+-    calibBackup[3] = ao.joystick_center_y2;
+-    ao.joystick_center_x = sumLX / validCount;
+-    ao.joystick_center_y = sumLY / validCount;
+-    ao.joystick_center_x2 = sumRX / validCount;
+-    ao.joystick_center_y2 = sumRY / validCount;
+-    calibDone = true;
+-    needsReboot = true;
+-    return 1;
+-}
+-static void sCalib(int) {}
+-static int gSave() {
+-  // 菜单跑在 core1，保存必须通过事件交给 core0 执行
+-  EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+-  maybeRebootIfNeeded();
+-  return 0;
+-}
+-static void sSave(int) {}
+-static int gReset() { Storage::getInstance().ResetSettings(); Storage::getInstance().save(); return 0; }
+-static void sReset(int) {}
+-
+-// 子菜单占位读写（OPT_SUBMENU 项不使用数值）
+-static int gReserved() { return 0; }
+-static void sReserved(int) {}
+-
+-// 背键配置档 (1-3显示, 0-2存储)
+-static int gBackPreset() {
+-  return (int)getHmlBackMappingActivePresetIndex(AOP2()) + 1;
+-}
+-static void sBackPreset(int v) {
+-  HmlBackMappingPresetOptions& opts = getHmlBackMappingPresetOptions(AOP2());
+-  opts.activePreset = (uint32_t)(v - 1);
+-  opts.has_activePreset = true;
+-}
+-
+-// 背键映射枚举：菜单序号 -> GpioAction 枚举值
+-// 索引0=无(NONE=-10), 1=上, 2=下, 3=左, 4=右, 5=方块(B3=7), 6=三角(B4=8),
+-// 7=圆(B2=6), 8=叉(B1=5), 9=菜单(S1=13), 10=选项(S2=14),
+-// 11=L1(=9), 12=L2(=11), 13=R1(=10), 14=R2(=12), 15=L3(=17), 16=R3(=18)
+-// 17=OTHER(网页前端设置的菜单外映射项，显示但不可改，保存时保留原值)
+-static const int BACK_ACTION_MAP[] = {-10, 1, 2, 3, 4, 7, 8, 6, 5, 14, 13, 9, 11, 10, 12, 17, 18};
+-static const char* const N_BACK_ACTION[] = {
+-  "无","上","下","左","右","方块","三角","圆","叉","菜单","选项","L1","L2","R1","R2","L3","R3","OTHER"
+-};
+-static const int BACK_ACTION_COUNT = 18;
+-static const int BACK_ACTION_OTHER_IDX = 17;
+-static int backActionToIndex(int action) {
+-  for (int i = 0; i < BACK_ACTION_COUNT - 1; i++) if (BACK_ACTION_MAP[i] == action) return i;
+-  return BACK_ACTION_OTHER_IDX;
+-}
+-
+-// 背键映射读取（从当前活动预设的 HmlBackMappingPreset）
+-static int gBackLB1() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack1Mapping.action);
+-}
+-static int gBackRB1() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack1Mapping.action);
+-}
+-static int gBackLB2() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack2Mapping.action);
+-}
+-static int gBackRB2() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack2Mapping.action);
+-}
+-static int gBackLB3() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftBack3Mapping.action);
+-}
+-static int gBackRB3() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightBack3Mapping.action);
+-}
+-static int gBackLFN() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftFnMapping.action);
+-}
+-static int gBackRFN() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightFnMapping.action);
+-}
+-static int gBackLMT() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).leftMtMapping.action);
+-}
+-static int gBackRMT() {
+-  return backActionToIndex((int)getActiveHmlBackPreset(AOP2()).rightMtMapping.action);
+-}
+-// 背键映射写入（到当前活动预设）
+-// OTHER 索引跳过写入，保留网页前端设置的菜单外映射值不被清空
+-static void sBackLB1(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.leftBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.leftBack1Mapping.has_action = true;
+-  p.has_leftBack1Mapping = true;
+-}
+-static void sBackRB1(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.rightBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.rightBack1Mapping.has_action = true;
+-  p.has_rightBack1Mapping = true;
+-}
+-static void sBackLB2(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.leftBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.leftBack2Mapping.has_action = true;
+-  p.has_leftBack2Mapping = true;
+-}
+-static void sBackRB2(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.rightBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.rightBack2Mapping.has_action = true;
+-  p.has_rightBack2Mapping = true;
+-}
+-static void sBackLB3(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.leftBack3Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.leftBack3Mapping.has_action = true;
+-  p.has_leftBack3Mapping = true;
+-}
+-static void sBackRB3(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.rightBack3Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.rightBack3Mapping.has_action = true;
+-  p.has_rightBack3Mapping = true;
+-}
+-static void sBackLFN(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.leftFnMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.leftFnMapping.has_action = true;
+-  p.has_leftFnMapping = true;
+-}
+-static void sBackRFN(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.rightFnMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.rightFnMapping.has_action = true;
+-  p.has_rightFnMapping = true;
+-}
+-static void sBackLMT(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.leftMtMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.leftMtMapping.has_action = true;
+-  p.has_leftMtMapping = true;
+-}
+-static void sBackRMT(int v) {
+-  if (v == BACK_ACTION_OTHER_IDX) return;
+-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
+-  p.rightMtMapping.action = (GpioAction)BACK_ACTION_MAP[v];
+-  p.rightMtMapping.has_action = true;
+-  p.has_rightMtMapping = true;
+-}
+-
+-// 按键配置档范围固定 1..2（基础映射1 / 基础映射2；层槽不进选择路径）
+-static int gProfileMax() {
+-  return 2;
+-}
+-
+-// 环境光亮度 - 智能映射当前动画模式对应的亮度字段
+-static int gAmbientBright() {
+-  int idx = (int)AOP().ambientLightEffectsCountIndex;
+-  float b = 0.0f;
+-  switch (idx) {
+-    case 4: b = AOP().alStaticBrightnessCustomThemeX; break;  // 静态
+-    case 1: b = AOP().alGradientBrightnessCustomX; break;      // 渐变
+-    case 2: b = AOP().alChaseBrightnessCustomX; break;         // 追逐
+-    case 3: b = AOP().alBreathBrightnessCustomX; break;        // 呼吸
+-    default: b = 0.0f; break;
+-  }
+-  int v = (int)(b * 100.0f + 0.5f);
+-  return v < 0 ? 0 : (v > 100 ? 100 : v);
+-}
+-static void sAmbientBright(int v) {
+-  if (v < 0) v = 0; if (v > 100) v = 100;
+-  float f = v / 100.0f;
+-  int idx = (int)AOP().ambientLightEffectsCountIndex;
+-  switch (idx) {
+-    case 4: AOP().alStaticBrightnessCustomThemeX = f; break;
+-    case 1: AOP().alGradientBrightnessCustomX = f; break;
+-    case 2: AOP().alChaseBrightnessCustomX = f; break;
+-    case 3: AOP().alBreathBrightnessCustomX = f; break;
+-  }
+-}
+-
+-// 动画模式映射：菜单序号 -> proto 枚举值
+-// 菜单 0=静态(4=STATIC_THEME) 1=渐变(1=GRADIENT) 2=追逐(2=CHASE) 3=呼吸(3=BREATH)
+-static const int ANIM_MAP[] = {4, 1, 2, 3};
+-static const int ANIM_MAP_COUNT = 4;
+-static int gAnimMode() {
+-  int cur = (int)AOP().ambientLightEffectsCountIndex;
+-  for (int i = 0; i < ANIM_MAP_COUNT; i++) if (ANIM_MAP[i] == cur) return i;
+-  return 0;
+-}
+-static void sAnimMode(int v) {
+-  if (v >= 0 && v < ANIM_MAP_COUNT) AOP().ambientLightEffectsCountIndex = (uint32_t)ANIM_MAP[v];
+-}
+-
+-// 渐变速度 (1-10)
+-static int gGradientSpd() {
+-  int v = (int)AOP().ambientLightGradientSpeed;
+-  return v < 1 ? 1 : (v > 10 ? 10 : v);
+-}
+-static void sGradientSpd(int v) {
+-  if (v < 1) v = 1; if (v > 10) v = 10;
+-  AOP().ambientLightGradientSpeed = (uint32_t)v;
+-}
+-
+-// 追逐速度 (int 0-100, 反转显示)
+-static int gChaseSpd() {
+-  int s = (int)AOP().ambientLightChaseSpeed;
+-  int v = 100 - s;
+-  return v < 0 ? 0 : (v > 100 ? 100 : v);
+-}
+-static void sChaseSpd(int v) {
+-  if (v < 0) v = 0; if (v > 100) v = 100;
+-  AOP().ambientLightChaseSpeed = 100 - v;
+-}
+-
+-// 呼吸速度 (float 0.01-0.1 -> int 1-10, ×100 转换)
+-static int gBreathSpd() {
+-  int v = (int)(AOP().ambientLightBreathSpeed * 100.0f + 0.5f);
+-  return v < 1 ? 1 : (v > 10 ? 10 : v);
+-}
+-static void sBreathSpd(int v) {
+-  if (v < 1) v = 1; if (v > 10) v = 10;
+-  AOP().ambientLightBreathSpeed = (float)v / 100.0f;
+-}
+-
+-static LiteOpt optConfig[] = {
+-  {"输入模式", OPT_ENUM, 0, 18, 1, N_INPUT, 19, "", gInput, sInput},
+-  {"按键配置档", OPT_INT, 1, 1, 1, NULL, 0, "", gProfile, sProfile},
+-  {"背键配置档", OPT_INT, 1, 3, 1, NULL, 0, "", gBackPreset, sBackPreset},
+-  {"保存设置", OPT_ACTION, 0, 0, 0, NULL, 0, "", gSave, sSave},
+-  {"恢复默认", OPT_ACTION, 0, 0, 0, NULL, 0, "", gReset, sReset},
+-};
+-static LiteOpt optHandle[] = {
+-  {"背键映射", OPT_SUBMENU, 0, 0, 0, NULL, 0, "", gReserved, sReserved},
+-  {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
+-  {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
+-  {"BLE模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gBle, sBle},
+-  {"无线模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gNrf24, sNrf24},
+-  {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
+-};
+-// 背键映射子菜单：10 个背键/FN/MT，每个可选 18 种映射（含 OTHER 占位）
+-static LiteOpt optBackMap[] = {
+-  {"左背键1", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLB1, sBackLB1},
+-  {"右背键1", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRB1, sBackRB1},
+-  {"左背键2", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLB2, sBackLB2},
+-  {"右背键2", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRB2, sBackRB2},
+-  {"左背键3", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLB3, sBackLB3},
+-  {"右背键3", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRB3, sBackRB3},
+-  {"左FN键",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLFN, sBackLFN},
+-  {"右FN键",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRFN, sBackRFN},
+-  {"左MT键",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackLMT, sBackLMT},
+-  {"右MT键",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackRMT, sBackRMT},
+-};
+-static const int BACK_MAP_COUNT = 10;
+-static LiteOpt optStick[] = {
+-  {"校准", OPT_ACTION, 0, 0, 0, NULL, 0, "", gCalib, sCalib},
+-  {"左摇杆死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gInnerDz, sInnerDz},
+-  {"左摇杆反死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gAntiDz, sAntiDz},
+-  {"右摇杆死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gInnerDz2, sInnerDz2},
+-  {"右摇杆反死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gAntiDz2, sAntiDz2},
+-};
+-static LiteOpt optFunc[] = {
+-  {"SOCD模式", OPT_ENUM, 0, 4, 1, N_SOCD, 5, "", gSocd, sSocd},
+-  {"四向模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gFour, sFour},
+-  {"反向X", OPT_BOOL, 0, 1, 1, NULL, 0, "", gInvX, sInvX},
+-  {"反向Y", OPT_BOOL, 0, 1, 1, NULL, 0, "", gInvY, sInvY},
+-  {"去抖延迟", OPT_INT, 1, 20, 1, NULL, 0, "ms", gDebounce, sDebounce},
+-};
+-static LiteOpt optLed[] = {
+-  {"动画模式", OPT_ENUM, 0, 3, 1, N_ANIM, 4, "", gAnimMode, sAnimMode},
+-  {"环境光亮度", OPT_INT, 0, 100, 1, NULL, 0, "%", gAmbientBright, sAmbientBright},
+-  {"静态颜色", OPT_ENUM, 0, 15, 1, N_COLOR, 16, "", gColor, sColor},
+-  {"渐变速度", OPT_SLIDER, 1, 10, 1, NULL, 0, "", gGradientSpd, sGradientSpd},
+-  {"追逐速度", OPT_SLIDER, 0, 100, 1, NULL, 0, "", gChaseSpd, sChaseSpd},
+-  {"呼吸速度", OPT_SLIDER, 1, 10, 1, NULL, 0, "", gBreathSpd, sBreathSpd},
+-  {"挂起关灯", OPT_BOOL, 0, 1, 1, NULL, 0, "", gLedOff, sLedOff},
+-};
+-
+-static LiteSection secSettings[] = {
+-  {"配置", optConfig, 5},
+-  {"手柄", optHandle, 7},
+-  {"摇杆", optStick, 5},
+-  {"功能", optFunc, 5},
+-};
+-static LiteSection secLed[] = {{"彩灯", optLed, 7}};
+-
+-static const char* const PAGE_TITLES[] = {"设置", "灯光"};
+-static const int NUM_PAGES = 2;
+-
+-// ---- screen state ----
+-static int page = 0;
+-static int level = 0;        // 0=页面 1=分区 2=选项
+-static int section = 0;
+-static int sel = 0;
+-static int scroll = 0;
+-static bool dirty = false;
+-static bool confirmOpen = false;
+-static int confirmChoice = 0;
+-static bool calibPromptOpen = false;
+-static int snap[8];
+-static int lastSavedInputMode = -1;
+-// 背键映射子菜单状态
+-static bool inBackMap = false;
+-static bool backMapDirty = false;
+-static int backMapSnap[10];
+-
+-// 保存后按需重启（输入模式/陀螺仪/校准等改动需要重启生效）
+-static void maybeRebootIfNeeded() {
+-  int cur = (int)GOP().inputMode;
+-  if (cur != lastSavedInputMode) {
+-    lastSavedInputMode = cur;
+-    needsReboot = true;
+-  }
+-  if (needsReboot) {
+-    needsReboot = false;
+-    EventManager::getInstance().triggerEvent(new GPRestartEvent(System::BootMode::GAMEPAD));
+-  }
+-}
+-
+-static bool animating = false;
+-static int animDir = 0;
+-static unsigned long animStart = 0;
+-static int animFrom = 0, animTo = 0;
+-static int oldPage = 0;
+-
+-// 列表上下滑动动画
+-static float selY = 0, selYFrom = 0, selYTo = 0;
+-static float scrollPx = 0, scrollPxFrom = 0, scrollPxTo = 0;
+-static bool listAnim = false;
+-static unsigned long listAnimStart = 0;
+-
+-static uint16_t prevB = 0;
+-static uint8_t prevD = 0;
+-static unsigned long lastRepeat = 0;
+-static uint8_t repeatMask = 0;
+-
+-static LiteSection* currentSections() {
+-  switch (page) {
+-    case 0: return secSettings;
+-    case 1: return secLed;
+-    default: return NULL;
+-  }
+-}
+-static int sectionCount() {
+-  LiteSection* s = currentSections();
+-  if (!s) return 0;
+-  if (page == 0) return sizeof(secSettings) / sizeof(secSettings[0]);
+-  return 1;
+-}
+-static LiteSection& curSection() {
+-  return currentSections()[section];
+-}
+-
+-static void startListAnim(int selIdx, int scrollIdx) {
+-  selYFrom = selY;
+-  selYTo = selIdx * 13.0f;
+-  scrollPxFrom = scrollPx;
+-  scrollPxTo = scrollIdx * 13.0f;
+-  listAnimStart = getMillis();
+-  listAnim = true;
+-}
+-
+-static void resetListAnim() {
+-  selY = 0; selYFrom = 0; selYTo = 0;
+-  scrollPx = 0; scrollPxFrom = 0; scrollPxTo = 0;
+-  listAnim = false;
+-}
+-
+-static void snapshot() {
+-  LiteSection& s = curSection();
+-  // 按键配置档范围固定 1..2
+-	optConfig[1].max = gProfileMax();
+-  for (int i = 0; i < s.count && i < 8; i++) {
+-    if (s.opts[i].type == OPT_ACTION || s.opts[i].type == OPT_RESERVED || s.opts[i].type == OPT_SUBMENU) { snap[i] = 0; continue; }
+-    snap[i] = s.opts[i].get();
+-  }
+-}
+-static void restore() {
+-  LiteSection& s = curSection();
+-  for (int i = 0; i < s.count && i < 8; i++) {
+-    if (s.opts[i].type == OPT_ACTION || s.opts[i].type == OPT_RESERVED || s.opts[i].type == OPT_SUBMENU) continue;
+-    s.opts[i].set(snap[i]);
+-  }
+-}
+-
+-// 背键映射子菜单快照/恢复（进入时捕获当前值，取消时回滚）
+-static void snapshotBackMap() {
+-  for (int i = 0; i < BACK_MAP_COUNT; i++) backMapSnap[i] = optBackMap[i].get();
+-}
+-static void restoreBackMap() {
+-  for (int i = 0; i < BACK_MAP_COUNT; i++) optBackMap[i].set(backMapSnap[i]);
+-}
+-
+-// 撤销校准+清除重启标志（确认对话框取消时调用）
+-static void undoCalibAndFlags() {
+-  if (inBackMap) {
+-    restoreBackMap();
+-    restore();  // 同时恢复父级分区选项
+-  } else {
+-    restore();
+-  }
+-  if (calibDone) {
+-    AnalogOptions& ao = AOP2().analogOptions;
+-    ao.joystick_center_x = calibBackup[0];
+-    ao.joystick_center_y = calibBackup[1];
+-    ao.joystick_center_x2 = calibBackup[2];
+-    ao.joystick_center_y2 = calibBackup[3];
+-    calibDone = false;
+-  }
+-  needsReboot = false;
+-}
+-
+-// ---- drawing helpers (clipped to 128x64) ----
+-static GPGFX* R = NULL;
+-static void px(int x, int y, int c) {
+-  if (x >= 0 && x < 128 && y >= 0 && y < 64) R->drawPixel(x, y, c);
+-}
+-static void fill(int x, int y, int w, int h, int c) {
+-  for (int yy = y; yy < y + h; yy++)
+-    for (int xx = x; xx < x + w; xx++) px(xx, yy, c);
+-}
+-
+-static void drawAscii(int x, int y, const char* s, int color);
+-
+-static int findCJK(uint16_t cp) {
+-  int lo = 0, hi = CN_FONT_NUM - 1;
+-  while (lo <= hi) {
+-    int mid = (lo + hi) / 2;
+-    if (CN_FONT_CODES[mid] == cp) return mid;
+-    if (CN_FONT_CODES[mid] < cp) lo = mid + 1; else hi = mid - 1;
+-  }
+-  return -1;
+-}
+-
+-static void drawCJKChar(int x, int y, uint16_t cp, int color) {
+-  int idx = findCJK(cp);
+-  if (idx < 0) return;
+-  const uint8_t* g = CN_FONT_GLYPHS[idx];
+-  for (int row = 0; row < CN_FONT_SIZE; row++) {
+-    uint16_t bits = ((uint16_t)g[row * 2] << 8) | g[row * 2 + 1];
+-    for (int col = 0; col < CN_FONT_SIZE; col++) {
+-      if (bits & (0x8000 >> col)) px(x + col, y + row, color);
+-    }
+-  }
+-}
+-
+-static int cjkWidth(const char* s) {
+-  int w = 0;
+-  while (*s) {
+-    uint8_t c = (uint8_t)*s;
+-    if (c < 0x80) { w += 6; s++; }
+-    else if ((c & 0xE0) == 0xC0) { w += CN_FONT_SIZE; s += 2; }
+-    else if ((c & 0xF0) == 0xE0) { w += CN_FONT_SIZE; s += 3; }
+-    else s++;
+-  }
+-  return w;
+-}
+-
+-static void drawCJK(int x, int y, const char* s, int color, bool centered = false) {
+-  if (centered) x -= cjkWidth(s) / 2;
+-  while (*s) {
+-    uint8_t c = (uint8_t)*s;
+-    if (c < 0x80) {
+-      char buf[2] = {(char)c, 0};
+-      drawAscii(x, y + 2, buf, color);
+-      x += 6; s++;
+-      continue;
+-    }
+-    uint16_t cp = 0;
+-    if ((c & 0xE0) == 0xC0) { cp = ((uint16_t)(c & 0x1F) << 6) | ((uint8_t)*++s & 0x3F); s++; }
+-    else if ((c & 0xF0) == 0xE0) {
+-      cp = ((uint16_t)(c & 0x0F) << 12) | (((uint8_t)*++s & 0x3F) << 6);
+-      cp |= ((uint8_t)*++s & 0x3F); s++;
+-    } else { s++; continue; }
+-    drawCJKChar(x, y, cp, color);
+-    x += CN_FONT_SIZE;
+-  }
+-}
+-
+-// 自绘 ASCII（带颜色：选中高亮行上也不会白字白底）
+-static void drawAscii(int x, int y, const char* s, int color) {
+-  while (*s) {
+-    uint8_t c = (uint8_t)*s;
+-    if (c >= GPGFX_FONT_CHAR_OFFSET && c < GPGFX_FONT_CHAR_OFFSET + 96) {
+-      const uint8_t* g = &GP_Font_Standard[(c - GPGFX_FONT_CHAR_OFFSET) * 5];
+-      for (int col = 0; col < 5; col++) {
+-        uint8_t byte = g[col];
+-        for (int row = 0; row < 8; row++) {
+-          if (byte & (1 << row)) px(x + col, y + row, color);
+-        }
+-      }
+-    }
+-    x += 6;
+-    s++;
+-  }
+-}
+-
+-static bool isAsciiStr(const char* s) {
+-  for (const char* p = s; *p; p++) if ((uint8_t)*p >= 0x80) return false;
+-  return true;
+-}
+-
+-static void drawValue(int rightX, int y, const char* s, int color) {
+-  if (isAsciiStr(s)) {
+-    int w = (int)strlen(s) * 6;
+-    drawAscii(rightX - w, y + 2, s, color);
+-  }
+-  else drawCJK(rightX - cjkWidth(s), y, s, color);
+-}
+-
+-static void drawDisc(int x, int y, int r, int c) {
+-  for (int dy = -r; dy <= r; dy++)
+-    for (int dx = -r; dx <= r; dx++)
+-      if (dx * dx + dy * dy <= r * r) px(x + dx, y + dy, c);
+-}
+-
+-static void drawLine(int x0, int y0, int x1, int y1, int c) {
+-  int dx = x1 > x0 ? x1 - x0 : x0 - x1;
+-  int dy = y1 > y0 ? y1 - y0 : y0 - y1;
+-  int sx = x0 < x1 ? 1 : -1;
+-  int sy = y0 < y1 ? 1 : -1;
+-  int err = dx - dy;
+-  while (true) {
+-    px(x0, y0, c);
+-    if (x0 == x1 && y0 == y1) break;
+-    int e2 = 2 * err;
+-    if (e2 > -dy) { err -= dy; x0 += sx; }
+-    if (e2 < dx) { err += dx; y0 += sy; }
+-  }
+-}
+-
+-// 页面图标（单色）— 标题在 y=0，图标下移 12px 与标题间隔一行
+-static void iconSettings(int off) {          // 三条滑杆
+-  int ys[3] = {34, 42, 50};
+-  int kn[3] = {56, 72, 64};
+-  for (int i = 0; i < 3; i++) {
+-    drawLine(44 + off, ys[i], 84 + off, ys[i], 1);
+-    drawDisc(kn[i] + off, ys[i], 4, 1);
+-  }
+-}
+-
+-static void iconLight(int off) {             // 灯泡
+-  drawDisc(64 + off, 41, 10, 1);
+-  drawLine(64 + off, 24, 64 + off, 29, 1);
+-  drawLine(54 + off, 29, 57 + off, 32, 1);
+-  drawLine(74 + off, 29, 71 + off, 32, 1);
+-  fill(59 + off, 51, 10, 5, 1);
+-  fill(63 + off, 56, 2, 4, 1);
+-}
+-
+-static void drawPageIcon(int off, int p) {
+-  switch (p) {
+-    case 0: iconSettings(off); break;
+-    case 1: iconLight(off); break;
+-  }
+-}
+-
+-static const char* optValueText(const LiteOpt* o) {
+-  static char buf[12];
+-  int v = o->get();
+-  if (o->type == OPT_ENUM) {
+-    int i = v - o->min;
+-    return (i >= 0 && i < o->nameCount) ? o->names[i] : "?";
+-  }
+-  if (o->type == OPT_BOOL) return v ? "开启" : "关闭";
+-  if (o->type == OPT_RESERVED) return "预留";
+-  if (o->type == OPT_SUBMENU) return ">";
+-  if (o->type == OPT_DEC) snprintf(buf, sizeof(buf), "%d.%d%s", v / 10, v % 10, o->unit);
+-  else snprintf(buf, sizeof(buf), "%d%s", v, o->unit);
+-  return buf;
+-}
+-
+-static void drawSlider(int x, int y, int w, int v, int max, int color) {
+-  fill(x, y + 3, w, 1, color);             // track
+-  int tw = (max > 0) ? (w - 4) * v / max : 0;
+-  if (tw > 0) fill(x, y + 3, tw + 2, 1, color);
+-  fill(x + tw + 1, y + 1, 3, 5, color);    // thumb
+-}
+-
+-void GPFusionMenuScreen::init() {
+-  page = 0; level = 0; section = 0; sel = 0; scroll = 0;
+-  dirty = false; confirmOpen = false; calibPromptOpen = false; animating = false;
+-  inBackMap = false; backMapDirty = false;
+-  needsReboot = false; calibDone = false;
+-  resetListAnim();
+-  lastSavedInputMode = (int)GOP().inputMode;
+-  prevB = 0; prevD = 0;
+-  getRenderer()->clearScreen();
+-}
+-
+-void GPFusionMenuScreen::shutdown() {
+-}
+-
+-static void slideTo(int dir) {
+-  oldPage = page;
+-  page = (page + dir + NUM_PAGES) % NUM_PAGES;
+-  animDir = dir;
+-  animFrom = dir * 128;
+-  animTo = 0;
+-  animStart = getMillis();
+-  animating = true;
+-  level = 0; section = 0; sel = 0; scroll = 0;
+-  resetListAnim();
+-}
+-
+-static void backOne() {
+-  if (inBackMap) {
+-    inBackMap = false;
+-    backMapDirty = false;
+-    level = 2; sel = 0; scroll = 0;  // 保留 section（父级分区）
+-    resetListAnim();
+-    dirty = false;
+-    return;
+-  }
+-  if (level == 2) {
+-    LiteSection* secs = currentSections();
+-    if (secs && page == 0) { level = 1; section = 0; sel = 0; scroll = 0; }
+-    else { level = 0; section = 0; sel = 0; scroll = 0; }
+-  } else {
+-    level = 0; section = 0; sel = 0; scroll = 0;
+-  }
+-  resetListAnim();
+-  dirty = false;
+-}
+-
+-int8_t GPFusionMenuScreen::update() {
+-  R = getRenderer();
+-  Gamepad* gamepad = Storage::getInstance().GetGamepad();
+-  uint16_t b = gamepad->state.buttons;
+-  // 用原始物理方向：D-Pad 被设为摇杆模式时 state.dpad 会被清空，菜单就收不到左右
+-  uint8_t d = gamepad->state.dpadOriginal;
+-  uint16_t bEdge = b & ~prevB;
+-  uint8_t dEdge = d & ~prevD;
+-  prevB = b; prevD = d;
+-
+-  unsigned long now = getMillis();
+-
+-  // slide animation tick
+-  if (animating) {
+-    unsigned long dt = now - animStart;
+-    if (dt >= 140) {
+-      animating = false;
+-    }
+-  }
+-  if (listAnim) {
+-    unsigned long dt = now - listAnimStart;
+-    float t = (dt >= 140) ? 1.0f : (float)dt / 140.0f;
+-    float e = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
+-    selY = selYFrom + (selYTo - selYFrom) * e;
+-    scrollPx = scrollPxFrom + (scrollPxTo - scrollPxFrom) * e;
+-    if (t >= 1.0f) listAnim = false;
+-  }
+-
+-  // 校准完成提示框：按 B1 或 B2 关闭
+-  if (calibPromptOpen) {
+-    if (bEdge & (GAMEPAD_MASK_B1 | GAMEPAD_MASK_B2)) {
+-      calibPromptOpen = false;
+-    }
+-    return -1;
+-  }
+-
+-  if (confirmOpen) {
+-    if (dEdge & 0x0C) confirmChoice = 1 - confirmChoice;
+-    if (bEdge & GAMEPAD_MASK_B2) {  // B2=确定
+-      confirmOpen = false;
+-      if (confirmChoice == 0) {
+-        EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+-        maybeRebootIfNeeded();
+-        dirty = false;
+-      } else {
+-        undoCalibAndFlags();
+-        dirty = false;
+-      }
+-      backOne();
+-    } else if (bEdge & GAMEPAD_MASK_B1) {  // B1=取消
+-      confirmOpen = false;
+-      undoCalibAndFlags();
+-      dirty = false;
+-      backOne();
+-    }
+-    return -1;
+-  }
+-
+-  // repeat for held up/down/left/right
+-  uint8_t held = d & 0x0F;
+-  if (held && now - lastRepeat >= (repeatMask == held ? 160 : 420)) {
+-    lastRepeat = now;
+-    repeatMask = held;
+-    dEdge |= held;   // synthesize repeats
+-  }
+-  if (!held) { repeatMask = 0; lastRepeat = 0; }
+-
+-  // 背键映射子菜单导航
+-  if (inBackMap) {
+-    int cnt = BACK_MAP_COUNT;
+-    if (dEdge & 0x01) { // UP
+-      sel = (sel == 0) ? cnt - 1 : sel - 1;
+-      int ts = scroll;
+-      if (sel < ts) ts = sel;
+-      if (sel >= ts + 3) ts = sel - 2;
+-      if (ts > cnt - 3) ts = cnt - 3;
+-      if (ts < 0) ts = 0;
+-      scroll = ts;
+-      startListAnim(sel, scroll);
+-    }
+-    if (dEdge & 0x02) { // DOWN
+-      sel = (sel + 1) % cnt;
+-      int ts = scroll;
+-      if (sel < ts) ts = sel;
+-      if (sel >= ts + 3) ts = sel - 2;
+-      if (ts > cnt - 3) ts = cnt - 3;
+-      if (ts < 0) ts = 0;
+-      scroll = ts;
+-      startListAnim(sel, scroll);
+-    }
+-    if (dEdge & 0x0C) { // LEFT/RIGHT 切换枚举
+-      LiteOpt* o = &optBackMap[sel];
+-      int dir = (dEdge & 0x04) ? -1 : 1;
+-      int v = o->get() + dir;
+-      if (v < o->min) v = o->min;
+-      if (v > o->max) v = o->max;
+-      o->set(v);
+-      backMapDirty = true;
+-      needsReboot = true;
+-    }
+-    if (bEdge & GAMEPAD_MASK_B1) { // B1=取消退出（有改动则弹保存确认）
+-      if (backMapDirty) { confirmOpen = true; confirmChoice = 0; }
+-      else {
+-        // 无改动直接退出，保留父级 dirty 状态
+-        inBackMap = false;
+-        level = 2; sel = 0; scroll = 0;
+-        resetListAnim();
+-      }
+-    }
+-    return -1;
+-  }
+-
+-  if (level == 0) {
+-    if (dEdge & 0x04) slideTo(-1);   // LEFT
+-    if (dEdge & 0x08) slideTo(+1);   // RIGHT
+-    if (bEdge & GAMEPAD_MASK_B2) {   // B2=确定 enter
+-      if (sectionCount() > 1) { level = 1; section = 0; sel = 0; scroll = 0; resetListAnim(); }
+-      else { level = 2; section = 0; sel = 0; scroll = 0; snapshot(); dirty = false; needsReboot = false; calibDone = false; }
+-    }
+-    if (bEdge & GAMEPAD_MASK_B1) {   // B1=取消 exit menu
+-      return DisplayMode::BUTTONS;
+-    }
+-  } else if (level == 1) {
+-    int cnt = sectionCount();
+-    if (dEdge & 0x01) sel = (sel + cnt - 1) % cnt;   // UP
+-    if (dEdge & 0x02) sel = (sel + 1) % cnt;         // DOWN
+-    if (dEdge & 0x03) startListAnim(sel, 0);
+-    if (bEdge & GAMEPAD_MASK_B2) { section = sel; level = 2; sel = 0; scroll = 0; resetListAnim(); snapshot(); dirty = false; needsReboot = false; calibDone = false; }
+-    if (bEdge & GAMEPAD_MASK_B1) { level = 0; sel = 0; resetListAnim(); }
+-  } else { // options
+-    LiteSection& s = curSection();
+-    if (dEdge & 0x01) { // UP（含从顶部回绕到底部）
+-      sel = (sel == 0) ? s.count - 1 : sel - 1;
+-      int ts = scroll;
+-      if (sel < ts) ts = sel;
+-      if (sel >= ts + 3) ts = sel - 2;
+-      if (ts > s.count - 3) ts = s.count - 3;
+-      if (ts < 0) ts = 0;
+-      scroll = ts;
+-      startListAnim(sel, scroll);
+-    }
+-    if (dEdge & 0x02) { // DOWN（含从底部回绕到顶部）
+-      sel = (sel + 1) % s.count;
+-      int ts = scroll;
+-      if (sel < ts) ts = sel;
+-      if (sel >= ts + 3) ts = sel - 2;
+-      if (ts > s.count - 3) ts = s.count - 3;
+-      if (ts < 0) ts = 0;
+-      scroll = ts;
+-      startListAnim(sel, scroll);
+-    }
+-    LiteOpt* o = &s.opts[sel];
+-    if (dEdge & 0x0C) {
+-      int dir = (dEdge & 0x04) ? -1 : 1;
+-      if (o->type != OPT_ACTION && o->type != OPT_RESERVED && o->type != OPT_SUBMENU) {
+-        int v = o->get() + dir * ((o->type == OPT_INT || o->type == OPT_SLIDER || o->type == OPT_DEC) ? o->step : 1);
+-        if (v < o->min) v = o->min;
+-        if (v > o->max) v = o->max;
+-        o->set(v);
+-        dirty = true;
+-      }
+-    }
+-    if (bEdge & GAMEPAD_MASK_B2) {  // B2=确定
+-      if (o->type == OPT_ACTION) {
+-        dirty = (o->get() != 0);
+-        // 校准完成后弹出提示框
+-        if (calibDone) calibPromptOpen = true;
+-      }
+-      else if (o->type == OPT_SUBMENU) {
+-        inBackMap = true;
+-        sel = 0; scroll = 0;
+-        backMapDirty = false;
+-        snapshotBackMap();
+-        resetListAnim();
+-      }
+-    }
+-    if (bEdge & GAMEPAD_MASK_B1) {  // B1=取消
+-      if (dirty) { confirmOpen = true; confirmChoice = 0; }
+-      else backOne();
+-    }
+-  }
+-  return -1;
+-}
+-
+-static void drawPagePreview(int p, int off) {
+-  drawCJK(64 + off, 0, PAGE_TITLES[p], 1, true);
+-  drawPageIcon(off, p);
+-}
+-
+-static void drawMenuPages() {
+-  int off = 0;
+-  if (animating) {
+-    unsigned long dt = getMillis() - animStart;
+-    float t = (dt >= 140) ? 1.0f : (float)dt / 140.0f;
+-    float e = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
+-    off = animFrom + (int)((animTo - animFrom) * e);
+-  }
+-  drawPagePreview(page, off);
+-  if (animating) drawPagePreview(oldPage, off - animDir * 128);
+-}
+-
+-static void drawSections() {
+-  drawCJK(64, 0, "设置", 1, true);
+-  int cnt = sectionCount();
+-  fill(0, 13 + (int)selY, 128, 12, 1);
+-  for (int i = 0; i < cnt; i++) {
+-    int y = 13 + i * 13;
+-    drawCJK(8, y, currentSections()[i].title, i == sel ? 0 : 1);
+-  }
+-}
+-
+-static void drawOptions() {
+-  LiteSection& s = curSection();
+-  drawCJK(64, 0, s.title, 1, true);
+-  // 选择框要跟随可视区：selY 是绝对位置，减去 scrollPx 才是屏幕上的位置
+-  fill(0, 13 + (int)(selY - scrollPx), 128, 12, 1);
+-  for (int i = 0; i < s.count; i++) {
+-    int y = 13 + i * 13 - (int)scrollPx;
+-    if (y < 6 || y > 52) continue;
+-    LiteOpt* o = &s.opts[i];
+-    drawCJK(2, y, o->label, i == sel ? 0 : 1);
+-    if (o->type == OPT_SLIDER) {
+-      drawSlider(70, y + 4, 48, o->get(), o->max, i == sel ? 0 : 1);
+-    } else {
+-      if (o->type == OPT_ACTION || o->type == OPT_SUBMENU) drawAscii(122, y + 2, ">", i == sel ? 0 : 1);
+-      else drawValue(124, y, optValueText(o), i == sel ? 0 : 1);
+-    }
+-  }
+-  // scrollbar
+-  if (s.count > 3) {
+-    int th = 40 * 3 / s.count; if (th < 6) th = 6;
+-    float range = (float)((s.count - 3) * 13);
+-    int ty = 13 + (range > 0 ? (int)(scrollPx / range * (39 - th)) : 0);
+-    fill(126, 13, 2, 39, 1);
+-    fill(126, ty, 2, th, 1);
+-  }
+-}
+-
+-// 背键映射子菜单绘制（复用 drawOptions 布局）
+-static void drawBackMap() {
+-  drawCJK(64, 0, "背键映射", 1, true);
+-  fill(0, 13 + (int)(selY - scrollPx), 128, 12, 1);
+-  int cnt = BACK_MAP_COUNT;
+-  for (int i = 0; i < cnt; i++) {
+-    int y = 13 + i * 13 - (int)scrollPx;
+-    if (y < 6 || y > 52) continue;
+-    LiteOpt* o = &optBackMap[i];
+-    drawCJK(2, y, o->label, i == sel ? 0 : 1);
+-    drawValue(124, y, optValueText(o), i == sel ? 0 : 1);
+-  }
+-  // scrollbar
+-  if (cnt > 3) {
+-    int th = 40 * 3 / cnt; if (th < 6) th = 6;
+-    float range = (float)((cnt - 3) * 13);
+-    int ty = 13 + (range > 0 ? (int)(scrollPx / range * (39 - th)) : 0);
+-    fill(126, 13, 2, 39, 1);
+-    fill(126, ty, 2, th, 1);
+-  }
+-}
+-
+-void GPFusionMenuScreen::drawScreen() {
+-  R = getRenderer();
+-  fill(0, 0, 128, 64, 0);
+-  if (calibPromptOpen) {
+-    fill(20, 16, 88, 36, 0);
+-    fill(21, 17, 86, 34, 1);
+-    fill(23, 19, 82, 30, 0);
+-    drawCJK(64, 30, "校准已保存", 1, true);
+-    return;
+-  }
+-  if (confirmOpen) {
+-    fill(24, 18, 80, 36, 0);
+-    fill(25, 19, 78, 34, 1);
+-    fill(27, 21, 74, 30, 0);
+-    drawCJK(64, 24, "是否立即保存", 1, true);
+-    if (confirmChoice == 0) {
+-      fill(48, 40, 20, 12, 1);
+-      drawCJK(58, 40, "是", 0, true);
+-      drawCJK(82, 40, "否", 1, true);
+-    } else {
+-      drawCJK(58, 40, "是", 1, true);
+-      fill(72, 40, 20, 12, 1);
+-      drawCJK(82, 40, "否", 0, true);
+-    }
+-    return;
+-  }
+-  if (inBackMap) drawBackMap();
+-  else if (level == 0) drawMenuPages();
+-  else if (level == 1) drawSections();
+-  else drawOptions();
+-}
+diff --git a/src/display/ui/screens/LiteCustomLayoutScreen.cpp b/src/display/ui/screens/LiteCustomLayoutScreen.cpp
+deleted file mode 100644
+index 49bfcdf8..00000000
+--- a/src/display/ui/screens/LiteCustomLayoutScreen.cpp
++++ /dev/null
+@@ -1,170 +0,0 @@
+-// GP-Combine Lite 自定义按键布局屏：顶部状态栏 + 布局形状（读 layout_user.h）
+-#include "LiteCustomLayoutScreen.h"
+-#include "storagemanager.h"
+-#include "drivermanager.h"
+-#include "GamepadState.h"
+-#include <cstring>
+-#include <deque>
+-#include <string>
+-
+-// ---- 输入历史（顶部条显示，不缩小布局） ----
+-static const char* HIST_NAMES[] = {
+-    "U", "D", "L", "R",
+-    "B1", "B2", "B3", "B4", "L1", "R1", "L2", "R2",
+-    "S1", "S2", "L3", "R3", "A1", "A2", "A3", "A4",
+-};
+-static std::deque<std::string> histEntries;
+-static uint32_t histLastMask = 0;
+-static std::string historyStr;
+-
+-static void updateInputHistory(Gamepad* g) {
+-    // 低 4 位 = 原始十字键，其余 = 按键（与 HIST_NAMES 顺序对应）
+-    uint32_t mask = (uint32_t)(g->state.dpadOriginal & 0x0F);
+-    mask |= (uint32_t)(g->state.buttons & 0xFFFF) << 4;
+-    uint32_t newMask = mask & ~histLastMask;
+-    histLastMask = mask;
+-    if (newMask == 0) return;
+-
+-    std::string entry;
+-    for (int i = 0; i < 20; i++) {
+-        if (newMask & (1u << i)) {
+-            if (!entry.empty()) entry += "+";
+-            entry += HIST_NAMES[i];
+-        }
+-    }
+-    if (entry.empty()) return;
+-    histEntries.push_back(entry);
+-    if (histEntries.size() > 8) histEntries.pop_front();
+-
+-    std::string s;
+-    for (const auto& e : histEntries) {
+-        if (!s.empty()) s += " ";
+-        s += e;
+-        if (s.size() > 20) {
+-            s = s.substr(s.size() - 20);
+-            break;
+-        }
+-    }
+-    historyStr = s;
+-}
+-
+-// 布局按钮结构（与配置助手生成的头文件一致）
+-typedef struct {
+-    uint32_t mask;
+-    int16_t x;
+-    int16_t y;
+-    uint8_t r;
+-    const char* label;
+-    uint8_t dpad;
+-    uint8_t square;
+-} LiteLayoutBtn;
+-
+-#if __has_include("layout_user.h")
+-#include "layout_user.h"
+-#else
+-#define LITE_USER_LAYOUT 0
+-#define LITE_USER_SHOW_LEVER 0
+-static const LiteLayoutBtn LITE_USER_MOVE[] = {};
+-static const LiteLayoutBtn LITE_USER_CLUSTER[] = {};
+-#define LITE_USER_LEVER_X 38
+-#define LITE_USER_LEVER_Y 80
+-#define LITE_USER_LEVER_RING 22
+-#define LITE_USER_LEVER_KNOB 7
+-#endif
+-
+-static const char* modeName() {
+-    switch (DriverManager::getInstance().getInputMode()) {
+-        case INPUT_MODE_XINPUT: return "XINPUT";
+-        case INPUT_MODE_SWITCH: return "SWITCH";
+-        case INPUT_MODE_PS3: return "PS3";
+-        case INPUT_MODE_PS4: return "PS4";
+-        case INPUT_MODE_PS5: return "PS5";
+-        case INPUT_MODE_P5GENERAL: return "P5G";
+-        case INPUT_MODE_XBONE: return "XBON";
+-        case INPUT_MODE_MDMINI: return "GEN/MD";
+-        case INPUT_MODE_NEOGEO: return "NGMINI";
+-        case INPUT_MODE_PCEMINI: return "PCE/TG";
+-        case INPUT_MODE_EGRET: return "EGRET";
+-        case INPUT_MODE_ASTRO: return "ASTRO";
+-        case INPUT_MODE_PSCLASSIC: return "PSC";
+-        case INPUT_MODE_XBOXORIGINAL: return "OGXB";
+-        case INPUT_MODE_SWITCH_PRO: return "SWPR";
+-        case INPUT_MODE_KEYBOARD: return "HID-KB";
+-        case INPUT_MODE_GENERIC: return "USBHID";
+-        default: return "?";
+-    }
+-}
+-
+-static const char* socdName() {
+-    switch (Gamepad::resolveSOCDMode(Storage::getInstance().getGamepadOptions())) {
+-        case SOCD_MODE_NEUTRAL: return "SOCD-N";
+-        case SOCD_MODE_UP_PRIORITY: return "SOCD-U";
+-        case SOCD_MODE_SECOND_INPUT_PRIORITY: return "SOCD-L";
+-        case SOCD_MODE_FIRST_INPUT_PRIORITY: return "SOCD-F";
+-        case SOCD_MODE_BYPASS: return "SOCD-X";
+-        default: return "";
+-    }
+-}
+-
+-static void drawLiteBtn(GPGFX* R, const LiteLayoutBtn& b, bool pressed) {
+-    if (b.square) {
+-        R->drawRectangle(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2, 1, pressed ? 1 : 0);
+-    } else {
+-        R->drawEllipse(b.x, b.y, b.r, b.r, 1, pressed ? 1 : 0);
+-    }
+-}
+-
+-void LiteCustomLayoutScreen::init() {
+-    getRenderer()->clearScreen();
+-}
+-
+-void LiteCustomLayoutScreen::shutdown() {
+-}
+-
+-int8_t LiteCustomLayoutScreen::update() {
+-    Gamepad* g = Storage::getInstance().GetGamepad();
+-    updateInputHistory(g);
+-    return -1;
+-}
+-
+-void LiteCustomLayoutScreen::drawScreen() {
+-    GPGFX* R = getRenderer();
+-    Gamepad* gamepad = Storage::getInstance().GetGamepad();
+-    uint16_t btns = (uint16_t)(gamepad->state.buttons & 0xFFFF);
+-    uint8_t d = (uint8_t)gamepad->state.dpad;
+-
+-    // 顶部条：开启输入历史时显示历史，否则显示 模式 + D-Pad + SOCD
+-    if (Storage::getInstance().getDisplayOptions().inputHistoryEnabled && !historyStr.empty()) {
+-        R->drawText(0, 0, historyStr, 0);
+-    } else {
+-        std::string status = modeName();
+-        status += (gamepad->getActiveDpadMode() == DPAD_MODE_LEFT_ANALOG) ? " L" :
+-                  (gamepad->getActiveDpadMode() == DPAD_MODE_RIGHT_ANALOG) ? " R" : " D";
+-        status += " ";
+-        status += socdName();
+-        R->drawText(0, 0, status, 0);
+-    }
+-
+-    for (const LiteLayoutBtn& b : LITE_USER_MOVE) {
+-        drawLiteBtn(R, b, (b.dpad ? (d & b.mask) : (btns & b.mask)) != 0);
+-    }
+-    for (const LiteLayoutBtn& b : LITE_USER_CLUSTER) {
+-        drawLiteBtn(R, b, (b.dpad ? (d & b.mask) : (btns & b.mask)) != 0);
+-    }
+-
+-#if LITE_USER_SHOW_LEVER
+-    int cx = LITE_USER_LEVER_X;
+-    int cy = LITE_USER_LEVER_Y;
+-    int ring = LITE_USER_LEVER_RING;
+-    int knob = LITE_USER_LEVER_KNOB;
+-    if (ring < 2) ring = 2;
+-    if (knob < 1) knob = 1;
+-    R->drawEllipse(cx, cy, ring, ring, 1, 0);
+-    int dx = 0, dy = 0;
+-    if (d & 0x01) dy -= knob;
+-    if (d & 0x02) dy += knob;
+-    if (d & 0x04) dx -= knob;
+-    if (d & 0x08) dx += knob;
+-    R->drawEllipse(cx + dx, cy + dy, knob, knob, 1, 1);
+-#endif
+-}
+diff --git a/src/gp2040.cpp b/src/gp2040.cpp
+index 4e996c3f..dd2e30b9 100644
+--- a/src/gp2040.cpp
++++ b/src/gp2040.cpp
+@@ -968,7 +968,7 @@ void GP2040::run() {
+ 		}
+ 		if (gateAction == MainLoopGateAction::RetrySubmit) {
+ 			USBHostManager::getInstance().process();
+-			// 抑制 USB 按键输出：仅 miniled 菜单操作中（防止菜单操作泄漏到主机）。
++			// 抑制 USB 按键输出：仅 OLED 菜单操作中（防止菜单操作泄漏到主机）。
+ 			// 无线/蓝牙链路激活时不清零——USB 与无线并行输出真实按键，
+ 			// 报文照常构建上报，不影响枚举/轮询/认证与门控时序。
+ 			const bool suppressUsb = g_screenOperationActive;
+diff --git a/src/webconfig.cpp b/src/webconfig.cpp
+index 4e22dc0d..ae55b333 100644
+--- a/src/webconfig.cpp
++++ b/src/webconfig.cpp
+@@ -1100,7 +1100,6 @@ std::string setGamepadOptions()
+     readDoc(gamepadOptions.xinputAuthType, doc, "xinputAuthType");
+     readDoc(gamepadOptions.ps4ControllerIDMode, doc, "ps4ControllerIDMode");
+     readDoc(gamepadOptions.usbDescOverride, doc, "usbDescOverride");
+-    readDoc(gamepadOptions.miniMenuGamepadInput, doc, "miniMenuGamepadInput");
+     // Copy USB descriptor strings
+     size_t strSize = sizeof(gamepadOptions.usbDescManufacturer);
+     strncpy(gamepadOptions.usbDescManufacturer, doc["usbDescManufacturer"], strSize - 1);
+@@ -1185,7 +1184,6 @@ std::string getGamepadOptions()
+     writeDoc(doc, "usbDescProduct", gamepadOptions.usbDescProduct);
+     writeDoc(doc, "usbDescVersion", gamepadOptions.usbDescVersion);
+     writeDoc(doc, "usbOverrideID", gamepadOptions.usbOverrideID);
+-    writeDoc(doc, "miniMenuGamepadInput", gamepadOptions.miniMenuGamepadInput);
+     writeDoc(doc, "bluetoothLinkEnabled", gamepadOptions.bluetoothLinkEnabled ? 1 : 0);
+     writeDoc(doc, "nrf24LinkEnabled", gamepadOptions.nrf24LinkEnabled ? 1 : 0);
+     // Write USB Vendor ID and Product ID as 4 character hex strings with 0 padding
+diff --git a/www/server/app.js b/www/server/app.js
+index 9a806c0f..13de58dd 100644
+--- a/www/server/app.js
++++ b/www/server/app.js
+@@ -131,7 +131,6 @@ app.get('/api/getGamepadOptions', (req, res) => {
+ 		usbOverrideID: 0,
+ 		usbVendorID: '10C4',
+ 		usbProductID: '82C0',
+-		miniMenuGamepadInput: 1,
+ 		hotkey01: {
+ 			auxMask: 0,
+ 			buttonsMask: 0,
+diff --git a/www/src/Pages/SettingsPage.jsx b/www/src/Pages/SettingsPage.jsx
+index c6572c11..1b1352bc 100644
+--- a/www/src/Pages/SettingsPage.jsx
++++ b/www/src/Pages/SettingsPage.jsx
+@@ -424,7 +424,6 @@ const schema = yup.object().shape({
+ 		.oneOf(AUTHENTICATION_TYPES.map((o) => o.value))
+ 		.label('X-Input Authentication Type'),
+ 	debounceDelay: yup.number().required().label('Debounce Delay'),
+-	miniMenuGamepadInput: yup.number().required().label('Mini Menu'),
+ 	usbDescProduct: yup.string().label('USB Description: Product Name'),
+ 	usbDescManufacturer: yup.string().label('USB Description: Manufacturer'),
+ 	usbDescVersion: yup.string().label('USB Description: Version'),
+@@ -1636,25 +1635,6 @@ export default function SettingsPage() {
+ 															/>
+ 														</Col>
+ 													</Form.Group>
+-													<Form.Group className="row mb-5">
+-														<Col sm={5}>
+-															<Form.Check
+-																label={t(
+-																	'SettingsPage:mini-menu-gamepad-input',
+-																)}
+-																type="switch"
+-																id="miniMenuGamepadInput"
+-																isInvalid={false}
+-																checked={Boolean(values.miniMenuGamepadInput)}
+-																onChange={(e) => {
+-																	setFieldValue(
+-																		'miniMenuGamepadInput',
+-																		e.target.checked ? 1 : 0,
+-																	);
+-																}}
+-															/>
+-														</Col>
+-													</Form.Group>
+ 													<Button type="submit">
+ 														{t('Common:button-save-label')}
+ 													</Button>
+-- 
+2.34.1
+
