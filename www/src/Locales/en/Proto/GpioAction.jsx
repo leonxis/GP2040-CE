@@ -135,4 +135,8 @@ export default {
 	'MOUSE_LEFT_BUTTON': 'Mouse Left',
 	'MOUSE_RIGHT_BUTTON': 'Mouse Right',
 	'MOUSE_MIDDLE_BUTTON': 'Mouse Middle',
+	'TOUCHPAD_SWIPE_LEFT': 'Touchpad Swipe Left',
+	'TOUCHPAD_SWIPE_RIGHT': 'Touchpad Swipe Right',
+	'TOUCHPAD_SWIPE_UP': 'Touchpad Swipe Up',
+	'TOUCHPAD_SWIPE_DOWN': 'Touchpad Swipe Down',
 };

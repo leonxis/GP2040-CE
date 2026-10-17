@@ -133,6 +133,10 @@ void Gamepad::setup()
 	mapMouseButtonLeft = new GamepadButtonMapping(0);
 	mapMouseButtonRight = new GamepadButtonMapping(0);
 	mapMouseButtonMiddle = new GamepadButtonMapping(0);
+	mapTouchpadSwipeLeft = new GamepadButtonMapping(0);
+	mapTouchpadSwipeRight = new GamepadButtonMapping(0);
+	mapTouchpadSwipeUp = new GamepadButtonMapping(0);
+	mapTouchpadSwipeDown = new GamepadButtonMapping(0);
 
 	const auto assignCustomMappingToMaps = [&](GpioMappingInfo mapInfo, Pin_t pin) -> void {
 		if (mapDpadUp->buttonMask & mapInfo.customDpadMask)	mapDpadUp->pinMask |= Mask_t{1} << pin;
@@ -255,6 +259,10 @@ void Gamepad::setup()
 			case GpioAction::MOUSE_LEFT_BUTTON:	mapMouseButtonLeft->pinMask |= Mask_t{1} << pin; break;
 			case GpioAction::MOUSE_RIGHT_BUTTON:	mapMouseButtonRight->pinMask |= Mask_t{1} << pin; break;
 			case GpioAction::MOUSE_MIDDLE_BUTTON:	mapMouseButtonMiddle->pinMask |= Mask_t{1} << pin; break;
+			case GpioAction::TOUCHPAD_SWIPE_LEFT:	mapTouchpadSwipeLeft->pinMask |= Mask_t{1} << pin; break;
+			case GpioAction::TOUCHPAD_SWIPE_RIGHT:	mapTouchpadSwipeRight->pinMask |= Mask_t{1} << pin; break;
+			case GpioAction::TOUCHPAD_SWIPE_UP:		mapTouchpadSwipeUp->pinMask |= Mask_t{1} << pin; break;
+			case GpioAction::TOUCHPAD_SWIPE_DOWN:	mapTouchpadSwipeDown->pinMask |= Mask_t{1} << pin; break;
 			default:				break;
 		}
 	}
@@ -375,6 +383,10 @@ void Gamepad::reinit()
 	delete mapMouseButtonLeft;
 	delete mapMouseButtonRight;
 	delete mapMouseButtonMiddle;
+	delete mapTouchpadSwipeLeft;
+	delete mapTouchpadSwipeRight;
+	delete mapTouchpadSwipeUp;
+	delete mapTouchpadSwipeDown;
 
 	// reinitialize pin mappings
 	this->setup();
@@ -449,12 +461,85 @@ void Gamepad::process()
 		default:
 			break;
 	}
+
+	// DS4/DS5 原生触摸板滑动手势模拟
+	processTouchpadSwipe();
+}
+
+// DS4/DS5 触摸板分辨率（与 PS4Descriptors.h / P5GeneralDescriptors.h 一致）
+static constexpr uint16_t TP_SWIPE_X_MIN = 0;
+static constexpr uint16_t TP_SWIPE_X_MAX = 1920;
+static constexpr uint16_t TP_SWIPE_Y_MIN = 0;
+static constexpr uint16_t TP_SWIPE_Y_MAX = 943;
+static constexpr uint16_t TP_SWIPE_X_CENTER = TP_SWIPE_X_MAX / 2;
+static constexpr uint16_t TP_SWIPE_Y_CENTER = TP_SWIPE_Y_MAX / 2;
+// 每帧移动步长：约 24 帧走完全幅，兼顾响应速度与可辨识轨迹
+static constexpr uint16_t TP_SWIPE_STEP_X = 80;
+static constexpr uint16_t TP_SWIPE_STEP_Y = 40;
+
+void Gamepad::processTouchpadSwipe()
+{
+	// 优先级：左 > 右 > 上 > 下（同时按下时取第一个）
+	uint8_t newDir = 0;
+	if (pressedTouchpadSwipeLeft())       newDir = 1;
+	else if (pressedTouchpadSwipeRight()) newDir = 2;
+	else if (pressedTouchpadSwipeUp())    newDir = 3;
+	else if (pressedTouchpadSwipeDown())  newDir = 4;
+
+	GamepadAux3DSensor& tp = auxState.sensors.touchpad[0];
+
+	if (newDir == 0) {
+		// 无滑动按键：抬起手指
+		touchpadSwipeDir = 0;
+		tp.enabled = true;
+		tp.active = false;
+		return;
+	}
+
+	// 方向变化（含从无到有）：重置到中心点
+	if (newDir != touchpadSwipeDir) {
+		touchpadSwipeDir = newDir;
+		touchpadSwipeX = TP_SWIPE_X_CENTER;
+		touchpadSwipeY = TP_SWIPE_Y_CENTER;
+	}
+
+	// 沿方向移动，夹取到边界
+	switch (touchpadSwipeDir) {
+		case 1: // 左
+			touchpadSwipeX = (touchpadSwipeX > TP_SWIPE_STEP_X)
+				? touchpadSwipeX - TP_SWIPE_STEP_X
+				: TP_SWIPE_X_MIN;
+			break;
+		case 2: // 右
+			touchpadSwipeX = (touchpadSwipeX + TP_SWIPE_STEP_X < TP_SWIPE_X_MAX)
+				? touchpadSwipeX + TP_SWIPE_STEP_X
+				: TP_SWIPE_X_MAX;
+			break;
+		case 3: // 上
+			touchpadSwipeY = (touchpadSwipeY > TP_SWIPE_STEP_Y)
+				? touchpadSwipeY - TP_SWIPE_STEP_Y
+				: TP_SWIPE_Y_MIN;
+			break;
+		case 4: // 下
+			touchpadSwipeY = (touchpadSwipeY + TP_SWIPE_STEP_Y < TP_SWIPE_Y_MAX)
+				? touchpadSwipeY + TP_SWIPE_STEP_Y
+				: TP_SWIPE_Y_MAX;
+			break;
+		default:
+			break;
+	}
+
+	tp.enabled = true;
+	tp.active = true;
+	tp.x = touchpadSwipeX;
+	tp.y = touchpadSwipeY;
 }
 
 void Gamepad::read()
 {
 	addonKeyboardKeyMask = 0;
 	addonMouseButtonMask = 0;
+	addonTouchpadSwipeMask = 0;
 	addonMacroTriggerMask = 0;
 	Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
 

@@ -17,7 +17,7 @@ import { AppContext } from '../Contexts/AppContext';
 import FormSelect from '../Components/FormSelect';
 import Section from '../Components/Section';
 import WebApi from '../Services/WebApi';
-import { BUTTONS, BUTTON_LAYOUTS } from '../Data/Buttons';
+import { BUTTONS, BUTTON_LAYOUTS, getButtonLabels } from '../Data/Buttons';
 import LEDColors from '../Data/LEDColors';
 
 import './CustomThemePage.scss';
@@ -133,6 +133,7 @@ const CustomThemePage = () => {
 		...customColors(savedColors),
 	]);
 	const { buttonLabelType } = buttonLabels;
+	const buttonNames = getButtonLabels(buttonLabelType);
 	const { setLoading } = useContext(AppContext);
 
 	const { t } = useTranslation('');
@@ -397,7 +398,7 @@ const CustomThemePage = () => {
 														className={`${buttonName} ${
 															selectedButton === buttonName ? 'selected' : ''
 														}`}
-														name={BUTTONS[buttonLabelType][buttonName]}
+														name={buttonNames[buttonName]}
 														buttonColor={customTheme[buttonName]?.normal}
 														buttonPressedColor={
 															customTheme[buttonName]?.pressed
@@ -416,7 +417,7 @@ const CustomThemePage = () => {
 														className={`${buttonName} ${
 															selectedButton === buttonName ? 'selected' : ''
 														}`}
-														name={BUTTONS[buttonLabelType][buttonName]}
+														name={buttonNames[buttonName]}
 														buttonColor={customTheme[buttonName]?.normal}
 														buttonPressedColor={
 															customTheme[buttonName]?.pressed
@@ -466,7 +467,7 @@ const CustomThemePage = () => {
 								<h6 className="text-center">
 									{specialButtons.indexOf(selectedButton) > -1
 										? selectedButton
-										: BUTTONS[buttonLabelType][selectedButton]}
+										: buttonNames[selectedButton]}
 								</h6>
 								<Row>
 									<Form.Group

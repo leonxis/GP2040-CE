@@ -401,6 +401,13 @@ enum GpioAction
     MOUSE_LEFT_BUTTON            = 170;
     MOUSE_RIGHT_BUTTON           = 171;
     MOUSE_MIDDLE_BUTTON          = 172;
+
+    // DS4/DS5 原生触摸板滑动手势模拟输出：按下时驱动 auxState.sensors.touchpad[0]
+    // 从中心向对应方向移动坐标，松开时抬起手指；仅 PS4/PS4B/P5General 驱动消费
+    TOUCHPAD_SWIPE_LEFT          = 173;
+    TOUCHPAD_SWIPE_RIGHT         = 174;
+    TOUCHPAD_SWIPE_UP            = 175;
+    TOUCHPAD_SWIPE_DOWN          = 176;
 }
 
 enum GpioDirection

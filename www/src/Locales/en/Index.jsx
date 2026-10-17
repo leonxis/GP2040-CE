@@ -18,6 +18,7 @@ import InputMacroAddon from './InputMacroAddon';
 import LayoutConfig from './LayoutConfig';
 import Proto from './Proto/Index';
 import CalibrationSettings from './CalibrationSettings';
+import Buttons from './Buttons';
 
 export default {
 	Common,
@@ -40,4 +41,5 @@ export default {
 	Proto,
 	HETrigger,
 	CalibrationSettings,
+	Buttons,
 };

@@ -243,6 +243,14 @@ void parseActionMapping(GpioAction action, uint32_t customButtonMask, uint32_t c
         entry.mouseButtonMask = MOUSE_RIGHT_BIT;
     } else if (action == GpioAction::MOUSE_MIDDLE_BUTTON) {
         entry.mouseButtonMask = MOUSE_MIDDLE_BIT;
+    } else if (action == GpioAction::TOUCHPAD_SWIPE_LEFT) {
+        entry.touchpadSwipeMask = Gamepad::TOUCHPAD_SWIPE_MASK_LEFT;
+    } else if (action == GpioAction::TOUCHPAD_SWIPE_RIGHT) {
+        entry.touchpadSwipeMask = Gamepad::TOUCHPAD_SWIPE_MASK_RIGHT;
+    } else if (action == GpioAction::TOUCHPAD_SWIPE_UP) {
+        entry.touchpadSwipeMask = Gamepad::TOUCHPAD_SWIPE_MASK_UP;
+    } else if (action == GpioAction::TOUCHPAD_SWIPE_DOWN) {
+        entry.touchpadSwipeMask = Gamepad::TOUCHPAD_SWIPE_MASK_DOWN;
     }
 
     if (isComplexAction(action)) {
@@ -255,6 +263,7 @@ void parseActionMapping(GpioAction action, uint32_t customButtonMask, uint32_t c
         (entry.auxMask != 0u) ||
         (entry.keyboardMask != 0u) ||
         (entry.mouseButtonMask != 0u) ||
+        (entry.touchpadSwipeMask != 0u) ||
         (entry.complexAction != GpioAction::NONE);
 }
 
@@ -268,6 +277,7 @@ void applyActionMappingEntry(Gamepad* gamepad, const ActionMappingEntry& entry) 
     gamepad->state.aux |= entry.auxMask;
     gamepad->addonKeyboardKeyMask |= entry.keyboardMask;
     gamepad->addonMouseButtonMask |= entry.mouseButtonMask;
+    gamepad->addonTouchpadSwipeMask |= entry.touchpadSwipeMask;
 
     if (entry.buttonMask & GAMEPAD_MASK_L2) {
         gamepad->state.lt = GAMEPAD_TRIGGER_MAX;
@@ -291,6 +301,7 @@ void clearActionMappingEntry(Gamepad* gamepad, const ActionMappingEntry& entry) 
     gamepad->state.aux &= static_cast<uint16_t>(~entry.auxMask);
     gamepad->addonKeyboardKeyMask &= ~entry.keyboardMask;
     gamepad->addonMouseButtonMask &= static_cast<uint8_t>(~entry.mouseButtonMask);
+    gamepad->addonTouchpadSwipeMask &= static_cast<uint8_t>(~entry.touchpadSwipeMask);
 
     if (entry.complexAction != GpioAction::NONE) {
         clearComplexAction(gamepad, entry.complexAction);
@@ -303,12 +314,14 @@ void ActionOutputScope::reset() {
     lastAux_ = 0;
     lastKeyboard_ = 0;
     lastMouse_ = 0;
+    lastTouchpadSwipe_ = 0;
     lastComplexCount_ = 0;
     frameButtons_ = 0;
     frameDpad_ = 0;
     frameAux_ = 0;
     frameKeyboard_ = 0;
     frameMouse_ = 0;
+    frameTouchpadSwipe_ = 0;
     frameComplexCount_ = 0;
 }
 
@@ -322,6 +335,7 @@ void ActionOutputScope::beginFrame(Gamepad* gamepad) {
     gamepad->state.aux &= static_cast<uint16_t>(~lastAux_);
     gamepad->addonKeyboardKeyMask &= ~lastKeyboard_;
     gamepad->addonMouseButtonMask &= static_cast<uint8_t>(~lastMouse_);
+    gamepad->addonTouchpadSwipeMask &= static_cast<uint8_t>(~lastTouchpadSwipe_);
 
     for (uint8_t i = 0; i < lastComplexCount_; i++) {
         clearComplexAction(gamepad, lastComplex_[i]);
@@ -332,6 +346,7 @@ void ActionOutputScope::beginFrame(Gamepad* gamepad) {
     frameAux_ = 0;
     frameKeyboard_ = 0;
     frameMouse_ = 0;
+    frameTouchpadSwipe_ = 0;
     frameComplexCount_ = 0;
 }
 
@@ -346,6 +361,7 @@ void ActionOutputScope::apply(Gamepad* gamepad, const ActionMappingEntry& entry)
     frameAux_ |= entry.auxMask;
     frameKeyboard_ |= entry.keyboardMask;
     frameMouse_ |= entry.mouseButtonMask;
+    frameTouchpadSwipe_ |= entry.touchpadSwipeMask;
 
     if (entry.complexAction != GpioAction::NONE && frameComplexCount_ < ACTION_OUTPUT_SCOPE_MAX_COMPLEX_ACTIONS) {
         bool exists = false;
@@ -367,6 +383,7 @@ void ActionOutputScope::endFrame() {
     lastAux_ = frameAux_;
     lastKeyboard_ = frameKeyboard_;
     lastMouse_ = frameMouse_;
+    lastTouchpadSwipe_ = frameTouchpadSwipe_;
     lastComplexCount_ = frameComplexCount_;
     for (uint8_t i = 0; i < frameComplexCount_; i++) {
         lastComplex_[i] = frameComplex_[i];

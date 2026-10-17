@@ -21,8 +21,8 @@ import { AppContext } from '../../../Contexts/AppContext';
 import Section from '../../../Components/Section';
 import WebApi from '../../../Services/WebApi';
 import {
-	BUTTONS,
 	BUTTON_MASKS_OPTIONS,
+	getButtonLabels,
 } from '../../../Data/Buttons';
 import { BUTTON_ACTIONS } from '../../../Data/Pins';
 
@@ -210,6 +210,7 @@ const ButtonMasksComponent = (props) => {
 		buttonLabelType,
 		buttonMasks,
 	} = props;
+	const labels = buttonLabelType ? getButtonLabels(buttonLabelType) : null;
 	return (
 		<Form.Select
 			size="sm"
@@ -220,7 +221,7 @@ const ButtonMasksComponent = (props) => {
 		>
 			{buttonMasks.map((o, i2) => (
 				<option key={`${key}.mask[${i2}]`} value={o.value}>
-					{(buttonLabelType && BUTTONS[buttonLabelType][o.label]) || o.label}
+					{(labels && labels[o.label]) || o.label}
 				</option>
 			))}
 		</Form.Select>
