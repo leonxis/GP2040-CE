@@ -540,6 +540,7 @@ void Gamepad::read()
 	addonKeyboardKeyMask = 0;
 	addonMouseButtonMask = 0;
 	addonTouchpadSwipeMask = 0;
+	hotkeyTouchpadSwipeMask = 0;
 	addonMacroTriggerMask = 0;
 	Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
 
@@ -651,6 +652,9 @@ void Gamepad::hotkey() {
 	if (hasHotkey == false ) {
 		lastAction = HOTKEY_NONE;
 	}
+
+	// 热键在 process() 之后执行，需再次调用以消费 hotkeyTouchpadSwipeMask
+	processTouchpadSwipe();
 }
 
 void Gamepad::clearState() {
@@ -808,6 +812,18 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 			break;
 		case HOTKEY_TOUCHPAD_BUTTON:
 			state.buttons |= GAMEPAD_MASK_A2;
+			break;
+		case HOTKEY_TOUCHPAD_SWIPE_LEFT:
+			hotkeyTouchpadSwipeMask |= TOUCHPAD_SWIPE_MASK_LEFT;
+			break;
+		case HOTKEY_TOUCHPAD_SWIPE_RIGHT:
+			hotkeyTouchpadSwipeMask |= TOUCHPAD_SWIPE_MASK_RIGHT;
+			break;
+		case HOTKEY_TOUCHPAD_SWIPE_UP:
+			hotkeyTouchpadSwipeMask |= TOUCHPAD_SWIPE_MASK_UP;
+			break;
+		case HOTKEY_TOUCHPAD_SWIPE_DOWN:
+			hotkeyTouchpadSwipeMask |= TOUCHPAD_SWIPE_MASK_DOWN;
 			break;
 		case HOTKEY_INVERT_X_AXIS:
 			if (action != lastAction) {

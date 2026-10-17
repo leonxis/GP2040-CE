@@ -107,6 +107,7 @@ export const mouseKeyOptions: OptionType[] = [
 export const BACK_KEY_ALLOWED_ACTIONS = new Set([
 	'BUTTON_PRESS_FN',
 	'BUTTON_PRESS_TURBO',
+	'BUTTON_PRESS_MACRO',
 	'BUTTON_PRESS_MACRO_1',
 	'BUTTON_PRESS_MACRO_2',
 	'BUTTON_PRESS_MACRO_3',
@@ -121,14 +122,50 @@ export const BACK_KEY_ALLOWED_ACTIONS = new Set([
 	'TOUCHPAD_SWIPE_DOWN',
 ]);
 
+// Actions 组的期望显示顺序：功能键 → 屏幕控制 → 连发 → 宏按键 → 宏1~6 → 触摸板滑动
+const BACK_KEY_ACTION_ORDER = [
+	'BUTTON_PRESS_FN',
+	'MENU_NAVIGATION_TOGGLE',
+	'BUTTON_PRESS_TURBO',
+	'BUTTON_PRESS_MACRO',
+	'BUTTON_PRESS_MACRO_1',
+	'BUTTON_PRESS_MACRO_2',
+	'BUTTON_PRESS_MACRO_3',
+	'BUTTON_PRESS_MACRO_4',
+	'BUTTON_PRESS_MACRO_5',
+	'BUTTON_PRESS_MACRO_6',
+	'TOUCHPAD_SWIPE_LEFT',
+	'TOUCHPAD_SWIPE_RIGHT',
+	'TOUCHPAD_SWIPE_UP',
+	'TOUCHPAD_SWIPE_DOWN',
+];
+
+// 按键组自定义顺序：将 A2（触摸板中）移到 R3 与 A3（触摸板左）之间
+// R3 的 value=18，A3 的 value=41，给 A2 分配介于两者之间的虚拟值 30
+const sortButtons = (a: OptionType, b: OptionType) => {
+	const va = a.label === 'BUTTON_PRESS_A2' ? 30 : a.value;
+	const vb = b.label === 'BUTTON_PRESS_A2' ? 30 : b.value;
+	return va - vb;
+};
+
+const sortByLabelOrder = (order: string[]) => (a: OptionType, b: OptionType) => {
+	const ia = order.indexOf(a.label);
+	const ib = order.indexOf(b.label);
+	const ra = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+	const rb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+	return ra - rb;
+};
+
 export const groupedMappingOptions = [
 	{
 		label: 'Buttons',
-		options: mappingOptions.filter(({ type }) => type !== 'action'),
+		options: mappingOptions.filter(({ type }) => type !== 'action').sort(sortButtons),
 	},
 	{
 		label: 'Actions',
-		options: mappingOptions.filter((opt) => opt.type === 'action' && BACK_KEY_ALLOWED_ACTIONS.has(opt.label)),
+		options: mappingOptions
+			.filter((opt) => opt.type === 'action' && BACK_KEY_ALLOWED_ACTIONS.has(opt.label))
+			.sort(sortByLabelOrder(BACK_KEY_ACTION_ORDER)),
 	},
 	{
 		label: 'Keyboard Keys',
@@ -195,7 +232,7 @@ export const layerMappingOptions = mappingOptions.filter(
 export const groupedLayerMappingOptions = [
 	{
 		label: 'Buttons',
-		options: layerMappingOptions.filter(({ type }) => type !== 'action'),
+		options: layerMappingOptions.filter(({ type }) => type !== 'action').sort(sortButtons),
 	},
 	{
 		label: 'Actions',

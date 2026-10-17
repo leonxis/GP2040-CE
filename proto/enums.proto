@@ -513,6 +513,10 @@ enum GamepadHotkey
     HOTKEY_AXIS_TILT_OVERLAY_RIGHT_Y_CLEAR = 91;
     HOTKEY_MACRO_RECORD_1 = 92;              // Macro 1 record start/stop toggle
     HOTKEY_MACRO_RECORD_2 = 93;              // Macro 2 record start/stop toggle
+    HOTKEY_TOUCHPAD_SWIPE_LEFT   = 94;       // DS4/DS5 触摸板左滑
+    HOTKEY_TOUCHPAD_SWIPE_RIGHT  = 95;       // DS4/DS5 触摸板右滑
+    HOTKEY_TOUCHPAD_SWIPE_UP     = 96;       // DS4/DS5 触摸板上滑
+    HOTKEY_TOUCHPAD_SWIPE_DOWN   = 97;       // DS4/DS5 触摸板下滑
 }
 
 enum AnimationEffects
