@@ -114,7 +114,7 @@ export default function HardwareConfig() {
 					},
 				});
 				setReportRate(
-					[250, 500, 1000, 2000, 4000, 8000].includes(Number(addons?.reportRate))
+					[250, 500, 1000].includes(Number(addons?.reportRate))
 						? Number(addons.reportRate)
 						: 1000
 				);
@@ -506,9 +506,6 @@ export default function HardwareConfig() {
 								<option value={250}>{t('SettingsPage:hml-report-rate-250hz')}</option>
 								<option value={500}>{t('SettingsPage:hml-report-rate-500hz')}</option>
 								<option value={1000}>{t('SettingsPage:hml-report-rate-1khz')}</option>
-								<option value={2000}>{t('SettingsPage:hml-report-rate-2khz')}</option>
-								<option value={4000}>{t('SettingsPage:hml-report-rate-4khz')}</option>
-								<option value={8000}>{t('SettingsPage:hml-report-rate-8khz')}</option>
 							</Form.Select>
 							<span className="mb-0">{t('SettingsPage:hml-report-rate-label')}</span>
 							<span className="text-muted">
