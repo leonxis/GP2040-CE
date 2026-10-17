@@ -1219,7 +1219,18 @@ std::string getGamepadOptions()
         const HmlBackMappingPreset& activePreset = getActiveHmlBackPreset(addonOptions);
         if (
             hasFnAction(activePreset.leftKeyMapping) ||
-            hasFnAction(activePreset.rightKeyMapping)
+            hasFnAction(activePreset.rightKeyMapping) ||
+            hasFnAction(activePreset.leftBack1Mapping) ||
+            hasFnAction(activePreset.rightBack1Mapping) ||
+            hasFnAction(activePreset.leftBack2Mapping) ||
+            hasFnAction(activePreset.rightBack2Mapping) ||
+            hasFnAction(activePreset.leftBack3Mapping) ||
+            hasFnAction(activePreset.rightBack3Mapping) ||
+            hasFnAction(activePreset.leftFnMapping) ||
+            hasFnAction(activePreset.rightFnMapping) ||
+            hasFnAction(activePreset.leftMtMapping) ||
+            hasFnAction(activePreset.rightMtMapping) ||
+            hasFnAction(addonOptions.twoKeyTouchpadOptions.enableKeyMapping)
         ) {
             fnButtonPin = 0; // virtual FN source exists; UI only checks for -1 sentinel
         }

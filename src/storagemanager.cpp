@@ -207,6 +207,16 @@ uint32_t Storage::macroRecPulseSeq() const
 	return macroRecPulseSeqValue.load(std::memory_order_acquire);
 }
 
+void Storage::setMacroRecordingActive(bool active)
+{
+	macroRecordingActive.store(active, std::memory_order_release);
+}
+
+bool Storage::isMacroRecordingActive() const
+{
+	return macroRecordingActive.load(std::memory_order_acquire);
+}
+
 void Storage::pulseTurboToggle()
 {
 	turboPulseSeqValue.fetch_add(1, std::memory_order_acq_rel);

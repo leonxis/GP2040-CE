@@ -304,11 +304,15 @@ private:
 
     /// RAM-only one-shot hints (armed from Storage seq counters on Core0):
     /// recFull: red 3-blink when recording stops on flash capacity;
-    /// macroHint: blue single blink on recording start / playback end;
+    /// macroHint: blue single blink on playback end;
     /// turboToggle: green single blink when any turbo button is enabled/disabled.
     AmbientOneShotBlink recFullBlink_ {3};
     AmbientOneShotBlink macroHintBlink_ {1};
     AmbientOneShotBlink turboToggleBlink_ {1};
+
+    /// Continuous blue blink while a macro recording is in progress.
+    bool recBlinkOn_ = false;
+    absolute_time_t recBlinkToggleAt_ = {0};
 };
 
 #endif

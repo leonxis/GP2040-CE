@@ -369,12 +369,13 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 		effectIdx = AL_CUSTOM_EFFECT_STATIC_THEME;
 	}
 	// RAM-only hint overrides (never persisted as user mode):
-	//  1) Web-config session blink — user-configured static color; takes priority.
+	//  1) Web-config session blink — user-configured static color.
 	//  2) UART companion (ESP32) absent while bluetooth is enabled — forced red blink.
 	//  3) BLE companion online but host not connected — forced blue blink.
 	//  4) Onboard nRF24 direct no-ACK/unpaired — forced yellow blink.
+	//  5) Macro recording in progress — continuous blue blink.
 	//  One-shot macro/turbo hints (red/blue/green) are armed below and take
-	//  priority over all continuous link/config hints.
+	//  priority over all continuous hints above.
 	// 两种链路开关互斥，同一时刻至多一条提示成立。
 	const GamepadOptions& linkOpts = Storage::getInstance().getGamepadOptions();
 	const bool webHintActive =
@@ -392,12 +393,24 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 
 	// One-shot hints take priority over all link/config hints. All share the
 	// same 150ms phase machine (AmbientOneShotBlink): red 3-blink =
-	// capacity-induced recording stop; blue single blink = recording start /
-	// playback end; green single blink = turbo button enable/disable.
+	// capacity-induced recording stop; blue single blink = playback end;
+	// green single blink = turbo button enable/disable.
 	static const uint32_t kBlinkHintPhaseMs[] = {100, 100, 100, 100, 100, 500};
 	pollOneShotBlink(recFullBlink_, Storage::getInstance().macroRecPulseSeq());
 	pollOneShotBlink(macroHintBlink_, Storage::getInstance().macroHintPulseSeq());
 	pollOneShotBlink(turboToggleBlink_, Storage::getInstance().turboPulseSeq());
+
+	// Continuous blue blink while a macro recording is in progress. Toggled
+	// on a fixed 200ms cadence (5Hz, 50% duty) independently of other hints.
+	const bool recordingActive = Storage::getInstance().isMacroRecordingActive();
+	if (recordingActive) {
+		if (time_reached(recBlinkToggleAt_)) {
+			recBlinkOn_ = !recBlinkOn_;
+			recBlinkToggleAt_ = delayed_by_ms(get_absolute_time(), 200);
+		}
+	} else {
+		recBlinkOn_ = false;
+	}
 
 	if (recFullBlink_.armed) {
 		effectIdx = AL_CUSTOM_EFFECT_MACRO_REC_FULL;
@@ -405,6 +418,8 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 		effectIdx = AL_CUSTOM_EFFECT_MACRO_HINT;
 	} else if (turboToggleBlink_.armed) {
 		effectIdx = AL_CUSTOM_EFFECT_TURBO_TOGGLE;
+	} else if (recordingActive) {
+		effectIdx = AL_CUSTOM_EFFECT_MACRO_RECORDING;
 	} else if (webHintActive) {
 		effectIdx = AL_CUSTOM_EFFECT_WEB_CONFIG_HINT;
 	} else if (companionOfflineHint) {
@@ -618,9 +633,24 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 		// One-shot hints share AmbientOneShotBlink: even phase = forced color,
 		// odd phase = forced off; colors identify the event.
 		case AL_CUSTOM_EFFECT_MACRO_HINT:
-			// Blue: recording start / playback end.
+			// Blue: playback end.
 			renderOneShotBlink(macroHintBlink_, 0x0000FF);
 			break;
+		case AL_CUSTOM_EFFECT_MACRO_RECORDING: {
+			// Continuous blue blink while recording is in progress.
+			RGB amb(0x0000FF);
+			if (recBlinkOn_) {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] =
+					    amb.value(Animation::format, options.alStaticBrightnessCustomThemeX);
+				}
+			} else {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] = 0;
+				}
+			}
+			break;
+		}
 		case AL_CUSTOM_EFFECT_MACRO_REC_FULL:
 			// Red: recording stopped by flash capacity (3 blinks).
 			renderOneShotBlink(recFullBlink_, 0xFF0000);
