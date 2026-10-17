@@ -114,6 +114,11 @@ export const BACK_KEY_ALLOWED_ACTIONS = new Set([
 	'BUTTON_PRESS_MACRO_5',
 	'BUTTON_PRESS_MACRO_6',
 	'MENU_NAVIGATION_TOGGLE',
+	// DS4/DS5 原生触摸板滑动手势
+	'TOUCHPAD_SWIPE_LEFT',
+	'TOUCHPAD_SWIPE_RIGHT',
+	'TOUCHPAD_SWIPE_UP',
+	'TOUCHPAD_SWIPE_DOWN',
 ]);
 
 export const groupedMappingOptions = [

@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 export const BUTTONS = {
 	gp2040: {
 		label: 'GP2040',
@@ -786,12 +788,26 @@ export const getButtonLabels = (labelType, swapTpShareLabels = false) => {
 	if (labelType == 'ps4' && swapTpShareLabels) {
 		const buttonLabelS1 = buttons['S1'];
 		const buttonLabelA2 = buttons['A2'];
-		return {
+		return translateButtonLabels({
 			...buttons,
 			S1: buttonLabelA2,
 			A2: buttonLabelS1,
-		};
+		});
 	} else {
-		return buttons;
+		return translateButtonLabels(buttons);
 	}
+};
+
+// 将按键英文标签通过 i18n 翻译为当前语言；缺失时回退到原英文
+const translateButtonLabels = (buttons) => {
+	const result = {};
+	for (const key of Object.keys(buttons)) {
+		const val = buttons[key];
+		if (typeof val === 'string') {
+			result[key] = i18n.t(val, { ns: 'Buttons', defaultValue: val });
+		} else {
+			result[key] = val;
+		}
+	}
+	return result;
 };

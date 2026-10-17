@@ -175,6 +175,19 @@ public:
 	inline bool __attribute__((always_inline)) pressedMouseRight() { return (debouncedGpio & mapMouseButtonRight->pinMask) != 0 || (addonMouseButtonMask & (1U << 1)) != 0; }
 	inline bool __attribute__((always_inline)) pressedMouseMiddle() { return (debouncedGpio & mapMouseButtonMiddle->pinMask) != 0 || (addonMouseButtonMask & (1U << 2)) != 0; }
 
+	// DS4/DS5 原生触摸板滑动手势：GPIO 映射 + addon 通道（背键等）
+	static constexpr uint8_t TOUCHPAD_SWIPE_MASK_LEFT  = (1U << 0);
+	static constexpr uint8_t TOUCHPAD_SWIPE_MASK_RIGHT = (1U << 1);
+	static constexpr uint8_t TOUCHPAD_SWIPE_MASK_UP    = (1U << 2);
+	static constexpr uint8_t TOUCHPAD_SWIPE_MASK_DOWN  = (1U << 3);
+	inline bool __attribute__((always_inline)) pressedTouchpadSwipeLeft()  { return (debouncedGpio & mapTouchpadSwipeLeft->pinMask)  != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_LEFT)  != 0; }
+	inline bool __attribute__((always_inline)) pressedTouchpadSwipeRight() { return (debouncedGpio & mapTouchpadSwipeRight->pinMask) != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_RIGHT) != 0; }
+	inline bool __attribute__((always_inline)) pressedTouchpadSwipeUp()    { return (debouncedGpio & mapTouchpadSwipeUp->pinMask)    != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_UP)    != 0; }
+	inline bool __attribute__((always_inline)) pressedTouchpadSwipeDown()  { return (debouncedGpio & mapTouchpadSwipeDown->pinMask)  != 0 || (addonTouchpadSwipeMask & TOUCHPAD_SWIPE_MASK_DOWN)  != 0; }
+
+	// 驱动 auxState.sensors.touchpad[0] 输出滑动轨迹；每帧调用
+	void processTouchpadSwipe();
+
 	const GamepadOptions& getOptions() const { return options; }
 	const DpadMode getActiveDpadMode() { return activeDpadMode; }
 
@@ -279,6 +292,10 @@ public:
 	GamepadButtonMapping *mapMouseButtonLeft;
 	GamepadButtonMapping *mapMouseButtonRight;
 	GamepadButtonMapping *mapMouseButtonMiddle;
+	GamepadButtonMapping *mapTouchpadSwipeLeft;
+	GamepadButtonMapping *mapTouchpadSwipeRight;
+	GamepadButtonMapping *mapTouchpadSwipeUp;
+	GamepadButtonMapping *mapTouchpadSwipeDown;
 
 	// gamepad specific proxy of debounced buttons --- 1 = active (inverse of the raw GPIO)
 	// see GP2040::debounceGpioGetAll for details
@@ -290,6 +307,14 @@ public:
 	uint8_t addonMouseButtonMask = 0;
 	// Addon-driven macro trigger mask: bit0=MACRO_1, bit1=MACRO_2, ..., bit5=MACRO_6
 	uint8_t addonMacroTriggerMask = 0;
+
+	// Addon-driven touchpad swipe mask: bit0=LEFT, bit1=RIGHT, bit2=UP, bit3=DOWN
+	uint8_t addonTouchpadSwipeMask = 0;
+
+	// DS4/DS5 触摸板滑动状态机：0=无, 1=左, 2=右, 3=上, 4=下
+	uint8_t touchpadSwipeDir = 0;
+	uint16_t touchpadSwipeX = 0;
+	uint16_t touchpadSwipeY = 0;
 
 	uint32_t lastReinitProfileNumber = 0;
 	uint32_t lastReinitHmlBackPreset = 0;

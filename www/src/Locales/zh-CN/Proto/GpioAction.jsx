@@ -119,4 +119,8 @@ export default {
 	'MOUSE_LEFT_BUTTON': '鼠标左键',
 	'MOUSE_RIGHT_BUTTON': '鼠标右键',
 	'MOUSE_MIDDLE_BUTTON': '鼠标中键',
+	'TOUCHPAD_SWIPE_LEFT': '触摸板左滑',
+	'TOUCHPAD_SWIPE_RIGHT': '触摸板右滑',
+	'TOUCHPAD_SWIPE_UP': '触摸板上滑',
+	'TOUCHPAD_SWIPE_DOWN': '触摸板下滑',
 };

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import FormSelect from './FormSelect';
 import { KEY_CODES } from '../Data/Keyboard';
-import { BUTTONS } from '../Data/Buttons';
+import { getButtonLabels } from '../Data/Buttons';
 
 const KeyboardMapper = ({
 	buttonLabels,
@@ -10,6 +10,7 @@ const KeyboardMapper = ({
 	excludeButtons = [''],
 }) => {
 	const { buttonLabelType, swapTpShareLabels } = buttonLabels;
+	const buttons = getButtonLabels(buttonLabelType, swapTpShareLabels);
 
 	const { t } = useTranslation('Components', { keyPrefix: 'keyboard-mapper' });
 
@@ -18,31 +19,17 @@ const KeyboardMapper = ({
 			<thead className="table">
 				<tr>
 					<th className="table-header-button-label">
-						{BUTTONS[buttonLabelType].label}
+						{buttons.label}
 					</th>
 					<th>{t('key-header')}</th>
 				</tr>
 			</thead>
 			<tbody>
-				{Object.keys(BUTTONS[buttonLabelType])
+				{Object.keys(buttons)
 					?.filter((btn) => !['label', 'value', 'Fn'].includes(btn))
 					.filter((btn) => !excludeButtons?.find((x) => x === btn))
 					.map((button, i) => {
-						let label = BUTTONS[buttonLabelType][button];
-						if (
-							button === 'S1' &&
-							swapTpShareLabels &&
-							buttonLabelType === 'ps4'
-						) {
-							label = BUTTONS[buttonLabelType]['A2'];
-						}
-						if (
-							button === 'A2' &&
-							swapTpShareLabels &&
-							buttonLabelType === 'ps4'
-						) {
-							label = BUTTONS[buttonLabelType]['S1'];
-						}
+						const label = buttons[button];
 						const keyMapping = getKeyMappingForButton(button);
 						return (
 							<tr key={`button-map-${i}`}>

@@ -17,6 +17,7 @@ struct ActionMappingEntry {
     uint16_t auxMask = 0;
     uint64_t keyboardMask = 0;
     uint8_t mouseButtonMask = 0;
+    uint8_t touchpadSwipeMask = 0;
     GpioAction complexAction = GpioAction::NONE;
     bool enabled = false;
 };
@@ -68,6 +69,7 @@ private:
     uint16_t lastAux_ = 0;
     uint64_t lastKeyboard_ = 0;
     uint8_t lastMouse_ = 0;
+    uint8_t lastTouchpadSwipe_ = 0;
     GpioAction lastComplex_[ACTION_OUTPUT_SCOPE_MAX_COMPLEX_ACTIONS] = {};
     uint8_t lastComplexCount_ = 0;
 
@@ -76,6 +78,7 @@ private:
     uint16_t frameAux_ = 0;
     uint64_t frameKeyboard_ = 0;
     uint8_t frameMouse_ = 0;
+    uint8_t frameTouchpadSwipe_ = 0;
     GpioAction frameComplex_[ACTION_OUTPUT_SCOPE_MAX_COMPLEX_ACTIONS] = {};
     uint8_t frameComplexCount_ = 0;
 };
