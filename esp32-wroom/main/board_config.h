@@ -25,7 +25,12 @@
 #define UART_BOOT_GRACE_MS      1000    // grace period after boot
 
 // BLE report cadence (high-performance mode only)
-#define BLE_SEND_PERIOD_MS      7
+// Must be strictly greater than the BLE connection interval (7.5 ms).
+// Otherwise the app produces notifications faster than the link can drain
+// them one-per-event; the surplus queues up and the controller sends two
+// packets in a single connection event, pushing the effective report rate
+// above 133 Hz and causing intermittent disconnects.
+#define BLE_SEND_PERIOD_MS      8
 #define BLE_IDLE_POLL_MS        50
 
 // Task priorities / cores / stacks
