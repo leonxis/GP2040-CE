@@ -1723,20 +1723,20 @@ void migrateAuthenticationMethods(Config& config) {
     }
 }
 
-// enable profiles that have real data in them (profile 1 is always enabled)
-// note that profiles 2-4 are no longer populated with profile 1's data on a fresh
-// config, and this is checking previous configs with non-copy mappings to enable them
+// 基础映射始终启用；层槽(热切按键映射)默认关闭，由用户手动开启
 void profileEnabledFlagsMigration(Config& config) {
     config.gpioMappings.enabled = true;
     for (uint8_t profileNum = 0; profileNum < config.profileOptions.gpioMappingsSets_count; profileNum++) {
+        if (profileNum >= 1) {
+            // sets[1]/sets[2] 为映射层，默认关闭
+            config.profileOptions.gpioMappingsSets[profileNum].enabled = false;
+            continue;
+        }
         if (!config.profileOptions.gpioMappingsSets[profileNum].pins_count) {
-            // uninitialized profile, skip it and leave it disabled
             config.profileOptions.gpioMappingsSets[profileNum].enabled = false;
             continue;
         }
         for (uint8_t pinNum = 0; pinNum < config.gpioMappings.pins_count; pinNum++) {
-            // check each pin: if the alt. mapping pin is different than the base (profile 1)
-            // mapping, enable the profile and check the next one
             if (config.gpioMappings.pins[pinNum].action !=
                         config.profileOptions.gpioMappingsSets[profileNum].pins[pinNum].action ||
                     config.gpioMappings.pins[pinNum].customButtonMask !=
