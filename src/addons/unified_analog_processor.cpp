@@ -145,9 +145,6 @@ uint16_t UnifiedAnalogProcessorAddon::quantizeRaw(int stickNum, uint16_t value, 
 void UnifiedAnalogProcessorAddon::process() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const AnalogOptions& analogOptions = addonOptions.analogOptions;
-    if (!available()) {
-        return;
-    }
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     if (gamepad == nullptr) {
