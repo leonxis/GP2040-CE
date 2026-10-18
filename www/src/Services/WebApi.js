@@ -479,9 +479,6 @@ async function getAddonsOptions(setLoading) {
 		const data = response.data;
 		if (setLoading) setLoading(false);
 
-		response.data.turboLedColor =
-			rgbIntToHex(response.data.turboLedColor) || '#ffffff';
-
 		// Merge saved keyMappings with defaults
 		const keyboardHostMap = Object.entries(data.keyboardHostMap).reduce(
 			(acc, [key, value]) => ({ ...acc, [key]: { ...acc[key], key: value } }),

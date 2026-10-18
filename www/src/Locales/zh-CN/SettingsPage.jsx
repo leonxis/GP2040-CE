@@ -290,6 +290,7 @@ export default {
 	'hml-load-hint': '导入保存在本地的设置备份到手柄',
 	'hml-section-stick-config': '摇杆配置',
 	'hml-section-dpad-config': '方向键配置',
+	'hml-section-turbo': '连发设置',
 	'hml-stick-mode-left': '左摇杆模式',
 	'hml-stick-mode-right': '右摇杆模式',
 	'hml-analog-stick-left': '左摇杆',

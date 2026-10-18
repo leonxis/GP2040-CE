@@ -1,27 +1,16 @@
-import { useState } from 'react';
-import { useContext } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
+import { Button, Col, Form, Row } from 'react-bootstrap';
+import { useFormikContext } from 'formik';
 import { useTranslation } from 'react-i18next';
-import { FormCheck, Row } from 'react-bootstrap';
 import * as yup from 'yup';
 
-import { AppContext } from '../Contexts/AppContext';
-import ColorPicker from '../Components/ColorPicker';
 import Section from '../Components/Section';
-import FormSelect from '../Components/FormSelect';
-import FormControl from '../Components/FormControl';
-import AnalogPinOptions from '../Components/AnalogPinOptions';
-import { BUTTON_MASKS_OPTIONS } from '../Data/Buttons';
-import { DUAL_STICK_MODES } from '../Data/Addons';
-import LEDColors from '../Data/LEDColors';
-import { AddonPropTypes } from '../Pages/AddonsConfigPage';
+import { AppContext } from '../Contexts/AppContext';
+import { BUTTON_ACTIONS } from '../Data/Pins';
+import { getButtonLabels } from '../Data/Buttons';
+import WebApi from '../Services/WebApi';
 
-import useBoardDefinition from '../Store/useBoardDefinitionStore';
-
-const SHMUP_MIXED_MODES = [
-	{ label: 'Turbo Priority', value: 0 },
-	{ label: 'Charge Priority', value: 1 },
-];
-
+// SHMUP 自动连发按键（None + 10 游戏按键，含 L3/R3），label 为逻辑按键名，运行时按显示模式翻译
 const TURBO_MASKS = [
 	{ label: 'None', value: 0 },
 	{ label: 'B1', value: 1 << 0 },
@@ -36,496 +25,229 @@ const TURBO_MASKS = [
 	{ label: 'R3', value: 1 << 11 },
 ];
 
-export const turboScheme = {
-	TurboInputEnabled: yup.number().required().label('Turbo Input Enabled'),
-	turboPinLED: yup
-		.number()
-		.label('Turbo Pin LED')
-		.validatePinWhenValue('TurboInputEnabled'),
-	pinShmupBtn1: yup
-		.number()
-		.label('Charge Shot 1 Pin')
-		.validatePinWhenValue('TurboInputEnabled'),
-	pinShmupBtn2: yup
-		.number()
-		.label('Charge Shot 2 Pin')
-		.validatePinWhenValue('TurboInputEnabled'),
-	pinShmupBtn3: yup
-		.number()
-		.label('Charge Shot 3 Pin')
-		.validatePinWhenValue('TurboInputEnabled'),
-	pinShmupBtn4: yup
-		.number()
-		.label('Charge Shot 4 Pin')
-		.validatePinWhenValue('TurboInputEnabled'),
-	pinShmupDial: yup
-		.number()
-		.label('Shmup Dial Pin')
-		.validatePinWhenValue('TurboInputEnabled'),
-	turboShotCount: yup
-		.number()
-		.label('Turbo Shot Count')
-		.validateRangeWhenValue('TurboInputEnabled', 2, 30),
-	shmupMode: yup
-		.number()
-		.label('Shmup Mode Enabled')
-		.validateRangeWhenValue('TurboInputEnabled', 0, 1),
-	shmupMixMode: yup
-		.number()
-		.label('Shmup Mix Priority')
-		.validateSelectionWhenValue('TurboInputEnabled', DUAL_STICK_MODES),
-	shmupAlwaysOn1: yup
-		.number()
-		.label('Turbo-Button 1 (Always On)')
-		.validateSelectionWhenValue('TurboInputEnabled', BUTTON_MASKS_OPTIONS),
-	shmupAlwaysOn2: yup
-		.number()
-		.label('Turbo-Button 2 (Always On)')
-		.validateSelectionWhenValue('TurboInputEnabled', BUTTON_MASKS_OPTIONS),
-	shmupAlwaysOn3: yup
-		.number()
-		.label('Turbo-Button 3 (Always On)')
-		.validateSelectionWhenValue('TurboInputEnabled', BUTTON_MASKS_OPTIONS),
-	shmupAlwaysOn4: yup
-		.number()
-		.label('Turbo-Button 4 (Always On)')
-		.validateSelectionWhenValue('TurboInputEnabled', BUTTON_MASKS_OPTIONS),
-	shmupBtnMask1: yup
-		.number()
-		.label('Charge Shot Button 1 Map')
-		.validateSelectionWhenValue('TurboInputEnabled', BUTTON_MASKS_OPTIONS),
-	shmupBtnMask2: yup
-		.number()
-		.label('Charge Shot Button 2 Map')
-		.validateSelectionWhenValue('TurboInputEnabled', BUTTON_MASKS_OPTIONS),
-	shmupBtnMask3: yup
-		.number()
-		.label('Charge Shot Button 3 Map')
-		.validateSelectionWhenValue('TurboInputEnabled', BUTTON_MASKS_OPTIONS),
-	shmupBtnMask4: yup
-		.number()
-		.label('Charge Shot Button 4 Map')
-		.validateSelectionWhenValue('TurboInputEnabled', BUTTON_MASKS_OPTIONS),
-	turboLedType: yup.number().required().label('Turbo LED Type'),
-	turboLedIndex: yup
-		.number()
-		.label('Turbo LED Index')
-		.validateMinWhenEqualTo('turboLedType', 1, 0),
-	turboLedColor: yup.string().label('RGB Turbo LED').validateColor(),
+// 背键插件 10 键（与后端 kHmlBackKeyDefs 字段一致）
+const BACK_KEY_FIELDS = [
+	'leftBack1',
+	'rightBack1',
+	'leftBack2',
+	'rightBack2',
+	'leftBack3',
+	'rightBack3',
+	'leftFn',
+	'rightFn',
+	'leftMt',
+	'rightMt',
+] as const;
+
+// 判定是否存在连发键：基础映射槽标准 GPIO 或当前背键 preset 任意键映射为 BUTTON_PRESS_TURBO
+// 返回 null=加载中/失败（不显示提示），false=无连发键（显示提示），true=有连发键
+function useHasTurboKey(): boolean | null {
+	const [hasTurboKey, setHasTurboKey] = useState<boolean | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				let found = false;
+				// 标准 GPIO 基础映射槽
+				const pins = await WebApi.getPinMappings();
+				if (!cancelled && pins) {
+					found = Object.keys(pins)
+						.filter((k) => /^pin\d{2}$/.test(k))
+						.some((k) => Number(pins[k]?.action) === BUTTON_ACTIONS.BUTTON_PRESS_TURBO);
+				}
+				// 背键插件当前 preset 10 键
+				if (!found && !cancelled) {
+					const global = await WebApi.getTwoKeyTouchpadOptions();
+					if (global) {
+						const activePreset = Number(global.activePreset ?? 0);
+						const preset = await WebApi.getTwoKeyTouchpadOptions(activePreset);
+						if (preset) {
+							found = BACK_KEY_FIELDS.some(
+								(f) => Number(preset[f]?.action) === BUTTON_ACTIONS.BUTTON_PRESS_TURBO,
+							);
+						}
+					}
+				}
+				if (!cancelled) setHasTurboKey(found);
+			} catch {
+				if (!cancelled) setHasTurboKey(null);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	return hasTurboKey;
+}
+
+export const turboHmlScheme = {
+	TurboInputEnabled: yup.number().min(0).max(1),
+	turboShotCount: yup.number().min(1).max(50),
+	turboLongPressEnabled: yup.number().min(0).max(1),
+	shmupMode: yup.number().min(0).max(1),
+	shmupAlwaysOn1: yup.number(),
+	shmupAlwaysOn2: yup.number(),
+	shmupAlwaysOn3: yup.number(),
+	shmupAlwaysOn4: yup.number(),
 };
 
-export const turboState = {
-	pinShmupBtn1: -1,
-	pinShmupBtn2: -1,
-	pinShmupBtn3: -1,
-	pinShmupBtn4: -1,
-	pinShmupDial: -1,
+export const turboHmlState = {
+	TurboInputEnabled: 0,
+	turboShotCount: 10,
+	turboLongPressEnabled: 0,
+	shmupMode: 0,
 	shmupAlwaysOn1: 0,
 	shmupAlwaysOn2: 0,
 	shmupAlwaysOn3: 0,
 	shmupAlwaysOn4: 0,
-	shmupBtnMask1: 0,
-	shmupBtnMask2: 0,
-	shmupBtnMask3: 0,
-	shmupBtnMask4: 0,
-	shmupMixMode: 0,
-	shmupMode: 0,
-	TurboInputEnabled: 0,
-	turboPinLED: -1,
-	turboShotCount: 5,
-	turboLedType: 0,
-	turboLedIndex: 0,
-	turboLedColor: '#000000',
 };
 
-const Turbo = ({
+interface TurboSettingsProps {
+	values: Record<string, unknown>;
+	setFieldValue: (field: string, value: unknown) => void;
+	saveMessage?: string;
+	onSaveClick?: () => void;
+}
+
+export default function TurboSettings({
 	values,
-	errors,
-	handleChange,
-	handleCheckbox,
 	setFieldValue,
-}: AddonPropTypes) => {
+	saveMessage = '',
+	onSaveClick,
+}: TurboSettingsProps) {
 	const { t } = useTranslation();
+	const { handleSubmit } = useFormikContext();
+	const { buttonLabels } = useContext(AppContext);
+	const hasTurboKey = useHasTurboKey();
+	const saveOk = saveMessage === t('Common:saved-success-message');
+	const enabled = Boolean(values?.TurboInputEnabled);
 
-	const [colorPickerTarget, setColorPickerTarget] = useState(null);
-	const [showPicker, setShowPicker] = useState(false);
-
-	const toggleRgbPledPicker = (e) => {
-		e.stopPropagation();
-		setColorPickerTarget(e.target);
-		setShowPicker(!showPicker);
-	};
-
-	const { usedPins } = useContext(AppContext);
-	const { boardDefinition } = useBoardDefinition();
-
-	const ANALOG_PINS = boardDefinition.analogPins;
-
-	const availableAnalogPins = ANALOG_PINS.filter(
-			(pin) => !usedPins?.includes(pin),
-		);
+	// 按当前显示模式（ps4/xinput/switch 等）翻译按键名
+	const buttonNames = useMemo(
+		() => getButtonLabels(buttonLabels?.buttonLabelType, buttonLabels?.swapTpShareLabels),
+		[buttonLabels],
+	);
 
 	return (
-		<Section title={
-			<a
-				href="https://gp2040-ce.info/add-ons/turbo"
-				target="_blank"
-				className="text-reset text-decoration-none" rel="noreferrer"
-			>
-				{t('AddonsConfig:turbo-header-text')}
-			</a>
-		}
-		>
-			<div id="TurboInputOptions" hidden={!values.TurboInputEnabled}>
-				<div className="alert alert-success" role="alert">
-					{t('AddonsConfig:turbo-available-pins-text', {
-						pins: availableAnalogPins.join(', '),
-					})}
-				</div>
-				<Row className="mb-3">
-					<FormSelect
-						label={t('AddonsConfig:turbo-led-type-label')}
-						name="turboLedType"
-						className="form-select-sm"
-						groupClassName="col-sm-2 mb-3"
-						value={values.turboLedType}
-						error={errors.turboLedType}
-						isInvalid={Boolean(errors.turboLedType)}
-						onChange={(e) =>
-							setFieldValue('turboLedType', parseInt(e.target.value))
-						}
-					>
-						<option value="-1">
-							{t('AddonsConfig:turbo-led-type-label-off')}
-						</option>
-						<option value="0">
-							{t('AddonsConfig:turbo-led-type-label-pwm')}
-						</option>
-						<option value="1">
-							{t('AddonsConfig:turbo-led-type-label-rgb')}
-						</option>
-					</FormSelect>
-					<FormControl
-						type="number"
-						label={t('AddonsConfig:turbo-led-pin-label')}
-						name="turboPinLED"
-						hidden={values.turboLedType !== 0}
-						className="form-select-sm"
-						groupClassName="col-sm-3 mb-3"
-						value={values.turboPinLED}
-						error={errors.turboPinLED}
-						isInvalid={Boolean(errors.turboPinLED)}
-						onChange={handleChange}
-						min={-1}
-						max={boardDefinition.maxPin}
-					/>
-					<FormControl
-						type="number"
-						name="turboLedIndex"
-						hidden={values.turboLedType !== 1}
-						label={t('AddonsConfig:turbo-led-index-label')}
-						className="form-control-sm"
-						groupClassName="col-sm-2 mb-3"
-						value={values.turboLedIndex}
-						error={errors.turboLedIndex}
-						isInvalid={Boolean(errors.turboLedIndex)}
-						onChange={(e) =>
-							setFieldValue('turboLedIndex', parseInt((e.target as HTMLInputElement).value))
-						}
-						min={0}
-					/>
-					<FormControl
-						label={t('AddonsConfig:turbo-led-color-label')}
-						hidden={values.turboLedType !== 1}
-						name="turboLedColor"
-						className="form-control-sm"
-						groupClassName="col-sm-2 mb-3"
-						value={values.turboLedColor}
-						error={errors.turboLedColor}
-						isInvalid={Boolean(errors.turboLedColor)}
-						onClick={toggleRgbPledPicker}
-						onChange={(e) => {
-							handleChange(e);
-							setShowPicker(false);
-						}}
-					/>
-					<ColorPicker
-						name="turboLedColor"
-						types={[{ value: values.turboLedColor }]}
-						onChange={(c) => setFieldValue('turboLedColor', c)}
-						onDismiss={() => setShowPicker(false)}
-						placement="top"
-						presetColors={LEDColors.map((c) => ({
-							title: c.name,
-							color: c.value,
-						}))}
-						show={showPicker}
-						target={colorPickerTarget}
-					></ColorPicker>
-				</Row>
-				<Row className="mb-3">
-					<FormControl
-						type="number"
-						label={t('AddonsConfig:turbo-shot-count-label')}
-						name="turboShotCount"
-						className="form-control-sm"
-						groupClassName="col-sm-3 mb-3"
-						value={values.turboShotCount}
-						error={errors.turboShotCount}
-						isInvalid={Boolean(errors.turboShotCount)}
-						onChange={handleChange}
-						min={2}
-						max={30}
-					/>
-					<FormSelect
-						label={t('AddonsConfig:turbo-shmup-dial-pin-label')}
-						name="pinShmupDial"
-						className="form-select-sm"
-						groupClassName="col-sm-3 mb-3"
-						value={values.pinShmupDial}
-						error={errors.pinShmupDial}
-						isInvalid={Boolean(errors.pinShmupDial)}
-						onChange={handleChange}
-					>
-						<AnalogPinOptions />
-					</FormSelect>
-				</Row>
-				<Row className="mb-3">
-					<FormCheck
-						label={t('AddonsConfig:turbo-shmup-mode-label')}
-						type="switch"
-						id="ShmupMode"
-						className="col-sm-3 ms-3"
-						isInvalid={false}
-						checked={Boolean(values.shmupMode)}
-						onChange={(e) => {
-							handleCheckbox('shmupMode');
-							handleChange(e);
-						}}
-					/>
-					<div id="ShmupOptions" hidden={!values.shmupMode}>
-						<Row className="mb-3">
-							<FormSelect
-								label={t('AddonsConfig:turbo-shmup-always-on-1-label')}
-								name="shmupAlwaysOn1"
-								className="form-select-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.shmupAlwaysOn1}
-								error={errors.shmupAlwaysOn1}
-								isInvalid={Boolean(errors.shmupAlwaysOn1)}
-								onChange={handleChange}
-							>
-								{TURBO_MASKS.map((o, i) => (
-									<option key={`shmupAlwaysOn1-option-${i}`} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</FormSelect>
-							<FormSelect
-								label={t('AddonsConfig:turbo-shmup-always-on-2-label')}
-								name="shmupAlwaysOn2"
-								className="form-select-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.shmupAlwaysOn2}
-								error={errors.shmupAlwaysOn2}
-								isInvalid={Boolean(errors.shmupAlwaysOn2)}
-								onChange={handleChange}
-							>
-								{TURBO_MASKS.map((o, i) => (
-									<option key={`shmupAlwaysOn2-option-${i}`} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</FormSelect>
-							<FormSelect
-								label={t('AddonsConfig:turbo-shmup-always-on-3-label')}
-								name="shmupAlwaysOn3"
-								className="form-select-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.shmupAlwaysOn3}
-								error={errors.shmupAlwaysOn3}
-								isInvalid={Boolean(errors.shmupAlwaysOn3)}
-								onChange={handleChange}
-							>
-								{TURBO_MASKS.map((o, i) => (
-									<option key={`shmupAlwaysOn3-option-${i}`} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</FormSelect>
-							<FormSelect
-								label={t('AddonsConfig:turbo-shmup-always-on-4-label')}
-								name="shmupAlwaysOn4"
-								className="form-select-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.shmupAlwaysOn4}
-								error={errors.shmupAlwaysOn4}
-								isInvalid={Boolean(errors.shmupAlwaysOn4)}
-								onChange={handleChange}
-							>
-								{TURBO_MASKS.map((o, i) => (
-									<option key={`shmupAlwaysOn4-option-${i}`} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</FormSelect>
-						</Row>
-						<Row className="mb-3">
-							<FormControl
-								type="number"
-								label={t('AddonsConfig:turbo-shmup-button-1-label')}
-								name="pinShmupBtn1"
-								className="form-control-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.pinShmupBtn1}
-								error={errors.pinShmupBtn1}
-								isInvalid={Boolean(errors.pinShmupBtn1)}
-								onChange={handleChange}
-								min={-1}
-								max={boardDefinition.maxPin}
-							/>
-							<FormControl
-								type="number"
-								label={t('AddonsConfig:turbo-shmup-button-2-label')}
-								name="pinShmupBtn2"
-								className="form-control-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.pinShmupBtn2}
-								error={errors.pinShmupBtn2}
-								isInvalid={Boolean(errors.pinShmupBtn2)}
-								onChange={handleChange}
-								min={-1}
-								max={boardDefinition.maxPin}
-							/>
-							<FormControl
-								type="number"
-								label={t('AddonsConfig:turbo-shmup-button-3-label')}
-								name="pinShmupBtn3"
-								className="form-control-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.pinShmupBtn3}
-								error={errors.pinShmupBtn3}
-								isInvalid={Boolean(errors.pinShmupBtn3)}
-								onChange={handleChange}
-								min={-1}
-								max={boardDefinition.maxPin}
-							/>
-							<FormControl
-								type="number"
-								label={t('AddonsConfig:turbo-shmup-button-4-label')}
-								name="pinShmupBtn4"
-								className="form-control-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.pinShmupBtn4}
-								error={errors.pinShmupBtn4}
-								isInvalid={Boolean(errors.pinShmupBtn4)}
-								onChange={handleChange}
-								min={-1}
-								max={boardDefinition.maxPin}
-							/>
-						</Row>
-						<Row className="mb-3">
-							<FormSelect
-								label={t('AddonsConfig:turbo-shmup-button-mask-1-label')}
-								name="shmupBtnMask1"
-								className="form-select-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.shmupBtnMask1}
-								error={errors.shmupBtnMask1}
-								isInvalid={Boolean(errors.shmupBtnMask1)}
-								onChange={handleChange}
-							>
-								{TURBO_MASKS.map((o, i) => (
-									<option key={`shmupBtnMask1-option-${i}`} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</FormSelect>
-							<FormSelect
-								label={t('AddonsConfig:turbo-shmup-button-mask-2-label')}
-								name="shmupBtnMask2"
-								className="form-select-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.shmupBtnMask2}
-								error={errors.shmupBtnMask2}
-								isInvalid={Boolean(errors.shmupBtnMask2)}
-								onChange={handleChange}
-							>
-								{TURBO_MASKS.map((o, i) => (
-									<option key={`shmupBtnMask2-option-${i}`} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</FormSelect>
-							<FormSelect
-								label={t('AddonsConfig:turbo-shmup-button-mask-3-label')}
-								name="shmupBtnMask3"
-								className="form-select-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.shmupBtnMask3}
-								error={errors.shmupBtnMask3}
-								isInvalid={Boolean(errors.shmupBtnMask3)}
-								onChange={handleChange}
-							>
-								{TURBO_MASKS.map((o, i) => (
-									<option key={`shmupBtnMask3-option-${i}`} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</FormSelect>
-							<FormSelect
-								label={t('AddonsConfig:turbo-shmup-button-mask-4-label')}
-								name="shmupBtnMask4"
-								className="form-select-sm"
-								groupClassName="col-sm-3 mb-3"
-								value={values.shmupBtnMask4}
-								error={errors.shmupBtnMask4}
-								isInvalid={Boolean(errors.shmupBtnMask4)}
-								onChange={handleChange}
-							>
-								{TURBO_MASKS.map((o, i) => (
-									<option key={`shmupBtnMask4-option-${i}`} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</FormSelect>
-						</Row>
-						<FormSelect
-							label={t('AddonsConfig:turbo-shmup-mix-mode-label')}
-							name="shmupMixMode"
-							className="form-select-sm"
-							groupClassName="col-sm-3 mb-3"
-							value={values.shmupMixMode}
-							error={errors.shmupMixMode}
-							isInvalid={Boolean(errors.shmupMixMode)}
-							onChange={handleChange}
-						>
-							{SHMUP_MIXED_MODES.map((o, i) => (
-								<option
-									key={`button-shmupMixedMode-option-${i}`}
-									value={o.value}
-								>
-									{o.label}
-								</option>
-							))}
-						</FormSelect>
+		<Section title={t('SettingsPage:hml-section-turbo')}>
+			{enabled ? (
+				<div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start' }}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Form.Check
+							type="switch"
+							id="hml-turbo-longpress"
+							label={t('AddonsConfig:turbo-longpress-label')}
+							checked={Boolean(values.turboLongPressEnabled)}
+							onChange={(e) =>
+								setFieldValue('turboLongPressEnabled', e.target.checked ? 1 : 0)
+							}
+						/>
+						<span className="text-muted">
+							{t('AddonsConfig:turbo-longpress-hint')}
+						</span>
 					</div>
-				</Row>
-			</div>
-			<FormCheck
-				label={t('Common:switch-enabled')}
-				type="switch"
-				id="TurboInputButton"
-				reverse
-				isInvalid={false}
-				checked={Boolean(values.TurboInputEnabled)}
-				onChange={(e) => {
-					handleCheckbox('TurboInputEnabled');
-					handleChange(e);
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Form.Check
+							type="switch"
+							id="hml-turbo-shmup"
+							label={t('AddonsConfig:turbo-shmup-mode-label')}
+							checked={Boolean(values.shmupMode)}
+							onChange={(e) =>
+								setFieldValue('shmupMode', e.target.checked ? 1 : 0)
+							}
+						/>
+						<span className="text-muted">
+							{t('AddonsConfig:turbo-shmup-hint')}
+						</span>
+					</div>
+					<div>
+						<Form.Label style={{ whiteSpace: 'nowrap' }}>
+							{t('AddonsConfig:turbo-shot-count-label')}
+							<span className="text-muted ms-1">
+								（{t('AddonsConfig:turbo-shot-count-hint')}）
+							</span>
+						</Form.Label>
+						<div style={{ width: '250px' }}>
+							<Form.Control
+								type="number"
+								size="sm"
+								min={1}
+								max={50}
+								value={(values.turboShotCount as number) ?? 10}
+								onChange={(e) =>
+									setFieldValue('turboShotCount', parseInt(e.target.value))
+								}
+							/>
+						</div>
+					</div>
+					{values?.shmupMode ? (
+						<Row>
+							{[1, 2, 3, 4].map((n) => (
+								<Col sm={6} md={3} key={`hml-turbo-alwayson-${n}`}>
+									<Form.Label>
+										{t(`AddonsConfig:turbo-shmup-always-on-${n}-label`)}
+									</Form.Label>
+									<Form.Select
+										className="form-select-sm"
+										value={(values[`shmupAlwaysOn${n}`] as number) ?? 0}
+										onChange={(e) =>
+											setFieldValue(`shmupAlwaysOn${n}`, parseInt(e.target.value))
+										}
+									>
+										{TURBO_MASKS.map((o, i) => (
+											<option key={`hml-turbo-mask-${n}-${i}`} value={o.value}>
+												{o.label === 'None' ? o.label : buttonNames[o.label]}
+											</option>
+										))}
+									</Form.Select>
+								</Col>
+							))}
+						</Row>
+					) : null}
+				</div>
+			) : null}
+			{enabled && hasTurboKey === false ? (
+				<div className="alert alert-warning mt-3 mb-0">
+					{t('AddonsConfig:turbo-key-missing-warning')}
+				</div>
+			) : null}
+			<div
+				style={{
+					marginTop: '16px',
+					display: 'flex',
+					justifyContent: 'space-between',
+					alignItems: 'center',
+					width: '100%',
 				}}
-			/>
+			>
+				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+					<Button
+						variant="primary"
+						onClick={(e) => {
+							e.preventDefault();
+							onSaveClick ? onSaveClick() : handleSubmit();
+						}}
+					>
+						{t('Common:button-save-label')}
+					</Button>
+					{saveMessage && (
+						<span className={saveOk ? 'text-success' : 'text-danger'}>
+							{saveMessage}
+						</span>
+					)}
+				</div>
+				<Form.Check
+					type="switch"
+					id="hml-turbo-enabled"
+					label={t('AddonsConfig:turbo-enable-label')}
+					checked={enabled}
+					onChange={(e) =>
+						setFieldValue('TurboInputEnabled', e.target.checked ? 1 : 0)
+					}
+				/>
+			</div>
 		</Section>
 	);
-};
-
-export default Turbo;
+}

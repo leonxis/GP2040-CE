@@ -112,13 +112,6 @@ struct GamepadAuxHapticChannel
     uint16_t intensity = 0;
 };
 
-struct GamepadAuxTurbo
-{
-    bool enabled = false;
-    bool active = false;
-    uint8_t activity = 0;
-};
-
 struct GamepadAuxPower
 {
     bool charging = false;
@@ -162,8 +155,6 @@ struct GamepadAuxState
     GamepadAuxSensors sensors;
 
     GamepadAuxHaptics haptics;
-
-    GamepadAuxTurbo turbo;
 
     GamepadAuxPower power;
 };

@@ -9,8 +9,6 @@ import set from 'lodash/set';
 
 import { AppContext } from '../Contexts/AppContext';
 
-import { hexToInt } from '../Services/Utilities';
-
 import WebApi from '../Services/WebApi';
 import Analog, { analogScheme, analogState } from '../Addons/Analog';
 import LSM6DSR, { lsm6dsrScheme, lsm6dsrState } from '../Addons/LSM6DSR';
@@ -22,7 +20,6 @@ import DualDirection, {
 import Reverse, { reverseScheme, reverseState } from '../Addons/Reverse';
 import SOCD, { socdScheme, socdState } from '../Addons/SOCD';
 import Tilt, { tiltScheme, tiltState } from '../Addons/Tilt';
-import Turbo, { turboScheme, turboState } from '../Addons/Turbo';
 import SNES, { snesState } from '../Addons/SNES';
 import FocusMode, {
 	focusModeScheme,
@@ -52,7 +49,6 @@ const schema = yup.object().shape({
 	...analogScheme,
 	...lsm6dsrScheme,
 	...bootselScheme,
-	...turboScheme,
 	...reverseScheme,
 	...dualDirectionScheme,
 	...tiltScheme,
@@ -84,7 +80,6 @@ export const DEFAULT_VALUES = {
 	...analogState,
 	...lsm6dsrState,
 	...bootselState,
-	...turboState,
 	...reverseState,
 	...dualDirectionState,
 	...tiltState,
@@ -105,7 +100,6 @@ const ADDONS = [
 	Analog,
 	Tilt,
 	Bootsel,
-	Turbo,
 	Reverse,
 	DualDirection,
 	SOCD,
@@ -199,11 +193,7 @@ export default function AddonsConfigPage() {
 	const onSuccess = async (values: typeof DEFAULT_VALUES) => {
 		const flattened = flattenObject(storedData);
 
-		// Convert turbo LED color if available
-		const data = {
-			...values,
-			turboLedColor: hexToInt(values.turboLedColor || '#000000'),
-		};
+		const data = { ...values };
 		const valuesSchema = schema.cast(data); // Strip invalid values
 
 		// Compare what's changed and set it to resultObject

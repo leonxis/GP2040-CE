@@ -539,14 +539,6 @@ enum LEDFormat_Proto
     LED_FORMAT_RGBW = 3;
 }
 
-enum ShmupMixMode
-{
-    option (nanopb_enumopt).long_names = false;
-
-    SHMUP_MIX_MODE_TURBO_PRIORITY = 0;
-    SHMUP_MIX_MODE_CHARGE_PRIORITY = 1;
-}
-
 enum PLEDType
 {
     option (nanopb_enumopt).long_names = false;

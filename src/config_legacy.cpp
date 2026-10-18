@@ -223,14 +223,12 @@ namespace ConfigLegacy
 
     struct AddonOptions
     {
-        uint8_t pinButtonTurbo;
         uint8_t pinButtonReverse;
         uint8_t pinSliderLS;
         uint8_t pinSliderRS;
         uint8_t pinSliderSOCDOne;
         uint8_t pinSliderSOCDTwo;
         uint8_t turboShotCount; // Turbo
-        uint8_t pinTurboLED;    // Turbo LED
         uint8_t pinReverseLED;    // Reverse LED
         uint8_t reverseActionUp;
         uint8_t reverseActionDown;
@@ -253,20 +251,10 @@ namespace ConfigLegacy
         uint8_t extraButtonPin;
         uint32_t extraButtonMap;
         uint8_t shmupMode; // Turbo SHMUP Mode
-        uint8_t shmupMixMode; // How we mix turbo and non-turbo buttons
         uint16_t shmupAlwaysOn1;
         uint16_t shmupAlwaysOn2;
         uint16_t shmupAlwaysOn3;
         uint16_t shmupAlwaysOn4;
-        uint8_t pinShmupBtn1;
-        uint8_t pinShmupBtn2;
-        uint8_t pinShmupBtn3;
-        uint8_t pinShmupBtn4;
-        uint16_t shmupBtnMask1;
-        uint16_t shmupBtnMask2;
-        uint16_t shmupBtnMask3;
-        uint16_t shmupBtnMask4;
-        uint8_t pinShmupDial;
         SOCDMode sliderSOCDModeOne;
         SOCDMode sliderSOCDModeTwo;
         SOCDMode sliderSOCDModeDefault;
@@ -995,27 +983,12 @@ bool ConfigUtils::fromLegacyStorage(Config& config)
         TurboOptions& turboOptions = config.addonOptions.turboOptions;
         config.addonOptions.has_turboOptions = true;
         SET_PROPERTY(turboOptions, enabled, legacyAddonOptions.TurboInputEnabled);
-        SET_PROPERTY(turboOptions, deprecatedButtonPin, bytePinToIntPin(legacyAddonOptions.pinButtonTurbo));
-        SET_PROPERTY(turboOptions, ledPin, bytePinToIntPin(legacyAddonOptions.pinTurboLED));
         SET_PROPERTY(turboOptions, shotCount, legacyAddonOptions.turboShotCount);
-        SET_PROPERTY(turboOptions, shmupDialPin, bytePinToIntPin(legacyAddonOptions.pinShmupDial));
         SET_PROPERTY(turboOptions, shmupModeEnabled, legacyAddonOptions.shmupMode);
         SET_PROPERTY(turboOptions, shmupAlwaysOn1, legacyAddonOptions.shmupAlwaysOn1);
         SET_PROPERTY(turboOptions, shmupAlwaysOn2, legacyAddonOptions.shmupAlwaysOn2);
         SET_PROPERTY(turboOptions, shmupAlwaysOn3, legacyAddonOptions.shmupAlwaysOn3);
         SET_PROPERTY(turboOptions, shmupAlwaysOn4, legacyAddonOptions.shmupAlwaysOn4);
-        SET_PROPERTY(turboOptions, shmupBtn1Pin, bytePinToIntPin(legacyAddonOptions.pinShmupBtn1));
-        SET_PROPERTY(turboOptions, shmupBtn2Pin, bytePinToIntPin(legacyAddonOptions.pinShmupBtn2));
-        SET_PROPERTY(turboOptions, shmupBtn3Pin, bytePinToIntPin(legacyAddonOptions.pinShmupBtn3));
-        SET_PROPERTY(turboOptions, shmupBtn4Pin, bytePinToIntPin(legacyAddonOptions.pinShmupBtn4));
-        SET_PROPERTY(turboOptions, shmupBtnMask1, legacyAddonOptions.shmupBtnMask1);
-        SET_PROPERTY(turboOptions, shmupBtnMask2, legacyAddonOptions.shmupBtnMask2);
-        SET_PROPERTY(turboOptions, shmupBtnMask3, legacyAddonOptions.shmupBtnMask3);
-        SET_PROPERTY(turboOptions, shmupBtnMask4, legacyAddonOptions.shmupBtnMask4);
-        if (legacyAddonOptions.shmupMixMode == 0 || legacyAddonOptions.shmupMixMode == 1)
-        {
-            SET_PROPERTY(turboOptions, shmupMixMode, static_cast<ShmupMixMode>(legacyAddonOptions.shmupMixMode));
-        }
 
         PS4Options& ps4Options = config.addonOptions.ps4Options;
         config.addonOptions.has_ps4Options = true;

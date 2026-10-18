@@ -680,7 +680,11 @@ void GP2040::setup() {
 
 	// Input override addons
 	addons.LoadAddon(new ReverseInput());
-	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
+	// Turbo overrides button states and should be close to the end
+	// 背键(660)/线性扳机(669)实例均先于本行加载；线性扳机未启用时为 nullptr，turbo 内部判空
+	addons.LoadAddon(new TurboInput(
+			(HmlBackKeyAddon*)addons.GetAddon(HML_BACK_KEY_ADDON_NAME),
+			(LinearTriggerAddon*)addons.GetAddon(LINEAR_TRIGGER_ADDON_NAME)));
 	// 摇杆采样与后处理（按依赖顺序，放在所有其他插件之后）
 	addons.LoadAddon(new MCP3208ADCAddon());        // 采样
 	addons.LoadAddon(new UnifiedAnalogProcessorAddon());  // 处理

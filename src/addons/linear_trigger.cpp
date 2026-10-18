@@ -36,6 +36,11 @@ bool LinearTriggerAddon::available() {
     return opts.enabled;
 }
 
+bool LinearTriggerAddon::isActive() const {
+    const LinearTriggerOptions& opts = Storage::getInstance().getAddonOptions().linearTriggerOptions;
+    return opts.enabled;
+}
+
 // releasedRaw > maxRaw：松开为高 ADC
 static void computeThresholdsDecreasing(int32_t releasedRaw, int32_t maxRaw,
         uint32_t deadzonePercent, uint32_t travelPercent,
@@ -133,6 +138,10 @@ void LinearTriggerAddon::preprocess() {
     const uint8_t hwRt = invertR
         ? adcToTriggerIncreasing(rawR2, idleAdcR, pressAdcR)
         : adcToTriggerDecreasing(rawR2, idleAdcR, pressAdcR);
+
+    // 保存硬件换算值（补满补偿前）供 turbo 合成按下态
+    hwL2_ = hwLt;
+    hwR2_ = hwRt;
 
     // 硬件 ADC 为 lt/rt 基准；背键/触摸板/FN 等映射可能已置 L2/R2 位，不得在此处清除。
     if (gamepad->state.buttons & GAMEPAD_MASK_L2) {

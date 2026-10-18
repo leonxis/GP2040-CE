@@ -196,7 +196,6 @@ public:
 	void setDpadMode(DpadMode dpadMode) { options.dpadMode = dpadMode; }
 
 	GamepadState state;
-	GamepadState turboState;
 	GamepadAuxState auxState;
 	GamepadButtonMapping *mapDpadUp;
 	GamepadButtonMapping *mapDpadDown;

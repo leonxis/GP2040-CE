@@ -43,6 +43,13 @@ public:
     bool isIndexStable(uint8_t index) const {
         return index < HML_BACK_KEY_COUNT && debounce_[index].stable;
     }
+
+    // Turbo 查询：10 键（含 FN/MT）当前去抖稳定态的 GPIO 掩码
+    Mask_t getPressedGpioMask() const;
+    // Turbo 查询：指定背键引脚当前映射的三通道动作（非背键引脚返回 nullptr）
+    const ActionMappingCommon::ActionMappingEntry* getActionForPin(uint8_t pin) const;
+    // Turbo 查询：当前映射 BUTTON_PRESS_TURBO 的背键 GPIO 掩码（preset 方案切换自动跟随）
+    Mask_t getTurboKeyMask() const;
 private:
     void buildMappings();
 

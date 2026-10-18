@@ -733,27 +733,13 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 
     // addonOptions.turboOptions
     INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, enabled, !!TURBO_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, deprecatedButtonPin, (Pin_t)-1);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, ledPin, TURBO_LED_PIN);
     INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shotCount, DEFAULT_SHOT_PER_SEC);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupDialPin, PIN_SHMUP_DIAL);
     INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupModeEnabled, !!TURBO_SHMUP_MODE);
     INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupAlwaysOn1, SHMUP_ALWAYS_ON1);
     INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupAlwaysOn2, SHMUP_ALWAYS_ON2);
     INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupAlwaysOn3, SHMUP_ALWAYS_ON3);
     INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupAlwaysOn4, SHMUP_ALWAYS_ON4);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupBtn1Pin, PIN_SHMUP_BUTTON1);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupBtn2Pin, PIN_SHMUP_BUTTON2);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupBtn3Pin, PIN_SHMUP_BUTTON3);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupBtn4Pin, PIN_SHMUP_BUTTON4);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupBtnMask1, SHMUP_BUTTON1);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupBtnMask2, SHMUP_BUTTON2);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupBtnMask3, SHMUP_BUTTON3);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupBtnMask4, SHMUP_BUTTON4);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, shmupMixMode, SHMUP_MIX_MODE);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, turboLedType, TURBO_LED_TYPE);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, turboLedIndex, TURBO_LED_INDEX);
-    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, turboLedColor, static_cast<uint32_t>(TURBO_LED_COLOR.r) << 16 | static_cast<uint32_t>(TURBO_LED_COLOR.g) << 8 | static_cast<uint32_t>(TURBO_LED_COLOR.b));
+    INIT_UNSET_PROPERTY(config.addonOptions.turboOptions, longPressEnabled, false);
 
     // addonOptions.reverseOptions
     INIT_UNSET_PROPERTY(config.addonOptions.reverseOptions, enabled, !!REVERSE_ENABLED);
@@ -1622,12 +1608,6 @@ void gpioMappingsMigrationCore(Config& config)
     markAddonPinIfUsed(config.addonOptions.analogOptions.analogAdc1PinY);
     markAddonPinIfUsed(config.addonOptions.analogOptions.analogAdc2PinX);
     markAddonPinIfUsed(config.addonOptions.analogOptions.analogAdc2PinY);
-    markAddonPinIfUsed(config.addonOptions.turboOptions.ledPin);
-    markAddonPinIfUsed(config.addonOptions.turboOptions.shmupDialPin);
-    markAddonPinIfUsed(config.addonOptions.turboOptions.shmupBtn1Pin);
-    markAddonPinIfUsed(config.addonOptions.turboOptions.shmupBtn2Pin);
-    markAddonPinIfUsed(config.addonOptions.turboOptions.shmupBtn3Pin);
-    markAddonPinIfUsed(config.addonOptions.turboOptions.shmupBtn4Pin);
     markAddonPinIfUsed(config.addonOptions.reverseOptions.ledPin);
     markAddonPinIfUsed(config.addonOptions.snesOptions.clockPin);
     markAddonPinIfUsed(config.addonOptions.snesOptions.latchPin);
@@ -1673,27 +1653,6 @@ void migrateJSliderToCore(Config& config)
     if (config.addonOptions.deprecatedSliderOptions.enabled) {
         config.gamepadOptions.dpadMode = config.addonOptions.deprecatedSliderOptions.deprecatedModeDefault;
         config.addonOptions.deprecatedSliderOptions.enabled = false;
-    }
-}
-
-void migrateTurboPinToGpio(Config& config) {
-    // Features converted here must set their previous deprecated pin/set value as well (pin = -1)
-    TurboOptions & turboOptions = config.addonOptions.turboOptions;
-
-    // Convert turbo pin mapping to GPIO mapping config
-    if (turboOptions.enabled && isValidPin(turboOptions.deprecatedButtonPin)) {
-        Pin_t pin = turboOptions.deprecatedButtonPin;
-        // previous config had a value we haven't migrated yet, it can/should apply in the new config
-        config.gpioMappings.pins[pin].action = GpioAction::BUTTON_PRESS_TURBO;
-        for (uint8_t profileNum = 0; profileNum < 3; profileNum++) {
-            config.profileOptions.gpioMappingsSets[profileNum].pins[pin].action = GpioAction::BUTTON_PRESS_TURBO;
-        }
-        turboOptions.deprecatedButtonPin = -1; // set our turbo options to -1 for subsequent calls
-    }
-
-    // Make sure we set PWM mode if we are using led pin
-    if ( turboOptions.turboLedType == PLED_TYPE_NONE && isValidPin(turboOptions.ledPin) ) {
-        turboOptions.turboLedType = PLED_TYPE_PWM;
     }
 }
 
@@ -1950,8 +1909,6 @@ void ConfigUtils::load(Config& config)
         profileEnabledFlagsMigration(config);
 
     // following migrations are simple enough to not need a protobuf boolean to track
-    // Migrate turbo into GpioMappings
-    migrateTurboPinToGpio(config);
     // Migrate PS4/PS5/XBone authentication methods to new organization
     migrateAuthenticationMethods(config);
     // Macro pins to gpio
@@ -2601,7 +2558,6 @@ bool ConfigUtils::fromJSON(Config& config, const char* data, size_t dataLen)
 
     // we need to run migrations here too, in case the json document changed pins or things derived from pins
     gpioMappingsMigrationCore(config);
-    migrateTurboPinToGpio(config);
     migrateAuthenticationMethods(config);
     migrateMacroPinsToGpio(config);
 

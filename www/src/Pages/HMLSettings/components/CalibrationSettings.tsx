@@ -7,7 +7,6 @@ import get from 'lodash/get';
 import set from 'lodash/set';
 
 import { AppContext } from '../../../Contexts/AppContext';
-import { hexToInt } from '../../../Services/Utilities';
 import WebApi from '../../../Services/WebApi';
 import JoystickCalibration from './JoystickCalibration';
 import JoystickCurveSettings from './JoystickCurveSettings';
@@ -21,7 +20,6 @@ import {
 import { reverseScheme, reverseState } from '../../../Addons/Reverse';
 import { socdScheme, socdState } from '../../../Addons/SOCD';
 import { tiltScheme, tiltState } from '../../../Addons/Tilt';
-import { turboScheme, turboState } from '../../../Addons/Turbo';
 import { snesState } from '../../../Addons/SNES';
 import {
 	focusModeScheme,
@@ -70,7 +68,6 @@ export const schema = yup.object().shape({
 	...analogScheme,
 	...lsm6dsrScheme,
 	...bootselScheme,
-	...turboScheme,
 	...reverseScheme,
 	...dualDirectionScheme,
 	...tiltScheme,
@@ -87,7 +84,6 @@ export const DEFAULT_VALUES = {
 	...analogState,
 	...lsm6dsrState,
 	...bootselState,
-	...turboState,
 	...reverseState,
 	...dualDirectionState,
 	...tiltState,
@@ -215,15 +211,10 @@ export default function CalibrationSettings() {
 		const section = lastSaveSectionRef.current;
 		const flattened = flattenObject(storedData);
 
-		// Convert turbo LED color if available
 		const data = {
 			...flattened,
 			...flattenObject(values),
 		};
-
-		if (data.turboLedColor && typeof data.turboLedColor === 'string') {
-			data.turboLedColor = hexToInt(data.turboLedColor);
-		}
 
 		// Handle array fields specially - only update if changed
 		const valuesSchema = flattenObject(values);

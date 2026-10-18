@@ -28,8 +28,17 @@ public:
     virtual void postprocess(bool) {}
     virtual std::string name() { return LINEAR_TRIGGER_ADDON_NAME; }
     virtual void reinit() {}  // 线性扳机校准为全局配置，不随 profile 切换，无需在 reinit 中重载
+
+    // Turbo 查询：模拟通道是否生效（实时读配置；前端改配置重启前视为未生效）
+    bool isActive() const;
+    // 硬件换算值（"位在但模拟 0 补满 255"补偿之前），供 turbo 合成按下态，
+    // 避免背键 L2 的补满值被误判为通道物理按下
+    uint8_t getHwL2() const { return hwL2_; }
+    uint8_t getHwR2() const { return hwR2_; }
 private:
     void reloadThresholds();
+    uint8_t hwL2_ = 0;
+    uint8_t hwR2_ = 0;
     bool invertL = false;
     bool invertR = false;
     // Decreasing: idleAdc=松开侧(高 ADC), pressAdc=按到底侧(低 ADC)

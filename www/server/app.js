@@ -345,10 +345,9 @@ app.get('/api/getProfileOptions', (req, res) => {
 });
 
 app.get('/api/getAddonsOptions', (req, res) => {
-	return res.send({
-		turboPinLED: -1,
+		return res.send({
 		sliderModeZero: 0,
-		turboShotCount: 20,
+		turboShotCount: 10,
 		reversePin: -1,
 		reversePinLED: -1,
 		reverseActionUp: 1,
@@ -406,23 +405,11 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		focusModeButtonLockMask: 0,
 		focusModeButtonLockEnabled: 0,
 		shmupMode: 0,
-		shmupMixMode: 0,
+		turboLongPressEnabled: 0,
 		shmupAlwaysOn1: 0,
 		shmupAlwaysOn2: 0,
 		shmupAlwaysOn3: 0,
 		shmupAlwaysOn4: 0,
-		pinShmupBtn1: -1,
-		pinShmupBtn2: -1,
-		pinShmupBtn3: -1,
-		pinShmupBtn4: -1,
-		shmupBtnMask1: 0,
-		shmupBtnMask2: 0,
-		shmupBtnMask3: 0,
-		shmupBtnMask4: 0,
-		pinShmupDial: -1,
-		turboLedType: 1,
-		turboLedIndex: 16,
-		turboLedColor: 16711680,
 		sliderSOCDModeDefault: 1,
 		snesPadClockPin: -1,
 		snesPadLatchPin: -1,

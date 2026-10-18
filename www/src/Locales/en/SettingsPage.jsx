@@ -316,6 +316,7 @@ export default {
 	'hml-load-hint': 'Import a backup file from your computer into the controller.',
 	'hml-section-stick-config': 'Stick configuration',
 	'hml-section-dpad-config': 'D-pad configuration',
+	'hml-section-turbo': 'Turbo Settings',
 	'hml-stick-mode-left': 'Left stick mode',
 	'hml-stick-mode-right': 'Right stick mode',
 	'hml-analog-stick-left': 'Left stick',

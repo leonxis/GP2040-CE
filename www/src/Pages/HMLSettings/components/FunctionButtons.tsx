@@ -11,6 +11,10 @@ import TriggerCalibrationSettings, {
 	triggerCalibrationScheme,
 	triggerCalibrationState,
 } from './TriggerCalibration';
+import TurboSettings, {
+	turboHmlScheme,
+	turboHmlState,
+} from '../../../Addons/Turbo';
 
 type AddonOptions = Record<string, unknown>;
 
@@ -32,6 +36,13 @@ const INVERT_MODES = [
 	{ labelKey: 'hml-invert-xy', value: 3 },
 ];
 
+// 后端布尔字段，合并时需转 1/0 供 yup.number() 校验
+const TURBO_BOOL_FIELDS = [
+	'TurboInputEnabled',
+	'turboLongPressEnabled',
+	'shmupMode',
+];
+
 export default function FunctionButtons() {
 	const { t } = useTranslation();
 	const { values, setValues, isLoading } = useGamepadOptions();
@@ -39,6 +50,8 @@ export default function FunctionButtons() {
 	const [addonOptions, setAddonOptions] = useState<AddonOptions | null>(null);
 	const [triggerCalibInitial, setTriggerCalibInitial] = useState(triggerCalibrationState);
 	const [triggerSaveMessage, setTriggerSaveMessage] = useState('');
+	const [turboInitial, setTurboInitial] = useState(turboHmlState);
+	const [turboSaveMessage, setTurboSaveMessage] = useState('');
 
 	useEffect(() => {
 		let cancelled = false;
@@ -58,6 +71,19 @@ export default function FunctionButtons() {
 					}
 				});
 				setTriggerCalibInitial(merged);
+
+				const turboMerged = { ...turboHmlState };
+				(Object.keys(turboHmlState) as (keyof typeof turboHmlState)[]).forEach((k) => {
+					const v = data[k as string];
+					if (v !== undefined && v !== null) {
+						if (TURBO_BOOL_FIELDS.includes(k as string) && typeof v === 'boolean') {
+							(turboMerged as Record<string, unknown>)[k] = v ? 1 : 0;
+						} else {
+							(turboMerged as Record<string, unknown>)[k] = v;
+						}
+					}
+				});
+				setTurboInitial(turboMerged);
 			}
 		}
 		loadAddons();
@@ -67,6 +93,7 @@ export default function FunctionButtons() {
 	}, []);
 
 	const triggerSchema = useMemo(() => yup.object().shape(triggerCalibrationScheme), []);
+	const turboSchema = useMemo(() => yup.object().shape(turboHmlScheme), []);
 
 	const handleTriggerSubmit = async (vals: typeof triggerCalibrationState) => {
 		setTriggerSaveMessage('');
@@ -76,6 +103,17 @@ export default function FunctionButtons() {
 		);
 		if (ok) {
 			setTimeout(() => setTriggerSaveMessage(''), 3000);
+		}
+	};
+
+	const handleTurboSubmit = async (vals: typeof turboHmlState) => {
+		setTurboSaveMessage('');
+		const ok = await WebApi.setAddonsOptions(vals as Record<string, unknown>);
+		setTurboSaveMessage(
+			ok ? t('Common:saved-success-message') : t('Common:saved-error-message'),
+		);
+		if (ok) {
+			setTimeout(() => setTurboSaveMessage(''), 3000);
 		}
 	};
 
@@ -309,7 +347,23 @@ export default function FunctionButtons() {
 						)}
 					</Col>
 				</Form.Group>
-		</Section>
+			</Section>
+
+			<Formik
+				enableReinitialize
+				validationSchema={turboSchema}
+				initialValues={turboInitial}
+				onSubmit={handleTurboSubmit}
+			>
+				{({ handleSubmit, values, setFieldValue }) => (
+					<TurboSettings
+						values={values}
+						setFieldValue={setFieldValue}
+						saveMessage={turboSaveMessage}
+						onSaveClick={() => handleSubmit()}
+					/>
+				)}
+			</Formik>
 
 			<Formik
 				enableReinitialize
@@ -329,4 +383,3 @@ export default function FunctionButtons() {
 		</div>
 	);
 }
-
