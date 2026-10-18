@@ -146,15 +146,19 @@ void TurboInput::process() {
             bTurboFlicker = false;
         }
 
-        // 射速调节：方向键上/下位边沿，1~50
+        // 射速调节：方向键上/下位边沿，1~50；绿灯=+1、黄灯=-1（复用切换反馈灯效）
         uint8_t dpadPressed = gamepad->state.dpad & GAMEPAD_MASK_DPAD;
         if (dpadPressed != lastDpad) {
             if ((dpadPressed & GAMEPAD_MASK_DOWN) && !(lastDpad & GAMEPAD_MASK_DOWN)) {
-                if (options.shotCount > TURBO_SHOT_MIN)
+                if (options.shotCount > TURBO_SHOT_MIN) {
                     updateTurboShotCount(options.shotCount - 1, true);
+                    Storage::getInstance().pulseTurboOff();    // -1：黄 1 闪
+                }
             } else if ((dpadPressed & GAMEPAD_MASK_UP) && !(lastDpad & GAMEPAD_MASK_UP)) {
-                if (options.shotCount < TURBO_SHOT_MAX)
+                if (options.shotCount < TURBO_SHOT_MAX) {
                     updateTurboShotCount(options.shotCount + 1, true);
+                    Storage::getInstance().pulseTurboToggle(); // +1：绿 1 闪
+                }
             }
             lastDpad = dpadPressed;
         }
