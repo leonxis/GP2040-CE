@@ -24,6 +24,7 @@ void TurboInput::setup() {
     reinit();  // 重建 turboPinMask（先清零）
     turboGpioMask = 0;
     longpressGpioMask = 0;
+    longpressActiveMask = 0;
     lastHeldGpios = 0;
     lastDpad = 0;
     bTurboFlicker = false;
@@ -45,15 +46,13 @@ TurboResolvedAction TurboInput::resolvePinToAction(Pin_t pin) {
     TurboResolvedAction action = {};
     Mask_t bit = Mask_t{1} << pin;
 
-    // 背键 10 键（含 FN/MT）：取当前 preset 的三通道解析结果
-    if (backKeys != nullptr) {
-        const ActionMappingCommon::ActionMappingEntry* entry = backKeys->getActionForPin(pin);
-        if (entry != nullptr) {
-            action.buttonMask = entry->buttonMask;
-            action.keyboardMask = entry->keyboardMask;
-            action.mouseMask = entry->mouseButtonMask;
-            return action;
-        }
+    // 背键 10 键（含 FN/MT）：取当前 preset 的三通道解析结果（HML2354 背键恒载，无需判空）
+    const ActionMappingCommon::ActionMappingEntry* entry = backKeys->getActionForPin(pin);
+    if (entry != nullptr) {
+        action.buttonMask = entry->buttonMask;
+        action.keyboardMask = entry->keyboardMask;
+        action.mouseMask = entry->mouseButtonMask;
+        return action;
     }
 
     // 线性扳机模拟模式：GPIO40/41 固定为 L2/R2 通道语义
@@ -91,6 +90,14 @@ void TurboInput::process() {
         updateTurboShotCount(options.shotCount, false);
     }
 
+    // 长按开关运行时关闭（前端保存不重启）：立即清空长按闩锁。
+    // 否则残留 GPIO 物理松开后仍持续恒按输出，且首次按连发键切换实际走
+    // "长按→关"分支（绿灯亮但未进入连发），表现为该键无法连发
+    if (!options.longPressEnabled && longpressGpioMask != 0) {
+        longpressGpioMask = 0;
+        longpressActiveMask = 0;
+    }
+
     // ---- 阶段一：合成当前按下 GPIO（板载数字 + 背键 10 键 + 线性扳机模拟通道）----
     Mask_t heldGpios = gamepad->debouncedGpio | backKeys->getPressedGpioMask();
     if (linearTrigger != nullptr && linearTrigger->isActive()) {
@@ -116,8 +123,9 @@ void TurboInput::process() {
                 if (turboGpioMask & bit) {            // 连发 → 长按（长按开关关闭时 → 关）
                     turboGpioMask &= ~bit;
                     if (options.longPressEnabled) longpressGpioMask |= bit;
-                } else if (longpressGpioMask & bit) { // 长按 → 关
+                } else if (longpressGpioMask & bit) { // 长按 → 关（同步解除长按输出）
                     longpressGpioMask &= ~bit;
+                    longpressActiveMask &= ~bit;
                 } else {                              // 关 → 连发
                     turboGpioMask |= bit;
                 }
@@ -146,6 +154,14 @@ void TurboInput::process() {
     } else {
         lastDpad = 0;
     }
+
+    // 长按态 GPIO 单独点击：物理按下沿翻转长按输出闩锁（触发/松开）。
+    // 连发键按住期间的按下沿属于三态切换操作，不触发翻转
+    if (longpressGpioMask != 0) {
+        Mask_t lpEdges = (heldGpios ^ lastHeldGpios) & heldGpios & longpressGpioMask;
+        if (heldGpios & turboKeyMask) lpEdges = 0;
+        longpressActiveMask ^= lpEdges;
+    }
     lastHeldGpios = heldGpios;
 
     // ---- 闪烁计时 ----
@@ -157,13 +173,17 @@ void TurboInput::process() {
 
     // ---- 阶段二A：按钮通道分类（第一阶段仅游戏按键，键鼠通道第二阶段实施）----
     uint32_t turboBtns = 0, lpBtns = 0, otherBtns = 0;
-    Mask_t classify = heldGpios | longpressGpioMask;  // 长按闩锁 GPIO 物理松开后仍持续贡献
+    Mask_t classify = heldGpios | longpressActiveMask;  // 长按闩锁激活的 GPIO 物理松开后仍持续贡献
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
         Mask_t bit = Mask_t{1} << pin;
         if (!(classify & bit)) continue;
         TurboResolvedAction act = resolvePinToAction(pin);
         if (turboGpioMask & bit)           turboBtns |= act.buttonMask;
-        else if (longpressGpioMask & bit)  lpBtns |= act.buttonMask;
+        else if (longpressGpioMask & bit) {
+            // 长按输出闩锁激活：恒定输出（长触发）；未激活但物理按下：正常输出（点击触发的按住过程）
+            if (longpressActiveMask & bit)     lpBtns |= act.buttonMask;
+            else if (heldGpios & bit)          otherBtns |= act.buttonMask;
+        }
         else                               otherBtns |= act.buttonMask;
     }
 

@@ -60,7 +60,6 @@ struct TurboResolvedAction
     uint32_t buttonMask;    // 游戏按键（含背键自定义掩码位）
     uint64_t keyboardMask;  // 键盘键位（addonKeyboardKeyMask 位布局）
     uint8_t  mouseMask;     // 鼠标键位（addonMouseButtonMask 位布局）
-    bool empty() const { return !(buttonMask || keyboardMask || mouseMask); }
 };
 
 class TurboInput : public GPAddon {
@@ -79,6 +78,7 @@ private:
     Mask_t turboPinMask;        // 标准 GPIO 上映射 TURBO 动作的掩码（背键部分经 getTurboKeyMask 实时查询）
     Mask_t turboGpioMask;       // 已绑定连发的 GPIO
     Mask_t longpressGpioMask;   // 长按闩锁中的 GPIO
+    Mask_t longpressActiveMask; // 长按输出触发闩锁：物理点击翻转（触发/松开），连发键切换操作不触发
     Mask_t lastHeldGpios;       // 上一帧按下的 GPIO（新按下沿检测）
     uint8_t lastDpad;           // Last d-pad pressed (for Turbo Change)
     uint32_t uIntervalUS;       // Turbo Interval in microseconds
