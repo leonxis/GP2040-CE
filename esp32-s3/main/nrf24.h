@@ -46,3 +46,6 @@ void nrf24_sendFrame(uint8_t inputMode, uint16_t buttons, uint8_t dpad,
 
 // 重初始化（连续失败看门狗用）
 void nrf24_reinit(void);
+
+// 接收端链路是否正常（最近 500ms 内收到过 ACK）
+bool nrf24_link_ok(void);

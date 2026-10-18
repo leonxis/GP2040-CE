@@ -20,5 +20,11 @@ void usb_gamepad_get_state(GamepadState *out);
 // 获取当前识别到的手柄模式
 GamepadMode usb_gamepad_get_mode(void);
 
-// 手柄是否已连接
+// 手柄是否已连接（已成功枚举为可用手柄）
 bool usb_gamepad_connected(void);
+
+// 是否检测到 USB 设备（已枚举但可能无法识别为手柄）
+bool usb_gamepad_device_present(void);
+
+// 当前识别到的模式是否为已知可用模式
+bool usb_gamepad_mode_recognized(void);

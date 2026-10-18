@@ -14,6 +14,9 @@ static bool spi_inited = false;
 static uint8_t txSeq = 0;
 static bool txPending = false;
 static int64_t txStartUs = 0;
+static volatile int64_t s_last_ack_us = 0;
+
+#define NRF_LINK_TIMEOUT_US  500000  // 500ms 未收到 ACK 视为链路断开
 
 // ---- SPI 寄存器原语 ----
 static void writeReg(uint8_t reg, uint8_t val) {
@@ -121,6 +124,7 @@ void nrf24_init(void) {
 
     txSeq = 0;
     txPending = false;
+    s_last_ack_us = 0;
     ESP_LOGI(TAG, "nRF24 initialized: ch=%d payload=%d", NRF_CHANNEL, NRF_PAYLOAD);
 }
 
@@ -153,6 +157,7 @@ int8_t nrf24_pollTxComplete(void) {
     if (st & NRF_STATUS_TX_DS) {
         writeReg(NRF_REG_STATUS, NRF_STATUS_TX_DS);
         txPending = false;
+        s_last_ack_us = esp_timer_get_time();
         return 1;
     }
     if (st & NRF_STATUS_MAX_RT) {
@@ -189,4 +194,9 @@ void nrf24_sendFrame(uint8_t inputMode, uint16_t buttons, uint8_t dpad,
 
 void nrf24_reinit(void) {
     nrf24_init();
+}
+
+bool nrf24_link_ok(void) {
+    if (s_last_ack_us == 0) return false;
+    return (esp_timer_get_time() - s_last_ack_us) < NRF_LINK_TIMEOUT_US;
 }

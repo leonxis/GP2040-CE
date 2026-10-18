@@ -21,7 +21,7 @@
 
 // Protocol timings (see link_protocol.h)
 #define LINK_STATUS_PERIOD_MS   100     // send LINK_STATUS heartbeat
-#define UART_SILENCE_TIMEOUT_MS 3000    // no bytes for 3s -> disconnect BLE + sleep
+#define UART_SILENCE_TIMEOUT_MS 10000   // no CRC-valid frames for 10s -> disconnect BLE + sleep
 #define UART_BOOT_GRACE_MS      1000    // grace period after boot
 
 // BLE report cadence (high-performance mode only)

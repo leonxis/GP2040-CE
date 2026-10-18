@@ -344,3 +344,11 @@ GamepadMode usb_gamepad_get_mode(void) {
 bool usb_gamepad_connected(void) {
     return g_connected;
 }
+
+bool usb_gamepad_device_present(void) {
+    return g_dev_hdl != NULL;
+}
+
+bool usb_gamepad_mode_recognized(void) {
+    return g_mode != GP_MODE_UNKNOWN;
+}
