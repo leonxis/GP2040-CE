@@ -305,10 +305,14 @@ private:
     /// RAM-only one-shot hints (armed from Storage seq counters on Core0):
     /// recFull: red 3-blink when recording stops on flash capacity;
     /// macroHint: blue single blink on playback end;
-    /// turboToggle: green single blink when any turbo button is enabled/disabled.
+    /// turboToggle: green single blink when a button enters turbo mode;
+    /// turboLongpress: green double blink when a button enters long-press mode;
+    /// turboOff: yellow single blink when a button returns to normal mode.
     AmbientOneShotBlink recFullBlink_ {3};
     AmbientOneShotBlink macroHintBlink_ {1};
     AmbientOneShotBlink turboToggleBlink_ {1};
+    AmbientOneShotBlink turboLongpressBlink_ {2};
+    AmbientOneShotBlink turboOffBlink_ {1};
 
     /// Continuous blue blink while a macro recording is in progress.
     bool recBlinkOn_ = false;

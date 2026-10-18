@@ -113,7 +113,8 @@ void TurboInput::process() {
         // 白名单 GPIO 新按下沿（Turbo 键自身不可被切换）
         Mask_t newGpios = (heldGpios ^ lastHeldGpios) & heldGpios
                         & TURBO_GPIO_WHITELIST_MASK & ~turboKeyMask;
-        bool toggled = false;
+        // 灯效事件：1=连发开 2=长按开 3=关（同帧多键切换以最后事件为准，单次反馈）
+        uint8_t pulseEvent = 0;
         for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS && newGpios; pin++) {
             Mask_t bit = Mask_t{1} << pin;
             if (!(newGpios & bit)) continue;
@@ -122,20 +123,26 @@ void TurboInput::process() {
             if (resolvePinToAction(pin).buttonMask != 0) {
                 if (turboGpioMask & bit) {            // 连发 → 长按（长按开关关闭时 → 关）
                     turboGpioMask &= ~bit;
-                    if (options.longPressEnabled) longpressGpioMask |= bit;
+                    if (options.longPressEnabled) { longpressGpioMask |= bit; pulseEvent = 2; }
+                    else                           pulseEvent = 3;
                 } else if (longpressGpioMask & bit) { // 长按 → 关（同步解除长按输出）
                     longpressGpioMask &= ~bit;
                     longpressActiveMask &= ~bit;
+                    pulseEvent = 3;
                 } else {                              // 关 → 连发
                     turboGpioMask |= bit;
+                    pulseEvent = 1;
                 }
-                toggled = true;
             }
             newGpios &= ~bit;
         }
-        if (toggled) {
-            // WS2812 环境灯一次性绿色闪烁反馈（storagemanager 实现）
-            Storage::getInstance().pulseTurboToggle();
+        if (pulseEvent != 0) {
+            // WS2812 环境灯一次性反馈（storagemanager seq + Core1 相位机）：
+            // 连发开=绿 1 闪，长按开=绿 2 闪，切回正常=黄 1 闪
+            Storage& storage = Storage::getInstance();
+            if (pulseEvent == 1)      storage.pulseTurboToggle();
+            else if (pulseEvent == 2) storage.pulseTurboLongpress();
+            else                      storage.pulseTurboOff();
             bTurboFlicker = false;
         }
 

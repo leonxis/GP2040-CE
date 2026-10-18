@@ -226,3 +226,23 @@ uint32_t Storage::turboPulseSeq() const
 {
 	return turboPulseSeqValue.load(std::memory_order_acquire);
 }
+
+void Storage::pulseTurboLongpress()
+{
+	turboLongpressPulseSeqValue.fetch_add(1, std::memory_order_acq_rel);
+}
+
+uint32_t Storage::turboLongpressPulseSeq() const
+{
+	return turboLongpressPulseSeqValue.load(std::memory_order_acquire);
+}
+
+void Storage::pulseTurboOff()
+{
+	turboOffPulseSeqValue.fetch_add(1, std::memory_order_acq_rel);
+}
+
+uint32_t Storage::turboOffPulseSeq() const
+{
+	return turboOffPulseSeqValue.load(std::memory_order_acquire);
+}
