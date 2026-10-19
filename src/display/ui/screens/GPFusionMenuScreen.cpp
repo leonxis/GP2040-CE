@@ -97,6 +97,16 @@ static int gDpad() { return (int)GOP().dpadMode; }
 static void sDpad(int v) { GOP().dpadMode = (DpadMode)v; }
 static int gFour() { return GOP().fourWayMode ? 1 : 0; }
 static void sFour(int v) { GOP().fourWayMode = v ? true : false; }
+
+// 连发模式开关（对应网页 GNS设置-其他功能 中的 启用连发）
+static int gTurbo() { return AOP2().turboOptions.enabled ? 1 : 0; }
+static void sTurbo(int v) {
+    bool en = v ? true : false;
+    if (AOP2().turboOptions.enabled == en) return;
+    AOP2().turboOptions.enabled = en;
+    // TurboInput 插件加载与否仅在开机时判定，保存重启后生效
+    needsReboot = true;
+}
 static int gInvX() { return GOP().invertXAxis ? 1 : 0; }
 static void sInvX(int v) { GOP().invertXAxis = v ? true : false; }
 static int gInvY() { return GOP().invertYAxis ? 1 : 0; }
@@ -475,6 +485,7 @@ static LiteOpt optStick[] = {
 };
 static LiteOpt optFunc[] = {
   {"SOCD模式", OPT_ENUM, 0, 4, 1, N_SOCD, 5, "", gSocd, sSocd},
+  {"Turbo模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gTurbo, sTurbo},
   {"四向模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gFour, sFour},
   {"反向X", OPT_BOOL, 0, 1, 1, NULL, 0, "", gInvX, sInvX},
   {"反向Y", OPT_BOOL, 0, 1, 1, NULL, 0, "", gInvY, sInvY},
@@ -494,7 +505,7 @@ static LiteSection secSettings[] = {
   {"配置", optConfig, 5},
   {"手柄", optHandle, 6},
   {"摇杆", optStick, 5},
-  {"功能", optFunc, 5},
+  {"功能", optFunc, 6},
 };
 static LiteSection secLed[] = {{"彩灯", optLed, 7}};
 
