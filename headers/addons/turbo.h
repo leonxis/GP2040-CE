@@ -38,15 +38,15 @@
 // Turbo Module Name
 #define TurboName "Turbo"
 
-// 连发 GPIO 白名单（18 个）：boardconfig 10 板载按键 GPIO（B1-B4/L1/R1/L2/R2/L3/R3）
-// + 6 背键 GPIO（31,30,33,34,35,36）+ 左右 FN（45,44）。
-// MT 键（46/43）不参与切换，但其输出参与或集；方向键等其余 GPIO 无切换资格。
+// 连发 GPIO 白名单（20 个）：boardconfig 10 板载按键 GPIO（B1-B4/L1/R1/L2/R2/L3/R3）
+// + 6 背键 GPIO（31,30,33,34,35,36）+ 左右 FN（45,44）+ 左右 MT（46,43）。
+// 全部 10 个背键均支持切换；方向键等其余 GPIO 无切换资格。
 #define TURBO_GPIO_WHITELIST_MASK ( \
         Mask_t{1} << 5  | Mask_t{1} << 7  | Mask_t{1} << 10 | Mask_t{1} << 15 | \
         Mask_t{1} << 17 | Mask_t{1} << 26 | Mask_t{1} << 30 | Mask_t{1} << 31 | \
         Mask_t{1} << 33 | Mask_t{1} << 34 | Mask_t{1} << 35 | Mask_t{1} << 36 | \
-        Mask_t{1} << 37 | Mask_t{1} << 40 | Mask_t{1} << 41 | Mask_t{1} << 44 | \
-        Mask_t{1} << 45 | Mask_t{1} << 47 )
+        Mask_t{1} << 37 | Mask_t{1} << 40 | Mask_t{1} << 41 | Mask_t{1} << 43 | \
+        Mask_t{1} << 44 | Mask_t{1} << 45 | Mask_t{1} << 46 | Mask_t{1} << 47 )
 
 #define TURBO_SHOT_MIN 1
 #define TURBO_SHOT_MAX 50
