@@ -752,6 +752,7 @@ void InputMacro::recordSample(uint8_t slot, uint64_t now) {
     // The current sample is valid at the current tick, so write its slot and
     // every slot skipped since the last sample (e.g. across a page-program
     // stall) with the same sample. The frame timeline stays dense.
+    // 8-bit axes via direct truncation, no deadzone or center snap.
     const uint8_t q[4] = {
         macroRecQuantAxis(s.lx), macroRecQuantAxis(s.ly),
         macroRecQuantAxis(s.rx), macroRecQuantAxis(s.ry)

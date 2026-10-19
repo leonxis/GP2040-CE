@@ -43,7 +43,6 @@
 #define MACRO_REC_FRAME_OFFSET     0x00002000u
 #define MACRO_REC_FRAME_SIZE       (MACRO_REC_SLOT_SIZE - MACRO_REC_FRAME_OFFSET) // 188,416B
 #define MACRO_REC_FRAME_CAP        (MACRO_REC_FRAME_SIZE / 4u)           // 47,104 frames
-#define MACRO_REC_CENTER_DEADZONE  2000
 #define MACRO_REC_VERSION          1u
 #define MACRO_REC_MAX_EVENT_BYTES  10u
 
@@ -117,14 +116,11 @@ static inline uint8_t macroRecDecodeUVarint(const uint8_t * in, uint32_t avail, 
     return 0;
 }
 
-// 16bit axis -> 8bit. Center snap first, then truncate so center (32767 -> 127)
-// and extremes (0, 65535) map exactly.
+// 16bit axis -> 8bit by direct truncation. No deadzone or center snap: the
+// full analog range maps evenly onto 256 levels so playback reproduces motion
+// exactly as the controller output it.
 static inline uint8_t macroRecQuantAxis(uint16_t v)
 {
-    int32_t d = static_cast<int32_t>(v) - GAMEPAD_JOYSTICK_MID;
-    if (d < 0) d = -d;
-    if (d <= MACRO_REC_CENTER_DEADZONE)
-        v = GAMEPAD_JOYSTICK_MID;
     return static_cast<uint8_t>(v >> 8);
 }
 
