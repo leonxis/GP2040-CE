@@ -48,31 +48,38 @@ function useHasTurboKey(): boolean | null {
 		let cancelled = false;
 		(async () => {
 			try {
-				let found = false;
-				// 标准 GPIO 基础映射槽
-				const pins = await WebApi.getPinMappings();
-				if (!cancelled && pins) {
-					found = Object.keys(pins)
-						.filter((k) => /^pin\d{2}$/.test(k))
-						.some((k) => Number(pins[k]?.action) === BUTTON_ACTIONS.BUTTON_PRESS_TURBO);
-				}
-				// 背键插件当前 preset 10 键
-				if (!found && !cancelled) {
-					const global = await WebApi.getTwoKeyTouchpadOptions();
-					if (global) {
-						const activePreset = Number(global.activePreset ?? 0);
-						const preset = await WebApi.getTwoKeyTouchpadOptions(activePreset);
-						if (preset) {
-							found = BACK_KEY_FIELDS.some(
-								(f) => Number(preset[f]?.action) === BUTTON_ACTIONS.BUTTON_PRESS_TURBO,
-							);
-						}
-					}
-				}
-				if (!cancelled) setHasTurboKey(found);
-			} catch {
-				if (!cancelled) setHasTurboKey(null);
+			let found = false;
+			let anyFailed = false;
+			// 标准 GPIO 基础映射槽
+			const pins = await WebApi.getPinMappings();
+			if (pins) {
+				found = Object.keys(pins)
+					.filter((k) => /^pin\d{2}$/.test(k))
+					.some((k) => Number(pins[k]?.action) === BUTTON_ACTIONS.BUTTON_PRESS_TURBO);
+			} else {
+				anyFailed = true;
 			}
+			// 背键插件当前 preset 10 键
+			if (!found && !anyFailed) {
+				const global = await WebApi.getTwoKeyTouchpadOptions();
+				if (global) {
+					const activePreset = Number(global.activePreset ?? 0);
+					const preset = await WebApi.getTwoKeyTouchpadOptions(activePreset);
+					if (preset) {
+						found = BACK_KEY_FIELDS.some(
+							(f) => Number(preset[f]?.action) === BUTTON_ACTIONS.BUTTON_PRESS_TURBO,
+						);
+					} else {
+						anyFailed = true;
+					}
+				} else {
+					anyFailed = true;
+				}
+			}
+			if (!cancelled) setHasTurboKey(anyFailed ? null : found);
+		} catch {
+			if (!cancelled) setHasTurboKey(null);
+		}
 		})();
 		return () => {
 			cancelled = true;
