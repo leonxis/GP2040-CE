@@ -55,6 +55,6 @@ export default {
 	'input-macro-record-frames': '帧数',
 	'input-macro-record-clear': '清除录制（保存后生效）',
 	'input-macro-record-clear-confirm': '确认清除宏{{macroNumber}}已录制的动作？',
-	'input-macro-record-hint': '请在「热键设置」中为「宏{{macroNumber}} 开始/停止录制」分配组合键。运行时按一次开始录制（LED 绿灯闪烁），再按一次停止；达到容量上限（约 3 分 08 秒）会自动停止并红灯闪烁 3 次。播放触发与类型（按下/按住重复/切换）沿用上方设置；两个录制槽不可同时录制，录制期间暂停全部宏触发。',
+	'input-macro-record-hint': '请在「热键设置」中为「宏{{macroNumber}} 开始/停止录制」分配组合键。运行时按一次开始录制（LED 蓝色闪烁一次），再按一次停止（无灯光）；达到容量上限（约 3 分 08 秒）会自动停止并红灯闪烁 3 次。播放触发与类型（按下/按住重复/切换）沿用上方设置；两个录制槽不可同时录制，录制期间暂停全部宏触发。',
 	'input-macro-record-forced': '录制宏固定独占；动作类型与「可中断」可在上方配置。',
 };

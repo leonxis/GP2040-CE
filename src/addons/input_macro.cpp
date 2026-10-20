@@ -281,11 +281,10 @@ void InputMacro::checkMacroAction() {
         // New Macro to run
         macroPosition = pressedMacro; // Set current macro
         Macro& macro = inputMacroOptions->macroList[macroPosition];
-        if (isRecordedMacroIndex(macroPosition) && macro.hasRecording &&
-            recs[macroPosition].streamValid) {
-            // Recorded stream carries its own timeline.
-            macroInputHoldTime = recs[macroPosition].hdrFrames * MACRO_REC_TICK_US;
-        } else {
+        // Recorded slots use their own frame timeline (runRecordedMacro); only
+        // edited macros consume macroInputHoldTime.
+        if (!(isRecordedMacroIndex(macroPosition) && macro.hasRecording &&
+              recs[macroPosition].streamValid)) {
             MacroInput& macroInput = macro.macroInputs[macroInputPosition];
             uint32_t macroInputDuration = macroInput.duration + macroInput.waitDuration;
             macroInputHoldTime = macroInputDuration <= 0 ? INPUT_HOLD_US : macroInputDuration;

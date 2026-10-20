@@ -33,7 +33,7 @@ class FlashPROM
 		void reset();
 
 		// Erase a 64KB-aligned range inside the macro-recording area. Callers are
-		// blocked for the whole erase (RP2350 ROM issues 0xD8 block erases).
+		// blocked for the whole erase (one ROM block erase per 64KB block).
 		static void eraseRange(uint32_t offset, size_t len);
 
 		// Program whole 256B pages inside the macro-recording area (offset/len page aligned).

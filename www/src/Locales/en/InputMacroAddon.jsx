@@ -59,6 +59,6 @@ export default {
 	'input-macro-record-frames': 'Frames',
 	'input-macro-record-clear': 'Clear recording (applies after save)',
 	'input-macro-record-clear-confirm': 'Clear the recorded actions of macro {{macroNumber}}?',
-	'input-macro-record-hint': 'Bind a hotkey to "Macro {{macroNumber}} Start/Stop Recording" in Hotkey Settings. Press once to start (LED blinks green) and again to stop; it auto-stops at capacity (~3m08s) with three red blinks. Playback trigger and type (press / hold-repeat / toggle) follow the settings above; the two record slots are mutually exclusive, and all macro triggers are suspended while recording.',
+	'input-macro-record-hint': 'Bind a hotkey to "Macro {{macroNumber}} Start/Stop Recording" in Hotkey Settings. Press once to start (LED gives one blue blink) and again to stop (no light); it auto-stops at capacity (~3m08s) with three red blinks. Playback trigger and type (press / hold-repeat / toggle) follow the settings above; the two record slots are mutually exclusive, and all macro triggers are suspended while recording.',
 	'input-macro-record-forced': 'Recorded macros are always exclusive; action type and interruptible are configurable above.',
 };
