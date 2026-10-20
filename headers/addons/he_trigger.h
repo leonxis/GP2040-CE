@@ -573,6 +573,7 @@ private:
     uint32_t mux;
     uint32_t channel;
     uint16_t value;
+    bool menuTriggerActive[32] = {};
 };
 
 #endif  // _HE_Trigger_H

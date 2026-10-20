@@ -115,6 +115,7 @@ void HETriggerAddon::preprocess() {
         }
 
         if (value >= options.triggers[he].active) {
+            bool wasActive = menuTriggerActive[he];
             switch (options.triggers[he].action) {
                 case GpioAction::BUTTON_PRESS_UP: gamepad->state.dpad |= GAMEPAD_MASK_UP; break;
                 case GpioAction::BUTTON_PRESS_DOWN: gamepad->state.dpad |= GAMEPAD_MASK_DOWN; break;
@@ -157,15 +158,21 @@ void HETriggerAddon::preprocess() {
                 case GpioAction::ANALOG_DIRECTION_RS_Y_NEG:	gamepad->state.ry = GAMEPAD_JOYSTICK_MIN; break;
                 case GpioAction::ANALOG_DIRECTION_RS_Y_POS:	gamepad->state.ry = GAMEPAD_JOYSTICK_MAX; break;
                 case GpioAction::BUTTON_PRESS_FN:	gamepad->state.aux |= AUX_MASK_FUNCTION; break;
-                case GpioAction::MENU_NAVIGATION_UP: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_UP)); break;
-                case GpioAction::MENU_NAVIGATION_DOWN: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_DOWN)); break;
-                case GpioAction::MENU_NAVIGATION_LEFT: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_LEFT)); break;
-                case GpioAction::MENU_NAVIGATION_RIGHT: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_RIGHT)); break;
-                case GpioAction::MENU_NAVIGATION_SELECT: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_SELECT)); break;
-                case GpioAction::MENU_NAVIGATION_BACK: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_BACK)); break;
-                case GpioAction::MENU_NAVIGATION_TOGGLE: EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(GpioAction::MENU_NAVIGATION_TOGGLE)); break;
+                case GpioAction::MENU_NAVIGATION_UP:
+                case GpioAction::MENU_NAVIGATION_DOWN:
+                case GpioAction::MENU_NAVIGATION_LEFT:
+                case GpioAction::MENU_NAVIGATION_RIGHT:
+                case GpioAction::MENU_NAVIGATION_SELECT:
+                case GpioAction::MENU_NAVIGATION_BACK:
+                case GpioAction::MENU_NAVIGATION_TOGGLE:
+                    // Only send menu event when the trigger changes to active
+                    if (!wasActive) {
+                        EventManager::getInstance().triggerEvent(new GPMenuNavigateEvent(options.triggers[he].action));
+                    }
+                    break;
                 default: break;
             }
         }
+        menuTriggerActive[he] = (value >= options.triggers[he].active);
     }
 }
