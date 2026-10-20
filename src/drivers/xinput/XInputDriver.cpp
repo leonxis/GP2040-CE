@@ -72,7 +72,8 @@ static bool queue_xinput_out_transfer() {
         0,
         endpoint_out,
         xinput_out_buffer,
-        XINPUT_OUT_SIZE);
+        XINPUT_OUT_SIZE,
+        false);
 }
 
 static uint16_t xinput_open(uint8_t rhport, tusb_desc_interface_t const *itf_descriptor, uint16_t max_length) {
@@ -362,7 +363,7 @@ bool XInputDriver::process(Gamepad * gamepad) {
     const bool canStartInTransfer = tud_ready() && (endpoint_in != 0) && (!usbd_edpt_busy(0, endpoint_in));
     // Send continuously while endpoint is available so idle rate matches USB poll rate.
     if (canStartInTransfer && usbd_edpt_claim(0, endpoint_in)) {
-        if (usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport))) {
+        if (usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport), false)) {
             memcpy(last_report, &xinputReport, sizeof(XInputReport)); // save if we sent it
             reportSent = true;
         }

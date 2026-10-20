@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdio>
 #include <stdint.h>
 #include <pico/unique_id.h>
 
