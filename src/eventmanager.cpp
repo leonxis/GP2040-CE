@@ -33,7 +33,20 @@ void EventManager::unregisterEventHandler(GPEventType eventType, EventFunction h
     }
 }
 
+bool EventManager::hasEventHandlers() {
+    for (const EventEntry& entry : eventList) {
+        if (!entry.second.empty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void EventManager::triggerEvent(GPEvent* event) {
+    if (!hasEventHandlers()) {
+        delete event;
+        return;
+    }
     GPEventType eventType = event->eventType();
     for (typename std::vector<EventEntry>::const_iterator it = eventList.begin(); it != eventList.end(); ++it) {
         if (it->first == eventType) {
