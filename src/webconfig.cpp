@@ -1070,7 +1070,10 @@ std::string setProfileOptions()
 
 std::string getProfileOptions()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    ProfileOptions& profileOptions = Storage::getInstance().getProfileOptions();
+    // Make capacity slots dynamic, max for 5 profiles * 48 pins is 976 slots
+    const size_t capacity = JSON_OBJECT_SIZE(1) + JSON_ARRAY_SIZE(profileOptions.gpioMappingsSets_count)
+        + (profileOptions.gpioMappingsSets_count * JSON_OBJECT_SIZE(4 * NUM_BANK0_GPIOS + 2));
     DynamicJsonDocument doc(capacity);
 
     const auto writePinDoc = [&](const int item, const char* key, const GpioMappingInfo& value) -> void
@@ -1079,8 +1082,6 @@ std::string getProfileOptions()
         writeDoc(doc, "alternativePinMappings", item, key, "customButtonMask", value.customButtonMask);
         writeDoc(doc, "alternativePinMappings", item, key, "customDpadMask", value.customDpadMask);
     };
-
-    ProfileOptions& profileOptions = Storage::getInstance().getProfileOptions();
 
     // return an empty list if no profiles are currently set, since we no longer populate by default
     if (profileOptions.gpioMappingsSets_count == 0) {
@@ -3308,7 +3309,10 @@ std::string setMacroAddonOptions()
 
 std::string getMacroAddonOptions()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    const size_t capacity = JSON_OBJECT_SIZE(MacroOptions_msg.field_count) + JSON_ARRAY_SIZE(MAX_MACRO_LIMIT)
+        + MAX_MACRO_LIMIT * (JSON_OBJECT_SIZE(Macro_msg.field_count) + sizeof(Macro::macroLabel)
+        + JSON_ARRAY_SIZE(MAX_MACRO_INPUT_LIMIT)
+        + MAX_MACRO_INPUT_LIMIT * JSON_OBJECT_SIZE(MacroInput_msg.field_count));
     DynamicJsonDocument doc(capacity);
 
     MacroOptions& macroOptions = Storage::getInstance().getAddonOptions().macroOptions;
