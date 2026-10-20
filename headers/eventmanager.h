@@ -44,6 +44,7 @@ class EventManager {
         void registerEventHandler(GPEventType eventType, EventFunction handler);
         void unregisterEventHandler(GPEventType eventType, EventFunction handler);
         void triggerEvent(GPEvent* event);
+        bool hasEventHandlers();
     private:
         EventManager(){}
 
