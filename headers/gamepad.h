@@ -282,7 +282,7 @@ public:
 
 	// gamepad specific proxy of debounced buttons --- 1 = active (inverse of the raw GPIO)
 	// see GP2040::debounceGpioGetAll for details
-	Mask_t debouncedGpio;
+	Mask_t debouncedGpio = 0;
 
 	// Addon-driven keyboard key mask (e.g. 4-key touchpad): bit N = KEYBOARD_KEY at enum 131+N (A=0..Z=25, CTRL=26, SHIFT=27, ALT_F4=28, 0=29..9=38)
 	uint64_t addonKeyboardKeyMask = 0;
