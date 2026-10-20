@@ -557,29 +557,47 @@ void __not_in_flash_func(GPGFX_TinySSD1306::drawBuffer)(uint8_t* pBuffer) {
 	uint8_t buffer[MAX_SCREEN_SIZE] = {};
 	if (pBuffer == NULL) pBuffer = frameBuffer;
 
+	// 同帧跳过：画面与上一帧完全一致时零 I2C 传输
+	if (hasLastFrame &&
+		memcmp(pBuffer, lastSentBuffer, MAX_SCREEN_SIZE) == 0) {
+		return;
+	}
+
+	const uint8_t pageCount = MAX_SCREEN_HEIGHT / 8;
 	if (this->screenType == ScreenAlternatives::SCREEN_132x64) {
         uint16_t x = 0;
-        uint16_t y = 0;
-        for (y = 0; y < (MAX_SCREEN_HEIGHT/8); y++) {
+        for (uint8_t y = 0; y < pageCount; y++) {
+            const uint8_t* page = &pBuffer[y * MAX_SCREEN_WIDTH];
+            if (hasLastFrame &&
+                memcmp(page, &lastSentBuffer[y * MAX_SCREEN_WIDTH], MAX_SCREEN_WIDTH) == 0) {
+                continue;
+            }
             sendCommand(0xB0 + y);
             sendCommand(x & 0x0F);
             sendCommand(0x10 | (x >> 4));
 
-            memcpy(buffer, &pBuffer[y*MAX_SCREEN_WIDTH], MAX_SCREEN_WIDTH);
-
-            sendData(buffer, MAX_SCREEN_WIDTH+2);
+            memcpy(buffer, page, MAX_SCREEN_WIDTH);
+            sendData(buffer, MAX_SCREEN_WIDTH + 2);
+            memcpy(&lastSentBuffer[y * MAX_SCREEN_WIDTH], page, MAX_SCREEN_WIDTH);
         }
     } else {
-        sendCommand(CommandOps::PAGE_ADDRESS);
-        sendCommand(0x00);
-        sendCommand(0x07);
-        sendCommand(CommandOps::COLUMN_ADDRESS);
-        sendCommand(0x00);
-        sendCommand(0x7F);
+        for (uint8_t y = 0; y < pageCount; y++) {
+            const uint8_t* page = &pBuffer[y * MAX_SCREEN_WIDTH];
+            if (hasLastFrame &&
+                memcmp(page, &lastSentBuffer[y * MAX_SCREEN_WIDTH], MAX_SCREEN_WIDTH) == 0) {
+                continue;
+            }
+            sendCommand(0xB0 + y);
+            sendCommand(0x00);
+            sendCommand(0x10);
 
-        memcpy(buffer, pBuffer, MAX_SCREEN_SIZE);
-        sendData(buffer, MAX_SCREEN_SIZE);
+            memcpy(buffer, page, MAX_SCREEN_WIDTH);
+            sendData(buffer, MAX_SCREEN_WIDTH);
+            memcpy(&lastSentBuffer[y * MAX_SCREEN_WIDTH], page, MAX_SCREEN_WIDTH);
+        }
     }
+
+	hasLastFrame = true;
 
 	if (framePage < MAX_SCREEN_HEIGHT/8) {
 		framePage++;
