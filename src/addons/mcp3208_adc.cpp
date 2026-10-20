@@ -40,7 +40,7 @@ bool MCP3208ADCAddon::getRawStickForWebConfig(
     return true;
 }
 
-bool MCP3208ADCAddon::getRawStickForProcessor(
+bool __not_in_flash_func(MCP3208ADCAddon::getRawStickForProcessor)(
     uint8_t stickNum,
     uint16_t& x,
     uint16_t& y,
@@ -99,7 +99,7 @@ void MCP3208ADCAddon::setup() {
     spiOk_ = true;
 }
 
-void MCP3208ADCAddon::process() {
+void __not_in_flash_func(MCP3208ADCAddon::process)() {
     if (!spi_ || !spiOk_) {
         return;
     }
@@ -118,7 +118,7 @@ void MCP3208ADCAddon::process() {
     publishStickSnapshot(xValues, yValues);
 }
 
-bool MCP3208ADCAddon::readChannel(
+bool __not_in_flash_func(MCP3208ADCAddon::readChannel)(
     uint8_t channel,
     uint16_t& value
 ) {
@@ -140,7 +140,7 @@ bool MCP3208ADCAddon::readChannel(
     return false;
 }
 
-void MCP3208ADCAddon::publishStickSnapshot(
+void __not_in_flash_func(MCP3208ADCAddon::publishStickSnapshot)(
     const uint16_t* xValues,
     const uint16_t* yValues
 ) {

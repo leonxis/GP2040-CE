@@ -544,7 +544,7 @@ void GPGFX_TinySSD1306::drawSprite(uint8_t* image, uint16_t width, uint16_t heig
 }
 
 // Chunk transfers so inputs can be read
-void GPGFX_TinySSD1306::sendData(uint8_t* data, uint16_t length) {
+void __not_in_flash_func(GPGFX_TinySSD1306::sendData)(uint8_t* data, uint16_t length) {
     uint8_t chunk[OLED_I2C_CHUNK_SIZE + 1] = {0x40};
     for (uint16_t offset = 0; offset < length; offset += OLED_I2C_CHUNK_SIZE) {
         uint16_t count = std::min(OLED_I2C_CHUNK_SIZE, length - offset);
@@ -553,7 +553,7 @@ void GPGFX_TinySSD1306::sendData(uint8_t* data, uint16_t length) {
     }
 }
 
-void GPGFX_TinySSD1306::drawBuffer(uint8_t* pBuffer) {
+void __not_in_flash_func(GPGFX_TinySSD1306::drawBuffer)(uint8_t* pBuffer) {
 	uint8_t buffer[MAX_SCREEN_SIZE] = {};
 	if (pBuffer == NULL) pBuffer = frameBuffer;
 
@@ -600,7 +600,7 @@ void GPGFX_TinySSD1306::sendCommand(uint8_t command){
 	sendCommands(commandData, 2);
 }
 
-void GPGFX_TinySSD1306::sendCommands(uint8_t* commands, uint16_t length){ 
+void __not_in_flash_func(GPGFX_TinySSD1306::sendCommands)(uint8_t* commands, uint16_t length) {
 	int result = _options.i2c->write(_options.address, commands, length, false);
 	(void)result; // ignore write result
 }

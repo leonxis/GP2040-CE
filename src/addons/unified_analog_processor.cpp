@@ -122,7 +122,7 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     }
 }
 
-uint16_t UnifiedAnalogProcessorAddon::quantizeRaw(int stickNum, uint16_t value, bool isXAxis, uint16_t adcMax) {
+uint16_t __not_in_flash_func(UnifiedAnalogProcessorAddon::quantizeRaw)(int stickNum, uint16_t value, bool isXAxis, uint16_t adcMax) {
     uint32_t step = sticks_[stickNum].jitter_filter;
     uint16_t* last = isXAxis ? &sticks_[stickNum].last_x_adc : &sticks_[stickNum].last_y_adc;
     if (step > 0) {
@@ -142,7 +142,7 @@ uint16_t UnifiedAnalogProcessorAddon::quantizeRaw(int stickNum, uint16_t value, 
     return value;
 }
 
-void UnifiedAnalogProcessorAddon::process() {
+void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const AnalogOptions& analogOptions = addonOptions.analogOptions;
 
@@ -296,7 +296,7 @@ void UnifiedAnalogProcessorAddon::process() {
     }
 }
 
-float UnifiedAnalogProcessorAddon::getInterpolatedScale(int stickNum, float angle) const {
+float __not_in_flash_func(UnifiedAnalogProcessorAddon::getInterpolatedScale)(int stickNum, float angle) const {
     if (!sticks_[stickNum].has_range_calibration) {
         return 0.65f;
     }
@@ -376,7 +376,7 @@ void UnifiedAnalogProcessorAddon::initializeCurveSegments(int stickNum, const Un
     }
 }
 
-void UnifiedAnalogProcessorAddon::applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stickNum) {
+void __not_in_flash_func(UnifiedAnalogProcessorAddon::applyResponseCurveToCoordinates)(float& normalizedX, float& normalizedY, int stickNum) {
     if (normalizedX == 0.0f && normalizedY == 0.0f) {
         return;
     }
