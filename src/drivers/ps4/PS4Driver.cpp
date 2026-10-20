@@ -441,7 +441,7 @@ void PS4Driver::onInputReportFailed() {
     input_report_pending = false;
 }
 
-bool PS4Driver::process(Gamepad * gamepad) {
+bool __not_in_flash_func(PS4Driver::process)(Gamepad * gamepad) {
     const GamepadOptions & options = gamepad->getOptions();
     Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
     switch (gamepad->state.dpad & GAMEPAD_MASK_DPAD)

@@ -283,7 +283,7 @@ bool XInputDriver::getAuthSent() {
     return xAuthSent;
 }
 
-bool XInputDriver::process(Gamepad * gamepad) {
+bool __not_in_flash_func(XInputDriver::process)(Gamepad * gamepad) {
     Gamepad * processedGamepad = Storage::getInstance().GetProcessedGamepad();
     Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
 

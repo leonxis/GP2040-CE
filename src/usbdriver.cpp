@@ -198,7 +198,7 @@ static void beginMainGamepadUSBEpoch(bool mounted) {
 	restore_interrupts(irqState);
 }
 
-void usb_get_main_gamepad_gate_snapshot(USBMainGamepadGateSnapshot* snapshot) {
+void __not_in_flash_func(usb_get_main_gamepad_gate_snapshot)(USBMainGamepadGateSnapshot* snapshot) {
 	if (snapshot == nullptr) {
 		return;
 	}
@@ -224,7 +224,7 @@ void usb_get_main_gamepad_gate_snapshot(USBMainGamepadGateSnapshot* snapshot) {
 	restore_interrupts(irqState);
 }
 
-bool usb_mark_main_gamepad_report_submitted(uint32_t expectedEpoch) {
+bool __not_in_flash_func(usb_mark_main_gamepad_report_submitted)(uint32_t expectedEpoch) {
 	uint32_t irqState = save_and_disable_interrupts();
 	const bool canArm =
 		usb_mounted &&
@@ -253,7 +253,7 @@ void usb_notify_main_gamepad_submit_failed(uint32_t expectedEpoch) {
 	restore_interrupts(irqState);
 }
 
-void usb_notify_main_gamepad_sof(uint32_t frameNumber) {
+void __not_in_flash_func(usb_notify_main_gamepad_sof)(uint32_t frameNumber) {
 	uint32_t irqState = save_and_disable_interrupts();
 	if (usb_mounted && !usb_suspended) {
 		usb_main_gamepad_sof_frame = frameNumber;
@@ -280,7 +280,7 @@ void usb_main_gamepad_hid_reset(uint8_t rhport) {
 	usb_notify_main_gamepad_usb_reset();
 }
 
-void usb_notify_main_gamepad_poll_done_success(void) {
+void __not_in_flash_func(usb_notify_main_gamepad_poll_done_success)(void) {
 	uint32_t irqState = save_and_disable_interrupts();
 	if (usb_mounted &&
 		usb_main_gamepad_report_armed &&
@@ -296,7 +296,7 @@ void usb_notify_main_gamepad_poll_done_success(void) {
 	restore_interrupts(irqState);
 }
 
-void usb_notify_main_gamepad_poll_done_failed(void) {
+void __not_in_flash_func(usb_notify_main_gamepad_poll_done_failed)(void) {
 	uint32_t irqState = save_and_disable_interrupts();
 	if (usb_main_gamepad_report_armed &&
 		(usb_main_gamepad_armed_epoch == usb_main_gamepad_epoch)) {

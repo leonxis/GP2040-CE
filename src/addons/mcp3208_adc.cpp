@@ -60,7 +60,7 @@ bool MCP3208ADCAddon::getRawStickForWebConfig(
     return true;
 }
 
-bool MCP3208ADCAddon::getRawStickForProcessor(
+bool __not_in_flash_func(MCP3208ADCAddon::getRawStickForProcessor)(
     uint8_t stickNum,
     uint16_t& x,
     uint16_t& y,
@@ -193,7 +193,7 @@ bool MCP3208ADCAddon::sampleSwitchChannels() {
     return true;
 }
 
-bool MCP3208ADCAddon::readChannel(
+bool __not_in_flash_func(MCP3208ADCAddon::readChannel)(
     uint8_t channel,
     uint16_t& value
 ) {
@@ -215,7 +215,7 @@ bool MCP3208ADCAddon::readChannel(
     return false;
 }
 
-bool MCP3208ADCAddon::publishStickSnapshot(
+bool __not_in_flash_func(MCP3208ADCAddon::publishStickSnapshot)(
     const uint16_t* xValues,
     const uint16_t* yValues,
     const GateLateAnalogSampleRequest& request
