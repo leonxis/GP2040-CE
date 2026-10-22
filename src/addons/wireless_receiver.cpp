@@ -41,9 +41,17 @@ void WirelessReceiver::setup() {
     rxlt = 0; rxrt = 0;
     lastPacketTime = 0;
     lastRadioReinit = 0;
-    if (!paired) {
-        tud_disconnect(); // no gamepad identity until paired
-    }
+    // 注意：这里**不能**调 tud_disconnect()。setup() 跑在 tusb_init() 之前，
+    // 而 RP2040 的 dcd_disconnect() 会读写还处于复位状态的 usb_hw（硬件置位/清零别名
+    // 是读-改-写），总线会直接锁死 → 整机黑屏、USB 完全不出现。改到 preprocess() 里做。
+    usbHidden = false;
+    pendingMode = 0;
+    pendingModeCount = 0;
+    lastSeq = 0;
+    haveSeq = false;
+    rxPackets = 0;
+    lostPackets = 0;
+    dupPackets = 0;
     radio.startListening();
 
 #if WIRELESS_RX_RGB_LED_PIN >= 0
@@ -62,6 +70,7 @@ void WirelessReceiver::setup() {
 
 void WirelessReceiver::handlePacket(const uint8_t *pkt) {
     uint8_t mode = pkt[0];
+    uint8_t seq = pkt[1];
     GamepadOptions &opts = Storage::getInstance().getGamepadOptions();
 
     if (mode != 0xFF &&
@@ -75,6 +84,25 @@ void WirelessReceiver::handlePacket(const uint8_t *pkt) {
         return;
     }
 
+    // 包序号去重（发送端每发一包 seq++）：
+    // nRF24 的 auto-ACK 重传可能把同一包投递两次，状态完全一样，丢掉即可；
+    // 不丢的话它会重复推进下面的模式确认计数。
+    // d > 0 的跳变 = 中间有包没送到（MAX_RT），累计到 lostPackets；
+    // d < 0 只可能是发送端重启/序号回绕，直接接受，不算丢包。
+    if (haveSeq) {
+        int8_t d = (int8_t)(seq - lastSeq);
+        if (d == 0) {
+            dupPackets++;
+            lastPacketTime = to_ms_since_boot(get_absolute_time()); // 重复包也算链路活着
+            return;
+        }
+        if (d > 0) lostPackets += (uint8_t)(d - 1);
+    }
+    lastSeq = seq;
+    haveSeq = true;
+    rxPackets++;
+    lastPacketTime = to_ms_since_boot(get_absolute_time());
+
     // 0xFF = 发送端还没拿到 Pico 的真实输入模式：不配对、不切模式，只缓存输入
     if (mode == 0xFF) {
         rxButtons = pkt[2] | ((uint16_t)pkt[3] << 8);
@@ -85,29 +113,33 @@ void WirelessReceiver::handlePacket(const uint8_t *pkt) {
         rxry = pkt[11] | ((uint16_t)pkt[12] << 8);
         rxlt = pkt[13];
         rxrt = pkt[14];
-        lastPacketTime = to_ms_since_boot(get_absolute_time());
         return;
     }
 
-    if (!paired) {
-        opts.wirelessPaired = true;
-        paired = true;
-        opts.inputMode = (InputMode)mode;
-        Storage::getInstance().save(true);
-        tud_disconnect();   // 显式断开 D+ 上拉，让主机看到 USB 拔出
-        sleep_ms(500);      // 给主机足够时间处理断连 + flash 落盘
-        System::reboot(System::BootMode::DEFAULT);
-        return;
+    // 配对 / 切模式都要写 flash + 重启。链路抖一下就可能收到一个模式字节不对的包，
+    // 收到就立刻重启会让手柄在 PC 上反复消失/出现（时连时断），所以两种动作都要求
+    // 连续 WIRELESS_MODE_CONFIRM_PACKETS 个包报同一个模式才真的执行。
+    if (!paired || mode != (uint8_t)opts.inputMode) {
+        if (mode == pendingMode) {
+            if (pendingModeCount < WIRELESS_MODE_CONFIRM_PACKETS) pendingModeCount++;
+        } else {
+            pendingMode = mode;
+            pendingModeCount = 1;
+        }
+        if (pendingModeCount >= WIRELESS_MODE_CONFIRM_PACKETS) {
+            if (!paired) {
+                opts.wirelessPaired = true;
+                paired = true;
+            }
+            opts.inputMode = (InputMode)mode;
+            Storage::getInstance().save(true);
+            tud_disconnect();   // 显式断开 D+ 上拉，让主机看到 USB 拔出
+            sleep_ms(500);      // 给主机足够时间处理断连 + flash 落盘
+            System::reboot(System::BootMode::DEFAULT);
+        }
+        return; // 未确认前不更新输入，防止抖动包灌进 HID 报告
     }
-
-    if (mode != (uint8_t)opts.inputMode) {
-        opts.inputMode = (InputMode)mode;
-        Storage::getInstance().save(true);
-        tud_disconnect();   // 显式断开 D+ 上拉，让主机看到 USB 拔出
-        sleep_ms(500);      // 给主机足够时间处理断连 + flash 落盘
-        System::reboot(System::BootMode::DEFAULT);
-        return;
-    }
+    pendingModeCount = 0; // 模式一致：清掉待确认计数
 
     rxButtons = pkt[2] | ((uint16_t)pkt[3] << 8);
     rxDpad = pkt[4];
@@ -117,10 +149,15 @@ void WirelessReceiver::handlePacket(const uint8_t *pkt) {
     rxry = pkt[11] | ((uint16_t)pkt[12] << 8);
     rxlt = pkt[13];
     rxrt = pkt[14];
-    lastPacketTime = to_ms_since_boot(get_absolute_time());
 }
 
 void WirelessReceiver::preprocess() {
+    // 未配对时藏掉 USB 身份。tud_disconnect 必须等 tusb_init() 之后调
+    // （setup() 阶段碰复位中的 usb_hw 会锁死总线，见 setup() 注释）。
+    if (!paired && !usbHidden && tud_inited()) {
+        usbHidden = true;
+        tud_disconnect();
+    }
     uint8_t pkt[NRF24_PAYLOAD];
     bool got = false;
     while (radio.readPacket(pkt)) {
@@ -133,6 +170,7 @@ void WirelessReceiver::preprocess() {
         lastRadioReinit = now;
         radio.begin(WIRELESS_RX_SPI_INST, WIRELESS_RX_CSN_PIN, WIRELESS_RX_CE_PIN);
         radio.startListening();
+        haveSeq = false; // 射频重 init 后清序号状态，避免拿旧序号算丢包
     }
     // 重新注入缓存输入；1000ms 无包自动释放
     if (paired && now - lastPacketTime < 1000) {

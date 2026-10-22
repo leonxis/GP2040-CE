@@ -61,7 +61,8 @@ public:
 
   bool readPacket(uint8_t *data) {
     uint8_t st = readReg(0x07);
-    if (!(st & 0x40)) return false;
+    // RX_P_NO (bit3:1) = 0b111 表示 RX FIFO 空；只认 RX_DR 有可能读到空包
+    if (!(st & 0x40) || (st & 0x0E) == 0x0E) return false;
     writeReg(0x07, 0x40);
     gpio_put(_csn, 0);
     uint8_t cmd = 0x61; // R_RX_PAYLOAD

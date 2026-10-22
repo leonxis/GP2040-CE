@@ -30,6 +30,13 @@
 #define WIRELESS_RX_RGB_LED_PIN -1   // >=0 时用单颗 WS2812；接收端精简板必须保持 -1（与 USB0 PIO-USB 主机冲突）
 #endif
 
+// 配对 / 切输入模式都要写 flash + 重启；收到一个模式字节不对的包就立刻重启，
+// 手柄会在 PC 上反复消失/出现（时连时断）。要求连续这么多包报同一个模式才动作。
+// 发送端 1~2ms 一包 -> 约 20~40ms 确认，真实切模式感觉不到，抖动包会被挡住。
+#ifndef WIRELESS_MODE_CONFIRM_PACKETS
+#define WIRELESS_MODE_CONFIRM_PACKETS 20
+#endif
+
 // 主循环显式调用，不再继承 GPAddon
 // 核间分工（全局单例 wirelessReceiver）：
 //   core0: setup() / preprocess()  —— nRF24 收包、输入注入
@@ -53,6 +60,18 @@ private:
     uint32_t lastRadioReinit;
     bool ledOn;
     uint8_t ledState;   // LED 当前态：0=未知/灭, 1=红(闪烁), 2=绿(常亮)
+    bool usbHidden;     // 未配对时已执行 tud_disconnect（延迟到 preprocess，见 cpp 注释）
+
+    // 模式切换去抖：连续 WIRELESS_MODE_CONFIRM_PACKETS 个包报同一模式才写 flash+重启
+    uint8_t pendingMode;
+    uint8_t pendingModeCount;
+
+    // 包序号去重 / 丢包统计（seq 是发送端 pkt[1]，每发一包 +1）
+    uint8_t lastSeq;
+    bool haveSeq;
+    uint32_t rxPackets;         // 收到的有效包（去重后）
+    uint32_t lostPackets;       // 按 seq 跳变推算出的丢包数
+    uint16_t dupPackets;        // 完全重复（auto-ACK 重传）的包数
 };
 
 // 全局单例：core0 与 core1 共享（定义在 wireless_receiver.cpp）
