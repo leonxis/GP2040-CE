@@ -19,6 +19,8 @@
 #include "drivers/xinput/XInputDriver.h"
 #include "drivers/p5general/P5GeneralDriver.h"
 #include "drivers/sinput/SInputDriver.h"
+#include "drivers/ps4b/PS4BDriver.h"
+#include "drivers/xinputb/XInputBDriver.h"
 
 #include "usbhostmanager.h"
 #include "storagemanager.h"
@@ -121,6 +123,12 @@ void DriverManager::setup(InputMode mode) {
             break;
         case INPUT_MODE_SINPUT:
             driver = new SInputDriver();
+            break;
+        case INPUT_MODE_PS4B:
+            driver = new PS4BDriver(PS4_CONTROLLER);
+            break;
+        case INPUT_MODE_XINPUTB:
+            driver = new XInputBDriver();
             break;
         default:
             return;

@@ -217,6 +217,8 @@ void ButtonLayoutScreen::generateHeader() {
                 }
                 break;
             case INPUT_MODE_SINPUT: statusBar += "SINPUT"; break;
+            case INPUT_MODE_PS4B:    statusBar += "PS4B"; break;
+            case INPUT_MODE_XINPUTB: statusBar += "XINPB"; break;
             case INPUT_MODE_PS4:
                 statusBar += "PS4";
                 if(((PS4Driver*)DriverManager::getInstance().getDriver())->getAuthSent() == true )

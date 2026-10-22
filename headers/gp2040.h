@@ -14,13 +14,11 @@
 
 // GP2040 Classes
 #include "gamepad.h"
-#include "addonmanager.h"
 #include "eventmanager.h"
 #include "gpdriver.h"
+#include "addons/wireless_receiver.h"
 
 #include "pico/types.h"
-
-class HETriggerAddon;
 
 class GP2040 {
 public:
@@ -30,8 +28,7 @@ public:
     void run();             // loop core0
 private:
     Gamepad snapshot;
-    AddonManager addons;
-    HETriggerAddon* heTriggerAddon = nullptr;
+    WirelessReceiver wirelessReceiver;
     // GPIO debouncer
     void debounceGpioGetAll();
     Mask_t buttonGpios;

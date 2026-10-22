@@ -249,9 +249,8 @@ void XInputDriver::initialize() {
 
 void XInputDriver::initializeAux() {
     xAuthDriver = nullptr;
-    // AUTH DRIVER NON-FUNCTIONAL FOR NOW
-    GamepadOptions & gamepadOptions = Storage::getInstance().getGamepadOptions();
-    xAuthDriver = new XInputAuth(gamepadOptions.xinputAuthType);
+    // 接收端固化为 USB 认证狗（PIO-USB 主机口）
+    xAuthDriver = new XInputAuth(InputModeAuthType::INPUT_MODE_AUTH_TYPE_USB);
     if ( xAuthDriver->available() ) {
         xAuthDriver->initialize();
         xinputAuthData = xAuthDriver->getAuthData();

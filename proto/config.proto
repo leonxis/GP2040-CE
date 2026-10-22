@@ -79,6 +79,7 @@ message GamepadOptions
     optional uint32 switch2ProJoyCon2RightAccentColor = 58;
     optional uint32 switch2ProJoyCon2RightStickColor = 59;
     optional GenericDpadMode genericDpadMode = 60;
+    optional bool wirelessPaired = 61;
 }
 
 message KeyboardMapping

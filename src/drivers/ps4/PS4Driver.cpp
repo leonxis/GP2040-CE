@@ -113,7 +113,8 @@ void PS4Driver::initialize() {
 
     memset(&ps4Features, 0, sizeof(ps4Features));
 
-    bool isDeviceEmulated = options.ps4ControllerIDMode == PS4ControllerIDMode::PS4_ID_EMULATION;
+    // PS4 模式固化为 PS4_ID_CONSOLE（主机认证模式），密钥已内嵌到 PS4Auth
+    bool isDeviceEmulated = false;
 
     //deviceType = InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD;
     deviceType = options.inputDeviceType;
@@ -438,13 +439,14 @@ void PS4Driver::initialize() {
 
 void PS4Driver::initializeAux() {
     ps4AuthDriver = nullptr;
-    GamepadOptions & gamepadOptions = Storage::getInstance().getGamepadOptions();
-    
+    // PS4 模式固化为密钥认证（KEYS），密钥已内嵌到 PS4Auth.cpp
+    InputModeAuthType authType = InputModeAuthType::INPUT_MODE_AUTH_TYPE_KEYS;
+
     if ( controllerType == PS4ControllerType::PS4_ARCADESTICK ) {
         // Setup PS5 Auth System
-        ps4AuthDriver = new PS4Auth(gamepadOptions.ps5AuthType);
+        ps4AuthDriver = new PS4Auth(authType);
     } else {
-        ps4AuthDriver = new PS4Auth(gamepadOptions.ps4AuthType);
+        ps4AuthDriver = new PS4Auth(authType);
     }
     // If authentication driver is set AND auth driver can load (usb enabled, i2c enabled, keys loaded, etc.)
     if ( ps4AuthDriver != nullptr && ps4AuthDriver->available() ) {

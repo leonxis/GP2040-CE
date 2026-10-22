@@ -9,32 +9,10 @@
 #include "build_info.h"
 #include "peripheralmanager.h"
 #include "storagemanager.h"
-#include "addonmanager.h"
 #include "types.h"
 #include "usbhostmanager.h"
 
-// Inputs for Core0
-#include "addons/analog.h"
-#include "addons/bootsel_button.h"
-#include "addons/focus_mode.h"
-#include "addons/dualdirectional.h"
-#include "addons/tilt.h"
-#include "addons/keyboard_host.h"
-#include "addons/i2canalog1115.h"
-#include "addons/i2canalog1219.h"
-#include "addons/reverse.h"
-#include "addons/turbo.h"
-#include "addons/slider_socd.h"
-#include "addons/spi_analog_ads1256.h"
-#include "addons/wiiext.h"
-#include "addons/input_macro.h"
-#include "addons/snes_input.h"
-#include "addons/rotaryencoder.h"
-#include "addons/i2c_gpio_pcf8575.h"
-#include "addons/gamepad_usb_host.h"
-#include "addons/he_trigger.h"
-#include "addons/tg16_input.h"
-#include "addons/slider_profile.h"
+// 接收端：全部 AddonManager 插件加载入口已关闭，无需 include 任何 addons/*.h
 
 // Pico includes
 #include "pico/bootrom.h"
@@ -102,32 +80,10 @@ void GP2040::setup() {
 	// Initialize our ADC (various add-ons)
 	adc_init();
 
-	// Setup Add-ons
-	addons.LoadUSBAddon(new KeyboardHostAddon());
-	addons.LoadUSBAddon(new GamepadUSBHostAddon());
-	addons.LoadAddon(new AnalogInput());
-	HETriggerAddon* heTrigger = new HETriggerAddon();
-	if (addons.LoadAddon(heTrigger))
-		heTriggerAddon = heTrigger;
-	addons.LoadAddon(new BootselButtonAddon());
-	addons.LoadAddon(new DualDirectionalInput());
-	addons.LoadAddon(new FocusModeAddon());
-	addons.LoadAddon(new I2CAnalog1115Input());
-	addons.LoadAddon(new I2CAnalog1219Input());
-	addons.LoadAddon(new SPIAnalog1256Input());
-	addons.LoadAddon(new WiiExtensionInput());
-	addons.LoadAddon(new SNESpadInput());
-	addons.LoadAddon(new SliderSOCDInput());
-	addons.LoadAddon(new SliderProfileInput());
-	addons.LoadAddon(new TiltInput());
-	addons.LoadAddon(new RotaryEncoderInput());
-	addons.LoadAddon(new PCF8575Addon());
-	addons.LoadAddon(new TG16padInput());
+	// 接收端：关闭全部 AddonManager 插件加载入口
+	// Setup receiver (nRF24)
+	wirelessReceiver.setup();
 
-	// Input override addons
-	addons.LoadAddon(new ReverseInput());
-	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
-	addons.LoadAddon(new InputMacro());
 
 	// Use the old method of selecting input mode via mapped button, i.e. AFTER initializing GPIO
 	// pins with the currently active profile. Calling this even if the GPIO-mapped selection is
@@ -282,26 +238,21 @@ void __not_in_flash_func(GP2040::run)() {
 
 		// Config Loop (Web-Config skips Core0 add-ons)
 		if (configMode == true) {
-			if (heTriggerAddon) {
-				heTriggerAddon->configModeProcess();
-				processedGamepad->state.heTriggers = gamepad->state.heTriggers;
-			}
 			inputDriver->process(gamepad);
 			rebootHotkeys.process(gamepad, configMode);
 			checkSaveRebootState();
 			continue;
 		}
 
-		// Pre-Process add-ons for MPGS
-		addons.PreprocessAddons();
+		// 接收端：nRF24 无线输入处理（替代原 addons.PreprocessAddons / ProcessAddons）
+		wirelessReceiver.preprocess();
 
 		gamepad->process(); // process through MPGS
 
-		// (Post) Process for add-ons
-		addons.ProcessAddons();
+		wirelessReceiver.process();
 
-		gamepad->hotkey(); 	// check for MPGS hotkeys
-		rebootHotkeys.process(gamepad, configMode);
+		// 接收端：运行时热键入口已移除（gamepad->hotkey / rebootHotkeys.process）
+		// setup 阶段的硬件启动路径（getGpioMappedBootAction / getButtonMappedBootAction）不受影响
 
 		checkProcessedState(processedGamepad->state, gamepad->state);
 
@@ -309,13 +260,10 @@ void __not_in_flash_func(GP2040::run)() {
 		memcpy(&processedGamepad->state, &gamepad->state, sizeof(GamepadState));
 
 		// Process Input Driver
-		bool processed = inputDriver->process(gamepad);
+		inputDriver->process(gamepad);
 
 		// TinyUSB Task update
 		tud_task();
-
-		// Post-Process Add-ons with USB Report Processed Sent
-		addons.PostprocessAddons(processed);
 
 		// Check if we have a pending save
 		checkSaveRebootState();
@@ -346,10 +294,6 @@ void GP2040::getReinitGamepad(Gamepad * gamepad) {
 		// now we can tell the gamepad that the new mappings are in place
 		// and ready to use, and the pins are ready, so it should reinitialize itself
 		gamepad->reinit();
-
-		// ...and addons on this core, if they implemented reinit (just things
-		// with simple GPIO pin usage, at time of writing)
-		addons.ReinitializeAddons();
 
 		// Update the last reinit profile
 		gamepad->lastReinitProfileNumber = currentProfile;
@@ -387,13 +331,8 @@ GP2040::BootAction GP2040::getButtonMappedBootAction() {
 	debounceGpioGetAll();
 	gamepad->read();
 
-	// Pre-Process add-ons for MPGS
-	addons.PreprocessAddons();
-
+	// 接收端：启动前 getButtonMappedBootAction 无需 AddonManager
 	gamepad->process(); // process through MPGS
-
-	// Process for add-ons
-	addons.ProcessAddons();
 
 	// Copy Processed Gamepad for Core1 (race condition otherwise)
 	memcpy(&processedGamepad->state, &gamepad->state, sizeof(GamepadState));

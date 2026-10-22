@@ -27,6 +27,8 @@
 #define INPUT_MODE_SINPUT_NAME "SInput"
 #define INPUT_MODE_SWITCH2_PRO_NAME "Nintendo Switch 2 Pro"
 #define INPUT_MODE_CONFIG_NAME "Web Config"
+#define INPUT_MODE_PS4B_NAME "PS4 (Receiver)"
+#define INPUT_MODE_XINPUTB_NAME "XInput (Receiver)"
 
 #define SOCD_MODE_UP_PRIORITY_NAME "Up Priority"
 #define SOCD_MODE_NEUTRAL_NAME "Neutral"
