@@ -12,6 +12,9 @@
 
 NRF24 radio;
 
+// 全局单例（core0: setup/preprocess，core1: process）
+WirelessReceiver wirelessReceiver;
+
 #if WIRELESS_RX_RGB_LED_PIN >= 0
 static NeoPico rxNeo;
 static uint32_t rxNeoFrame[100] = {0};

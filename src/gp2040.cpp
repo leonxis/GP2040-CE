@@ -249,7 +249,7 @@ void __not_in_flash_func(GP2040::run)() {
 
 		gamepad->process(); // process through MPGS
 
-		wirelessReceiver.process();
+		// 状态灯 wirelessReceiver.process() 已移至 core1（gp2040aux.cpp）
 
 		// 接收端：运行时热键入口已移除（gamepad->hotkey / rebootHotkeys.process）
 		// setup 阶段的硬件启动路径（getGpioMappedBootAction / getButtonMappedBootAction）不受影响

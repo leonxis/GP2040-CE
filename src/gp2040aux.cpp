@@ -5,6 +5,7 @@
 
 #include "gp2040aux.h"
 #include "gamepad.h"
+#include "addons/wireless_receiver.h"
 
 #include "drivermanager.h"
 #include "storagemanager.h"
@@ -41,6 +42,9 @@ void GP2040Aux::setup() {
 
 void GP2040Aux::run() {
         while (1) {
+                // 状态灯（WS2812/GPIO LED）：读取 core0 写入的 paired/lastPacketTime
+                wirelessReceiver.process();
+
                 // Run auxiliary functions for input driver on Core1
                 if ( inputDriver != nullptr ) {
                         inputDriver->processAux();

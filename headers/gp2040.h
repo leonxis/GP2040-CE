@@ -28,7 +28,7 @@ public:
     void run();             // loop core0
 private:
     Gamepad snapshot;
-    WirelessReceiver wirelessReceiver;
+    // wirelessReceiver 为全局单例（见 addons/wireless_receiver.h），core0/core1 分核调用
     // GPIO debouncer
     void debounceGpioGetAll();
     Mask_t buttonGpios;

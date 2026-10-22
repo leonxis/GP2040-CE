@@ -31,6 +31,11 @@
 #endif
 
 // 主循环显式调用，不再继承 GPAddon
+// 核间分工（全局单例 wirelessReceiver）：
+//   core0: setup() / preprocess()  —— nRF24 收包、输入注入
+//   core1: process()               —— 状态灯（WS2812/GPIO LED）
+// 成员归属：paired/lastPacketTime 由 core0 写、core1 读（对齐 32 位原子读，单写者无需锁）；
+//           lastLedToggle/ledOn/ledState 仅 core1 访问。
 class WirelessReceiver {
 public:
     void setup();
@@ -49,5 +54,8 @@ private:
     bool ledOn;
     uint8_t ledState;   // LED 当前态：0=未知/灭, 1=红(闪烁), 2=绿(常亮)
 };
+
+// 全局单例：core0 与 core1 共享（定义在 wireless_receiver.cpp）
+extern WirelessReceiver wirelessReceiver;
 
 #endif
