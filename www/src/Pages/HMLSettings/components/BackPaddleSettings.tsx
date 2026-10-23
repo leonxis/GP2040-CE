@@ -18,6 +18,7 @@ import {
 	keyboardKeyOptions,
 } from './ActionMappingOptions';
 import MappingPresetShell, { PRESET_TAB_KEYS, PresetTabKey } from './MappingPresetShell';
+import { ActivatorButtons } from './KeySwapSettings';
 import {
 	defaultPinData,
 	getMultiValue,
@@ -55,8 +56,8 @@ const emptyFn = (): Record<string, MaskPayload> => ({
 });
 
 const emptyTwoKey = (): Record<string, MaskPayload> => ({
-	leftKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
-	rightKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+	leftKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
+	rightKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
 });
 
 const cloneBundle = (b: PresetBundle): PresetBundle => ({
@@ -83,13 +84,13 @@ const parseFn = (data: Record<string, { action?: number; customButtonMask?: numb
 	extRightTrigger: toMaskPayload(data.extRightTrigger),
 });
 
-const parseTwoKey = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
+const parseTwoKey = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number; activatorMode?: number }>) => ({
 	leftKey: data.leftKey
 		? toMaskPayload(data.leftKey)
-		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
 	rightKey: data.rightKey
 		? toMaskPayload(data.rightKey)
-		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0 },
+		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
 });
 
 function BackPaddleSettingsBody({
@@ -212,6 +213,7 @@ function BackPaddleSettingsBody({
 		data: MaskPayload,
 		onChange: (p: MaskPayload) => void,
 		id: string,
+		showActivator: boolean,
 	) => (
 		<Col sm={6} md={6} key={id}>
 			<div className="d-flex align-items-center">
@@ -229,9 +231,18 @@ function BackPaddleSettingsBody({
 					options={groupedMappingOptions}
 					isDisabled={isDisabled(data.action)}
 					getOptionLabel={getOptionLabel}
-					onChange={(sel) => onChange(getPayloadFromSelected(sel))}
+					onChange={(sel) => {
+						// 合并当前行 activatorMode，动作下拉不覆盖该字段
+						onChange({ ...getPayloadFromSelected(sel), activatorMode: data.activatorMode ?? 0 });
+					}}
 					value={getMultiValue(data)}
 				/>
+				{showActivator && (
+					<ActivatorButtons
+						value={data.activatorMode ?? 0}
+						onSelect={(mode) => onChange({ ...data, activatorMode: mode })}
+					/>
+				)}
 			</div>
 		</Col>
 	);
@@ -243,7 +254,7 @@ function BackPaddleSettingsBody({
 				<Card.Body>
 					<Row className="g-3">
 						{backMappingRows.map(({ key, labelKey }) =>
-							selectRow(labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`),
+							selectRow(labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`, true),
 						)}
 					</Row>
 				</Card.Body>
@@ -254,8 +265,8 @@ function BackPaddleSettingsBody({
 				<Card.Body>
 					{twoKeyTouchpadEnabled ? (
 						<Row className="g-3">
-							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l')}
-							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r')}
+							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l', false)}
+							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r', false)}
 						</Row>
 					) : (
 						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
@@ -267,12 +278,12 @@ function BackPaddleSettingsBody({
 				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{selectRow('hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l')}
-						{selectRow('hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r')}
-						{selectRow('hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l')}
-						{selectRow('hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r')}
-						{selectRow('hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l')}
-						{selectRow('hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r')}
+						{selectRow('hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l', false)}
+						{selectRow('hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r', false)}
+						{selectRow('hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l', false)}
+						{selectRow('hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r', false)}
+						{selectRow('hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l', false)}
+						{selectRow('hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r', false)}
 					</Row>
 					<Row className="mt-3">
 						<Col sm={4}>

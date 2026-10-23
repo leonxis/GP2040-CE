@@ -21,6 +21,12 @@ export default {
 	'profile-delete-cancel-button': '取消',
 	'profile-delete-success-message': '预设方案已删除',
 	'profile-delete-error-message': '删除预设方案失败',
+	'activator-off': '关',
+	'activator-hold': '按',
+	'activator-toggle': '切',
+	'activator-off-title': '关闭激活器',
+	'activator-hold-title': '按住激活，松开取消',
+	'activator-toggle-title': '按一次激活，再按一次取消（第二次按下当帧退出）',
 	actions: {
 		NONE: '无',
 		RESERVED: '预留引脚',

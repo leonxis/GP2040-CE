@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Card, Row, Col, Button, Modal } from 'react-bootstrap';
+import { Card, Row, Col, Button, Modal, ButtonGroup } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { omit } from 'lodash';
 import { MultiValue, SingleValue } from 'react-select';
@@ -55,6 +55,36 @@ function clampProfileTabIndex(profileNumber: number, profileCount: number): numb
 	return Math.min(Math.max(profileNumber - 1, 0), profileCount - 1);
 }
 
+/** 映射层激活器三态按钮组：OFF / HOLD / TOGGLE */
+export function ActivatorButtons({
+	value,
+	onSelect,
+}: {
+	value: number;
+	onSelect: (value: number) => void;
+}) {
+	const { t } = useTranslation('PinMapping');
+	const items = [
+		{ value: 0, label: t('activator-off'), title: t('activator-off-title') },
+		{ value: 1, label: t('activator-hold'), title: t('activator-hold-title') },
+		{ value: 2, label: t('activator-toggle'), title: t('activator-toggle-title') },
+	];
+	return (
+		<ButtonGroup size="sm" className="ms-2 flex-shrink-0">
+			{items.map((item) => (
+				<Button
+					key={item.value}
+					variant={value === item.value ? 'primary' : 'outline-secondary'}
+					title={item.title}
+					onClick={() => onSelect(item.value)}
+				>
+					{item.label}
+				</Button>
+			))}
+		</ButtonGroup>
+	);
+}
+
 function KeySwapSettingsBody({
 	profileIndex,
 	onProfileDeleted,
@@ -96,9 +126,21 @@ function KeySwapSettingsBody({
 	const onChange = useCallback(
 		(pin: string) =>
 			(selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
-				setProfilePin(profileIndex, pin, getPayloadFromSelected(selected));
+				const current = pins[pin] || defaultPinData;
+				setProfilePin(profileIndex, pin, {
+					...getPayloadFromSelected(selected),
+					activatorMode: current.activatorMode ?? 0,
+				});
 			},
-		[setProfilePin, profileIndex],
+		[setProfilePin, profileIndex, pins],
+	);
+
+	const onActivatorSelect = useCallback(
+		(pin: string, mode: number) => {
+			const current = pins[pin] || defaultPinData;
+			setProfilePin(profileIndex, pin, { ...current, activatorMode: mode });
+		},
+		[setProfilePin, profileIndex, pins],
 	);
 
 	const getOptionLabel = useCallback(
@@ -179,6 +221,7 @@ function KeySwapSettingsBody({
 					const pinData = pinKey ? pins[pinKey] || defaultPinData : defaultPinData;
 					const selectLocked = 'selectDisabled' in row && row.selectDisabled;
 					const mappingDisabled = selectLocked || (pinKey ? isDisabled(pinData.action) : true);
+					const isLayer = profileIndex >= 1;
 					return (
 						<Col sm={6} md={6} key={row.rowId}>
 							<div className="d-flex align-items-center">
@@ -201,6 +244,12 @@ function KeySwapSettingsBody({
 									onChange={pinKey ? onChange(pinKey) : undefined}
 									value={getMultiValue(pinData)}
 								/>
+								{!isLayer && pinKey && !selectLocked && (
+									<ActivatorButtons
+										value={pinData.activatorMode ?? 0}
+										onSelect={(mode) => onActivatorSelect(pinKey, mode)}
+									/>
+								)}
 							</div>
 						</Col>
 					);

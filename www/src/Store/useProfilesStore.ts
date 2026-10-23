@@ -3,7 +3,7 @@ import WebApi from '../Services/WebApi';
 import { PinActionValues } from '../Data/Pins';
 
 // Max number of profiles that can be created, including the base profile
-export const MAX_PROFILES = 6;
+export const MAX_PROFILES = 3;
 
 type CustomMasks = {
 	customButtonMask: number;
@@ -12,6 +12,7 @@ type CustomMasks = {
 
 export type MaskPayload = {
 	action: PinActionValues;
+	activatorMode: number;
 } & CustomMasks;
 
 export type PinsType = {
@@ -134,7 +135,7 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 	setProfilePin: (
 		profileIndex,
 		pin,
-		{ action, customButtonMask = 0, customDpadMask = 0 },
+		{ action, customButtonMask = 0, customDpadMask = 0, activatorMode = 0 },
 	) =>
 		set((state) => {
 			const profiles = [...state.profiles];
@@ -144,6 +145,7 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 					action,
 					customButtonMask,
 					customDpadMask,
+					activatorMode,
 				},
 			};
 			return { profiles };

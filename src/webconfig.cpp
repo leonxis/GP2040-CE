@@ -618,11 +618,13 @@ static void writeMapping(DynamicJsonDocument& doc, const char* key, const GpioMa
     writeDoc(doc, key, "action", m.action);
     writeDoc(doc, key, "customButtonMask", m.customButtonMask);
     writeDoc(doc, key, "customDpadMask", m.customDpadMask);
+    writeDoc(doc, key, "activatorMode", m.activatorMode);
 }
 static void readMapping(GpioMappingInfo& m, const DynamicJsonDocument& doc, const char* key) {
     docToValue(m.action, doc, key, "action");
     docToValue(m.customButtonMask, doc, key, "customButtonMask");
     docToValue(m.customDpadMask, doc, key, "customDpadMask");
+    docToValue(m.activatorMode, doc, key, "activatorMode");
 }
 
 // GPIO12 = 2键触摸板使能键；开启时主循环不映射该引脚，由插件输出 enableKey/leftKey/rightKey
@@ -1044,6 +1046,7 @@ std::string setProfileOptions()
                 profileOptions.gpioMappingsSets[altsIndex].pins[pin].action = (GpioAction)alt[pinName]["action"];
                 profileOptions.gpioMappingsSets[altsIndex].pins[pin].customButtonMask = (uint32_t)alt[pinName]["customButtonMask"];
                 profileOptions.gpioMappingsSets[altsIndex].pins[pin].customDpadMask = (uint32_t)alt[pinName]["customDpadMask"];
+                profileOptions.gpioMappingsSets[altsIndex].pins[pin].activatorMode = (ActivatorMode)(int)alt[pinName]["activatorMode"];
             } else if ((coreMappings.pins[pin].action == GpioAction::RESERVED &&
                         (GpioAction)alt[pinName]["action"] == GpioAction::RESERVED) ||
                     (coreMappings.pins[pin].action == GpioAction::ASSIGNED_TO_ADDON &&
@@ -1059,7 +1062,7 @@ std::string setProfileOptions()
         profileOptions.gpioMappingsSets[altsIndex].enabled = alt["enabled"];
 
         ++altsIndex;
-        if (altsIndex > 4) break;
+        if (altsIndex > 2) break;
     }
 
     // 计数必须在循环外更新：删除最后一个预设时数组为空，循环不执行，
@@ -1075,7 +1078,7 @@ std::string getProfileOptions()
     ProfileOptions& profileOptions = Storage::getInstance().getProfileOptions();
     // Make capacity slots dynamic, max for 5 profiles * 48 pins is 976 slots
     const size_t capacity = JSON_OBJECT_SIZE(1) + JSON_ARRAY_SIZE(profileOptions.gpioMappingsSets_count)
-        + (profileOptions.gpioMappingsSets_count * JSON_OBJECT_SIZE(4 * NUM_BANK0_GPIOS + 2));
+        + (profileOptions.gpioMappingsSets_count * JSON_OBJECT_SIZE(5 * NUM_BANK0_GPIOS + 2));
     DynamicJsonDocument doc(capacity);
 
     const auto writePinDoc = [&](const int item, const char* key, const GpioMappingInfo& value) -> void
@@ -1083,6 +1086,7 @@ std::string getProfileOptions()
         writeDoc(doc, "alternativePinMappings", item, key, "action", value.action);
         writeDoc(doc, "alternativePinMappings", item, key, "customButtonMask", value.customButtonMask);
         writeDoc(doc, "alternativePinMappings", item, key, "customDpadMask", value.customDpadMask);
+        writeDoc(doc, "alternativePinMappings", item, key, "activatorMode", value.activatorMode);
     };
 
     // return an empty list if no profiles are currently set, since we no longer populate by default
@@ -1704,6 +1708,7 @@ std::string setPinMappings()
             gpioMappings.pins[pin].action = (GpioAction)doc[pinName]["action"];
             gpioMappings.pins[pin].customButtonMask = (uint32_t)doc[pinName]["customButtonMask"];
             gpioMappings.pins[pin].customDpadMask = (uint32_t)doc[pinName]["customDpadMask"];
+            gpioMappings.pins[pin].activatorMode = (ActivatorMode)(int)doc[pinName]["activatorMode"];
         }
     }
     size_t profileLabelSize = sizeof(gpioMappings.profileLabel);
@@ -1728,6 +1733,7 @@ std::string getPinMappings()
         writeDoc(doc, key, "action", value.action);
         writeDoc(doc, key, "customButtonMask", value.customButtonMask);
         writeDoc(doc, key, "customDpadMask", value.customDpadMask);
+        writeDoc(doc, key, "activatorMode", value.activatorMode);
     };
 
     writePinDoc("pin00", gpioMappings.pins[0]);

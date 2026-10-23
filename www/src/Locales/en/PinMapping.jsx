@@ -26,6 +26,13 @@ export default {
 	'profile-delete-cancel-button': 'Cancel',
 	'profile-delete-success-message': 'Profile deleted successfully',
 	'profile-delete-error-message': 'Failed to delete profile',
+	'activator-off': 'Off',
+	'activator-hold': 'Hold',
+	'activator-toggle': 'Tgl',
+	'activator-off-title': 'Activator disabled',
+	'activator-hold-title': 'Active while held, released to deactivate',
+	'activator-toggle-title':
+		'Press once to activate, press again to deactivate (exits on the second press frame)',
 	actions: {
 		NONE: 'None',
 		RESERVED: 'Reserved',
