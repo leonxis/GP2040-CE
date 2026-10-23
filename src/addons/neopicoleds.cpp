@@ -308,6 +308,52 @@ void NeoPicoLEDAddon::setup() {
 	webConfigHintNextPhaseAt_ = delayed_by_ms(get_absolute_time(), 100);
 }
 
+void NeoPicoLEDAddon::pollOneShotBlink(AmbientOneShotBlink& blink, uint32_t seq) {
+	// Arm exactly once per rising seq edge.
+	if (seq != blink.lastSeq) {
+		blink.lastSeq = seq;
+		blink.armed = true;
+		blink.phase = 0;
+		blink.nextPhaseAt =
+		    delayed_by_ms(get_absolute_time(), AmbientOneShotBlink::PHASE_MS);
+	}
+	if (!blink.armed)
+		return;
+	// Advance one fixed 150ms phase per reached deadline; the machine always
+	// makes progress (phase++ or disarm), so it can never wedge or loop.
+	while (time_reached(blink.nextPhaseAt)) {
+		blink.phase++;
+		if (blink.phase >= blink.totalPhases) {
+			blink.armed = false;
+			break;
+		}
+		blink.nextPhaseAt =
+		    delayed_by_ms(get_absolute_time(), AmbientOneShotBlink::PHASE_MS);
+	}
+}
+
+void NeoPicoLEDAddon::renderOneShotBlink(const AmbientOneShotBlink& blink, uint32_t color) {
+	const AnimationOptions& options = Storage::getInstance().getAnimationOptions();
+	const LEDOptions& ledOptions = Storage::getInstance().getLedOptions();
+	const uint8_t alStartIndex = ledOptions.caseRGBIndex;
+	int maxFrame = (int)ledOptions.caseRGBCount;
+	if (maxFrame > FRAME_MAX - alStartIndex)
+		maxFrame = FRAME_MAX - alStartIndex;
+
+	const bool lit = (blink.phase % 2) == 0;   // even phase = color, odd = forced off
+	RGB amb(color);
+	if (lit) {
+		for (int i = 0; i < maxFrame; i++) {
+			frame[alStartIndex + i] =
+			    amb.value(Animation::format, options.alStaticBrightnessCustomThemeX);
+		}
+	} else {
+		for (int i = 0; i < maxFrame; i++) {
+			frame[alStartIndex + i] = 0;
+		}
+	}
+}
+
 void NeoPicoLEDAddon::ambientLightCustom() {
 	const AnimationOptions& options = Storage::getInstance().getAnimationOptions();
 	const LEDOptions& ledOptions = Storage::getInstance().getLedOptions();
@@ -322,8 +368,25 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	if (effectIdx > AL_CUSTOM_EFFECT_STATIC_THEME) {
 		effectIdx = AL_CUSTOM_EFFECT_STATIC_THEME;
 	}
-	if (DriverManager::getInstance().isConfigMode() &&
-	    Storage::getInstance().isAmbientWebConfigOverrideActive()) {
+	const bool webHintActive =
+	    DriverManager::getInstance().isConfigMode() &&
+	    Storage::getInstance().isAmbientWebConfigOverrideActive();
+
+	// One-shot hints take priority over the web-config hint. All share the
+	// same 150ms phase machine (AmbientOneShotBlink): red 3-blink =
+	// capacity-induced recording stop; blue single blink = recording start /
+	// playback end; green single blink = turbo button enable/disable.
+	pollOneShotBlink(recFullBlink_, Storage::getInstance().macroRecPulseSeq());
+	pollOneShotBlink(macroHintBlink_, Storage::getInstance().macroHintPulseSeq());
+	pollOneShotBlink(turboToggleBlink_, Storage::getInstance().turboPulseSeq());
+
+	if (recFullBlink_.armed) {
+		effectIdx = AL_CUSTOM_EFFECT_MACRO_REC_FULL;
+	} else if (macroHintBlink_.armed) {
+		effectIdx = AL_CUSTOM_EFFECT_MACRO_HINT;
+	} else if (turboToggleBlink_.armed) {
+		effectIdx = AL_CUSTOM_EFFECT_TURBO_TOGGLE;
+	} else if (webHintActive) {
 		effectIdx = AL_CUSTOM_EFFECT_WEB_CONFIG_HINT;
 	}
 
@@ -497,6 +560,20 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 			}
 			break;
 		}
+		// One-shot hints share AmbientOneShotBlink: even phase = forced color,
+		// odd phase = forced off; colors identify the event.
+		case AL_CUSTOM_EFFECT_MACRO_HINT:
+			// Blue: recording start / playback end.
+			renderOneShotBlink(macroHintBlink_, 0x0000FF);
+			break;
+		case AL_CUSTOM_EFFECT_MACRO_REC_FULL:
+			// Red: recording stopped by flash capacity (3 blinks).
+			renderOneShotBlink(recFullBlink_, 0xFF0000);
+			break;
+		case AL_CUSTOM_EFFECT_TURBO_TOGGLE:
+			// Green: turbo button enabled/disabled.
+			renderOneShotBlink(turboToggleBlink_, 0x00FF00);
+			break;
 		default:
 			break;
 	}

@@ -16,7 +16,6 @@ import Analog, { analogScheme, analogState } from '../Addons/Analog';
 import ADS8332, { ads8332Scheme, ads8332State } from '../Addons/ADS8332';
 import LSM6DSR, { lsm6dsrScheme, lsm6dsrState } from '../Addons/LSM6DSR';
 import Bootsel, { bootselScheme, bootselState } from '../Addons/Bootsel';
-import Buzzer, { buzzerScheme, buzzerState } from '../Addons/Buzzer';
 import DualDirection, {
 	dualDirectionScheme,
 	dualDirectionState,
@@ -25,7 +24,6 @@ import Reverse, { reverseScheme, reverseState } from '../Addons/Reverse';
 import SOCD, { socdScheme, socdState } from '../Addons/SOCD';
 import Tilt, { tiltScheme, tiltState } from '../Addons/Tilt';
 import Turbo, { turboScheme, turboState } from '../Addons/Turbo';
-import Wii, { wiiScheme, wiiState } from '../Addons/Wii';
 import SNES, { snesState } from '../Addons/SNES';
 import FocusMode, {
 	focusModeScheme,
@@ -37,15 +35,6 @@ import GamepadUSBHost, {
 	gamepadUSBHostState,
 } from '../Addons/GamepadUSBHost';
 import Rotary, { rotaryScheme, rotaryState } from '../Addons/Rotary';
-import PCF8575, { pcf8575Scheme, pcf8575State } from '../Addons/PCF8575';
-import DRV8833Rumble, {
-	drv8833RumbleScheme,
-	drv8833RumbleState,
-} from '../Addons/DRV8833';
-import ReactiveLED, {
-	reactiveLEDScheme,
-	reactiveLEDState,
-} from '../Addons/ReactiveLED';
 import TG16, { tg16State } from '../Addons/TG16';
 import HETrigger, {
 	HETriggerScheme,
@@ -69,15 +58,10 @@ const schema = yup.object().shape({
 	...reverseScheme,
 	...dualDirectionScheme,
 	...tiltScheme,
-	...buzzerScheme,
 	...socdScheme,
-	...wiiScheme,
 	...focusModeScheme,
 	...keyboardScheme,
 	...rotaryScheme,
-	...pcf8575Scheme,
-	...drv8833RumbleScheme,
-	...reactiveLEDScheme,
 	...gamepadUSBHostScheme,
 	...HETriggerScheme,
 });
@@ -107,17 +91,12 @@ export const DEFAULT_VALUES = {
 	...reverseState,
 	...dualDirectionState,
 	...tiltState,
-	...buzzerState,
 	...socdState,
-	...wiiState,
 	...snesState,
 	...tg16State,
 	...focusModeState,
 	...keyboardState,
 	...rotaryState,
-	...pcf8575State,
-	...drv8833RumbleState,
-	...reactiveLEDState,
 	...gamepadUSBHostState,
 	...HETriggerState,
 } as const;
@@ -133,16 +112,11 @@ const ADDONS = [
 	Turbo,
 	Reverse,
 	DualDirection,
-	Buzzer,
 	SOCD,
-	Wii,
 	SNES,
 	TG16,
 	FocusMode,
 	Rotary,
-	PCF8575,
-	DRV8833Rumble,
-	ReactiveLED,
 	HETrigger,
 ];
 

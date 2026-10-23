@@ -38,6 +38,25 @@ mkdir -p "${FW_BUILD_DIR}"
 cmake -S "${PROJECT_DIR}" -B "${FW_BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
 cmake --build "${FW_BUILD_DIR}" --parallel "${JOBS}"
 
+# Image must not overlap the recorded-macro flash region
+# (MACRO_REC_FLASH_OFFSET = 0x190000 in lib/FlashPROM/src/FlashPROM.h).
+shopt -s nullglob
+bin_list=("${FW_BUILD_DIR}"/GP2040-CE_*_"${GP2040_BOARDCONFIG}.bin")
+if [[ ${#bin_list[@]} -eq 1 ]]; then
+	image_size=$(stat -c %s "${bin_list[0]}")
+	image_limit=$((0x190000))
+	if (( image_size > image_limit )); then
+		echo "ERROR: Firmware image ${image_size} bytes exceeds ${image_limit} (0x190000);" >&2
+		echo "  it would overwrite the recorded-macro flash region. Shrink the image" >&2
+		echo "  (more -Os TUs, drop unused addons) before shipping." >&2
+		exit 1
+	fi
+	echo "[size] ${bin_list[0]}: ${image_size} / ${image_limit} bytes ($(( (image_limit - image_size) / 1024 )) KiB free)"
+else
+	echo "ERROR: Expected exactly one GP2040-CE_*_${GP2040_BOARDCONFIG}.bin in ${FW_BUILD_DIR}, found ${#bin_list[@]}." >&2
+	exit 1
+fi
+
 # UF2 is produced in the same Makefile recipe as the .elf link step. Make only tracks the
 # .elf as the primary output: if the .elf is up-to-date but .uf2 was deleted, the recipe
 # is skipped and UF2 is never recreated. Regenerate when missing.

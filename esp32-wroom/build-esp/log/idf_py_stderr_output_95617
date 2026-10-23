@@ -1,0 +1,14 @@
+Compiler supported targets: xtensa-esp32-elf
+
+/home/leonxis/esp/esp-idf/components/console/esp_console_repl.c:479:13: warning: 'esp_console_repl_task' defined but not used [-Wunused-function]
+  479 | static void esp_console_repl_task(void *args)
+      |             ^~~~~~~~~~~~~~~~~~~~~
+/home/leonxis/esp/esp-idf/components/console/esp_console_repl.c:375:18: warning: 'esp_console_common_init' defined but not used [-Wunused-function]
+  375 | static esp_err_t esp_console_common_init(size_t max_cmdline_length, esp_console_repl_com_t *repl_com)
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~
+/home/leonxis/esp/esp-idf/components/console/esp_console_repl.c:354:18: warning: 'esp_console_setup_history' defined but not used [-Wunused-function]
+  354 | static esp_err_t esp_console_setup_history(const char *history_path, uint32_t max_history_len, esp_console_repl_com_t *repl_com)
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~
+/home/leonxis/esp/esp-idf/components/console/esp_console_repl.c:329:18: warning: 'esp_console_setup_prompt' defined but not used [-Wunused-function]
+  329 | static esp_err_t esp_console_setup_prompt(const char *prompt, esp_console_repl_com_t *repl_com)
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~~

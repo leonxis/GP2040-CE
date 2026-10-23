@@ -19,12 +19,25 @@
 // Warning: If the write wait is too long it can stall other processes
 #define EEPROM_WRITE_WAIT    50             // Amount of time in ms to wait before blocking core1 and committing to flash
 
+// Dedicated macro-recording area: 384KB (6 x 64KB blocks, 64KB aligned) directly
+// below the config region, holding two 192KB recorded-macro slots (macro 1/2).
+// Firmware image must stay below this offset (build check).
+#define MACRO_REC_FLASH_OFFSET _u(0x190000)
+#define MACRO_REC_FLASH_SIZE   _u(0x60000)
+
 class FlashPROM
 {
 	public:
 		void start();
 		void commit();
 		void reset();
+
+		// Erase a 64KB-aligned range inside the macro-recording area. Callers are
+		// blocked for the whole erase (one ROM block erase per 64KB block).
+		static void eraseRange(uint32_t offset, size_t len);
+
+		// Program whole 256B pages inside the macro-recording area (offset/len page aligned).
+		static void programPages(uint32_t offset, const uint8_t * data, size_t len);
 
 		static uint8_t writeCache[EEPROM_SIZE_BYTES];
 };

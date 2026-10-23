@@ -1,0 +1,11 @@
+file(REMOVE_RECURSE
+  "config/sdkconfig.h"
+  "config/sdkconfig.cmake"
+  "bootloader/bootloader.elf"
+  "bootloader/bootloader.bin"
+  "bootloader/bootloader.map"
+  "wireless_tx_2354.bin"
+  "flash_project_args"
+  "wireless_tx_2354.map"
+  "project_elf_src_esp32.c"
+)

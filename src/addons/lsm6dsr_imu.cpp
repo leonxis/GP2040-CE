@@ -63,11 +63,11 @@ static PeripheralSPI* s_spi = nullptr;
 static int8_t s_csPin = -1;
 static SPIBaudrateProfile s_spiProfile;
 
-static inline int16_t __not_in_flash_func(read16LE)(const uint8_t* p) {
+static inline int16_t read16LE(const uint8_t* p) {
 	return (int16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
 }
 
-static inline float __not_in_flash_func(lsm6dsr_compute_dt_s)(uint64_t nowUs, uint64_t& lastUs) {
+static inline float lsm6dsr_compute_dt_s(uint64_t nowUs, uint64_t& lastUs) {
 	float dtS = LSM6DSR_ONE_EURO_TE_FALLBACK_S;
 	if (lastUs != 0 && nowUs > lastUs) {
 		dtS = (float)(nowUs - lastUs) * 1e-6f;
@@ -79,7 +79,7 @@ static inline float __not_in_flash_func(lsm6dsr_compute_dt_s)(uint64_t nowUs, ui
 	return dtS;
 }
 
-static void __not_in_flash_func(spiReadRegs)(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
+static void spiReadRegs(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t* buf, size_t len) {
 	// 与逐字节 transfer(0) 等价：首字节 RX 丢弃，后续 len 字节为寄存器数据（IF_INC）
 	if (len == 0 || len > 12) return;
         spi->beginTransaction(s_spiProfile, SPI_MSB_FIRST, SPI_MODE0);
@@ -99,15 +99,6 @@ static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t v
 	spi->transfer(reg);
 	spi->transfer(val);
 	spi->deselect();
-}
-
-void LSM6DSRIMUAddon::restoreGateSPIProfile() {
-        if (s_spi != nullptr && s_spiProfile.valid()) {
-                s_spi->beginTransaction(
-                        s_spiProfile,
-                        SPI_MSB_FIRST,
-                        SPI_MODE0);
-        }
 }
 
 bool LSM6DSRIMUAddon::available() {
@@ -237,7 +228,7 @@ void LSM6DSRIMUAddon::reinit() {
 	memset(imuHistory, 0, sizeof(imuHistory));
 }
 
-void __not_in_flash_func(LSM6DSRIMUAddon::applyOneEuroFilter)(float teS) {
+void LSM6DSRIMUAddon::applyOneEuroFilter(float teS) {
 	const float alpha = 1.0f / (1.0f + kOneEuroTau / teS);
 	for (int i = 0; i < 3; i++) {
 		float in = (float)calG[i];
@@ -379,7 +370,7 @@ void LSM6DSRIMUAddon::buildEngageMasks() {
 }
 
 // 将陀螺仪/加速度计写入 DS4 协议（原生陀螺仪）
-static void __not_in_flash_func(outputGyroToDS4)(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
+static void outputGyroToDS4(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
 	// 换算到 DS4 协议单位：主机 deg/s = report * (61/1000)，LSM6DSR @500dps 为 0.0175 deg/s/LSB → report = calG * 175/610
 	// DS4 协议轴约定：X 轴取反在此处处理（而非源数据层）。
 	int32_t ds4x = -(int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
@@ -407,7 +398,7 @@ static void writeLe16(uint8_t* p, int16_t v) {
 	p[1] = (uint8_t)((uint16_t)(v) >> 8);
 }
 
-void __not_in_flash_func(LSM6DSRIMUAddon::outputGyroToSwitchPro)(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
+void LSM6DSRIMUAddon::outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
 	// 先换算到协议单位（与 DS4 同量纲，X 轴在此处完成协议向取反）。
 	int32_t ds4x = -(int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	int32_t ds4y = (int32_t)calG[1] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
@@ -472,14 +463,14 @@ void __not_in_flash_func(LSM6DSRIMUAddon::outputGyroToSwitchPro)(Gamepad* gamepa
 
 // 低区平滑（alpakka hssnf）：小幅度角速度压缩，减少微小抖动，|x|<t 时应用
 // hssnf(t,k,x) = x(1-k) / (1 - x*k/t)，t=1.0, k=0.5
-static float __not_in_flash_func(hssnf)(float t, float k, float x) {
+static float hssnf(float t, float k, float x) {
 	float a = x * (1.0f - k);
 	float b = 1.0f - (x * k / t);
 	return (b != 0.0f) ? (a / b) : x;
 }
 
 // 将陀螺仪输出到 HID 鼠标：mapMode、灵敏度、低区平滑(hssnf)、亚像素累积、轴向反转。
-void __not_in_flash_func(LSM6DSRIMUAddon::outputGyroToMouse)(Gamepad* gamepad, const int16_t calG[3], float dtS) {
+void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3], float dtS) {
 	const int mapMode = gyroMouseMapMode;
 	const int inv = gyroMouseInvert;
 	const float sensLR = gyroMouseSensLR;
@@ -555,7 +546,7 @@ void LSM6DSRIMUAddon::clearGyroOutput(Gamepad* gamepad) {
 	gyroOutputCleared = true;
 }
 
-void __not_in_flash_func(LSM6DSRIMUAddon::preprocess)() {
+void LSM6DSRIMUAddon::preprocess() {
 	Gamepad* gamepad = Storage::getInstance().GetGamepad();
 	if (!gamepad) return;
 

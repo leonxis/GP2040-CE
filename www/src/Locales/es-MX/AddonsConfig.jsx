@@ -103,10 +103,6 @@ export default {
 	'axis-tilt-overlay-rc-jitter-amplitude-tooltip': 'Maximum range during jitter.',
 	'axis-tilt-overlay-rc-decay-range-tooltip':
 		'Overlay jitter falls from ~3% stick deflection (L∞) toward the edge; 3% turns radial decay off; above 3%, this sets the end where jitter reaches zero.',
-	'buzzer-speaker-header-text': 'Altavoz Zumbador',
-	'buzzer-speaker-pin-label': 'Pin GPIO Zumbador',
-	'buzzer-speaker-enable-pin-label': 'Pin GPIO Activar Zumbador',
-	'buzzer-speaker-volume-label': 'Volumen Zumbador',
 	'player-number-header-text': 'Número de Jugador (SOLO X-INPUT)',
 	'player-number-sub-header': 'Advertencia',
 	'player-number-sub-header-text':
@@ -166,11 +162,4 @@ export default {
 	'tilt-socd-mode-0': 'Prioridad Arriba',
 	'tilt-socd-mode-1': 'Neutral',
 	'tilt-socd-mode-2': 'Último Gana',
-	'drv8833-rumble-header-text': 'Configuración de Vibración DRV8833',
-	'drv8833-rumble-left-motor-pin-label': 'Pin GPIO Motor Izquierdo',
-	'drv8833-rumble-right-motor-pin-label': 'Pin GPIO Motor Derecho',
-	'drv8833-rumble-motor-sleep-pin-label': 'Pin GPIO Reposo Motor',
-	'drv8833-rumble-pwm-frequency-label': 'Frecuencia PWM',
-	'drv8833-rumble-duty-min-label': 'Ciclo de Trabajo Mínimo',
-	'drv8833-rumble-duty-max-label': 'Ciclo de Trabajo Máximo',
 };

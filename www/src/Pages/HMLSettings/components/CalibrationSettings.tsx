@@ -14,7 +14,6 @@ import JoystickCurveSettings from './JoystickCurveSettings';
 import { analogScheme, analogState } from '../../../Addons/Analog';
 import { lsm6dsrScheme, lsm6dsrState } from '../../../Addons/LSM6DSR';
 import { bootselScheme, bootselState } from '../../../Addons/Bootsel';
-import { buzzerScheme, buzzerState } from '../../../Addons/Buzzer';
 import {
 	dualDirectionScheme,
 	dualDirectionState,
@@ -23,7 +22,6 @@ import { reverseScheme, reverseState } from '../../../Addons/Reverse';
 import { socdScheme, socdState } from '../../../Addons/SOCD';
 import { tiltScheme, tiltState } from '../../../Addons/Tilt';
 import { turboScheme, turboState } from '../../../Addons/Turbo';
-import { wiiScheme, wiiState } from '../../../Addons/Wii';
 import { snesState } from '../../../Addons/SNES';
 import {
 	focusModeScheme,
@@ -35,15 +33,6 @@ import {
 	gamepadUSBHostState,
 } from '../../../Addons/GamepadUSBHost';
 import { rotaryScheme, rotaryState } from '../../../Addons/Rotary';
-import { pcf8575Scheme, pcf8575State } from '../../../Addons/PCF8575';
-import {
-	drv8833RumbleScheme,
-	drv8833RumbleState,
-} from '../../../Addons/DRV8833';
-import {
-	reactiveLEDScheme,
-	reactiveLEDState,
-} from '../../../Addons/ReactiveLED';
 import { tg16State } from '../../../Addons/TG16';
 import {
 	HETriggerScheme,
@@ -85,16 +74,11 @@ export const schema = yup.object().shape({
 	...reverseScheme,
 	...dualDirectionScheme,
 	...tiltScheme,
-	...buzzerScheme,
 	...socdScheme,
-	...wiiScheme,
 	...focusModeScheme,
 	...keyboardScheme,
 	...gamepadUSBHostScheme,
 	...rotaryScheme,
-	...pcf8575Scheme,
-	...drv8833RumbleScheme,
-	...reactiveLEDScheme,
 	...HETriggerScheme,
 	...axisTiltOverlaySettingsScheme,
 });
@@ -107,17 +91,12 @@ export const DEFAULT_VALUES = {
 	...reverseState,
 	...dualDirectionState,
 	...tiltState,
-	...buzzerState,
 	...socdState,
-	...wiiState,
 	...snesState,
 	...tg16State,
 	...focusModeState,
 	...keyboardState,
 	...rotaryState,
-	...pcf8575State,
-	...drv8833RumbleState,
-	...reactiveLEDState,
 	...gamepadUSBHostState,
 	...HETriggerState,
 	...axisTiltOverlaySettingsState,

@@ -189,6 +189,19 @@ endif()
 # We want a larger stack of 4kb per core instead of the default 2kb
 add_compile_definitions(PICO_STACK_SIZE=0x1000)
 
+# Config/web/USB-CDC path (never part of the 1ms input hot loop): keep these
+# translation units at -Os so the firmware image stays below the macro
+# recording flash region (0x190000). -Os only overrides -O3 for these files.
+set_source_files_properties(
+    src/webconfig.cpp
+    src/config_utils.cpp
+    src/config_legacy.cpp
+    src/addons/input_macro.cpp
+    src/addons/neopicoleds.cpp
+    src/storagemanager.cpp
+    PROPERTIES COMPILE_OPTIONS "-Os"
+)
+
 add_executable(${PROJECT_NAME}
 src/main.cpp
 src/gp2040.cpp
@@ -237,7 +250,6 @@ src/drivers/xinput/XInputAuthUSBListener.cpp
 src/drivers/xinput/XInputDriver.cpp
 src/drivers/xinputb/XInputBDriver.cpp
 src/interfaces/i2c/i2cdevicebase.cpp
-src/interfaces/i2c/pcf8575/pcf8575.cpp
 src/interfaces/i2c/ssd1306/obd_ssd1306.cpp
 src/interfaces/i2c/ssd1306/tiny_ssd1306.cpp
 src/display/ui/elements/GPWidget.cpp
@@ -286,21 +298,16 @@ src/addons/back_button_divider.cpp
 src/addons/ads8332_adc.cpp
 src/addons/mcp3208_adc.cpp
 src/addons/lsm6dsr_imu.cpp
-src/addons/buzzerspeaker.cpp
 src/addons/dualdirectional.cpp
 src/addons/keyboard_host.cpp
 src/addons/keyboard_host_listener.cpp
-src/addons/i2c_gpio_pcf8575.cpp
 src/addons/display.cpp
 src/addons/neopicoleds.cpp
 src/addons/playerleds.cpp
-src/addons/reactiveleds.cpp
 src/addons/rotaryencoder.cpp
 src/addons/reverse.cpp
-src/addons/drv8833_rumble.cpp
 src/addons/turbo.cpp
 src/addons/slider_socd.cpp
-src/addons/wiiext.cpp
 src/addons/input_macro.cpp
 src/addons/snes_input.cpp
 src/addons/tilt.cpp
@@ -339,7 +346,6 @@ rndis
 hardware_adc
 hardware_pwm
 PicoPeripherals
-WiiExtension
 SNESpad
 pico_mbedtls
 nanopb
@@ -354,9 +360,7 @@ headers/drivers/shared
 headers/events
 headers/interfaces
 headers/interfaces/i2c
-headers/interfaces/i2c/pcf8575
 headers/interfaces/i2c/ssd1306
-headers/interfaces/i2c/wiiextension
 headers/gamepad
 headers/display
 headers/display/fonts

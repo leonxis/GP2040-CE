@@ -1,0 +1,2 @@
+/home/leonxis/.espressif/tools/xtensa-esp32-elf/esp-12.2.0_20230208/xtensa-esp32-elf/bin/xtensa-esp32-elf-ar qc libmain.a CMakeFiles/__idf_main.dir/main.cpp.obj CMakeFiles/__idf_main.dir/link_protocol.cpp.obj CMakeFiles/__idf_main.dir/mode_manager.cpp.obj CMakeFiles/__idf_main.dir/IMyGamepad.cpp.obj CMakeFiles/__idf_main.dir/XboxOneGamepad.cpp.obj CMakeFiles/__idf_main.dir/SwitchProController.cpp.obj CMakeFiles/__idf_main.dir/DualSenseController.cpp.obj
+/home/leonxis/.espressif/tools/xtensa-esp32-elf/esp-12.2.0_20230208/xtensa-esp32-elf/bin/xtensa-esp32-elf-ranlib libmain.a

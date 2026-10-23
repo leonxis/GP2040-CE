@@ -1,0 +1,214 @@
+-- Building ESP-IDF components for target esp32
+-- Project sdkconfig file /home/leonxis/GP2040/GP2040-CE/esp32-wroom/sdkconfig
+Loading defaults file /home/leonxis/GP2040/GP2040-CE/esp32-wroom/sdkconfig.defaults...
+-- App "wireless_tx_2354" version: v0.7.12-406-gbc52ee40-dirty
+-- Adding linker script /home/leonxis/GP2040/GP2040-CE/esp32-wroom/build-esp/esp-idf/esp_system/ld/memory.ld
+-- Adding linker script /home/leonxis/esp/esp-idf/components/esp_system/ld/esp32/sections.ld.in
+-- Adding linker script /home/leonxis/esp/esp-idf/components/esp_rom/esp32/ld/esp32.rom.ld
+-- Adding linker script /home/leonxis/esp/esp-idf/components/esp_rom/esp32/ld/esp32.rom.api.ld
+-- Adding linker script /home/leonxis/esp/esp-idf/components/esp_rom/esp32/ld/esp32.rom.libgcc.ld
+-- Adding linker script /home/leonxis/esp/esp-idf/components/esp_rom/esp32/ld/esp32.rom.newlib-data.ld
+-- Adding linker script /home/leonxis/esp/esp-idf/components/esp_rom/esp32/ld/esp32.rom.syscalls.ld
+-- Adding linker script /home/leonxis/esp/esp-idf/components/esp_rom/esp32/ld/esp32.rom.newlib-funcs.ld
+-- Adding linker script /home/leonxis/esp/esp-idf/components/soc/esp32/ld/esp32.peripherals.ld
+-- Components: app_trace app_update bootloader bootloader_support bt cmock console cxx driver efuse esp-nimble-cpp esp-tls esp_adc esp_app_format esp_coex esp_common esp_eth esp_event esp_gdbstub esp_hid esp_http_client esp_http_server esp_https_ota esp_https_server esp_hw_support esp_lcd esp_local_ctrl esp_mm esp_netif esp_netif_stack esp_partition esp_phy esp_pm esp_psram esp_ringbuf esp_rom esp_system esp_timer esp_wifi espcoredump esptool_py fatfs freertos hal heap http_parser idf_test ieee802154 json log lwip main mbedtls mqtt newlib nvs_flash openthread partition_table perfmon protobuf-c protocomm pthread sdmmc soc spi_flash spiffs tcp_transport ulp unity usb vfs wear_levelling wifi_provisioning wpa_supplicant xtensa
+-- Component paths: /home/leonxis/esp/esp-idf/components/app_trace /home/leonxis/esp/esp-idf/components/app_update /home/leonxis/esp/esp-idf/components/bootloader /home/leonxis/esp/esp-idf/components/bootloader_support /home/leonxis/GP2040/GP2040-CE/esp32-wroom/components/bt /home/leonxis/esp/esp-idf/components/cmock /home/leonxis/esp/esp-idf/components/console /home/leonxis/esp/esp-idf/components/cxx /home/leonxis/esp/esp-idf/components/driver /home/leonxis/esp/esp-idf/components/efuse /home/leonxis/GP2040/GP2040-CE/esp32-wroom/components/esp-nimble-cpp /home/leonxis/esp/esp-idf/components/esp-tls /home/leonxis/esp/esp-idf/components/esp_adc /home/leonxis/esp/esp-idf/components/esp_app_format /home/leonxis/esp/esp-idf/components/esp_coex /home/leonxis/esp/esp-idf/components/esp_common /home/leonxis/esp/esp-idf/components/esp_eth /home/leonxis/esp/esp-idf/components/esp_event /home/leonxis/esp/esp-idf/components/esp_gdbstub /home/leonxis/esp/esp-idf/components/esp_hid /home/leonxis/esp/esp-idf/components/esp_http_client /home/leonxis/esp/esp-idf/components/esp_http_server /home/leonxis/esp/esp-idf/components/esp_https_ota /home/leonxis/esp/esp-idf/components/esp_https_server /home/leonxis/esp/esp-idf/components/esp_hw_support /home/leonxis/esp/esp-idf/components/esp_lcd /home/leonxis/esp/esp-idf/components/esp_local_ctrl /home/leonxis/esp/esp-idf/components/esp_mm /home/leonxis/esp/esp-idf/components/esp_netif /home/leonxis/esp/esp-idf/components/esp_netif_stack /home/leonxis/esp/esp-idf/components/esp_partition /home/leonxis/esp/esp-idf/components/esp_phy /home/leonxis/esp/esp-idf/components/esp_pm /home/leonxis/esp/esp-idf/components/esp_psram /home/leonxis/esp/esp-idf/components/esp_ringbuf /home/leonxis/esp/esp-idf/components/esp_rom /home/leonxis/esp/esp-idf/components/esp_system /home/leonxis/esp/esp-idf/components/esp_timer /home/leonxis/esp/esp-idf/components/esp_wifi /home/leonxis/esp/esp-idf/components/espcoredump /home/leonxis/esp/esp-idf/components/esptool_py /home/leonxis/esp/esp-idf/components/fatfs /home/leonxis/esp/esp-idf/components/freertos /home/leonxis/esp/esp-idf/components/hal /home/leonxis/esp/esp-idf/components/heap /home/leonxis/esp/esp-idf/components/http_parser /home/leonxis/esp/esp-idf/components/idf_test /home/leonxis/esp/esp-idf/components/ieee802154 /home/leonxis/esp/esp-idf/components/json /home/leonxis/esp/esp-idf/components/log /home/leonxis/esp/esp-idf/components/lwip /home/leonxis/GP2040/GP2040-CE/esp32-wroom/main /home/leonxis/esp/esp-idf/components/mbedtls /home/leonxis/esp/esp-idf/components/mqtt /home/leonxis/esp/esp-idf/components/newlib /home/leonxis/esp/esp-idf/components/nvs_flash /home/leonxis/esp/esp-idf/components/openthread /home/leonxis/esp/esp-idf/components/partition_table /home/leonxis/esp/esp-idf/components/perfmon /home/leonxis/esp/esp-idf/components/protobuf-c /home/leonxis/esp/esp-idf/components/protocomm /home/leonxis/esp/esp-idf/components/pthread /home/leonxis/esp/esp-idf/components/sdmmc /home/leonxis/esp/esp-idf/components/soc /home/leonxis/esp/esp-idf/components/spi_flash /home/leonxis/esp/esp-idf/components/spiffs /home/leonxis/esp/esp-idf/components/tcp_transport /home/leonxis/esp/esp-idf/components/ulp /home/leonxis/esp/esp-idf/components/unity /home/leonxis/esp/esp-idf/components/usb /home/leonxis/esp/esp-idf/components/vfs /home/leonxis/esp/esp-idf/components/wear_levelling /home/leonxis/esp/esp-idf/components/wifi_provisioning /home/leonxis/esp/esp-idf/components/wpa_supplicant /home/leonxis/esp/esp-idf/components/xtensa
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/leonxis/GP2040/GP2040-CE/esp32-wroom/build-esp
+[  0%] Built target partition_table_bin
+[  0%] Built target custom_bundle
+[  0%] Built target memory_ld
+[  1%] Built target _project_elf_src
+Consolidate compiler generated dependencies of target __idf_esp_https_ota
+[  1%] Performing build step for 'bootloader'
+[  1%] Built target __idf_esp_https_ota
+Consolidate compiler generated dependencies of target __idf_esp_http_server
+[  2%] Built target __idf_esp_http_server
+[  4%] Built target __idf_log
+[  5%] Built target _project_elf_src
+Consolidate compiler generated dependencies of target __idf_esp_http_client
+[  2%] Built target __idf_esp_http_client
+[ 12%] Built target __idf_esp_rom
+Consolidate compiler generated dependencies of target __idf_tcp_transport
+[ 14%] Built target __idf_esp_common
+[  2%] Built target __idf_tcp_transport
+Scanning dependencies of target __idf_esp_gdbstub
+Consolidate compiler generated dependencies of target __idf_esp_gdbstub
+[ 23%] Built target __idf_esp_hw_support
+[  2%] Built target __idf_esp_gdbstub
+[ 25%] Built target __idf_esp_system
+Consolidate compiler generated dependencies of target __idf_esp_eth
+[  3%] Built target __idf_esp_eth
+Consolidate compiler generated dependencies of target __idf_esp_adc
+[ 32%] Built target __idf_efuse
+[  3%] Built target __idf_esp_adc
+Consolidate compiler generated dependencies of target __idf_esp-tls
+[ 55%] Built target __idf_bootloader_support
+[  4%] Built target __idf_esp-tls
+Consolidate compiler generated dependencies of target __idf_http_parser
+[ 57%] Built target __idf_esp_app_format
+[  4%] Built target __idf_http_parser
+Consolidate compiler generated dependencies of target __idf_esp_wifi
+[ 59%] Built target __idf_spi_flash
+[  5%] Built target __idf_esp_wifi
+Consolidate compiler generated dependencies of target __idf_esp_coex
+[  5%] Built target __idf_esp_coex
+[ 65%] Built target __idf_hal
+[ 68%] Built target __idf_micro-ecc
+[ 90%] Built target __idf_soc
+[ 93%] Built target __idf_xtensa
+Consolidate compiler generated dependencies of target __idf_wpa_supplicant
+[ 95%] Built target __idf_main
+[ 13%] Built target __idf_wpa_supplicant
+[ 98%] Built target bootloader.elf
+Consolidate compiler generated dependencies of target __idf_esp_netif
+[100%] Built target gen_project_binary
+[ 14%] Built target __idf_esp_netif
+Bootloader binary size 0x5f80 bytes. 0x1080 bytes (15%) free.
+[100%] Built target bootloader_check_size
+[100%] Built target app
+Consolidate compiler generated dependencies of target __idf_lwip
+[ 14%] No install step for 'bootloader'
+[ 22%] Built target __idf_lwip
+[ 22%] Completed 'bootloader'
+Consolidate compiler generated dependencies of target __idf_vfs
+[ 22%] Built target __idf_vfs
+Consolidate compiler generated dependencies of target __idf_esp_phy
+[ 23%] Built target __idf_esp_phy
+[ 23%] Built target bootloader
+Consolidate compiler generated dependencies of target __idf_nvs_flash
+[ 24%] Built target __idf_nvs_flash
+Consolidate compiler generated dependencies of target __idf_esp_event
+[ 25%] Built target __idf_esp_event
+Consolidate compiler generated dependencies of target __idf_esp_timer
+[ 25%] Built target __idf_esp_timer
+Consolidate compiler generated dependencies of target __idf_esp_common
+[ 25%] Built target __idf_esp_common
+Consolidate compiler generated dependencies of target __idf_cxx
+[ 26%] Built target __idf_cxx
+Consolidate compiler generated dependencies of target __idf_newlib
+[ 28%] Built target __idf_newlib
+Scanning dependencies of target __idf_freertos
+Consolidate compiler generated dependencies of target __idf_freertos
+[ 30%] Built target __idf_freertos
+Consolidate compiler generated dependencies of target __idf_esp_hw_support
+[ 33%] Built target __idf_esp_hw_support
+Consolidate compiler generated dependencies of target __idf_soc
+[ 36%] Built target __idf_soc
+Consolidate compiler generated dependencies of target __idf_heap
+[ 37%] Built target __idf_heap
+Consolidate compiler generated dependencies of target __idf_log
+[ 38%] Built target __idf_log
+Consolidate compiler generated dependencies of target __idf_hal
+[ 42%] Built target __idf_hal
+Scanning dependencies of target __idf_esp_rom
+Consolidate compiler generated dependencies of target __idf_esp_rom
+[ 42%] Built target __idf_esp_rom
+Scanning dependencies of target __idf_esp_system
+Consolidate compiler generated dependencies of target __idf_esp_system
+[ 46%] Built target __idf_esp_system
+Consolidate compiler generated dependencies of target __idf_pthread
+[ 47%] Built target __idf_pthread
+Consolidate compiler generated dependencies of target __idf_spi_flash
+[ 49%] Built target __idf_spi_flash
+Consolidate compiler generated dependencies of target __idf_esp_mm
+[ 49%] Built target __idf_esp_mm
+Consolidate compiler generated dependencies of target __idf_app_update
+[ 49%] Built target __idf_app_update
+Consolidate compiler generated dependencies of target __idf_esp_partition
+[ 49%] Built target __idf_esp_partition
+Consolidate compiler generated dependencies of target __idf_bootloader_support
+[ 51%] Built target __idf_bootloader_support
+Consolidate compiler generated dependencies of target __idf_esp_app_format
+[ 52%] Building C object esp-idf/esp_app_format/CMakeFiles/__idf_esp_app_format.dir/esp_app_desc.c.obj
+[ 52%] Linking C static library libesp_app_format.a
+[ 52%] Built target __idf_esp_app_format
+Consolidate compiler generated dependencies of target mbedtls
+[ 54%] Built target mbedtls
+Consolidate compiler generated dependencies of target mbedx509
+[ 55%] Built target mbedx509
+Consolidate compiler generated dependencies of target mbedcrypto
+[ 64%] Built target mbedcrypto
+Scanning dependencies of target __idf_mbedtls
+Consolidate compiler generated dependencies of target __idf_mbedtls
+[ 65%] Built target __idf_mbedtls
+Consolidate compiler generated dependencies of target __idf_esp_pm
+[ 65%] Built target __idf_esp_pm
+Consolidate compiler generated dependencies of target __idf_driver
+[ 70%] Built target __idf_driver
+Consolidate compiler generated dependencies of target __idf_efuse
+[ 71%] Built target __idf_efuse
+Consolidate compiler generated dependencies of target __idf_esp_ringbuf
+[ 72%] Built target __idf_esp_ringbuf
+Scanning dependencies of target __idf_xtensa
+Consolidate compiler generated dependencies of target __idf_xtensa
+[ 72%] Built target __idf_xtensa
+Consolidate compiler generated dependencies of target __idf_app_trace
+Consolidate compiler generated dependencies of target __idf_unity
+Consolidate compiler generated dependencies of target __idf_console
+[ 72%] Built target __idf_app_trace
+[ 73%] Built target __idf_unity
+[ 74%] Built target __idf_console
+Consolidate compiler generated dependencies of target __idf_protobuf-c
+Consolidate compiler generated dependencies of target __idf_esp_lcd
+Consolidate compiler generated dependencies of target __idf_espcoredump
+[ 75%] Built target __idf_protobuf-c
+[ 76%] Built target __idf_esp_lcd
+[ 77%] Built target __idf_espcoredump
+Consolidate compiler generated dependencies of target __idf_wear_levelling
+Consolidate compiler generated dependencies of target __idf_sdmmc
+Consolidate compiler generated dependencies of target __idf_json
+[ 78%] Built target __idf_wear_levelling
+[ 78%] Built target __idf_json
+[ 78%] Built target __idf_sdmmc
+Consolidate compiler generated dependencies of target __idf_mqtt
+Scanning dependencies of target __idf_bt
+Consolidate compiler generated dependencies of target __idf_bt
+[ 78%] Built target __idf_mqtt
+[ 87%] Built target __idf_bt
+Consolidate compiler generated dependencies of target __idf_perfmon
+Consolidate compiler generated dependencies of target __idf_spiffs
+Consolidate compiler generated dependencies of target __idf_cmock
+[ 87%] Built target __idf_perfmon
+[ 88%] Built target __idf_cmock
+[ 89%] Built target __idf_spiffs
+Consolidate compiler generated dependencies of target __idf_fatfs
+Consolidate compiler generated dependencies of target __idf_esp_hid
+[ 90%] Built target __idf_fatfs
+[ 91%] Built target __idf_esp_hid
+Consolidate compiler generated dependencies of target __idf_protocomm
+Consolidate compiler generated dependencies of target __idf_esp-nimble-cpp
+[ 92%] Built target __idf_protocomm
+[ 94%] Built target __idf_esp-nimble-cpp
+Consolidate compiler generated dependencies of target __idf_esp_local_ctrl
+Consolidate compiler generated dependencies of target __idf_wifi_provisioning
+[ 95%] Built target __idf_esp_local_ctrl
+[ 97%] Built target __idf_wifi_provisioning
+Consolidate compiler generated dependencies of target __idf_main
+[ 97%] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/IMyGamepad.cpp.obj
+[ 97%] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/mode_manager.cpp.obj
+[ 98%] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/link_protocol.cpp.obj
+[ 98%] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/main.cpp.obj
+[ 98%] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/XboxOneGamepad.cpp.obj
+[ 98%] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/SwitchProController.cpp.obj
+[ 98%] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/DualSenseController.cpp.obj
+[ 98%] Linking C static library libmain.a
+[ 98%] Built target __idf_main
+[ 98%] Generating ld/sections.ld
+[ 98%] Built target __ldgen_output_sections.ld
+Consolidate compiler generated dependencies of target wireless_tx_2354.elf
+[100%] Linking CXX executable wireless_tx_2354.elf
+[100%] Built target wireless_tx_2354.elf
+[100%] Generating binary image from built executable
+esptool.py v4.12.0
+Creating esp32 image...
+Merged 25 ELF sections
+Successfully created esp32 image.
+Generated /home/leonxis/GP2040/GP2040-CE/esp32-wroom/build-esp/wireless_tx_2354.bin
+[100%] Built target gen_project_binary
+wireless_tx_2354.bin binary size 0x8b170 bytes. Smallest app partition is 0x177000 bytes. 0xebe90 bytes (63%) free.
+[100%] Built target app_check_size
+[100%] Built target app
+[100%] Collecting split images (bootloader/partition-table/app) into /home/leonxis/GP2040/GP2040-CE/esp32-wroom/build-esp/images
+[100%] Built target collect_images

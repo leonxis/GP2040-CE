@@ -70,6 +70,21 @@ public:
 	void dismissAmbientWebConfigOverride();
 	bool isAmbientWebConfigOverrideActive() const;
 
+	/** Macro hints, written on Core0 by InputMacro, read from Core1 NeoPico.
+	 *  hintPulseSeq arms the one-shot blue blink on recording start and
+	 *  playback end; recPulseSeq arms the one-shot red 3-blink on a
+	 *  capacity-induced recording stop. */
+	void pulseMacroHint();
+	uint32_t macroHintPulseSeq() const;
+	void pulseMacroRecFull();
+	uint32_t macroRecPulseSeq() const;
+
+	/** Turbo toggle hint, written on Core0 by TurboInput when any button's
+	 *  turbo state is toggled on/off; read from Core1 NeoPico to arm the
+	 *  one-shot green single blink. */
+	void pulseTurboToggle();
+	uint32_t turboPulseSeq() const;
+
 private:
 	Storage() {}
 	bool CONFIG_MODE = false; 			// Config mode (boot)
@@ -81,6 +96,9 @@ private:
 	uint32_t systemFlashSize;
 
 	std::atomic<bool> ambientWebConfigOverrideActive { false };
+	std::atomic<uint32_t> macroRecPulseSeqValue { 0 };
+	std::atomic<uint32_t> macroHintPulseSeqValue { 0 };
+	std::atomic<uint32_t> turboPulseSeqValue { 0 };
 };
 
 #endif
