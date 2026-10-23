@@ -141,12 +141,21 @@ void TurboInput::process()
     if (gamepad->debouncedGpio & turboPinMask) {
         if (buttonsPressed && (lastPressed != buttonsPressed)) {
             // Only toggle state for buttons changed that are pressed
-            const uint16_t maskBeforeToggle = turboButtonsMask;
-            turboButtonsMask ^= (lastPressed ^ buttonsPressed) & ~lastPressed; // Toggle Turbo
-            // One-shot green blink on the WS2812 ambient LED for any
-            // turbo enable/disable edge (SHMUP always-on merge excluded).
-            if ((maskBeforeToggle ^ turboButtonsMask) != 0) {
-                Storage::getInstance().pulseTurboToggle();
+            const uint16_t toggled = (lastPressed ^ buttonsPressed) & ~lastPressed;
+            turboButtonsMask ^= toggled; // Toggle Turbo
+            // WS2812 ambient hint for any turbo enable/disable edge (SHMUP
+            // always-on merge excluded): enable = green single blink,
+            // disable = yellow single blink; last toggled button wins.
+            if (toggled != 0) {
+                bool lastEnabled = false;
+                for (uint16_t bit = 1; bit != 0; bit <<= 1) {
+                    if (toggled & bit)
+                        lastEnabled = (turboButtonsMask & bit) != 0;
+                }
+                if (lastEnabled)
+                    Storage::getInstance().pulseTurboToggle();
+                else
+                    Storage::getInstance().pulseTurboOff();
             }
             gamepad->turboState.buttons = turboButtonsMask; //turboButtonsMask & TURBO_BUTTON_MASK; //&= TURBO_BUTTON_MASK;
             if (options.shmupModeEnabled) {

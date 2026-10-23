@@ -82,11 +82,14 @@ public:
 	void setMacroRecordingActive(bool active);
 	bool isMacroRecordingActive() const;
 
-	/** Turbo toggle hint, written on Core0 by TurboInput when any button's
-	 *  turbo state is toggled on/off; read from Core1 NeoPico to arm the
-	 *  one-shot green single blink. */
+	/** Turbo toggle hints, written on Core0 by TurboInput; read from Core1
+	 *  NeoPico. pulseTurboToggle arms the one-shot green single blink on
+	 *  turbo enable; pulseTurboOff arms the one-shot yellow single blink
+	 *  on turbo disable. */
 	void pulseTurboToggle();
 	uint32_t turboPulseSeq() const;
+	void pulseTurboOff();
+	uint32_t turboOffPulseSeq() const;
 
 private:
 	Storage() {}
@@ -102,6 +105,7 @@ private:
 	std::atomic<uint32_t> macroRecPulseSeqValue { 0 };
 	std::atomic<uint32_t> macroHintPulseSeqValue { 0 };
 	std::atomic<uint32_t> turboPulseSeqValue { 0 };
+	std::atomic<uint32_t> turboOffPulseSeqValue { 0 };
 	std::atomic<bool> macroRecordingActive { false };
 };
 

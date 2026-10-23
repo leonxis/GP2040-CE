@@ -375,11 +375,12 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	// One-shot hints take priority over the web-config hint. All share the
 	// same phase machine (AmbientOneShotBlink): red 3-blink =
 	// capacity-induced recording stop; blue single blink = playback end;
-	// green single blink = turbo button enable/disable. Continuous blue
-	// blink runs while a recording is active.
+	// green single blink = turbo enable; yellow single blink = turbo
+	// disable. Continuous blue blink runs while a recording is active.
 	pollOneShotBlink(recFullBlink_, Storage::getInstance().macroRecPulseSeq());
 	pollOneShotBlink(macroHintBlink_, Storage::getInstance().macroHintPulseSeq());
 	pollOneShotBlink(turboToggleBlink_, Storage::getInstance().turboPulseSeq());
+	pollOneShotBlink(turboOffBlink_, Storage::getInstance().turboOffPulseSeq());
 
 	// Continuous blue blink while a macro recording is in progress. Toggled
 	// on a fixed 200ms cadence (5Hz, 50% duty) independently of other hints.
@@ -399,6 +400,8 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 		effectIdx = AL_CUSTOM_EFFECT_MACRO_HINT;
 	} else if (turboToggleBlink_.armed) {
 		effectIdx = AL_CUSTOM_EFFECT_TURBO_TOGGLE;
+	} else if (turboOffBlink_.armed) {
+		effectIdx = AL_CUSTOM_EFFECT_TURBO_OFF;
 	} else if (recordingActive) {
 		effectIdx = AL_CUSTOM_EFFECT_MACRO_RECORDING;
 	} else if (webHintActive) {
@@ -601,8 +604,12 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 			renderOneShotBlink(recFullBlink_, 0xFF0000);
 			break;
 		case AL_CUSTOM_EFFECT_TURBO_TOGGLE:
-			// Green: turbo button enabled/disabled.
+			// Green: turbo button enabled.
 			renderOneShotBlink(turboToggleBlink_, 0x00FF00);
+			break;
+		case AL_CUSTOM_EFFECT_TURBO_OFF:
+			// Yellow: turbo button disabled.
+			renderOneShotBlink(turboOffBlink_, 0xFFFF00);
 			break;
 		default:
 			break;
