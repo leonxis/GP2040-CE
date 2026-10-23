@@ -11,6 +11,7 @@ import TriggerCalibrationSettings, {
 	triggerCalibrationScheme,
 	triggerCalibrationState,
 } from './TriggerCalibration';
+import TurboSettings from './TurboSettings';
 
 type AddonOptions = Record<string, unknown>;
 
@@ -310,6 +311,8 @@ export default function FunctionButtons() {
 					</Col>
 				</Form.Group>
 		</Section>
+
+			<TurboSettings />
 
 			<Formik
 				enableReinitialize

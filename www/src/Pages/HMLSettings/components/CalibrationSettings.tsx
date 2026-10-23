@@ -21,7 +21,7 @@ import {
 import { reverseScheme, reverseState } from '../../../Addons/Reverse';
 import { socdScheme, socdState } from '../../../Addons/SOCD';
 import { tiltScheme, tiltState } from '../../../Addons/Tilt';
-import { turboScheme, turboState } from '../../../Addons/Turbo';
+import { turboScheme, turboState } from './TurboSettings';
 import { snesState } from '../../../Addons/SNES';
 import {
 	focusModeScheme,
