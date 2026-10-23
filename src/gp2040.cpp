@@ -38,6 +38,7 @@
 #include "addons/linear_trigger.h"
 #include "addons/two_key_touchpad.h"
 #include "addons/back_button_divider.h"
+#include "addons/key_layer.h"
 #include "addons/tg16_input.h"
 
 // Pico includes
@@ -644,6 +645,15 @@ void GP2040::setup() {
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new TwoKeyTouchpadAddon());
 	addons.LoadAddon(new BackButtonDividerAddon());
+	// 映射层：须在背键/触摸板之后（查其实际输出态）、LinearTrigger 之前（按最终位重算）
+	// available()=层槽任一总闸开启；全关时插件不注册，bindExternal 须随之守卫
+	if (addons.LoadAddon(new KeyLayerAddon())) {
+		if (KeyLayerAddon* kl = (KeyLayerAddon*)addons.GetAddon(KEY_LAYER_ADDON_NAME)) {
+			kl->bindExternal(
+				(BackButtonDividerAddon*)addons.GetAddon(BACK_BUTTON_DIVIDER_ADDON_NAME),
+				(TwoKeyTouchpadAddon*)addons.GetAddon(TWO_KEY_TOUCHPAD_ADDON_NAME));
+		}
+	}
 	// 须在背键/触摸板/FN 电压映射之后：preprocess 内合并 ADC 与映射的 L2/R2（含 lt/rt）
 	addons.LoadAddon(new LinearTriggerAddon());
 	addons.LoadAddon(new BootselButtonAddon());

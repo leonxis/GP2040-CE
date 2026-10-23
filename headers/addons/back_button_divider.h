@@ -17,6 +17,11 @@ public:
     virtual void postprocess(bool) {}
     virtual std::string name() { return BACK_BUTTON_DIVIDER_ADDON_NAME; }
     virtual void reinit();
+
+    // KeyLayer 查询：背键 index（0=左EL, 1=右ER, 2=左B1, 3=右B1, 4=左B2, 5=右B2）
+    // 是否处于"防抖稳定按下"状态（ADC 分压档位或 GPIO 去抖后）
+    bool isIndexStable(uint8_t index) const;
+
 private:
     void buildMappings();
     void applySlotIfEnabled(Gamepad* gamepad, uint8_t index);

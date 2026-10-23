@@ -173,3 +173,16 @@ void BackButtonDividerAddon::preprocess() {
 void BackButtonDividerAddon::process() {
     // 所有逻辑在 preprocess 中完成
 }
+
+bool BackButtonDividerAddon::isIndexStable(uint8_t index) const {
+    // 索引映射：0=左EL, 1=右ER, 2=左B1, 3=右B1, 4=左B2, 5=右B2
+    switch (index) {
+    case 0: return leftElDebounce_.stable;
+    case 1: return rightErDebounce_.stable;
+    case 2: return leftDebounce_.stable == 1 || leftDebounce_.stable == 2;
+    case 3: return rightDebounce_.stable == 1 || rightDebounce_.stable == 2;
+    case 4: return leftDebounce_.stable == 0 || leftDebounce_.stable == 2;
+    case 5: return rightDebounce_.stable == 0 || rightDebounce_.stable == 2;
+    default: return false;
+    }
+}
