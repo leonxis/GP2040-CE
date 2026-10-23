@@ -53,12 +53,12 @@ void KeyLayerAddon::buildCache() {
         getActiveHmlBackPreset(storage.getAddonOptions());
     const BackButtonAddonOptions& bb = preset.backButton;
 
-    const GpioMappingInfo* backMappings[6] = {
+    const GpioMappingInfo* backMappings[kBackKeyCount] = {
         &bb.leftElMapping, &bb.rightErMapping,
         &bb.leftBack1Mapping, &bb.rightBack1Mapping,
         &bb.leftBack2Mapping, &bb.rightBack2Mapping,
     };
-    for (uint8_t i = 0; i < 6; i++) {
+    for (uint8_t i = 0; i < kBackKeyCount; i++) {
         const GpioMappingInfo& info = *backMappings[i];
         ActionMappingCommon::parseActionMapping(info, backEntry_[i]);
         if (info.activatorMode != ACTIVATOR_OFF) {
@@ -119,7 +119,7 @@ void KeyLayerAddon::preprocess() {
     if (gp == nullptr) return;
 
     // 1) 求各激活器当前有效电平（主控=去抖电平；背键/触摸=插件实际输出态）
-    bool levels[NUM_BANK0_GPIOS + 10];
+    bool levels[NUM_BANK0_GPIOS + kBackKeyCount];
     for (uint8_t i = 0; i < activatorCount_; i++) {
         const ActivatorCtx& a = activators_[i];
         bool level = false;
@@ -167,7 +167,7 @@ void KeyLayerAddon::preprocess() {
 
     // 5) 聚合外部键（背键/触摸）实际输出
     MaskAcc ext{};
-    for (uint8_t i = 0; i < 6; i++) {
+    for (uint8_t i = 0; i < kBackKeyCount; i++) {
         if (backDiv_ != nullptr && backDiv_->isIndexStable(i)) {
             accumulate(ext, backEntry_[i]);
         }
