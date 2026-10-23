@@ -680,8 +680,9 @@ void InputMacro::startRecording(uint8_t slot) {
     r.startUs = getMicro();
     r.active = true;
 
-    // One-shot blue blink on recording start (no continuous recording light).
-    Storage::getInstance().pulseMacroHint();
+    // Recording in progress drives a continuous blue ambient blink; no
+    // one-shot start blink is emitted.
+    Storage::getInstance().setMacroRecordingActive(true);
 }
 
 void InputMacro::recordWriteBytes(uint8_t slot, const uint8_t * data, uint8_t len) {
@@ -794,6 +795,9 @@ void InputMacro::stopRecording(uint8_t slot, bool overflow) {
     if (!r.active)
         return;
 
+    // Stop the continuous blue recording blink before any overflow hint.
+    Storage::getInstance().setMacroRecordingActive(false);
+
     r.active = false;
     flushFramePage(slot);
     flushEventPage(slot);
@@ -815,7 +819,7 @@ void InputMacro::stopRecording(uint8_t slot, bool overflow) {
     r.hdrEvents = r.eventCount;
 
     // Capacity-induced auto stop gets the red 3-blink warning; a manual
-    // hotkey stop stays silent (blue blink is only emitted at record start).
+    // hotkey stop stays silent.
     if (overflow)
         Storage::getInstance().pulseMacroRecFull();
 

@@ -71,13 +71,16 @@ public:
 	bool isAmbientWebConfigOverrideActive() const;
 
 	/** Macro hints, written on Core0 by InputMacro, read from Core1 NeoPico.
-	 *  hintPulseSeq arms the one-shot blue blink on recording start and
-	 *  playback end; recPulseSeq arms the one-shot red 3-blink on a
-	 *  capacity-induced recording stop. */
+	 *  hintPulseSeq arms the one-shot blue blink on playback end;
+	 *  recPulseSeq arms the one-shot red 3-blink on a capacity-induced
+	 *  recording stop. recordingActive drives the continuous blue blink
+	 *  while a recording is in progress. */
 	void pulseMacroHint();
 	uint32_t macroHintPulseSeq() const;
 	void pulseMacroRecFull();
 	uint32_t macroRecPulseSeq() const;
+	void setMacroRecordingActive(bool active);
+	bool isMacroRecordingActive() const;
 
 	/** Turbo toggle hint, written on Core0 by TurboInput when any button's
 	 *  turbo state is toggled on/off; read from Core1 NeoPico to arm the
@@ -99,6 +102,7 @@ private:
 	std::atomic<uint32_t> macroRecPulseSeqValue { 0 };
 	std::atomic<uint32_t> macroHintPulseSeqValue { 0 };
 	std::atomic<uint32_t> turboPulseSeqValue { 0 };
+	std::atomic<bool> macroRecordingActive { false };
 };
 
 #endif
