@@ -202,14 +202,16 @@ static void sBackPreset(int v) {
 // 索引0=无(NONE=-10), 1=上, 2=下, 3=左, 4=右, 5=方块(B3=7), 6=三角(B4=8),
 // 7=圆(B2=6), 8=叉(B1=5), 9=菜单(S1=13), 10=选项(S2=14),
 // 11=L1(=9), 12=L2(=11), 13=R1(=10), 14=R2(=12), 15=L3(=17), 16=R3(=18)
+// 17=OTHER(网页前端设置的菜单外映射项，显示但不可改，保存时保留原值)
 static const int BACK_ACTION_MAP[] = {-10, 1, 2, 3, 4, 7, 8, 6, 5, 14, 13, 9, 11, 10, 12, 17, 18};
 static const char* const N_BACK_ACTION[] = {
-  "无","上","下","左","右","方块","三角","圆","叉","菜单","选项","L1","L2","R1","R2","L3","R3"
+  "无","上","下","左","右","方块","三角","圆","叉","菜单","选项","L1","L2","R1","R2","L3","R3","OTHER"
 };
-static const int BACK_ACTION_COUNT = 17;
+static const int BACK_ACTION_COUNT = 18;
+static const int BACK_ACTION_OTHER_IDX = 17;
 static int backActionToIndex(int action) {
-  for (int i = 0; i < BACK_ACTION_COUNT; i++) if (BACK_ACTION_MAP[i] == action) return i;
-  return 0;
+  for (int i = 0; i < BACK_ACTION_COUNT - 1; i++) if (BACK_ACTION_MAP[i] == action) return i;
+  return BACK_ACTION_OTHER_IDX;
 }
 
 // 背键映射读取（从当前活动预设的 BackButtonAddonOptions）
@@ -238,37 +240,44 @@ static int gBackR2() {
   return backActionToIndex((int)bb.rightBack2Mapping.action);
 }
 // 背键映射写入（到当前活动预设）
+// OTHER 索引跳过写入，保留网页前端设置的菜单外映射值不被清空
 static void sBackEl(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.backButton.leftElMapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.backButton.leftElMapping.has_action = true;
   p.backButton.has_leftElMapping = true;
 }
 static void sBackEr(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.backButton.rightErMapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.backButton.rightErMapping.has_action = true;
   p.backButton.has_rightErMapping = true;
 }
 static void sBackL1(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.backButton.leftBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.backButton.leftBack1Mapping.has_action = true;
   p.backButton.has_leftBack1Mapping = true;
 }
 static void sBackR1(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.backButton.rightBack1Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.backButton.rightBack1Mapping.has_action = true;
   p.backButton.has_rightBack1Mapping = true;
 }
 static void sBackL2(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.backButton.leftBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.backButton.leftBack2Mapping.has_action = true;
   p.backButton.has_leftBack2Mapping = true;
 }
 static void sBackR2(int v) {
+  if (v == BACK_ACTION_OTHER_IDX) return;
   HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
   p.backButton.rightBack2Mapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.backButton.rightBack2Mapping.has_action = true;
@@ -367,14 +376,14 @@ static LiteOpt optHandle[] = {
   {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
   {"十字键模式", OPT_ENUM, 0, 2, 1, N_DPAD, 3, "", gDpad, sDpad},
 };
-// 背键映射子菜单：6 个背键，每个可选 17 种映射
+// 背键映射子菜单：6 个背键，每个可选 18 种映射（含 OTHER 占位）
 static LiteOpt optBackMap[] = {
-  {"左背键EL", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackEl, sBackEl},
-  {"右背键ER", OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackEr, sBackEr},
-  {"左背键1",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackL1, sBackL1},
-  {"右背键1",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackR1, sBackR1},
-  {"左背键2",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackL2, sBackL2},
-  {"右背键2",  OPT_ENUM, 0, 16, 1, N_BACK_ACTION, 17, "", gBackR2, sBackR2},
+  {"左背键EL", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackEl, sBackEl},
+  {"右背键ER", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackEr, sBackEr},
+  {"左背键1",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackL1, sBackL1},
+  {"右背键1",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackR1, sBackR1},
+  {"左背键2",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackL2, sBackL2},
+  {"右背键2",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackR2, sBackR2},
 };
 static const int BACK_MAP_COUNT = 6;
 static LiteOpt optStick[] = {
