@@ -149,13 +149,17 @@
 //--------------------------------------------------------------------
 
 // Size of buffer to hold descriptors and other data used for enumeration
-#define CFG_TUH_ENUMERATION_BUFSIZE 256
+#define CFG_TUH_ENUMERATION_BUFSIZE 512
 
 #define CFG_TUH_HUB                 1
 // max device support (excluding hub device)
-#define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
+// Raised to 6 so a full 4-port hub fits with headroom for a dongle that
+// re-enumerates before its old address is released.
+#define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 6 : 1) // hub typically has 4 ports
 
-#define CFG_TUH_HID 4
+// Raised to 8: caps HID interfaces across all devices; auth dongles often
+// expose more than one HID interface.
+#define CFG_TUH_HID 8
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
 #define CFG_TUH_HID_EPOUT_BUFSIZE   64
 
