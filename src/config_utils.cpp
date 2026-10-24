@@ -1775,7 +1775,7 @@ static bool loadConfigInner(Config& config)
 void ConfigUtils::load(Config& config)
 {
     // First try to load from Protobuf storage, if that fails fall back to legacy storage.
-    const bool loaded = loadConfigInner(config) | fromLegacyStorage(config);
+    const bool loaded = loadConfigInner(config) || fromLegacyStorage(config);
 
     if (!loaded)
     {
