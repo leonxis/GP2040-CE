@@ -12,6 +12,8 @@ void GamepadUSBHostListener::setup() {
 }
 
 void GamepadUSBHostListener::process() {
+    if ( _controller_host_enabled == false ) return;
+
     Gamepad *gamepad = Storage::getInstance().GetGamepad();
     gamepad->hasAnalogTriggers = true;
     gamepad->hasLeftAnalogStick = true;
