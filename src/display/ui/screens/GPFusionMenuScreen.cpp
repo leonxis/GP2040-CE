@@ -560,6 +560,9 @@ static uint16_t prevB = 0;
 static uint8_t prevD = 0;
 static unsigned long lastRepeat = 0;
 static uint8_t repeatMask = 0;
+static unsigned long lastB1Act = 0;   // B1 最后触发时间（消抖冷却）
+static unsigned long lastB2Act = 0;   // B2 最后触发时间（消抖冷却）
+static const unsigned long BTN_COOLDOWN_MS = 500;
 
 static LiteSection* currentSections() {
   switch (page) {
@@ -808,6 +811,7 @@ void GPFusionMenuScreen::init() {
   resetListAnim();
   lastSavedInputMode = (int)GOP().inputMode;
   prevB = 0; prevD = 0;
+  lastB1Act = 0; lastB2Act = 0;
   getRenderer()->clearScreen();
 }
 
@@ -841,6 +845,17 @@ int8_t GPFusionMenuScreen::update() {
   prevB = b; prevD = d;
 
   unsigned long now = getMillis();
+
+  // B1/B2 消抖冷却：500ms 内同一按键的重复边沿（机械抖动导致）被忽略，
+  // 防止按住时因抖动产生多重边沿触发连续返回/确认
+  if (bEdge & GAMEPAD_MASK_B1) {
+    if (now - lastB1Act < BTN_COOLDOWN_MS) bEdge &= ~GAMEPAD_MASK_B1;
+    else lastB1Act = now;
+  }
+  if (bEdge & GAMEPAD_MASK_B2) {
+    if (now - lastB2Act < BTN_COOLDOWN_MS) bEdge &= ~GAMEPAD_MASK_B2;
+    else lastB2Act = now;
+  }
 
   // slide animation tick
   if (animating) {
