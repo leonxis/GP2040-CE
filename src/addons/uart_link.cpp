@@ -7,7 +7,7 @@
 #include "hardware/gpio.h"
 
 // CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF)
-static uint16_t crc16_update(uint16_t crc, uint8_t b) {
+static uint16_t __not_in_flash_func(crc16_update)(uint16_t crc, uint8_t b) {
     crc ^= (uint16_t)b << 8;
     for (int i = 0; i < 8; i++) {
         crc = (crc & 0x8000) ? (uint16_t)((crc << 1) ^ 0x1021) : (uint16_t)(crc << 1);
@@ -48,7 +48,7 @@ void UARTLinkAddon::setup() {
     }
 }
 
-void UARTLinkAddon::sendInputFrame(uint16_t buttons, uint8_t dpad,
+void __not_in_flash_func(UARTLinkAddon::sendInputFrame)(uint16_t buttons, uint8_t dpad,
                                    uint16_t lx, uint16_t ly, uint16_t rx, uint16_t ry,
                                    uint8_t lt, uint8_t rt) {
     uint8_t frame[19];
@@ -145,14 +145,14 @@ void UARTLinkAddon::handleLinkStatus() {
     Storage::getInstance().setUartLinkStatus(true, bleConnected);
 }
 
-void UARTLinkAddon::process() {
+void __not_in_flash_func(UARTLinkAddon::process)() {
     if (!initialized) return;
     while (uart_is_readable(uart0)) {
         handleRxByte((uint8_t)uart_getc(uart0));
     }
 }
 
-void UARTLinkAddon::postprocess(bool sent) {
+void __not_in_flash_func(UARTLinkAddon::postprocess)(bool sent) {
     (void)sent;
     if (!initialized) return;
     // 微秒计时：整数毫秒在 960~1000Hz 循环抖动下会产生同毫秒双跳过（帧间隔~2ms），
