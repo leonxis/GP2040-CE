@@ -755,12 +755,12 @@ static void drawIconBmp24(int x, int y, const uint8_t* bmp) {
         px(x + col, y + row, 1);
 }
 
-// 折角选择框：固定框住中间图标（图标区 52..75 x 18..41，框比图标大 3px）
+// 折角选择框：固定框住中间图标（图标区 52..75 x 16..39，框比图标大 3px）
 static void drawSelectBrackets() {
-  fill(49, 15, 6, 2, 1); fill(49, 15, 2, 6, 1);   // 左上
-  fill(73, 15, 6, 2, 1); fill(77, 15, 2, 6, 1);   // 右上
-  fill(49, 43, 6, 2, 1); fill(49, 39, 2, 6, 1);   // 左下
-  fill(73, 43, 6, 2, 1); fill(77, 39, 2, 6, 1);   // 右下
+  fill(49, 13, 6, 2, 1); fill(49, 13, 2, 6, 1);   // 左上
+  fill(73, 13, 6, 2, 1); fill(77, 13, 2, 6, 1);   // 右上
+  fill(49, 41, 6, 2, 1); fill(49, 37, 2, 6, 1);   // 左下
+  fill(73, 41, 6, 2, 1); fill(77, 37, 2, 6, 1);   // 右下
 }
 
 // 左右实心箭头（纯静态提示，无任何逻辑）：左下 ◀ 尖(3,59) 底边 x=9 y55..63，右下 ▶ 镜像
@@ -776,7 +776,7 @@ static void drawNavArrows() {
 static void drawPageStrip(int off) {
   for (int k = -2; k <= 2; k++) {
     int idx = (page + k + NUM_PAGES) % NUM_PAGES;
-    drawIconBmp24(64 + k * 44 - 12 + off, 18, PAGE_ICONS[idx]);
+    drawIconBmp24(64 + k * 44 - 12 + off, 16, PAGE_ICONS[idx]);
   }
 }
 
@@ -914,8 +914,8 @@ int8_t GPFusionMenuScreen::update() {
       sel = (sel == 0) ? s.count - 1 : sel - 1;
       int ts = scroll;
       if (sel < ts) ts = sel;
-      if (sel >= ts + 3) ts = sel - 2;
-      if (ts > s.count - 3) ts = s.count - 3;
+      if (sel >= ts + 4) ts = sel - 3;
+      if (ts > s.count - 4) ts = s.count - 4;
       if (ts < 0) ts = 0;
       scroll = ts;
       startListAnim(sel, scroll);
@@ -924,8 +924,8 @@ int8_t GPFusionMenuScreen::update() {
       sel = (sel + 1) % s.count;
       int ts = scroll;
       if (sel < ts) ts = sel;
-      if (sel >= ts + 3) ts = sel - 2;
-      if (ts > s.count - 3) ts = s.count - 3;
+      if (sel >= ts + 4) ts = sel - 3;
+      if (ts > s.count - 4) ts = s.count - 4;
       if (ts < 0) ts = 0;
       scroll = ts;
       startListAnim(sel, scroll);
@@ -964,7 +964,7 @@ static void drawMenuPages() {
     float e = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
     off = animFrom + (int)((animTo - animFrom) * e);
   }
-  drawCJK(64, 0, PAGE_TITLES[page], 1, true);
+  drawCJK(64, 52, PAGE_TITLES[page], 1, true);
   drawPageStrip(off);
   drawSelectBrackets();
   drawNavArrows();
@@ -972,12 +972,11 @@ static void drawMenuPages() {
 
 static void drawOptions() {
   LiteSection& s = curSection();
-  drawCJK(64, 0, s.title, 1, true);
   // 选择框要跟随可视区：selY 是绝对位置，减去 scrollPx 才是屏幕上的位置
-  fill(0, 13 + (int)(selY - scrollPx), 128, 12, 1);
+  fill(0, (int)(selY - scrollPx), 128, 12, 1);
   for (int i = 0; i < s.count; i++) {
-    int y = 13 + i * 13 - (int)scrollPx;
-    if (y < 6 || y > 52) continue;
+    int y = i * 13 - (int)scrollPx;
+    if (y < -12 || y > 52) continue;
     LiteOpt* o = &s.opts[i];
     drawCJK(2, y, o->label, i == sel ? 0 : 1);
     if (o->type == OPT_SLIDER) {
@@ -988,11 +987,11 @@ static void drawOptions() {
     }
   }
   // scrollbar
-  if (s.count > 3) {
-    int th = 40 * 3 / s.count; if (th < 6) th = 6;
-    float range = (float)((s.count - 3) * 13);
-    int ty = 13 + (range > 0 ? (int)(scrollPx / range * (39 - th)) : 0);
-    fill(126, 13, 2, 39, 1);
+  if (s.count > 4) {
+    int th = 52 * 4 / s.count; if (th < 6) th = 6;
+    float range = (float)((s.count - 4) * 13);
+    int ty = (range > 0 ? (int)(scrollPx / range * (52 - th)) : 0);
+    fill(126, 0, 2, 52, 1);
     fill(126, ty, 2, th, 1);
   }
 }
