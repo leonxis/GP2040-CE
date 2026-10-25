@@ -12,7 +12,7 @@ void FocusModeAddon::setup() {
 	buttonLockMask = options.buttonLockMask;
 }
 
-void FocusModeAddon::process() {
+void __not_in_flash_func(FocusModeAddon::process)() {
 	Gamepad * gamepad = Storage::getInstance().GetGamepad();
 	const FocusModeOptions& options = Storage::getInstance().getAddonOptions().focusModeOptions;
 	// Override Enabled Focus-Mode Toggle OR the pin has been pressed

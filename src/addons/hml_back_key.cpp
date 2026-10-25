@@ -62,7 +62,7 @@ void HmlBackKeyAddon::reinit() {
     }
 }
 
-void HmlBackKeyAddon::preprocess() {
+void __not_in_flash_func(HmlBackKeyAddon::preprocess)() {
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     if (gamepad == nullptr) {
         return;
@@ -84,7 +84,7 @@ void HmlBackKeyAddon::preprocess() {
     outputScope_.endFrame();
 }
 
-void HmlBackKeyAddon::process() {
+void __not_in_flash_func(HmlBackKeyAddon::process)() {
     // 所有逻辑在 preprocess 中完成
 }
 

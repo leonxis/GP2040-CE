@@ -84,7 +84,7 @@ void TwoKeyTouchpadAddon::reinit() {
     markertouch_ = TWO_KEY_MARKER_INITIAL;
 }
 
-void TwoKeyTouchpadAddon::preprocess() {
+void __not_in_flash_func(TwoKeyTouchpadAddon::preprocess)() {
     sideActive_[0] = sideActive_[1] = false;
     if (!isValidPin(pin_left) || !isValidPin(pin_right)) return;
 
@@ -136,6 +136,6 @@ void TwoKeyTouchpadAddon::preprocess() {
     outputScope_.endFrame();
 }
 
-void TwoKeyTouchpadAddon::process() {
+void __not_in_flash_func(TwoKeyTouchpadAddon::process)() {
     // 所有逻辑在 preprocess() 完成
 }

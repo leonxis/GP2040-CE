@@ -183,11 +183,11 @@ void NRF24LinkAddon::submitInputFrame(uint16_t buttons, uint8_t dpad,
     submitPacket(payload);
 }
 
-void NRF24LinkAddon::process() {
+void __not_in_flash_func(NRF24LinkAddon::process)() {
     // 发射端单向输出，无接收处理需求（与 uart_link 一致策略）
 }
 
-void NRF24LinkAddon::postprocess(bool sent) {
+void __not_in_flash_func(NRF24LinkAddon::postprocess)(bool sent) {
     (void)sent;
     if (!initialized || !spi_) return;
 

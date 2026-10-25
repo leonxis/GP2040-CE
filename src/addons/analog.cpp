@@ -56,7 +56,7 @@ uint16_t AnalogInput::readPinRaw(Pin_t pinAdc) {
     return adc_read();
 }
 
-void AnalogInput::preprocess() {
+void __not_in_flash_func(AnalogInput::preprocess)() {
     for (int i = 0; i < ADC_COUNT; i++) {
         if (sticks_[i].has_x) {
             sticks_[i].raw_x = readPinRaw(sticks_[i].x_pin_adc);
@@ -67,7 +67,7 @@ void AnalogInput::preprocess() {
     }
 }
 
-void AnalogInput::process() {
+void __not_in_flash_func(AnalogInput::process)() {
     // UnifiedAnalogProcessorAddon owns stick shaping and output mapping.
 }
 

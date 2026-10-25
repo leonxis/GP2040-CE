@@ -80,7 +80,7 @@ TurboResolvedAction TurboInput::resolvePinToAction(Pin_t pin) {
     return action;
 }
 
-void TurboInput::process() {
+void __not_in_flash_func(TurboInput::process)() {
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     if (gamepad == nullptr) return;
     TurboOptions& options = Storage::getInstance().getAddonOptions().turboOptions;

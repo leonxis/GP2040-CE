@@ -103,7 +103,7 @@ bool UnifiedJoystickTravelKeyAddon::readRawStick(uint8_t stickNum, uint16_t& raw
     }
 }
 
-void UnifiedJoystickTravelKeyAddon::process() {
+void __not_in_flash_func(UnifiedJoystickTravelKeyAddon::process)() {
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     if (gamepad == nullptr) {
         return;

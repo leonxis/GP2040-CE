@@ -121,7 +121,7 @@ void LinearTriggerAddon::setup() {
     adc_gpio_init(LINEAR_R2_PIN);
 }
 
-void LinearTriggerAddon::preprocess() {
+void __not_in_flash_func(LinearTriggerAddon::preprocess)() {
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     if (gamepad == nullptr) {
         return;

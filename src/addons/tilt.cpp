@@ -34,7 +34,7 @@ void TiltInput::setup() {
 	}
 }
 
-void TiltInput::preprocess()
+void __not_in_flash_func(TiltInput::preprocess)()
 {
 	Gamepad* gamepad = Storage::getInstance().GetGamepad();
 	Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;
@@ -58,7 +58,7 @@ void TiltInput::preprocess()
 	gamepad->state.dpad = gamepadState;
 }
 
-void TiltInput::process()
+void __not_in_flash_func(TiltInput::process)()
 {
 	const TiltOptions& options = Storage::getInstance().getAddonOptions().tiltOptions;
 	

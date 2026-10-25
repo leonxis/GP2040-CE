@@ -80,7 +80,7 @@ void SNESpadInput::setup() {
     }
 }
 
-void SNESpadInput::process() {
+void __not_in_flash_func(SNESpadInput::process)() {
     if (nextTimer < getMillis()) {
         snes->poll();
 

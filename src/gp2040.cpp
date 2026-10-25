@@ -906,7 +906,7 @@ void GP2040::debounceGpioGetAll() {
 	}
 }
 
-void GP2040::run() {
+void __not_in_flash_func(GP2040::run)() {
 	bool configMode = DriverManager::getInstance().isConfigMode();
 	GPDriver * inputDriver = DriverManager::getInstance().getDriver();
 	Gamepad * gamepad = Storage::getInstance().GetGamepad();

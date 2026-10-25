@@ -65,7 +65,7 @@ void RotaryEncoderInput::setup()
     }
 }
 
-void RotaryEncoderInput::process()
+void __not_in_flash_func(RotaryEncoderInput::process)()
 {
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
 
