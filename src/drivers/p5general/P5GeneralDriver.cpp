@@ -102,7 +102,7 @@ bool P5GeneralDriver::getDongleAuthRequired() {
     return true;
 }
 
-bool P5GeneralDriver::process(Gamepad * gamepad) {
+bool __not_in_flash_func(P5GeneralDriver::process)(Gamepad * gamepad) {
     processDongle();
 
     if (!p5GeneralAuthData || !p5GeneralAuthData->dongle_ready) {

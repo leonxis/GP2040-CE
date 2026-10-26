@@ -175,7 +175,7 @@ static void resetMainLoopGateTiming() {
 	main_loop_gate_stable_completions = 0;
 }
 
-static MainLoopGateCompletionResult recordMainLoopGateCompletion(
+static MainLoopGateCompletionResult __not_in_flash_func(recordMainLoopGateCompletion)(
 	const USBMainGamepadGateSnapshot& snapshot) {
 	const uint32_t phaseUs =
 		snapshot.completeTimeUs - snapshot.completeSofTimeUs;
@@ -261,7 +261,7 @@ static void resetMainLoopGateForSnapshot(
 			: MainLoopGateState::WAIT_MOUNT;
 }
 
-static MainLoopGateAction getMainLoopGateAction(bool configMode) {
+static MainLoopGateAction __not_in_flash_func(getMainLoopGateAction)(bool configMode) {
 	const bool gateEnabledNow = (!configMode && main_loop_gate_enabled);
 	if (!gateEnabledNow) {
 		main_loop_gate_runtime_enabled = false;
@@ -398,7 +398,7 @@ static MainLoopGateAction getMainLoopGateAction(bool configMode) {
 	}
 }
 
-static bool mainLoopGateReportAttempted(bool submitted) {
+static bool __not_in_flash_func(mainLoopGateReportAttempted)(bool submitted) {
 	if (!main_loop_gate_runtime_enabled) {
                 return submitted;
 	}
@@ -433,7 +433,7 @@ static bool mainLoopGateReportAttempted(bool submitted) {
         return false;
 }
 
-static bool mainLoopGateEventPending() {
+static bool __not_in_flash_func(mainLoopGateEventPending)() {
 	USBMainGamepadGateSnapshot snapshot = {};
 	usb_get_main_gamepad_gate_snapshot(&snapshot);
 	if (snapshot.epoch != main_loop_gate_epoch) {
@@ -870,7 +870,7 @@ void GP2040::debounceGpioGetAll() {
 	}
 }
 
-void GP2040::run() {
+void __not_in_flash_func(GP2040::run)() {
 	bool configMode = DriverManager::getInstance().isConfigMode();
 	GPDriver * inputDriver = DriverManager::getInstance().getDriver();
 	Gamepad * gamepad = Storage::getInstance().GetGamepad();
