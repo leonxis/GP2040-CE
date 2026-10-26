@@ -198,7 +198,7 @@ static void beginMainGamepadUSBEpoch(bool mounted) {
 	restore_interrupts(irqState);
 }
 
-void usb_get_main_gamepad_gate_snapshot(USBMainGamepadGateSnapshot* snapshot) {
+void __not_in_flash_func(usb_get_main_gamepad_gate_snapshot)(USBMainGamepadGateSnapshot* snapshot) {
 	if (snapshot == nullptr) {
 		return;
 	}
@@ -224,7 +224,7 @@ void usb_get_main_gamepad_gate_snapshot(USBMainGamepadGateSnapshot* snapshot) {
 	restore_interrupts(irqState);
 }
 
-bool usb_mark_main_gamepad_report_submitted(uint32_t expectedEpoch) {
+bool __not_in_flash_func(usb_mark_main_gamepad_report_submitted)(uint32_t expectedEpoch) {
 	uint32_t irqState = save_and_disable_interrupts();
 	const bool canArm =
 		usb_mounted &&
@@ -253,7 +253,7 @@ void usb_notify_main_gamepad_submit_failed(uint32_t expectedEpoch) {
 	restore_interrupts(irqState);
 }
 
-void usb_notify_main_gamepad_sof(uint32_t frameNumber) {
+void __not_in_flash_func(usb_notify_main_gamepad_sof)(uint32_t frameNumber) {
 	uint32_t irqState = save_and_disable_interrupts();
 	if (usb_mounted && !usb_suspended) {
 		usb_main_gamepad_sof_frame = frameNumber;
@@ -280,7 +280,7 @@ void usb_main_gamepad_hid_reset(uint8_t rhport) {
 	usb_notify_main_gamepad_usb_reset();
 }
 
-void usb_notify_main_gamepad_poll_done_success(void) {
+void __not_in_flash_func(usb_notify_main_gamepad_poll_done_success)(void) {
 	uint32_t irqState = save_and_disable_interrupts();
 	if (usb_mounted &&
 		usb_main_gamepad_report_armed &&
@@ -296,7 +296,7 @@ void usb_notify_main_gamepad_poll_done_success(void) {
 	restore_interrupts(irqState);
 }
 
-void usb_notify_main_gamepad_poll_done_failed(void) {
+void __not_in_flash_func(usb_notify_main_gamepad_poll_done_failed)(void) {
 	uint32_t irqState = save_and_disable_interrupts();
 	if (usb_main_gamepad_report_armed &&
 		(usb_main_gamepad_armed_epoch == usb_main_gamepad_epoch)) {
@@ -320,7 +320,7 @@ const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *driver_count) {
 	return DriverManager::getInstance().getDriver()->get_class_driver();
 }
 
-uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
+uint16_t __not_in_flash_func(tud_hid_get_report_cb)(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
 	if (isCompositeInterface(itf)) {
 		memset(buffer, 0, reqlen);
 		return reqlen;
@@ -332,7 +332,7 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 
 // Invoked when received SET_REPORT control request or
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
-void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize) {
+void __not_in_flash_func(tud_hid_set_report_cb)(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize) {
 	if (isCompositeInterface(itf)) {
 		return;
 	}
@@ -344,7 +344,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 // perturbing main-loop cadence.
 // XINPUT / XINPUTB: main gamepad uses vendor IN, not HID; do not count any HID
 // completes (including composite keyboard/mouse) for the gate.
-void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len) {
+void __not_in_flash_func(tud_hid_report_complete_cb)(uint8_t instance, uint8_t const* report, uint16_t len) {
 	(void)report;
 	(void)len;
 	if (instance != 0) {
@@ -358,7 +358,7 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_
 	usb_notify_main_gamepad_poll_done_success();
 }
 
-void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, uint8_t const* report, uint16_t xferred_bytes) {
+void __not_in_flash_func(tud_hid_report_failed_cb)(uint8_t instance, hid_report_type_t report_type, uint8_t const* report, uint16_t xferred_bytes) {
 	(void)report;
 	(void)xferred_bytes;
 	if (instance != 0 || report_type != HID_REPORT_TYPE_INPUT) {
