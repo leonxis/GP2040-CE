@@ -98,7 +98,7 @@ uint8_t DualDirectionalInput::filterToFourWayModeDDI(uint8_t dpad)
 }
 
 
-void __not_in_flash_func(DualDirectionalInput::preprocess)()
+void DualDirectionalInput::preprocess()
 {
     const DualDirectionalOptions& options = Storage::getInstance().getAddonOptions().dualDirectionalOptions;
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
@@ -121,7 +121,7 @@ void __not_in_flash_func(DualDirectionalInput::preprocess)()
     SOCDDualClean(socdMode);
 }
 
-void __not_in_flash_func(DualDirectionalInput::process)()
+void DualDirectionalInput::process()
 {
     const DualDirectionalOptions& options = Storage::getInstance().getAddonOptions().dualDirectionalOptions;
     Gamepad * gamepad = Storage::getInstance().GetGamepad();

@@ -53,7 +53,7 @@ void SliderSOCDInput::reinit()
     this->setup();
 }
 
-void __not_in_flash_func(SliderSOCDInput::process)()
+void SliderSOCDInput::process()
 {
     // Get Slider State
     SOCDMode socdState = read();

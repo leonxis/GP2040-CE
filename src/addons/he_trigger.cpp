@@ -91,7 +91,7 @@ uint16_t HETriggerAddon::emaSmoothing(uint16_t value, uint16_t previous) {
     return ((emaSmoothingFactor*ema_value) + ((1.0f-emaSmoothingFactor) * ema_previous)) * ADC_MAX;
 }
 
-void __not_in_flash_func(HETriggerAddon::preprocess)() {
+void HETriggerAddon::preprocess() {
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
     HETriggerOptions & options = Storage::getInstance().getAddonOptions().heTriggerOptions;
     for (uint8_t he = 0; he < 32; he++) {

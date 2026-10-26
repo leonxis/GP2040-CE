@@ -68,7 +68,7 @@ uint8_t ReverseInput::input(uint32_t valueMask, uint16_t buttonMask, uint16_t bu
     return (valueMask ? (invert ? buttonMaskReverse : buttonMask) : 0);
 }
 
-void __not_in_flash_func(ReverseInput::process)()
+void ReverseInput::process()
 {
     // Update Reverse State
     update();

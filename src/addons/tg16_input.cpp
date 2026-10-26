@@ -152,7 +152,7 @@ void TG16padInput::updateButtons(uint16_t data)
     rightY = GAMEPAD_JOYSTICK_MID;
 }
 
-void __not_in_flash_func(TG16padInput::process)()
+void TG16padInput::process()
 {
     if (nextTimer < getMillis())
     {
