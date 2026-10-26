@@ -320,7 +320,7 @@ const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *driver_count) {
 	return DriverManager::getInstance().getDriver()->get_class_driver();
 }
 
-uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
+uint16_t __not_in_flash_func(tud_hid_get_report_cb)(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
 	if (isCompositeInterface(itf)) {
 		memset(buffer, 0, reqlen);
 		return reqlen;
@@ -332,7 +332,7 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 
 // Invoked when received SET_REPORT control request or
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
-void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize) {
+void __not_in_flash_func(tud_hid_set_report_cb)(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize) {
 	if (isCompositeInterface(itf)) {
 		return;
 	}
@@ -344,7 +344,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 // perturbing main-loop cadence.
 // XINPUT / XINPUTB: main gamepad uses vendor IN, not HID; do not count any HID
 // completes (including composite keyboard/mouse) for the gate.
-void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len) {
+void __not_in_flash_func(tud_hid_report_complete_cb)(uint8_t instance, uint8_t const* report, uint16_t len) {
 	(void)report;
 	(void)len;
 	if (instance != 0) {
@@ -358,7 +358,7 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_
 	usb_notify_main_gamepad_poll_done_success();
 }
 
-void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, uint8_t const* report, uint16_t xferred_bytes) {
+void __not_in_flash_func(tud_hid_report_failed_cb)(uint8_t instance, hid_report_type_t report_type, uint8_t const* report, uint16_t xferred_bytes) {
 	(void)report;
 	(void)xferred_bytes;
 	if (instance != 0 || report_type != HID_REPORT_TYPE_INPUT) {

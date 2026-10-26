@@ -1,0 +1,14 @@
+/* 在 SDK 默认 EXCLUDE_FILE 列表基础上，追加 tinyusb 设备栈对象文件，
+ * 使其 .text/.rodata 落入 .data 段（RAM AT> RAM_STORE），从 SRAM 执行，
+ * 避免 USB 设备栈 IRQ/传输路径与 Core1 绘制代码抢占 QSPI Flash 总线。
+ * 覆盖文件：default_text_excludes.incl（经 pico_add_linker_script_override_path）
+ */
+*(EXCLUDE_FILE(*libgcc.a: *libc.a: *lib*_a-mem*.o *libm.a:
+    */tinyusb/src/tusb.c.o
+    */tinyusb/src/common/tusb_fifo.c.o
+    */tinyusb/src/device/*.o
+    */tinyusb/src/class/*/*_device.c.o
+    */tinyusb/src/portable/raspberrypi/rp2040/dcd_rp2040.c.o
+    */tinyusb/src/portable/raspberrypi/rp2040/rp2040_usb.c.o
+    */tinyusb/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c.o
+  ) .text*)
