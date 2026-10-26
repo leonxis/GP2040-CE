@@ -50,7 +50,7 @@ bool MCP3208ADCAddon::getRawStickForWebConfig(
     return true;
 }
 
-bool MCP3208ADCAddon::getRawStickForProcessor(
+bool __not_in_flash_func(MCP3208ADCAddon::getRawStickForProcessor)(
     uint8_t stickNum,
     uint16_t& x,
     uint16_t& y,
@@ -78,7 +78,7 @@ bool MCP3208ADCAddon::getRawStickForProcessor(
     return true;
 }
 
-bool MCP3208ADCAddon::getRawDividerForProcessor(
+bool __not_in_flash_func(MCP3208ADCAddon::getRawDividerForProcessor)(
     uint16_t& leftValue,
     uint16_t& rightValue,
     uint16_t& adcMax,
@@ -133,7 +133,7 @@ void MCP3208ADCAddon::setup() {
     process();
 }
 
-bool MCP3208ADCAddon::prepareSPITransaction() {
+bool __not_in_flash_func(MCP3208ADCAddon::prepareSPITransaction)() {
     if (!spi_ || !spiOk_ || !spiProfile_.valid()) {
         return false;
     }
@@ -141,7 +141,7 @@ bool MCP3208ADCAddon::prepareSPITransaction() {
     return true;
 }
 
-void MCP3208ADCAddon::process() {
+void __not_in_flash_func(MCP3208ADCAddon::process)() {
     if (!prepareSPITransaction()) {
         return;
     }
@@ -187,7 +187,7 @@ void MCP3208ADCAddon::process() {
     publishStickSnapshot(xValues, yValues);
 }
 
-bool MCP3208ADCAddon::readChannelsBatched(
+bool __not_in_flash_func(MCP3208ADCAddon::readChannelsBatched)(
     const uint8_t* channels,
     uint8_t count,
     uint16_t* values
@@ -223,7 +223,7 @@ bool MCP3208ADCAddon::readChannelsBatched(
     return true;
 }
 
-void MCP3208ADCAddon::publishStickSnapshot(
+void __not_in_flash_func(MCP3208ADCAddon::publishStickSnapshot)(
     const uint16_t* xValues,
     const uint16_t* yValues
 ) {

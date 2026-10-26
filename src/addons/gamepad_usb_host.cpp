@@ -20,6 +20,6 @@ void GamepadUSBHostAddon::setup()
     ((GamepadUSBHostListener*)listener)->setup();
 }
 
-void GamepadUSBHostAddon::preprocess() {
+void __not_in_flash_func(GamepadUSBHostAddon::preprocess)() {
     ((GamepadUSBHostListener*)listener)->process();
 }

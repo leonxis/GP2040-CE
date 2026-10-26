@@ -105,7 +105,7 @@ void BackButtonDividerAddon::reinit() {
     ActionMappingCommon::resetDebounceBool(rightErDebounce_, false);
 }
 
-void BackButtonDividerAddon::preprocess() {
+void __not_in_flash_func(BackButtonDividerAddon::preprocess)() {
     if (!adcInitialized) {
         return;
     }
@@ -170,7 +170,7 @@ void BackButtonDividerAddon::preprocess() {
     outputScope_.endFrame();
 }
 
-void BackButtonDividerAddon::process() {
+void __not_in_flash_func(BackButtonDividerAddon::process)() {
     // 所有逻辑在 preprocess 中完成
 }
 

@@ -150,7 +150,7 @@ void ADS8332ADCAddon::reinit() {
     process();
 }
 
-bool ADS8332ADCAddon::prepareSPITransaction() {
+bool __not_in_flash_func(ADS8332ADCAddon::prepareSPITransaction)() {
     if (!spi_ || !spiOk_ || !spiProfile_.valid()) {
         return false;
     }
@@ -161,7 +161,7 @@ bool ADS8332ADCAddon::prepareSPITransaction() {
     return true;
 }
 
-void ADS8332ADCAddon::process() {
+void __not_in_flash_func(ADS8332ADCAddon::process)() {
     if (!spiOk_ || !prepareSPITransaction()) {
         return;
     }
@@ -190,7 +190,7 @@ void ADS8332ADCAddon::process() {
     }
 }
 
-bool ADS8332ADCAddon::readAllChannelsOptimizedUnique(
+bool __not_in_flash_func(ADS8332ADCAddon::readAllChannelsOptimizedUnique)(
     const uint8_t* channels,
     uint8_t count,
     uint16_t* sampledValues
@@ -222,7 +222,7 @@ bool ADS8332ADCAddon::readAllChannelsOptimizedUnique(
     return true;
 }
 
-void ADS8332ADCAddon::publishStickSnapshot(
+void __not_in_flash_func(ADS8332ADCAddon::publishStickSnapshot)(
     const uint16_t* sampledValues
 ) {
     const uint8_t currentIndex =
@@ -274,7 +274,7 @@ bool ADS8332ADCAddon::getRawStickForWebConfig(uint8_t stickNum, uint32_t& x, uin
     return true;
 }
 
-bool ADS8332ADCAddon::getRawStickForProcessor(
+bool __not_in_flash_func(ADS8332ADCAddon::getRawStickForProcessor)(
     uint8_t stickNum,
     uint16_t& x,
     uint16_t& y,
@@ -302,7 +302,7 @@ bool ADS8332ADCAddon::getRawStickForProcessor(
     return true;
 }
 
-bool ADS8332ADCAddon::getRawDividerForProcessor(
+bool __not_in_flash_func(ADS8332ADCAddon::getRawDividerForProcessor)(
     uint16_t& leftValue,
     uint16_t& rightValue,
     uint16_t& adcMax,

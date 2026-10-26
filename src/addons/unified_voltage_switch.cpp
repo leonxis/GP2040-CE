@@ -76,7 +76,7 @@ void UnifiedVoltageSwitchAddon::buildMaps() {
     }
 }
 
-void UnifiedVoltageSwitchAddon::preprocess() {
+void __not_in_flash_func(UnifiedVoltageSwitchAddon::preprocess)() {
     // Must run in preprocess (not process) so outputs are merged before hotkey() and before
     // addons that only read state in preprocess (e.g. InputMacro). Touchpad/back-button addons
     // already use preprocess for the same reason.

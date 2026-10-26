@@ -110,11 +110,11 @@ void KeyLayerAddon::accumulate(MaskAcc& m,
     }
 }
 
-void KeyLayerAddon::process() {
+void __not_in_flash_func(KeyLayerAddon::process)() {
     // 所有逻辑在 preprocess() 完成
 }
 
-void KeyLayerAddon::preprocess() {
+void __not_in_flash_func(KeyLayerAddon::preprocess)() {
     Gamepad* gp = Storage::getInstance().GetGamepad();
     if (gp == nullptr) return;
 

@@ -11,7 +11,7 @@ void GamepadUSBHostListener::setup() {
 #endif
 }
 
-void GamepadUSBHostListener::process() {
+void __not_in_flash_func(GamepadUSBHostListener::process)() {
     if ( _controller_host_enabled == false ) return;
 
     Gamepad *gamepad = Storage::getInstance().GetGamepad();

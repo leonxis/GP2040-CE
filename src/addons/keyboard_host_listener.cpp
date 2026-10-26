@@ -78,7 +78,7 @@ void KeyboardHostListener::setup() {
   mouseActive = false;
 }
 
-void KeyboardHostListener::process() {
+void __not_in_flash_func(KeyboardHostListener::process)() {
   Gamepad *gamepad = Storage::getInstance().GetGamepad();
   if (_keyboard_host_mounted == true || _mouse_host_mounted == true) {
     gamepad->state.dpad     |= _keyboard_host_state.dpad;
@@ -172,7 +172,7 @@ uint8_t KeyboardHostListener::getKeycodeFromModifier(uint8_t modifier) {
 	return 0;
 }
 
-void KeyboardHostListener::preprocess_report()
+void __not_in_flash_func(KeyboardHostListener::preprocess_report)()
 {
 
   _keyboard_host_state.dpad = 0;
@@ -186,7 +186,7 @@ void KeyboardHostListener::preprocess_report()
 }
 
 // convert hid keycode to ascii and print via usb device CDC (ignore non-printable)
-void KeyboardHostListener::process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report)
+void __not_in_flash_func(KeyboardHostListener::process_kbd_report)(uint8_t dev_addr, hid_keyboard_report_t const *report)
 {
   preprocess_report();
 
@@ -239,7 +239,7 @@ uint16_t KeyboardHostListener::scaleMouseToJoystick(int8_t mouseVal) {
   return std::clamp(result, GAMEPAD_JOYSTICK_MIN_I32, GAMEPAD_JOYSTICK_MAX_I32);
 }
 
-void KeyboardHostListener::process_mouse_report(uint8_t dev_addr, hid_mouse_report_t const * report)
+void __not_in_flash_func(KeyboardHostListener::process_mouse_report)(uint8_t dev_addr, hid_mouse_report_t const *report)
 {
   preprocess_report();
 
