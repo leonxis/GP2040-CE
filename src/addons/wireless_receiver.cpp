@@ -60,7 +60,7 @@ void WirelessReceiverAddon::setup() {
     ledState = 0;   // 强制 process() 首轮即按真实链路点灯（避免上电后 5s 无灯）
 }
 
-void WirelessReceiverAddon::handlePacket(const uint8_t *pkt) {
+void __not_in_flash_func(WirelessReceiverAddon::handlePacket)(const uint8_t *pkt) {
     uint8_t mode = pkt[0];
     GamepadOptions &opts = Storage::getInstance().getGamepadOptions();
 
@@ -113,7 +113,7 @@ void WirelessReceiverAddon::handlePacket(const uint8_t *pkt) {
     lastPacketTime = to_ms_since_boot(get_absolute_time());
 }
 
-void WirelessReceiverAddon::preprocess() {
+void __not_in_flash_func(WirelessReceiverAddon::preprocess)() {
     uint8_t pkt[NRF24_PAYLOAD];
     bool got = false;
     while (radio.readPacket(pkt)) {
@@ -141,7 +141,7 @@ void WirelessReceiverAddon::preprocess() {
     }
 }
 
-void WirelessReceiverAddon::process() {
+void __not_in_flash_func(WirelessReceiverAddon::process)() {
     uint32_t now = to_ms_since_boot(get_absolute_time());
     // paired 是写入 flash 的持久标志（配对一次后永不清除），不能代表实时连接；
     // 绿灯必须由"1s 内确实收到 nRF 包"驱动，否则发射端关机/超距/切 BLE 时会假常亮。

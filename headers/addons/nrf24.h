@@ -7,6 +7,7 @@
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
+#include "pico/platform.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -59,7 +60,7 @@ public:
     return false;
   }
 
-  bool readPacket(uint8_t *data) {
+  bool __not_in_flash_func(readPacket)(uint8_t *data) {
     uint8_t st = readReg(0x07);
     if (!(st & 0x40)) return false;
     writeReg(0x07, 0x40);
@@ -94,7 +95,7 @@ public:
 private:
   spi_inst_t *_spi;
   uint _csn, _ce;
-  void writeReg(uint8_t reg, uint8_t val) {
+  void __not_in_flash_func(writeReg)(uint8_t reg, uint8_t val) {
     uint8_t buf[2] = {(uint8_t)(0x20 | reg), val};
     gpio_put(_csn, 0);
     spi_write_blocking(_spi, buf, 2);
@@ -108,7 +109,7 @@ private:
     spi_write_blocking(_spi, buf, 1 + len);
     gpio_put(_csn, 1);
   }
-  uint8_t readReg(uint8_t reg) {
+  uint8_t __not_in_flash_func(readReg)(uint8_t reg) {
     uint8_t buf[2] = {reg, 0};
     uint8_t out[2];
     gpio_put(_csn, 0);
