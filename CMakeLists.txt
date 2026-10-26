@@ -308,6 +308,10 @@ ${PROTO_OUTPUT_DIR}/config.pb.c
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PROJECT_NAME}_${CMAKE_PROJECT_VERSION}_${GP2040_BOARDCONFIG})
 
+# 链接脚本 override：将 tinyusb 设备栈（tusb/device/class *_device/dcd）的
+# .text 从 Flash 排除，整体落入 SRAM 执行（见 cmake/linker_overrides/）
+pico_add_linker_script_override_path(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/cmake/linker_overrides)
+
 pico_set_program_name(GP2040-CE "GP2040-CE")
 pico_set_program_version(GP2040-CE ${GIT_REPO_VERSION})
 
