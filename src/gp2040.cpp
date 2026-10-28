@@ -651,7 +651,8 @@ void GP2040::setup() {
 		if (KeyLayerAddon* kl = (KeyLayerAddon*)addons.GetAddon(KEY_LAYER_ADDON_NAME)) {
 			kl->bindExternal(
 				(BackButtonDividerAddon*)addons.GetAddon(BACK_BUTTON_DIVIDER_ADDON_NAME),
-				(TwoKeyTouchpadAddon*)addons.GetAddon(TWO_KEY_TOUCHPAD_ADDON_NAME));
+				(TwoKeyTouchpadAddon*)addons.GetAddon(TWO_KEY_TOUCHPAD_ADDON_NAME),
+				(UnifiedVoltageSwitchAddon*)addons.GetAddon(UnifiedVoltageSwitchName));
 		}
 	}
 	// 须在背键/触摸板/FN 电压映射之后：preprocess 内合并 ADC 与映射的 L2/R2（含 lt/rt）

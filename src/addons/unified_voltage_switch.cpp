@@ -33,6 +33,12 @@ void UnifiedVoltageSwitchAddon::reinit() {
     ActionMappingCommon::resetDebounceLevel(rightDebounce_, -1);
 }
 
+bool UnifiedVoltageSwitchAddon::isLevelStable(uint8_t side, uint8_t level) const {
+    const ActionMappingCommon::DebounceLevelState& state =
+        (side == 0) ? leftDebounce_ : rightDebounce_;
+    return state.stable >= 0 && static_cast<uint8_t>(state.stable) == level;
+}
+
 uint16_t UnifiedVoltageSwitchAddon::scaledThreshold(float ratio, uint16_t adcMax) {
     const float scaled = ratio * static_cast<float>(adcMax);
     if (scaled < 0.0f) {

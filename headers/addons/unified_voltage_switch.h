@@ -18,6 +18,9 @@ public:
     virtual void reinit();
     virtual std::string name() { return UnifiedVoltageSwitchName; }
 
+    // 供按键映射层插件查询激活器电平：side 0=左 1=右，level 0..3 为分压档位
+    bool isLevelStable(uint8_t side, uint8_t level) const;
+
 private:
     void buildMaps();
     static uint16_t scaledThreshold(float ratio, uint16_t adcMax);
