@@ -46,6 +46,9 @@ export default function HardwareConfig() {
 			i2c0: {
 				enabled: 0,
 			},
+			i2c1: {
+				enabled: 0,
+			},
 			spi0: {
 				enabled: 0,
 			},
@@ -79,11 +82,6 @@ export default function HardwareConfig() {
 		alBreathBrightnessCustomX: 1,
 		ambientLightBreathSpeed: 0.1,
 	});
-	const [bluetoothLinkEnabled, setBluetoothLinkEnabled] = useState(0);
-	const [nrf24LinkEnabled, setNrf24LinkEnabled] = useState(0);
-	// 体感（LSM6DSR）总开关：来自体感设置页 AddonsOptions，与板载无线共同决定 SPI1 使能
-	const [lsm6AddonEnabled, setLsm6AddonEnabled] = useState(0);
-
 	const [hostSaveMessage, setHostSaveMessage] = useState('');
 	const [ledSaveMessage, setLedSaveMessage] = useState('');
 	const [colorPickerTarget, setColorPickerTarget] = useState<HTMLElement | null>(null);
@@ -93,7 +91,7 @@ export default function HardwareConfig() {
 	useEffect(() => {
 		async function fetchData() {
 			try {
-				// 串行请求：i2c0/显示启用时后端 httpd 响应变慢，并发请求易导致部分接口失败返回 undefined，
+				// 串行请求：I2C1/显示启用时后端 httpd 响应变慢，并发请求易导致部分接口失败返回 undefined，
 				// 进而触发渲染崩溃。串行可降低后端并发压力，且任一失败不影响后续请求。
 				const peripheral = await WebApi.getPeripheralOptions();
 				const display = await WebApi.getDisplayOptions();
@@ -101,7 +99,6 @@ export default function HardwareConfig() {
 				const led = await WebApi.getLedOptions();
 				const ambient = await WebApi.getAmbientOptions();
 				const addons = await WebApi.getAddonsOptions();
-				const gamepad = await WebApi.getGamepadOptions();
 
 				setPeripheralOptions(peripheral);
 				setDisplayOptions(display || { enabled: 0 });
@@ -124,15 +121,15 @@ export default function HardwareConfig() {
 						: 0
 				);
 
-				// 同步显示屏和I2C0的启用状态
+				// 同步显示屏和I2C1的启用状态（HML 显示屏走 I2C1）
 				// 如果两者不一致，以显示屏的enabled为准
-				if (display?.enabled !== peripheral?.peripheral?.i2c0?.enabled) {
+				if (display?.enabled !== peripheral?.peripheral?.i2c1?.enabled) {
 					setPeripheralOptions((prev) => ({
 						...prev,
 						peripheral: {
 							...prev.peripheral,
-							i2c0: {
-								...prev.peripheral?.i2c0,
+							i2c1: {
+								...prev.peripheral?.i2c1,
 								enabled: display?.enabled ?? 0,
 							},
 						},
@@ -173,30 +170,6 @@ export default function HardwareConfig() {
 						),
 					),
 				});
-		// 蓝牙模式 / nRF24 直连开关：默认关闭（无值为 0）
-		setBluetoothLinkEnabled(Number(gamepad?.bluetoothLinkEnabled) ? 1 : 0);
-		const nrf24Enabled = Number(gamepad?.nrf24LinkEnabled) ? 1 : 0;
-		setNrf24LinkEnabled(nrf24Enabled);
-		// 体感总开关（与体感设置页同一 AddonsOptions 字段）
-		const lsm6Enabled = Number(addons?.LSM6DSRAddonEnabled) ? 1 : 0;
-		setLsm6AddonEnabled(lsm6Enabled);
-
-		// SPI1 由 nRF24 直连（板载无线）与 LSM6DSR 体感共享：
-		// 两者任一开启即保持 SPI1 使能，全部关闭才关闭；与设备当前值不一致时同步。
-		// SPI0 固定分配给 MCP3208 摇杆 ADC，本页不改其使能位。
-		const spi1Enabled = nrf24Enabled || lsm6Enabled ? 1 : 0;
-		if (spi1Enabled !== Number(peripheral?.peripheral?.spi1?.enabled)) {
-			setPeripheralOptions((prev) => ({
-				...prev,
-				peripheral: {
-					...prev.peripheral,
-					spi1: {
-						...prev.peripheral?.spi1,
-						enabled: spi1Enabled,
-					},
-				},
-			}));
-		}
 			} catch (error) {
 				console.error('Failed to fetch hardware config:', error);
 			} finally {
@@ -211,7 +184,7 @@ export default function HardwareConfig() {
 			// Get current peripheral options to preserve other settings
 			const currentPeripheralOptions = await WebApi.getPeripheralOptions();
 			
-			// Prepare data to save, preserving existing settings and updating usb0.enabled 和 i2c0.enabled
+			// Prepare data to save, preserving existing settings and updating usb0.enabled 和 i2c1.enabled
 			const dataToSave = {
 				...currentPeripheralOptions,
 				peripheral: {
@@ -220,21 +193,20 @@ export default function HardwareConfig() {
 						...currentPeripheralOptions.peripheral.usb0,
 						enabled: peripheralOptions?.peripheral?.usb0?.enabled || 0,
 					},
-					i2c0: {
-					...currentPeripheralOptions.peripheral.i2c0,
-					enabled: peripheralOptions?.peripheral?.i2c0?.enabled || 0,
+					// HML 显示屏走 I2C1（与 I2C0 无关）
+					i2c1: {
+						...currentPeripheralOptions.peripheral.i2c1,
+						enabled: displayOptions?.enabled || 0,
+					},
+					// SPI0/SPI1 由板载硬件固定使用，保留设备当前值
+					spi0: {
+						...currentPeripheralOptions.peripheral.spi0,
+					},
+					spi1: {
+						...currentPeripheralOptions.peripheral.spi1,
+					},
 				},
-				// SPI0 固定分配给 MCP3208，保留设备当前值
-				spi0: {
-					...currentPeripheralOptions.peripheral.spi0,
-				},
-				// SPI1 = 板载无线(nRF24) || 体感(LSM6DSR)：任一开启即使能，全关才关闭
-				spi1: {
-					...currentPeripheralOptions.peripheral.spi1,
-					enabled: nrf24LinkEnabled || lsm6AddonEnabled ? 1 : 0,
-				},
-			},
-		};
+			};
 			
 			// 设备 HTTP POST 共用单缓冲区，须顺序提交
 			await WebApi.setPeripheralOptions(dataToSave);
@@ -244,14 +216,6 @@ export default function HardwareConfig() {
 				enableKey: twoKeyTouchpadOptions?.enableKey,
 			});
 			await WebApi.setAddonsOptions({ reportRate, cpuOverclockLevel });
-			// 蓝牙 / nRF24 直连开关：写入 GamepadOptions（先读取当前选项再合并，避免其他 gamepad 设置被置空）
-			const currentGamepad = (await WebApi.getGamepadOptions()) ?? {};
-			const gamepadToSave = {
-					...currentGamepad,
-					bluetoothLinkEnabled: bluetoothLinkEnabled ? 1 : 0,
-					nrf24LinkEnabled: nrf24LinkEnabled ? 1 : 0,
-				};
-			await WebApi.setGamepadOptions(gamepadToSave);
 			setHostSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setHostSaveMessage(''), 5000);
 		} catch (error) {
@@ -345,12 +309,6 @@ export default function HardwareConfig() {
 											},
 										},
 									}));
-									// 三互斥（优先级 nRF24直连 > 蓝牙 > USB验证器）：开启 USB 验证器时
-									// 自动关闭 nRF24 直连与蓝牙（UART0 GPIO18/19 与 USB0 D+/D- 复用冲突）
-									if (checked) {
-										setNrf24LinkEnabled(0);
-										setBluetoothLinkEnabled(0);
-									}
 								}}
 							/>
 							<span className="text-muted">
@@ -372,8 +330,8 @@ export default function HardwareConfig() {
 									...prev,
 									peripheral: {
 										...prev.peripheral,
-										i2c0: {
-											...prev.peripheral?.i2c0,
+										i2c1: {
+											...prev.peripheral?.i2c1,
 											enabled: isEnabled,
 										},
 									},
@@ -399,15 +357,15 @@ export default function HardwareConfig() {
 							onChange={(e) => {
 								const isEnabled = e.target.checked ? 1 : 0;
 								setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
-								// 打开 2 键触摸板时自动关闭显示屏、I2C0
+								// 打开 2 键触摸板时自动关闭显示屏与 I2C1（共用 I2C1 SDA/SCL 引脚）
 								if (isEnabled) {
 									setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
 									setPeripheralOptions((prev) => ({
 										...prev,
 										peripheral: {
 											...prev.peripheral,
-											i2c0: {
-												...prev.peripheral?.i2c0,
+											i2c1: {
+												...prev.peripheral?.i2c1,
 												enabled: 0,
 											},
 										},
@@ -419,81 +377,6 @@ export default function HardwareConfig() {
 							{t('SettingsPage:hml-two-key-touchpad-hint')}
 						</span>
 					</div>
-
-						{/* 蓝牙无线开关（BLE 输出路径） */}
-						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<Form.Check
-								type="switch"
-								id="bluetooth-link-switch"
-								label={t('SettingsPage:hml-bluetooth-link-label')}
-								checked={Boolean(bluetoothLinkEnabled)}
-								onChange={(e) => {
-									const checked = e.target.checked ? 1 : 0;
-									setBluetoothLinkEnabled(checked);
-									// 三互斥（优先级 nRF24直连 > 蓝牙 > USB验证器）：开启蓝牙时
-									// 自动关闭 nRF24 直连与 USB 验证器（UART0 GPIO18/19 与 USB0 D+/D- 复用冲突）
-									if (checked) {
-										setNrf24LinkEnabled(0);
-										setPeripheralOptions((prev) => ({
-											...prev,
-											peripheral: {
-												...prev.peripheral,
-												usb0: {
-													...prev.peripheral?.usb0,
-													enabled: 0,
-												},
-											},
-										}));
-									}
-								}}
-							/>
-							<span className="text-muted">
-								{t('SettingsPage:hml-bluetooth-link-hint')}
-							</span>
-						</div>
-
-						{/* 无线模式开关（nRF24 直连 SPI1，与体感共享 SPI1）*/}
-						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-							<Form.Check
-								type="switch"
-								id="nrf24-link-switch"
-								label={t('SettingsPage:hml-nrf24-link-label')}
-								checked={Boolean(nrf24LinkEnabled)}
-								onChange={(e) => {
-									const checked = e.target.checked ? 1 : 0;
-									setNrf24LinkEnabled(checked);
-									// 三互斥：开启 nRF24 直连时自动关闭蓝牙、USB验证器
-									if (checked) {
-										setBluetoothLinkEnabled(0);
-										setPeripheralOptions((prev) => ({
-											...prev,
-											peripheral: {
-												...prev.peripheral,
-												usb0: {
-													...prev.peripheral?.usb0,
-													enabled: 0,
-												},
-											},
-										}));
-									}
-									// nRF24 直连使用 SPI1，与体感开关共同决定 SPI1 使能：
-									// 任一开启保持使能，全关才关闭（保存时也会按同一规则重算）
-									setPeripheralOptions((prev) => ({
-										...prev,
-										peripheral: {
-											...prev.peripheral,
-											spi1: {
-												...prev.peripheral?.spi1,
-												enabled: checked || lsm6AddonEnabled ? 1 : 0,
-											},
-										},
-									}));
-								}}
-							/>
-							<span className="text-muted">
-								{t('SettingsPage:hml-nrf24-link-hint')}
-							</span>
-						</div>
 
 						{/* 回报率：下拉框 → 标题在右侧 → 说明 */}
 						<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

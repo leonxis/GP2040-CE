@@ -149,7 +149,9 @@ function BackPaddleSettingsBody({
 		setSaveMessage('');
 		setIsSaving(true);
 		try {
-			const backReq = WebApi.setBackButtonAddonOptions({
+			// 设备 HTTP POST 共用单缓冲区（http_post_payload），并发提交会互相覆盖，
+			// 导致请求挂起或写入错误数据，须顺序提交。
+			const backOk = await WebApi.setBackButtonAddonOptions({
 				presetIndex,
 				setActive: true,
 				leftEl: back.leftEl,
@@ -159,7 +161,7 @@ function BackPaddleSettingsBody({
 				leftBack2: back.leftBack2,
 				rightBack2: back.rightBack2,
 			});
-			const fnReq = WebApi.setFnKeyMappingOptions({
+			const fnOk = await WebApi.setFnKeyMappingOptions({
 				presetIndex,
 				setActive: true,
 				leftFn: fn.leftFn,
@@ -169,14 +171,13 @@ function BackPaddleSettingsBody({
 				extLeftTrigger: fn.extLeftTrigger,
 				extRightTrigger: fn.extRightTrigger,
 			});
-			const twoKeyReq = WebApi.setTwoKeyTouchpadOptions({
+			const twoKeyResult = await WebApi.setTwoKeyTouchpadOptions({
 				presetIndex,
 				setActive: true,
 				section: 'twoKey',
 				leftKey: twoKey.leftKey,
 				rightKey: twoKey.rightKey,
 			});
-			const [backOk, fnOk, twoKeyResult] = await Promise.all([backReq, fnReq, twoKeyReq]);
 			// WebApi setters return false/null on failure instead of throwing
 			if (backOk !== true || fnOk !== true || twoKeyResult == null) {
 				setSaveMessage(t('Common:saved-error-message'));
@@ -278,10 +279,10 @@ function BackPaddleSettingsBody({
 				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{selectRow('hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l', false)}
-						{selectRow('hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r', false)}
-						{selectRow('hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l', false)}
-						{selectRow('hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r', false)}
+						{selectRow('hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l', true)}
+						{selectRow('hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r', true)}
+						{selectRow('hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l', true)}
+						{selectRow('hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r', true)}
 						{selectRow('hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l', false)}
 						{selectRow('hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r', false)}
 					</Row>
