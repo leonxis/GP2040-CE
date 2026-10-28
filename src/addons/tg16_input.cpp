@@ -4,10 +4,6 @@
 #include "hardware/gpio.h"
 #include "helper.h"
 
-#if TG16_PAD_DEBUG==true
-#include <iostream>
-#endif
-
 // Helper macros for pin access
 #define SET_PIN(pin) gpio_put(pin, 1)
 #define CLR_PIN(pin) gpio_put(pin, 0)
