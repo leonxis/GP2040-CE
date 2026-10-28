@@ -6,8 +6,6 @@
 #include "peripheralmanager.h"
 #include "usbhostmanager.h"
 
-#include <iostream>
-
 // A dongle GET/SET_REPORT that has not completed within this window is treated
 // as lost. Failed completions (len == 0) are dropped by USBHostManager, and the
 // driver only accepts new console requests while the listener is idle, so a
