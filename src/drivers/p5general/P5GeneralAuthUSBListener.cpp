@@ -6,8 +6,6 @@
 #include "peripheralmanager.h"
 #include "usbhostmanager.h"
 
-#include <iostream>
-
 #define P5GENERAL_LISTENER_PRINTF_ENABLE                0       // GP0 as UART0_TX
 #if P5GENERAL_LISTENER_PRINTF_ENABLE
 #   define P5LRPINTF_INIT(...)                          stdio_init_all(__VA_ARGS__)
