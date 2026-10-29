@@ -34,7 +34,10 @@ try:
     import google.protobuf.text_format as text_format
     import google.protobuf.descriptor_pb2 as descriptor
     import google.protobuf.compiler.plugin_pb2 as plugin_pb2
-    import google.protobuf.reflection as reflection
+    try:
+        from google.protobuf.message_factory import GetMessageClass as _pb_make_class
+    except ImportError:
+        from google.protobuf.reflection import MakeClass as _pb_make_class
     import google.protobuf.descriptor
 except:
     sys.stderr.write('''
@@ -1616,7 +1619,7 @@ class Message(ProtoElement):
         optional_only.name += str(id(self))
 
         desc = google.protobuf.descriptor.MakeDescriptor(optional_only)
-        msg = reflection.MakeClass(desc)()
+        msg = _pb_make_class(desc)()
 
         for field in optional_only.field:
             if field.type == FieldD.TYPE_STRING:
