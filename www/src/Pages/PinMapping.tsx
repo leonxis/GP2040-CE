@@ -69,8 +69,10 @@ const isDisabled = (action: PinActionValues) =>
 // Check if action is a keyboard key (KEYBOARD_KEY_* actions)
 const isKeyboardKey = (action: PinActionValues) => {
 	// Keyboard key actions range from KEYBOARD_KEY_A (131) to KEYBOARD_KEY_9 (169)
-	return action >= BUTTON_ACTIONS.KEYBOARD_KEY_A && 
-	       action <= BUTTON_ACTIONS.KEYBOARD_KEY_9;
+	return (
+		action >= BUTTON_ACTIONS.KEYBOARD_KEY_A &&
+		action <= BUTTON_ACTIONS.KEYBOARD_KEY_9
+	);
 };
 
 const options = Object.entries(BUTTON_ACTIONS)
@@ -178,7 +180,7 @@ const getMultiValue = (pinData: MaskPayload) => {
 						type === 'customButtonMask') ||
 					(pinData.customDpadMask & customDpadMask &&
 						type === 'customDpadMask'),
-		  )
+			)
 		: options.filter((option) => option.value === pinData.action);
 };
 
@@ -412,7 +414,7 @@ const PinSection = memo(function PinSection({
 				<Form onSubmit={handleSubmit}>
 					<div className="d-flex justify-content-between">
 						<ProfileLabel profileIndex={profileIndex} />
-						{profileIndex > 0 && (
+						{profileIndex >= 2 && (
 							<div className="d-flex">
 								<FormCheck
 									disabled={profileIndex === activeProfile}
@@ -511,7 +513,7 @@ export default function PinMapping() {
 											profileNumber: index + 1,
 										})}
 
-									{index === 1 && !enabled && (
+									{index >= 2 && !enabled && (
 										<span>{t('PinMapping:profile-disabled')}</span>
 									)}
 								</Nav.Link>

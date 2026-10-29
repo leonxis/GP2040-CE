@@ -291,7 +291,7 @@ export default {
 	'hml-fn-key-mapping-title': 'FNキー割り当て',
 	'hml-key-swap-title': 'ボタン入れ替え',
 	'hml-key-swap-profile-manage-hint':
-		'プロファイル名の変更や削除は、機能設定の GPIO ピンマッピングで行ってください。',
+		'基本マッピング1/2は固定プリセットで削除できません。下のホットスイッチレイヤーは個別に有効化できます。',
 	'hml-report-rate-250hz': '250Hz',
 	'hml-report-rate-500hz': '500Hz',
 	'hml-report-rate-1khz': '1KHz',

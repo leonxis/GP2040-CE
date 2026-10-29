@@ -7,7 +7,7 @@ export const MAX_PROFILES = 4;
 
 // 固定槽位显示名（数组下标即槽位索引，不再可编辑）
 // index 0=基础映射1 1=基础映射2 2=热切按键映射(层1) 3=热切按键映射(层2)
-export const PROFILE_NAMES = ['基础映射1', '基础映射2', '热切按键映射', '热切按键映射'];
+export const PROFILE_NAMES = ['基础映射1', '基础映射2', '热切按键映射1', '热切按键映射2'];
 
 // tab 显示顺序：层紧随其所属基础映射（与数组下标解耦）
 export const PROFILE_DISPLAY_ORDER = [0, 2, 1, 3];

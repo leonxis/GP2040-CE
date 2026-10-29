@@ -992,9 +992,8 @@ std::string setProfileOptions()
         if (altsIndex > 2) break;
     }
 
-    // 计数必须在循环外更新：删除最后一个预设时数组为空，循环不执行，
-    // 若在循环内赋值会导致 gpioMappingsSets_count 保持旧值，删除结果不生效
-    profileOptions.gpioMappingsSets_count = altsIndex;
+    // 固定 3 组映射槽（基础映射2 + 两层热切），不随请求数组长度删除
+    profileOptions.gpioMappingsSets_count = 3;
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);

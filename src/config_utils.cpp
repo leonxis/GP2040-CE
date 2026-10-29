@@ -373,7 +373,7 @@ static void seedFixedProfileOptions(Config& config)
 {
     if (config.profileOptions.gpioMappingsSets_count != 0) return;
 
-    static const char* labels[3] = { "基础映射2", "热切按键映射", "热切按键映射" };
+    static const char* labels[3] = { "基础映射2", "热切按键映射1", "热切按键映射2" };
     for (uint8_t i = 0; i < 3; i++) {
         GpioMappings& set = config.profileOptions.gpioMappingsSets[i];
         for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
@@ -403,6 +403,9 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.gamepadOptions, lockHotkeys, DEFAULT_LOCK_HOTKEYS);
     INIT_UNSET_PROPERTY(config.gamepadOptions, fourWayMode, false);
     INIT_UNSET_PROPERTY(config.gamepadOptions, profileNumber, 1);
+    // 基础映射固定 1/2；旧配置可能残留层槽编号，回收为 1 避免越界
+    if (config.gamepadOptions.profileNumber < 1 || config.gamepadOptions.profileNumber > 2)
+        config.gamepadOptions.profileNumber = 1;
     INIT_UNSET_PROPERTY(config.gamepadOptions, ps4ControllerType, DEFAULT_PS4CONTROLLER_TYPE);
     INIT_UNSET_PROPERTY(config.gamepadOptions, debounceDelay, DEFAULT_DEBOUNCE_DELAY);
     INIT_UNSET_PROPERTY(config.gamepadOptions, runtimeModeHotkeyX, DEFAULT_RUNTIME_MODE_HOTKEY_X);

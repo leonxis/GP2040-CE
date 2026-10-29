@@ -331,7 +331,7 @@ export default {
 	'hml-fn-key-mapping-title': 'FN key mapping',
 	'hml-key-swap-title': 'Button swap',
 	'hml-key-swap-profile-manage-hint':
-		'To rename or remove a profile, use Settings → GPIO Pin Mapping.',
+		'Base Mapping 1/2 are fixed presets and cannot be deleted; the hot-switch key layers below can be enabled individually.',
 	'hml-report-rate-250hz': '250Hz',
 	'hml-report-rate-500hz': '500Hz',
 	'hml-report-rate-1khz': '1KHz',

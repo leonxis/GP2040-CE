@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useCallback } from 'react';
 import { Nav, Tab } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 
 import useProfilesStore, { PROFILE_DISPLAY_ORDER } from '../../../Store/useProfilesStore';
 
@@ -23,6 +24,7 @@ export default function GpioProfileTabs({
 	children,
 }: GpioProfileTabsProps) {
 	const profiles = useProfilesStore((state) => state.profiles);
+	const { t } = useTranslation();
 
 	const handleSelect = useCallback(
 		(key: string | null) => {
@@ -38,13 +40,15 @@ export default function GpioProfileTabs({
 		<Tab.Container activeKey={activeKey} onSelect={handleSelect}>
 			<Nav variant="tabs" className="macro-settings-top-tabs mb-3 w-100">
 				{PROFILE_DISPLAY_ORDER.map((index) => {
-					const { profileLabel, enabled } = profiles[index];
+					const profile = profiles[index];
+					if (!profile) return null;
+					const { profileLabel, enabled } = profile;
 					return (
 						<Nav.Item key={`profile-${index}`}>
 							<Nav.Link eventKey={`profile-${index}`}>
 								{profileLabel}
-								{index === 1 && !enabled && (
-									<span>{' '}未启用</span>
+								{index >= 2 && !enabled && (
+									<span>{t('PinMapping:profile-disabled')}</span>
 								)}
 							</Nav.Link>
 						</Nav.Item>
