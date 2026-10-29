@@ -7,7 +7,6 @@ import get from 'lodash/get';
 import set from 'lodash/set';
 
 import { AppContext } from '../../../Contexts/AppContext';
-import { hexToInt } from '../../../Services/Utilities';
 import WebApi from '../../../Services/WebApi';
 import JoystickCalibration from './JoystickCalibration';
 import JoystickCurveSettings from './JoystickCurveSettings';
@@ -215,15 +214,10 @@ export default function CalibrationSettings() {
 		const section = lastSaveSectionRef.current;
 		const flattened = flattenObject(storedData);
 
-		// Convert turbo LED color if available
 		const data = {
 			...flattened,
 			...flattenObject(values),
 		};
-
-		if (data.turboLedColor && typeof data.turboLedColor === 'string') {
-			data.turboLedColor = hexToInt(data.turboLedColor);
-		}
 
 		// Handle array fields specially - only update if changed
 		const valuesSchema = flattenObject(values);

@@ -18,23 +18,6 @@
 #define TURBO_BUTTON_MASK (GAMEPAD_MASK_B1 | GAMEPAD_MASK_B2 | GAMEPAD_MASK_B3 | GAMEPAD_MASK_B4 | \
                             GAMEPAD_MASK_L1 | GAMEPAD_MASK_R1 | GAMEPAD_MASK_L2 | GAMEPAD_MASK_R2)
 
-// TURBO LED
-#ifndef TURBO_LED_PIN
-#define TURBO_LED_PIN -1
-#endif
-
-#ifndef TURBO_LED_INDEX
-#define TURBO_LED_INDEX -1
-#endif
-
-#ifndef TURBO_LED_TYPE
-#define TURBO_LED_TYPE PLED_TYPE_NONE
-#endif
-
-#ifndef TURBO_LED_COLOR
-#define TURBO_LED_COLOR ColorRed
-#endif
-
 // TURBO SHMUP MODE
 #ifndef TURBO_SHMUP_MODE
 #define TURBO_SHMUP_MODE 0
@@ -92,10 +75,6 @@
 #define SHMUP_BUTTON4 0
 #endif
 
-#ifndef PIN_SHMUP_DIAL
-#define PIN_SHMUP_DIAL -1
-#endif
-
 // Turbo Module Name
 #define TurboName "Turbo"
 
@@ -125,17 +104,10 @@ private:
     uint32_t chargeState;       // Turbo Charge Button States
     bool bTurboFlicker;         // Turbo Enable Buttons Toggle OFF Flag ??
     uint64_t nextTimer;         // Turbo Timer
-    uint8_t adcShmupDial;       // Turbo ADC Dial Input
-    uint64_t nextAdcRead;       // ADC read timer
-    bool hasShmupDial;          // Flag for shmup dial presence
-    uint16_t dialValue;         // Turbo Dial Value (Raw)
-    uint16_t incrementValue;    // Turbo Dial Increment Value
     uint8_t shmupBtnPin[4];     // Turbo SHMUP Non-Turbo Pins
     uint16_t shmupBtnPinMask[4];// Cache for shmup button pin masks
     uint16_t shmupBtnMask[4];   // Turbo SHMUP Non-Turbo Button Masks
     uint16_t lastButtons;       // Last buttons (for Turbo Reset on Release)
-    bool hasLedPin;             // Flag for LED pin presence
-    uint8_t encoderValue;       // Rotary encoder value
     bool hasTurboAssigned;      // Turbo enabled on a pin.
     uint8_t lastShotCount;      // Last shot count for comparison
 };

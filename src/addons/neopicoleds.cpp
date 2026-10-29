@@ -256,11 +256,6 @@ void NeoPicoLEDAddon::setup() {
     if (ledOptions.pledType == PLED_TYPE_RGB && PLED_COUNT > 0)
         ledCount += PLED_COUNT;
 
-	// Add Turbo LED to LED Count
-    const TurboOptions& turboOptions = Storage::getInstance().getAddonOptions().turboOptions;
-	if (turboOptions.turboLedType == PLED_TYPE_RGB)
-        ledCount += 1;
-
 	// Add Case RGB LEDs to LED Count
     if (ledOptions.caseRGBType != CASE_RGB_TYPE_NONE ) {
         ledCount += (int)ledOptions.caseRGBCount;
@@ -636,8 +631,6 @@ void NeoPicoLEDAddon::process() {
     if (!isValidPin(ledOptions.dataPin) || !time_reached(this->nextRunTime))
         return;
 
-    // Get turbo options (turbo RGB led)
-    const TurboOptions& turboOptions = Storage::getInstance().getAddonOptions().turboOptions;
     Gamepad * gamepad = Storage::getInstance().GetProcessedGamepad();
     GamepadHotkey action = animationHotkeys(gamepad);
     if (ledOptions.pledType == PLED_TYPE_RGB) {
@@ -716,16 +709,6 @@ void NeoPicoLEDAddon::process() {
                 rgbPLEDValues[i] = RGB(static_cast<uint32_t>(ledOptions.pledColor)).value(neopico.GetFormat(), brightness);
             }
             frame[pledIndexes[i]] = rgbPLEDValues[i];
-        }
-    }
-
-    // Turbo LED is a separate RGB that is on if turbo is on, and off if its off
-    if ( turboOptions.turboLedType == PLED_TYPE_RGB ) { // RGB or PWM?
-        if ( gamepad->auxState.turbo.activity == 1) { // Turbo is on (active sensor)
-            if (turboOptions.turboLedIndex >= 0 && turboOptions.turboLedIndex < 100) { // Double check index value
-                float brightness = as.GetBrightnessX();
-                frame[turboOptions.turboLedIndex] = ((RGB)turboOptions.turboLedColor).value(neopico.GetFormat(), brightness);
-            }
         }
     }
 

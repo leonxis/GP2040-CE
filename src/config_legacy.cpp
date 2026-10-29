@@ -230,7 +230,6 @@ namespace ConfigLegacy
         uint8_t pinSliderSOCDOne;
         uint8_t pinSliderSOCDTwo;
         uint8_t turboShotCount; // Turbo
-        uint8_t pinTurboLED;    // Turbo LED
         uint8_t pinReverseLED;    // Reverse LED
         uint8_t reverseActionUp;
         uint8_t reverseActionDown;
@@ -266,7 +265,6 @@ namespace ConfigLegacy
         uint16_t shmupBtnMask2;
         uint16_t shmupBtnMask3;
         uint16_t shmupBtnMask4;
-        uint8_t pinShmupDial;
         SOCDMode sliderSOCDModeOne;
         SOCDMode sliderSOCDModeTwo;
         SOCDMode sliderSOCDModeDefault;
@@ -996,9 +994,7 @@ bool ConfigUtils::fromLegacyStorage(Config& config)
         config.addonOptions.has_turboOptions = true;
         SET_PROPERTY(turboOptions, enabled, legacyAddonOptions.TurboInputEnabled);
         SET_PROPERTY(turboOptions, deprecatedButtonPin, bytePinToIntPin(legacyAddonOptions.pinButtonTurbo));
-        SET_PROPERTY(turboOptions, ledPin, bytePinToIntPin(legacyAddonOptions.pinTurboLED));
         SET_PROPERTY(turboOptions, shotCount, legacyAddonOptions.turboShotCount);
-        SET_PROPERTY(turboOptions, shmupDialPin, bytePinToIntPin(legacyAddonOptions.pinShmupDial));
         SET_PROPERTY(turboOptions, shmupModeEnabled, legacyAddonOptions.shmupMode);
         SET_PROPERTY(turboOptions, shmupAlwaysOn1, legacyAddonOptions.shmupAlwaysOn1);
         SET_PROPERTY(turboOptions, shmupAlwaysOn2, legacyAddonOptions.shmupAlwaysOn2);

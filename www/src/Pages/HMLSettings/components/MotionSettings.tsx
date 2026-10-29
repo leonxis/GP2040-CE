@@ -6,7 +6,6 @@ import get from 'lodash/get';
 import set from 'lodash/set';
 
 import { AppContext } from '../../../Contexts/AppContext';
-import { hexToInt } from '../../../Services/Utilities';
 import WebApi from '../../../Services/WebApi';
 import {
 	DEFAULT_VALUES,
@@ -32,9 +31,6 @@ export default function MotionSettings() {
 			...flattened,
 			...flattenObject(values),
 		};
-		if (data.turboLedColor && typeof data.turboLedColor === 'string') {
-			data.turboLedColor = hexToInt(data.turboLedColor);
-		}
 		const valuesSchema = flattenObject(values);
 		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2', 'joystickCurvePresets', 'lsm6dsrEngageKeys'];
 		const resultObject = { ...data };

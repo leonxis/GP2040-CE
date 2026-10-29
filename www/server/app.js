@@ -339,7 +339,6 @@ app.get('/api/getProfileOptions', (req, res) => {
 
 app.get('/api/getAddonsOptions', (req, res) => {
 	return res.send({
-		turboPinLED: -1,
 		sliderModeZero: 0,
 		turboShotCount: 20,
 		reversePin: -1,
@@ -412,10 +411,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		shmupBtnMask2: 0,
 		shmupBtnMask3: 0,
 		shmupBtnMask4: 0,
-		pinShmupDial: -1,
-		turboLedType: 1,
-		turboLedIndex: 16,
-		turboLedColor: 16711680,
 		sliderSOCDModeDefault: 1,
 		snesPadClockPin: -1,
 		snesPadLatchPin: -1,

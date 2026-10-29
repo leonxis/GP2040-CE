@@ -1,7 +1,5 @@
 #include "addons/turbo.h"
 
-#include "hardware/adc.h"
-
 #include "storagemanager.h"
 #include "helper.h"
 #include "config.pb.h"
@@ -11,7 +9,6 @@
 
 #define TURBO_SHOT_MIN 2
 #define TURBO_SHOT_MAX 30
-#define TURBO_DIAL_INCREMENTS (0xFFF / (TURBO_SHOT_MAX - TURBO_SHOT_MIN)) // 12-bit ADC
 #define TURBO_LOOP_OFFSET 50 // Extra time to compensate for loop runtime variance, turbo lags a bit otherwise
 
 #ifndef TURBO_LED_STATE_OFF
@@ -40,26 +37,7 @@ void TurboInput::setup(){
     const TurboOptions& options = Storage::getInstance().getAddonOptions().turboOptions;
     uint32_t now = getMillis();
 
-    // Turbo Dial
     uint8_t shotCount = std::clamp<uint8_t>(options.shotCount, TURBO_SHOT_MIN, TURBO_SHOT_MAX);
-    if (isValidPin(options.shmupDialPin)) {
-        hasShmupDial = true;
-        adc_gpio_init(options.shmupDialPin);
-        adcShmupDial = 26 - options.shmupDialPin;
-        adc_select_input(adcShmupDial);
-        dialValue = adc_read(); // setup initial Dial + Turbo Speed
-        shotCount = (dialValue / TURBO_DIAL_INCREMENTS) + TURBO_SHOT_MIN;
-    } else {
-        dialValue = 0;
-    }
-
-    // Setup Turbo PWM LED if available (RGB is handled in neopicoleds.cpp)
-    if (isValidPin(options.ledPin) && options.turboLedType == PLED_TYPE_PWM) {
-        hasLedPin = true;
-        gpio_init(options.ledPin);
-        gpio_set_dir(options.ledPin, GPIO_OUT);
-        gpio_put(options.ledPin, 1);
-    }
 
     Gamepad * gamepad = Storage::getInstance().GetProcessedGamepad();
 	  gamepad->auxState.turbo.enabled = true;
@@ -99,12 +77,10 @@ void TurboInput::setup(){
     for(uint8_t i = 0; i < 4; i++) {
         debChargeTime[i] = now;
     }
-    incrementValue = 0;
     lastPressed = 0;
     lastDpad = 0;
     bTurboFlicker = false;
     nextTimer = getMicro();
-    encoderValue = shotCount;
     updateTurboShotCount(shotCount, false);
 }
 
@@ -195,27 +171,13 @@ void __not_in_flash_func(TurboInput::process)()
 
     uint64_t now = getMicro();
 
-    // Use the dial to modify our turbo shot speed (don't save on dial modify)
-    if (hasShmupDial && nextAdcRead < now) {
-        adc_select_input(adcShmupDial);
-        dialValue = adc_read();
-        uint8_t shotCount = (dialValue / TURBO_DIAL_INCREMENTS) + TURBO_SHOT_MIN;
-        if (shotCount != options.shotCount) {
-            updateTurboShotCount(shotCount, false);
-        }
-        nextAdcRead = now + 100000; // Sample every 100ms
-    }
-
     // Check if we've reached the next timer right before applying turbo state
     if (nextTimer < now) {
         bTurboFlicker ^= true;
         nextTimer = now + uIntervalUS - TURBO_LOOP_OFFSET;
     }
 
-    // Set TURBO LED
-    // OFF: No turbo buttons enabled
-    // ON: 1 or more turbo buttons enabled
-    // BLINK: OFF on turbo shot, ON on turbo flicker
+    // Set TURBO activity flag (consumed by WS2812 driver for visual hints)
     Gamepad * processedGamepad = Storage::getInstance().GetProcessedGamepad();
     if (turboButtonsMask) {
         if (gamepad->state.buttons & turboButtonsMask)
@@ -224,15 +186,6 @@ void __not_in_flash_func(TurboInput::process)()
             processedGamepad->auxState.turbo.activity = TURBO_LED_STATE_ON;
     } else {
         processedGamepad->auxState.turbo.activity = TURBO_LED_STATE_OFF;
-    }
-
-    // PWM LED Pin
-    if ( hasLedPin ) {
-        if ( processedGamepad->auxState.turbo.activity == TURBO_LED_STATE_ON ) {
-            gpio_put(options.ledPin, TURBO_LED_STATE_ON);
-        } else {
-            gpio_put(options.ledPin, TURBO_LED_STATE_OFF);
-        }
     }
 
     // Button updates

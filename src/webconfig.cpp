@@ -2356,7 +2356,6 @@ std::string setAddonOptions()
     docToValue(socdSliderOptions.modeDefault, doc, "sliderSOCDModeDefault");
 
     TurboOptions& turboOptions = Storage::getInstance().getAddonOptions().turboOptions;
-    docToPin(turboOptions.ledPin, doc, "turboPinLED");
     docToValue(turboOptions.shotCount, doc, "turboShotCount");
     docToValue(turboOptions.shmupModeEnabled, doc, "shmupMode");
     docToValue(turboOptions.shmupMixMode, doc, "shmupMixMode");
@@ -2372,10 +2371,6 @@ std::string setAddonOptions()
     docToValue(turboOptions.shmupBtnMask2, doc, "shmupBtnMask2");
     docToValue(turboOptions.shmupBtnMask3, doc, "shmupBtnMask3");
     docToValue(turboOptions.shmupBtnMask4, doc, "shmupBtnMask4");
-    docToPin(turboOptions.shmupDialPin, doc, "pinShmupDial");
-    docToValue(turboOptions.turboLedType, doc, "turboLedType");
-    docToValue(turboOptions.turboLedIndex, doc, "turboLedIndex");
-    docToValue(turboOptions.turboLedColor, doc, "turboLedColor");
     docToValue(turboOptions.enabled, doc, "TurboInputEnabled");
 
     SNESOptions& snesOptions = Storage::getInstance().getAddonOptions().snesOptions;
@@ -2825,7 +2820,6 @@ std::string getAddonOptions()
     writeDoc(doc, "SliderSOCDInputEnabled", socdSliderOptions.enabled);
 
     const TurboOptions& turboOptions = Storage::getInstance().getAddonOptions().turboOptions;
-    writeDoc(doc, "turboPinLED", cleanPin(turboOptions.ledPin));
     writeDoc(doc, "turboShotCount", turboOptions.shotCount);
     writeDoc(doc, "shmupMode", turboOptions.shmupModeEnabled);
     writeDoc(doc, "shmupMixMode", turboOptions.shmupMixMode);
@@ -2841,10 +2835,6 @@ std::string getAddonOptions()
     writeDoc(doc, "shmupBtnMask2", turboOptions.shmupBtnMask2);
     writeDoc(doc, "shmupBtnMask3", turboOptions.shmupBtnMask3);
     writeDoc(doc, "shmupBtnMask4", turboOptions.shmupBtnMask4);
-    writeDoc(doc, "pinShmupDial", cleanPin(turboOptions.shmupDialPin));
-    writeDoc(doc, "turboLedType", turboOptions.turboLedType);
-    writeDoc(doc, "turboLedIndex", turboOptions.turboLedIndex);
-    writeDoc(doc, "turboLedColor",  ((RGB)turboOptions.turboLedColor).value(LED_FORMAT_RGB));
     writeDoc(doc, "TurboInputEnabled", turboOptions.enabled);
 
     const SNESOptions& snesOptions = Storage::getInstance().getAddonOptions().snesOptions;

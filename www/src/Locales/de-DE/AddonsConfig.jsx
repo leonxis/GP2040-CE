@@ -24,8 +24,6 @@ export default {
 	'analog-auto-calibrate': 'Auto Kalibrierung',
 	'turbo-header-text': 'Turbo',
 	'turbo-button-pin-label': 'Turbo Pin',
-	'turbo-led-pin-label': 'Turbo Pin LED',
-	'turbo-shmup-dial-pin-label': 'Turbo Dial (NUR ADC)',
 	'turbo-shot-count-label': 'Turbo-Schussanzahl',
 	'turbo-shmup-mode-label': 'SHMUP MODUS',
 	'turbo-shmup-always-on-1-label': 'Turbo Immer An 1',
