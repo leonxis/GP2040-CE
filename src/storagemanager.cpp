@@ -62,40 +62,25 @@ void Storage::ResetSettings()
 
 bool Storage::setProfile(const uint32_t profileNum)
 {
-	uint32_t profileCeiling = config.profileOptions.gpioMappingsSets_count + 1;
-
-	// is this profile defined?
-	if (profileNum >= 1 && profileNum <= profileCeiling) {
-		// is this profile enabled?
-		// profile 1 (core) is always enabled, others we must check
-		if (profileNum == 1 || config.profileOptions.gpioMappingsSets[profileNum-2].enabled) {
-			// Update the profile number - reinit will be triggered automatically in gp2040.cpp
-			this->config.gamepadOptions.profileNumber = profileNum;
-			return true;
-		}
+	// 固定两个基础映射；基础映射2 恒可设（层槽不进入配置档选择）
+	if (profileNum == 1 || profileNum == 2) {
+		// Update the profile number - reinit will be triggered automatically in gp2040.cpp
+		this->config.gamepadOptions.profileNumber = profileNum;
+		return true;
 	}
-	// if we get here, the requested profile doesn't exist or isn't enabled, so don't change it
+	// anything else is not a valid base profile
 	return false;
 }
 
 void Storage::nextProfile()
 {
-	uint32_t profileCeiling = config.profileOptions.gpioMappingsSets_count + 1;
-	uint32_t requestedProfile = (this->config.gamepadOptions.profileNumber % profileCeiling) + 1;
-	while (!setProfile(requestedProfile)) {
-		// if the set failed, try again with the next in the sequence
-		requestedProfile = (requestedProfile % profileCeiling) + 1;
-	}
+	// 1↔2 循环
+	this->config.gamepadOptions.profileNumber =
+			(this->config.gamepadOptions.profileNumber == 1) ? 2 : 1;
 }
 void Storage::previousProfile()
 {
-	uint32_t profileCeiling = config.profileOptions.gpioMappingsSets_count + 1;
-	uint32_t requestedProfile = this->config.gamepadOptions.profileNumber > 1 ?
-			config.gamepadOptions.profileNumber - 1 : profileCeiling;
-	while (!setProfile(requestedProfile)) {
-		// if the set failed, try again with the next in the sequence
-		requestedProfile = requestedProfile > 1 ? requestedProfile - 1 : profileCeiling;
-	}
+	nextProfile();
 }
 
 /**
@@ -105,19 +90,14 @@ char* Storage::currentProfileLabel() {
 	if (this->config.gamepadOptions.profileNumber == 1)
 		return this->config.gpioMappings.profileLabel;
 	else
-		return this->config.profileOptions.gpioMappingsSets[config.gamepadOptions.profileNumber-2].profileLabel;
+		return this->config.profileOptions.gpioMappingsSets[0].profileLabel;
 }
 
 void Storage::setFunctionalPinMappings()
 {
 	GpioMappingInfo* alts = nullptr;
-	uint32_t profileCeiling = config.profileOptions.gpioMappingsSets_count + 1;
-
-	if (config.gamepadOptions.profileNumber >= 2 &&
-			config.gamepadOptions.profileNumber <= profileCeiling) {
-		if (config.profileOptions.gpioMappingsSets[config.gamepadOptions.profileNumber-2].enabled) {
-			alts = config.profileOptions.gpioMappingsSets[config.gamepadOptions.profileNumber-2].pins;
-		}
+	if (config.gamepadOptions.profileNumber == 2) {
+		alts = config.profileOptions.gpioMappingsSets[0].pins;
 	}
 
 	for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {

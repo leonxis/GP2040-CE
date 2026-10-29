@@ -299,9 +299,9 @@ static void sBackR2(int v) {
   p.backButton.has_rightBack2Mapping = true;
 }
 
-// 按键配置档动态上限：gpioMappingsSets_count + 1（默认配置档1 + 自定义预设数）
+// 按键配置档范围固定 1..2（基础映射1 / 基础映射2；层槽不进选择路径）
 static int gProfileMax() {
-  return (int)Storage::getInstance().getProfileOptions().gpioMappingsSets_count + 1;
+  return 2;
 }
 
 // 环境光亮度 - 智能映射当前动画模式对应的亮度字段

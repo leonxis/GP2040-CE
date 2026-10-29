@@ -1056,6 +1056,13 @@ std::string setProfileOptions()
         }
         profileOptions.gpioMappingsSets[altsIndex].pins_count = NUM_BANK0_GPIOS;
 
+        // 层槽（sets[1]/sets[2]）内激活器强制关闭：激活器只属于基础映射预设
+        if (altsIndex >= 1) {
+            for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
+                profileOptions.gpioMappingsSets[altsIndex].pins[pin].activatorMode = ACTIVATOR_OFF;
+            }
+        }
+
         size_t profileLabelSize = sizeof(profileOptions.gpioMappingsSets[altsIndex].profileLabel);
         strncpy(profileOptions.gpioMappingsSets[altsIndex].profileLabel, alt["profileLabel"], profileLabelSize - 1);
         profileOptions.gpioMappingsSets[altsIndex].profileLabel[profileLabelSize - 1] = '\0';
@@ -1065,9 +1072,8 @@ std::string setProfileOptions()
         if (altsIndex > 2) break;
     }
 
-    // 计数必须在循环外更新：删除最后一个预设时数组为空，循环不执行，
-    // 若在循环内赋值会导致 gpioMappingsSets_count 保持旧值，删除结果不生效
-    profileOptions.gpioMappingsSets_count = altsIndex;
+    // 固定 3 组映射槽（基础映射2 + 两层热切），不随请求数组长度删除
+    profileOptions.gpioMappingsSets_count = 3;
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return serialize_json(doc);
@@ -2901,7 +2907,7 @@ std::string getAddonOptions()
     writeDoc(doc, "encoderTwoPPR", rotaryOptions.encoderTwo.pulsesPerRevolution);
     writeDoc(doc, "encoderTwoResetAfter", rotaryOptions.encoderTwo.resetAfter);
     writeDoc(doc, "encoderTwoAllowWrapAround", rotaryOptions.encoderTwo.allowWrapAround);
-    writeDoc(doc, "encoderOneMultiplier", rotaryOptions.encoderOne.multiplier);
+    writeDoc(doc, "encoderTwoMultiplier", rotaryOptions.encoderTwo.multiplier);
 
     TG16Options& tg16Options = Storage::getInstance().getAddonOptions().tg16Options;
     writeDoc(doc, "TG16padAddonEnabled", tg16Options.enabled);

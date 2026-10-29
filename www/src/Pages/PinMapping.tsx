@@ -14,7 +14,6 @@ import {
 	Col,
 	Form,
 	FormCheck,
-	Modal,
 	Nav,
 	OverlayTrigger,
 	Row,
@@ -26,10 +25,7 @@ import invert from 'lodash/invert';
 import omit from 'lodash/omit';
 
 import { AppContext } from '../Contexts/AppContext';
-import useProfilesStore, {
-	MaskPayload,
-	MAX_PROFILES,
-} from '../Store/useProfilesStore';
+import useProfilesStore, { MaskPayload } from '../Store/useProfilesStore';
 
 import Section from '../Components/Section';
 import CustomSelect from '../Components/CustomSelect';
@@ -73,8 +69,10 @@ const isDisabled = (action: PinActionValues) =>
 // Check if action is a keyboard key (KEYBOARD_KEY_* actions)
 const isKeyboardKey = (action: PinActionValues) => {
 	// Keyboard key actions range from KEYBOARD_KEY_A (131) to KEYBOARD_KEY_9 (169)
-	return action >= BUTTON_ACTIONS.KEYBOARD_KEY_A && 
-	       action <= BUTTON_ACTIONS.KEYBOARD_KEY_9;
+	return (
+		action >= BUTTON_ACTIONS.KEYBOARD_KEY_A &&
+		action <= BUTTON_ACTIONS.KEYBOARD_KEY_9
+	);
 };
 
 const options = Object.entries(BUTTON_ACTIONS)
@@ -182,7 +180,7 @@ const getMultiValue = (pinData: MaskPayload) => {
 						type === 'customButtonMask') ||
 					(pinData.customDpadMask & customDpadMask &&
 						type === 'customDpadMask'),
-		  )
+			)
 		: options.filter((option) => option.value === pinData.action);
 };
 
@@ -192,34 +190,15 @@ const ProfileLabel = memo(function ProfileLabel({
 	profileIndex: number;
 }) {
 	const { t } = useTranslation('');
-	const setProfileLabel = useProfilesStore((state) => state.setProfileLabel);
 	const profileLabel = useProfilesStore(
 		(state) => state.profiles[profileIndex].profileLabel,
 	);
 
-	const onLabelChange = useCallback(
-		(event: React.ChangeEvent<HTMLInputElement>) =>
-			setProfileLabel(
-				profileIndex,
-				event.target.value.replace(/[^a-zA-Z0-9\s]/g, ''),
-			),
-		[],
-	);
-
+	// 槽位名固定，仅展示不可编辑
 	return (
 		<div className="pin-grid">
 			<Form.Label>{t('PinMapping:profile-label-title')}</Form.Label>
-			<Form.Control
-				type="text"
-				value={profileLabel}
-				placeholder={t('PinMapping:profile-label-default', {
-					profileNumber: profileIndex + 1,
-				})}
-				onChange={onLabelChange}
-				maxLength={16}
-				pattern="[a-zA-Z0-9\s]+"
-			/>
-			<Form.Text muted>{t('PinMapping:profile-label-description')}</Form.Text>
+			<div className="align-self-center fw-bold">{profileLabel}</div>
 		</div>
 	);
 });
@@ -245,12 +224,20 @@ const PinSelectList = memo(function PinSelectList({
 	const onChange = useCallback(
 		(pin: string) =>
 			(selected: MultiValue<OptionType> | SingleValue<OptionType>) => {
+				// 动作变化不覆盖该行 activatorMode
+				const current =
+					useProfilesStore.getState().profiles[profileIndex][
+						pin as `pin${number}`
+					];
+				const keepActivator = { activatorMode: current?.activatorMode ?? 0 };
+
 				// Handle clearing
 				if (!selected || (Array.isArray(selected) && !selected.length)) {
 					setProfilePin(profileIndex, pin, {
 						action: BUTTON_ACTIONS.NONE,
 						customButtonMask: 0,
 						customDpadMask: 0,
+						...keepActivator,
 					});
 				} else if (Array.isArray(selected) && selected.length > 1) {
 					// Check if selected contains keyboard keys or action types
@@ -264,6 +251,7 @@ const PinSelectList = memo(function PinSelectList({
 							action: lastSelected.value,
 							customButtonMask: 0,
 							customDpadMask: 0,
+							...keepActivator,
 						});
 					} else {
 						// Allow button combinations (only customButtonMask and customDpadMask types)
@@ -286,6 +274,7 @@ const PinSelectList = memo(function PinSelectList({
 									action: BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO,
 									customButtonMask: 0,
 									customDpadMask: 0,
+									...keepActivator,
 								},
 							),
 						);
@@ -296,6 +285,7 @@ const PinSelectList = memo(function PinSelectList({
 						action: singleSelected.value,
 						customButtonMask: 0,
 						customDpadMask: 0,
+						...keepActivator,
 					});
 				}
 			},
@@ -351,16 +341,12 @@ const PinSelectList = memo(function PinSelectList({
 
 const PinSection = memo(function PinSection({
 	profileIndex,
-	onProfileDeleted,
 }: {
 	profileIndex: number;
-	onProfileDeleted?: () => void;
 }) {
 	const { t } = useTranslation('');
-	const copyBaseProfile = useProfilesStore((state) => state.copyBaseProfile);
 	const setProfilePin = useProfilesStore((state) => state.setProfilePin);
 	const saveProfiles = useProfilesStore((state) => state.saveProfiles);
-	const deleteProfile = useProfilesStore((state) => state.deleteProfile);
 	const toggleProfileEnabled = useProfilesStore(
 		(state) => state.toggleProfileEnabled,
 	);
@@ -381,26 +367,6 @@ const PinSection = memo(function PinSection({
 	const buttonNames = omit(CURRENT_BUTTONS, ['label', 'value']);
 
 	const [saveMessage, setSaveMessage] = useState('');
-	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-	const [deleteMessage, setDeleteMessage] = useState('');
-
-	const handleDelete = useCallback(async () => {
-		setDeleteMessage('');
-		setShowDeleteConfirm(false);
-		const deleted = await deleteProfile(profileIndex);
-		if (deleted) {
-			setDeleteMessage(t('PinMapping:profile-delete-success-message'));
-			try {
-				await updateUsedPins();
-			} catch {
-				// ignore
-			}
-			if (onProfileDeleted) onProfileDeleted();
-		} else {
-			setDeleteMessage(t('PinMapping:profile-delete-error-message'));
-		}
-		setTimeout(() => setDeleteMessage(''), 3000);
-	}, [deleteProfile, profileIndex, updateUsedPins, onProfileDeleted, t]);
 
 	const handleSubmit = useCallback(async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -443,7 +409,7 @@ const PinSection = memo(function PinSection({
 				<Form onSubmit={handleSubmit}>
 					<div className="d-flex justify-content-between">
 						<ProfileLabel profileIndex={profileIndex} />
-						{profileIndex > 0 && (
+						{profileIndex >= 2 && (
 							<div className="d-flex">
 								<FormCheck
 									disabled={profileIndex === activeProfile}
@@ -495,63 +461,22 @@ const PinSection = memo(function PinSection({
 											],
 										customButtonMask: 0,
 										customDpadMask: 0,
+										activatorMode: 0,
 									},
 								)
 							}
 						/>
-						{profileIndex > 0 && (
-							<Button onClick={() => copyBaseProfile(profileIndex)}>
-								{t(`PinMapping:profile-copy-base`)}
-							</Button>
-						)}
 						<Button type="submit">{t('Common:button-save-label')}</Button>
-						{profileIndex > 0 && (
-							<Button
-								variant="success"
-								type="button"
-								onClick={() => setShowDeleteConfirm(true)}
-							>
-								{t('PinMapping:profile-delete-button')}
-							</Button>
-						)}
 					</div>
-					{(saveMessage || deleteMessage) && (
-						<Alert variant="info">
-							{saveMessage || deleteMessage}
-						</Alert>
-					)}
+					{saveMessage && <Alert variant="info">{saveMessage}</Alert>}
 				</Form>
 			</Section>
-			<Modal
-				show={showDeleteConfirm}
-				onHide={() => setShowDeleteConfirm(false)}
-				centered
-			>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('PinMapping:profile-delete-confirm-title')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<p className="mb-0">{t('PinMapping:profile-delete-confirm-text')}</p>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button
-						variant="secondary"
-						onClick={() => setShowDeleteConfirm(false)}
-					>
-						{t('PinMapping:profile-delete-cancel-button')}
-					</Button>
-					<Button variant="danger" onClick={handleDelete}>
-						{t('PinMapping:profile-delete-confirm-button')}
-					</Button>
-				</Modal.Footer>
-			</Modal>
 		</>
 	);
 });
 
 export default function PinMapping() {
 	const fetchProfiles = useProfilesStore((state) => state.fetchProfiles);
-	const addProfile = useProfilesStore((state) => state.addProfile);
 	const profiles = useProfilesStore((state) => state.profiles);
 	const loadingProfiles = useProfilesStore((state) => state.loadingProfiles);
 
@@ -561,10 +486,6 @@ export default function PinMapping() {
 
 	useEffect(() => {
 		fetchProfiles();
-	}, []);
-
-	const handleProfileDeleted = useCallback(() => {
-		setActiveTabKey('profile-0');
 	}, []);
 
 	return (
@@ -585,22 +506,12 @@ export default function PinMapping() {
 											profileNumber: index + 1,
 										})}
 
-									{!enabled && index > 0 && (
+									{!enabled && index >= 2 && (
 										<span>{t('PinMapping:profile-disabled')}</span>
 									)}
 								</Nav.Link>
 							</Nav.Item>
 						))}
-						{profiles.length !== MAX_PROFILES && (
-							<Button
-								type="button"
-								className="mt-1"
-								variant="outline"
-								onClick={addProfile}
-							>
-								{t('PinMapping:profile-add-button')}
-							</Button>
-						)}
 					</Nav>
 					<hr />
 					<p className="text-center">{t('PinMapping:sub-header-text')}</p>
@@ -621,10 +532,7 @@ export default function PinMapping() {
 					<Tab.Content>
 						{profiles.map((_, index) => (
 							<Tab.Pane key={`profile-${index}`} eventKey={`profile-${index}`}>
-								<PinSection
-									profileIndex={index}
-									onProfileDeleted={handleProfileDeleted}
-								/>
+								<PinSection profileIndex={index} />
 							</Tab.Pane>
 						))}
 					</Tab.Content>

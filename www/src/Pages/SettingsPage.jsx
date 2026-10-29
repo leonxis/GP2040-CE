@@ -1599,9 +1599,8 @@ export default function SettingsPage() {
 																onChange={handleChange}
 																isInvalid={errors.profileNumber}
 															>
-																{profiles.map((profile, index) => (
+																{profiles.slice(0, 2).map((profile, index) => (
 																	<option
-																		disabled={!profile.enabled}
 																		key={`button-profileNumber-option-${
 																			index + 1
 																		}`}
@@ -1612,10 +1611,6 @@ export default function SettingsPage() {
 																			t('PinMapping:profile-label-default', {
 																				profileNumber: index + 1,
 																			})
-																		}${
-																			!profile.enabled
-																				? t('PinMapping:profile-disabled')
-																				: ''
 																		}`}
 																	</option>
 																))}

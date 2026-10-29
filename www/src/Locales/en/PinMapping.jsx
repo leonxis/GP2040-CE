@@ -33,6 +33,9 @@ export default {
 	'activator-hold-title': 'Active while held, released to deactivate',
 	'activator-toggle-title':
 		'Press once to activate, press again to deactivate (exits on the second press frame)',
+	'layer-enable-switch': 'Enable this key layer',
+	'layer-save-hint':
+		'Saving a key layer does not change the active profile; pins left blank fall back to the base mapping.',
 	actions: {
 		NONE: 'None',
 		RESERVED: 'Reserved',

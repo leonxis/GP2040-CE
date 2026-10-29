@@ -27,6 +27,8 @@ export default {
 	'activator-off-title': '关闭激活器',
 	'activator-hold-title': '按住激活，松开取消',
 	'activator-toggle-title': '按一次激活，再按一次取消（第二次按下当帧退出）',
+	'layer-enable-switch': '启用此映射层',
+	'layer-save-hint': '保存映射层不会切换当前配置档；引脚留空时激活帧回退到基础映射。',
 	actions: {
 		NONE: '无',
 		RESERVED: '预留引脚',
