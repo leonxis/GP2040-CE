@@ -401,6 +401,23 @@ message CurvePreset
     optional uint32 activationButtonMask = 3 [default = 0];  // Button mask to activate this preset (0 = NONE, disabled)
 }
 
+// Bezier curve control points: single cubic bezier with fixed endpoints P0=(0,0), P3=(1,1)
+message BezierControl
+{
+    optional float c1x = 1;
+    optional float c1y = 2;
+    optional float c2x = 3;
+    optional float c2y = 4;
+}
+
+message BezierPreset
+{
+    reserved 2;
+    optional string name = 1 [(nanopb).max_length = 64];
+    optional BezierControl bezier = 3;
+    optional uint32 activationButtonMask = 4 [default = 0];  // Button mask to activate this preset (0 = NONE, disabled)
+}
+
 message AnalogOptions
 {
     optional bool enabled = 1;
@@ -456,8 +473,8 @@ message AnalogOptions
     // Fixed anti-deadzone mode (true = fixed, false = linear)
     optional bool fixed_anti_deadzone = 63 [default = false];
     optional bool fixed_anti_deadzone2 = 64 [default = false];
-    // Curve preset schemes (max 2 presets)
-    repeated CurvePreset joystick_curve_presets = 65 [(nanopb).max_count = 2];
+    // Curve preset schemes (max 4 presets)
+    repeated CurvePreset joystick_curve_presets = 65 [(nanopb).max_count = 4];
     // Current curve profile in use (0 = custom/no preset, 1-2 = preset 1-2)
     // Used to detect hotkey preset switching for efficient reinitialization
     optional uint32 curve_profile_1 = 66 [default = 0];  // Left stick (stick 1)
@@ -471,6 +488,13 @@ message AnalogOptions
     optional uint32 joystick_travel_button_custom_dpad_mask2 = 73 [default = 0];
     optional uint32 joystick_travel_button_custom_button_mask2 = 74 [default = 0];
     optional uint32 joystick_travel_button_threshold2 = 75 [default = 0];
+    // Joystick curve mode: 0 = polyline (default, existing behavior), 1 = bezier
+    optional uint32 joystick_curve_mode = 12 [default = 0];
+    // Active bezier control points per stick (unset = linear)
+    optional BezierControl joystick_bezier_1 = 76;
+    optional BezierControl joystick_bezier_2 = 77;
+    // Bezier presets shared by both sticks (max 4)
+    repeated BezierPreset joystick_bezier_presets = 78 [(nanopb).max_count = 4];
 }
 
 message TurboOptions

@@ -84,11 +84,10 @@ export default {
 	'hml-no-control-points': 'No control points',
 	'hml-reset': 'Reset',
 	'hml-preset-name-placeholder': 'Preset name',
-	'hml-preset-import-settings': 'Import settings',
 	'hml-preset-import-invalid-format':
 		'Please export the curve from ControllerMeta in Donggan Zhijian format!',
-	'hml-apply-left': 'Apply to left stick',
-	'hml-apply-right': 'Apply to right stick',
+	'hml-apply-left': 'Apply left stick',
+	'hml-apply-right': 'Apply right stick',
 	'hml-right-stick-quick-switch': 'Right stick quick hot switch:',
 	'hml-right-stick-quick-switch-tooltip':
 		'Hold the hot-switch button to temporarily use this curve; release to revert.',
@@ -165,4 +164,14 @@ export default {
 	'hml-axis-x-short': 'X:',
 	'hml-axis-y-short': 'Y:',
 	'hml-angle-range-value': '{{start}}° ~ {{end}}°',
+	'hml-curve-mode-bezier': 'Bézier curve',
+	'hml-curve-mode-polyline': 'Polyline curve',
+	'hml-bezier-disabled': 'Bézier curve disabled',
+	'hml-polyline-disabled': 'Polyline curve disabled',
+	'hml-import-left': 'Import left curve',
+	'hml-import-right': 'Import right curve',
+	'hml-import-file': 'Import file',
+	'hml-bezier-points-title': 'Bézier control points',
+	'hml-bezier-c1': 'C1',
+	'hml-bezier-c2': 'C2',
 };

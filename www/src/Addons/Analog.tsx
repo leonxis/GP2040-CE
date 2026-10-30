@@ -142,7 +142,43 @@ export const analogScheme = {
 		.max(6)
 		.label('Joystick Curve Points 2'),
 	joystickCurveEnabled: yup.boolean().label('Joystick Curve Enabled'),
-	// Curve point presets (max 2 presets, each with up to 6 points)
+	// Curve mode: 0 = polyline, 1 = bezier
+	joystickCurveMode: yup.number().min(0).max(1).label('Joystick Curve Mode'),
+	// Active bezier control points per stick
+	joystickBezier1: yup
+		.object()
+		.shape({
+			c1x: yup.number().min(0).max(1),
+			c1y: yup.number().min(0).max(1),
+			c2x: yup.number().min(0).max(1),
+			c2y: yup.number().min(0).max(1)
+		})
+		.label('Joystick Bezier 1'),
+	joystickBezier2: yup
+		.object()
+		.shape({
+			c1x: yup.number().min(0).max(1),
+			c1y: yup.number().min(0).max(1),
+			c2x: yup.number().min(0).max(1),
+			c2y: yup.number().min(0).max(1)
+		})
+		.label('Joystick Bezier 2'),
+	// Bezier presets shared by both sticks (max 4)
+	joystickBezierPresets: yup
+		.array()
+		.of(yup.object().shape({
+			name: yup.string().max(64).label('Preset Name'),
+			bezier: yup.object().shape({
+				c1x: yup.number().min(0).max(1),
+				c1y: yup.number().min(0).max(1),
+				c2x: yup.number().min(0).max(1),
+				c2y: yup.number().min(0).max(1)
+			}).label('Preset Bezier'),
+			activationButtonMask: yup.number().min(0).label('Activation Button Mask')
+		}))
+		.max(4)
+		.label('Joystick Bezier Presets'),
+	// Curve point presets (max 4 presets, each with up to 6 points)
 	joystickCurvePresets: yup
 		.array()
 		.of(yup.object().shape({
@@ -156,7 +192,7 @@ export const analogScheme = {
 				.max(6)
 				.label('Preset Points')
 		}))
-		.max(2)
+		.max(4)
 		.label('Joystick Curve Presets'),
 	joystickTravelButtonAction: yup.number().label('Joystick Travel Button Action'),
 	joystickTravelButtonCustomDpadMask: yup.number().min(0).label('Joystick Travel Button Custom Dpad Mask'),
@@ -225,6 +261,16 @@ export const analogState = {
 	joystickCurvePoints1: [],
 	joystickCurvePoints2: [],
 	joystickCurveEnabled: false,
+	joystickCurveMode: 0,
+	// Active bezier control points (default = linear)
+	joystickBezier1: { c1x: 0.333, c1y: 0.333, c2x: 0.667, c2y: 0.667 },
+	joystickBezier2: { c1x: 0.333, c1y: 0.333, c2x: 0.667, c2y: 0.667 },
+	// Bezier presets shared by both sticks (default: 4 empty-named linear presets)
+	joystickBezierPresets: [0, 1, 2, 3].map(() => ({
+		name: '',
+		bezier: { c1x: 0.333, c1y: 0.333, c2x: 0.667, c2y: 0.667 },
+		activationButtonMask: 0,
+	})),
 	// Curve point presets (default: empty array)
 	joystickCurvePresets: [],
 	joystickTravelButtonAction: BUTTON_ACTIONS.NONE,

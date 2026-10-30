@@ -15,21 +15,12 @@ type CurvePointInput = { x: string; y: string };
 const DEFAULT_ADC_MAX = 4095;
 const CIRCULARITY_DATA_SIZE = 48;
 
-/** Custom stick curve presets in Web config / firmware (indexed 0..1 → profile 1..2). */
-const CURVE_PRESET_COUNT = 2;
+/** Custom stick curve presets in Web config / firmware (indexed 0..3). */
+const CURVE_PRESET_COUNT = 4;
 /** Intermediate control points between inner dead zone and (1,1); not counting endpoints appended in firmware. */
 const CURVE_POINT_COUNT = 6;
 /** Matches `CurvePreset.name` max_length in config.proto (bytes; ASCII subset ⇒ same char limit). */
 const CURVE_PRESET_NAME_MAX_LEN = 64;
-
-const PRESET_ROW_LABELS = Array.from({ length: CURVE_POINT_COUNT }, (_, i) => `P${i + 1}`);
-
-/** Pairs for two-points-per-row preset layout */
-const PRESET_POINT_ROW_PAIRS: ReadonlyArray<readonly [number, number]> = [
-	[0, 1],
-	[2, 3],
-	[4, 5],
-];
 
 function sortCurvePointsByX(pts: CurvePoint[]): CurvePoint[] {
 	return [...pts].sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
@@ -44,6 +35,11 @@ function sanitizePresetNameForPreset(raw: unknown): string {
 	const filtered = String(raw ?? '').replace(/[^A-Za-z0-9 ]/g, '');
 	const collapsed = filtered.replace(/\s+/g, ' ').trim();
 	return collapsed.slice(0, CURVE_PRESET_NAME_MAX_LEN);
+}
+
+/** While typing: strip disallowed chars + enforce max length, keep spaces (full sanitize happens on save/load). */
+function sanitizePresetNameWhileTyping(raw: unknown): string {
+	return String(raw ?? '').replace(/[^A-Za-z0-9 ]/g, '').slice(0, CURVE_PRESET_NAME_MAX_LEN);
 }
 
 function enforceImportedPresetPoints(points: CurvePointInput[]): void {
@@ -223,7 +219,8 @@ const processJoystickData = (
 	// Step 2: Range calibration scaling
 	const current_distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
 	const angle = Math.atan2(offset_center_y, offset_center_x);
-	const scale = getInterpolatedScale(angle, rangeData);
+	const rawScale = getInterpolatedScale(angle, rangeData);
+	const scale = rawScale > 0 ? rawScale : 1.0;
 	
 	const scaled_center_x = offset_center_x / scale;
 	const scaled_center_y = offset_center_y / scale;
@@ -707,9 +704,255 @@ const mouseToCurvePoint = (
 ): CurvePoint => {
 	const x = mouseX / canvasWidth;
 	const y = 1.0 - (mouseY / canvasHeight);
-	
+
 	return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
 };
+
+// ---------------------------------------------------------------------------
+// Bezier curve (single cubic, fixed endpoints P0=(0,0) / P3=(1,1), C1/C2 only)
+// ---------------------------------------------------------------------------
+
+type BezierControl = { c1x: number; c1y: number; c2x: number; c2y: number };
+type BezierControlInput = { c1x: string; c1y: string; c2x: string; c2y: string };
+
+/** Shared bezier preset count (left/right sticks share one list). Matches config.proto max_count. */
+const BEZIER_PRESET_COUNT = 4;
+/** Matches `BezierPreset.name` max_length in config.proto. */
+const BEZIER_PRESET_NAME_MAX_LEN = 64;
+
+const BEZIER_LINEAR_DEFAULT: BezierControl = { c1x: 1 / 3, c1y: 1 / 3, c2x: 2 / 3, c2y: 2 / 3 };
+
+/** Clamp control points to [0,1]^2 and enforce C1 <= C2 component-wise (keeps curve monotonic). */
+function clampBezierControl(b: BezierControl): BezierControl {
+	const c1x = Math.max(0, Math.min(1, Number.isFinite(b.c1x) ? b.c1x : BEZIER_LINEAR_DEFAULT.c1x));
+	const c1y = Math.max(0, Math.min(1, Number.isFinite(b.c1y) ? b.c1y : BEZIER_LINEAR_DEFAULT.c1y));
+	const c2x = Math.max(0, Math.min(1, Number.isFinite(b.c2x) ? b.c2x : BEZIER_LINEAR_DEFAULT.c2x));
+	const c2y = Math.max(0, Math.min(1, Number.isFinite(b.c2y) ? b.c2y : BEZIER_LINEAR_DEFAULT.c2y));
+	return {
+		c1x: Math.min(c1x, c2x),
+		c1y: Math.min(c1y, c2y),
+		c2x: Math.max(c1x, c2x),
+		c2y: Math.max(c1y, c2y),
+	};
+}
+
+function normalizeBezier(raw: unknown): BezierControl {
+	if (raw && typeof raw === 'object') {
+		const o = raw as Record<string, unknown>;
+		return clampBezierControl({
+			c1x: Number(o.c1x),
+			c1y: Number(o.c1y),
+			c2x: Number(o.c2x),
+			c2y: Number(o.c2y),
+		});
+	}
+	return { ...BEZIER_LINEAR_DEFAULT };
+}
+
+function bezierToInputStrings(b: BezierControl): BezierControlInput {
+	return {
+		c1x: parseFloat(b.c1x.toFixed(4)).toString(),
+		c1y: parseFloat(b.c1y.toFixed(4)).toString(),
+		c2x: parseFloat(b.c2x.toFixed(4)).toString(),
+		c2y: parseFloat(b.c2y.toFixed(4)).toString(),
+	};
+}
+
+const areBezierEqual = (a: BezierControl, b: BezierControl) =>
+	Math.abs(a.c1x - b.c1x) <= 0.0001 && Math.abs(a.c1y - b.c1y) <= 0.0001 &&
+	Math.abs(a.c2x - b.c2x) <= 0.0001 && Math.abs(a.c2y - b.c2y) <= 0.0001;
+
+/** Cubic bezier axis value with endpoints 0 and 1: B(t) = 3(1-t)^2 t c1 + 3(1-t) t^2 c2 + t^3 */
+const bezierEvalAxis = (c1: number, c2: number, t: number): number => {
+	const mt = 1 - t;
+	return 3 * mt * mt * t * c1 + 3 * mt * t * t * c2 + t * t * t;
+};
+
+/** dB/dt for the axis polynomial above */
+const bezierDerivAxis = (c1: number, c2: number, t: number): number => {
+	const mt = 1 - t;
+	return 3 * mt * mt * c1 + 6 * mt * t * (c2 - c1) + 3 * t * t * (1 - c2);
+};
+
+/** Newton solve x(t) = xTarget with clamped monotonic curve (single root guaranteed). */
+const bezierFindT = (xTarget: number, c1x: number, c2x: number, seed = 0.5): number => {
+	let t = Math.max(0, Math.min(1, seed));
+	for (let i = 0; i < 8; i++) {
+		const err = bezierEvalAxis(c1x, c2x, t) - xTarget;
+		if (Math.abs(err) < 1e-5) break;
+		const d = bezierDerivAxis(c1x, c2x, t);
+		if (Math.abs(d) < 1e-6) break;
+		t = Math.max(0, Math.min(1, t - err / d));
+	}
+	return t;
+};
+
+type BezierSegment = { p0: CurvePoint; c1: CurvePoint; c2: CurvePoint; p3: CurvePoint };
+
+/** De Casteljau split at t; returns the first half segment (P0 fixed at (0,0), P3 fixed at (1,1)). */
+const splitBezierAt = (b: BezierControl, t: number): BezierSegment => {
+	const p0: CurvePoint = { x: 0, y: 0 };
+	const p1: CurvePoint = { x: b.c1x, y: b.c1y };
+	const p2: CurvePoint = { x: b.c2x, y: b.c2y };
+	const p3: CurvePoint = { x: 1, y: 1 };
+	const lerp = (a: CurvePoint, c: CurvePoint): CurvePoint => ({
+		x: a.x + (c.x - a.x) * t,
+		y: a.y + (c.y - a.y) * t,
+	});
+	const q0 = lerp(p0, p1);
+	const q1 = lerp(p1, p2);
+	const q2 = lerp(p2, p3);
+	const r0 = lerp(q0, q1);
+	const r1 = lerp(q1, q2);
+	const s0 = lerp(r0, r1);
+	return { p0, c1: q0, c2: r0, p3: s0 };
+};
+
+/**
+ * Parse bezier curve JSON file. Accepted shapes:
+ * { name, bezier: { c1x, c1y, c2x, c2y } } (name ignored), { c1x, c1y, c2x, c2y }, [c1x, c1y, c2x, c2y].
+ * Returns null if invalid (caller shows unified alert).
+ */
+function parseBezierImportJSON(text: string): BezierControl | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return null;
+	}
+	const readNums = (vals: unknown[]): BezierControl | null => {
+		if (vals.length !== 4) return null;
+		const nums = vals.map((v) => Number(v));
+		if (!nums.every((n) => Number.isFinite(n))) return null;
+		return clampBezierControl({ c1x: nums[0], c1y: nums[1], c2x: nums[2], c2y: nums[3] });
+	};
+	if (Array.isArray(parsed)) {
+		return readNums(parsed);
+	}
+	if (parsed !== null && typeof parsed === 'object') {
+		const o = parsed as Record<string, unknown>;
+		if (o.bezier !== undefined) {
+			if (o.bezier === null || typeof o.bezier !== 'object' || Array.isArray(o.bezier)) return null;
+			const b = o.bezier as Record<string, unknown>;
+			return readNums([b.c1x, b.c1y, b.c2x, b.c2y]);
+		}
+		return readNums([o.c1x, o.c1y, o.c2x, o.c2y]);
+	}
+	return null;
+}
+
+/**
+ * Draws bezier curve editor on canvas. Static background (grid / dots / dashed refs / purple mask)
+ * is fully reused from the polyline editor via drawCurveStaticBackground.
+ */
+const drawBezierEditor = (
+	ctx: CanvasRenderingContext2D,
+	width: number,
+	height: number,
+	bezier: BezierControl,
+	lightX: number | undefined, // Physical distance (sqrt(dist_sq)) as 0-1
+	innerDeadzone: number = 0,
+	antiDeadzone: number = 0
+) => {
+	const staticCanvas = drawCurveStaticBackground(width, height, innerDeadzone, antiDeadzone);
+	ctx.clearRect(0, 0, width, height);
+	ctx.drawImage(staticCanvas, 0, 0);
+
+	const intWidth = Math.round(width);
+	const intHeight = Math.round(height);
+	const toPx = (x: number) => Math.round(x * intWidth);
+	const toPy = (y: number) => Math.round(intHeight - y * intHeight);
+
+	// Handle lines P0 -> C1 and C2 -> P3 (gray dashed)
+	ctx.strokeStyle = '#999999';
+	ctx.lineWidth = 1;
+	ctx.setLineDash([5, 5]);
+	ctx.beginPath();
+	ctx.moveTo(toPx(0), toPy(0));
+	ctx.lineTo(toPx(bezier.c1x), toPy(bezier.c1y));
+	ctx.stroke();
+	ctx.beginPath();
+	ctx.moveTo(toPx(bezier.c2x), toPy(bezier.c2y));
+	ctx.lineTo(toPx(1), toPy(1));
+	ctx.stroke();
+	ctx.setLineDash([]);
+
+	// Main bezier curve (black solid)
+	ctx.strokeStyle = '#000000';
+	ctx.lineWidth = 2;
+	ctx.beginPath();
+	ctx.moveTo(toPx(0), toPy(0));
+	ctx.bezierCurveTo(toPx(bezier.c1x), toPy(bezier.c1y), toPx(bezier.c2x), toPy(bezier.c2y), toPx(1), toPy(1));
+	ctx.stroke();
+
+	// Progress highlight: physical dist -> t -> first-half segment in orange
+	if (lightX !== undefined && lightX > 0) {
+		const targetX = Math.max(0, Math.min(1, lightX));
+		const tParam = bezierFindT(targetX, bezier.c1x, bezier.c2x);
+		const seg = splitBezierAt(bezier, tParam);
+
+		ctx.strokeStyle = '#FFA500';
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.moveTo(toPx(seg.p0.x), toPy(seg.p0.y));
+		ctx.bezierCurveTo(toPx(seg.c1.x), toPy(seg.c1.y), toPx(seg.c2.x), toPy(seg.c2.y), toPx(seg.p3.x), toPy(seg.p3.y));
+		ctx.stroke();
+
+		// Progress endpoint dot
+		ctx.fillStyle = '#FFA500';
+		ctx.beginPath();
+		ctx.arc(toPx(seg.p3.x), toPy(seg.p3.y), 5, 0, 2 * Math.PI);
+		ctx.fill();
+
+		// Light orange dashed projections to X/Y axes
+		ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)';
+		ctx.lineWidth = 1;
+		ctx.setLineDash([4, 4]);
+		ctx.beginPath();
+		ctx.moveTo(toPx(seg.p3.x), toPy(seg.p3.y));
+		ctx.lineTo(toPx(seg.p3.x), toPy(0));
+		ctx.stroke();
+		ctx.beginPath();
+		ctx.moveTo(toPx(seg.p3.x), toPy(seg.p3.y));
+		ctx.lineTo(toPx(0), toPy(seg.p3.y));
+		ctx.stroke();
+		ctx.setLineDash([]);
+	}
+
+	// C1/C2 handles (orange hollow circles)
+	const handles: CurvePoint[] = [
+		{ x: bezier.c1x, y: bezier.c1y },
+		{ x: bezier.c2x, y: bezier.c2y },
+	];
+	for (const pt of handles) {
+		ctx.beginPath();
+		ctx.arc(toPx(pt.x), toPy(pt.y), 6, 0, 2 * Math.PI);
+		ctx.fillStyle = '#ffffff';
+		ctx.fill();
+		ctx.strokeStyle = '#FFA500';
+		ctx.lineWidth = 2;
+		ctx.stroke();
+	}
+};
+
+/** Collapsed placeholder shown for the curve mode that is not selected. */
+const DisabledCurveBar = ({ label }: { label: string }) => (
+	<div
+		style={{
+			width: '100%',
+			background: '#ECECEE',
+			borderRadius: 8,
+			padding: '8px 12px',
+			display: 'flex',
+			alignItems: 'center',
+			justifyContent: 'flex-start',
+			fontSize: '0.875rem',
+			color: '#666',
+		}}
+	>
+		{label}
+	</div>
+);
 
 interface JoystickCurveSettingsProps {
 	values: AddonPropTypes['values'];
@@ -791,11 +1034,76 @@ const JoystickCurveSettings = ({
 	const [rightLightX, setRightLightX] = useState<number | undefined>(undefined); // Physical distance (sqrt(dist_sq)) as percentage
 	const [rightLightY, setRightLightY] = useState<number | undefined>(undefined); // Output distance (sqrt(stickX*stickX + stickY*stickY)) as percentage
 
+	// ---------------- Bezier state (mode 1) ----------------
+	// Curve mode: 0 = polyline (existing behavior), 1 = bezier. Derived from formik values.
+	const curveMode = Number(values?.joystickCurveMode ?? 0) === 1 ? 1 : 0;
+
+	// Left stick bezier
+	const [leftBezier, setLeftBezier] = useState<BezierControl>(() => normalizeBezier(values?.joystickBezier1));
+	const [leftBezierInputs, setLeftBezierInputs] = useState<BezierControlInput>(() => bezierToInputStrings(normalizeBezier(values?.joystickBezier1)));
+	const leftBezierDirtyRef = useRef(false);
+	const leftBezierCanvasRef = useRef<HTMLCanvasElement>(null);
+	const [leftDraggingBezier, setLeftDraggingBezier] = useState<'c1' | 'c2' | null>(null);
+	const [leftBezierDragOffset, setLeftBezierDragOffset] = useState<{ x: number; y: number } | null>(null);
+
+	// Right stick bezier
+	const [rightBezier, setRightBezier] = useState<BezierControl>(() => normalizeBezier(values?.joystickBezier2));
+	const [rightBezierInputs, setRightBezierInputs] = useState<BezierControlInput>(() => bezierToInputStrings(normalizeBezier(values?.joystickBezier2)));
+	const rightBezierDirtyRef = useRef(false);
+	const rightBezierCanvasRef = useRef<HTMLCanvasElement>(null);
+	const [rightDraggingBezier, setRightDraggingBezier] = useState<'c1' | 'c2' | null>(null);
+	const [rightBezierDragOffset, setRightBezierDragOffset] = useState<{ x: number; y: number } | null>(null);
+
+	const setLeftBezierLocal = (next: BezierControl) => {
+		leftBezierDirtyRef.current = true;
+		setLeftBezier(next);
+	};
+
+	const setRightBezierLocal = (next: BezierControl) => {
+		rightBezierDirtyRef.current = true;
+		setRightBezier(next);
+	};
+
+	// Load bezier control points from values when they change (unless locally dirty)
+	useEffect(() => {
+		if (leftBezierDirtyRef.current) return;
+		const next = normalizeBezier(values?.joystickBezier1);
+		setLeftBezier(next);
+		setLeftBezierInputs(bezierToInputStrings(next));
+	}, [values?.joystickBezier1]);
+
+	useEffect(() => {
+		if (rightBezierDirtyRef.current) return;
+		const next = normalizeBezier(values?.joystickBezier2);
+		setRightBezier(next);
+		setRightBezierInputs(bezierToInputStrings(next));
+	}, [values?.joystickBezier2]);
+
+	// Keep formik values in sync with local bezier edits
+	useEffect(() => {
+		if (!leftBezierDirtyRef.current) return;
+		const formikBezier = normalizeBezier(values?.joystickBezier1);
+		if (!areBezierEqual(leftBezier, formikBezier)) {
+			setFieldValue('joystickBezier1', leftBezier);
+		} else {
+			leftBezierDirtyRef.current = false;
+		}
+	}, [leftBezier, setFieldValue, values?.joystickBezier1]);
+
+	useEffect(() => {
+		if (!rightBezierDirtyRef.current) return;
+		const formikBezier = normalizeBezier(values?.joystickBezier2);
+		if (!areBezierEqual(rightBezier, formikBezier)) {
+			setFieldValue('joystickBezier2', rightBezier);
+		} else {
+			rightBezierDirtyRef.current = false;
+		}
+	}, [rightBezier, setFieldValue, values?.joystickBezier2]);
+
 	const setLeftCurvePointsLocal = (nextPoints: CurvePoint[]) => {
 		leftCurveDirtyRef.current = true;
 		setLeftCurvePoints(nextPoints);
 	};
-
 	const setRightCurvePointsLocal = (nextPoints: CurvePoint[]) => {
 		rightCurveDirtyRef.current = true;
 		setRightCurvePoints(nextPoints);
@@ -889,6 +1197,8 @@ const JoystickCurveSettings = ({
 	
 	// Fetch joystick data to get progress ratio for highlight line
 	useEffect(() => {
+		if (!isExpanded) return;
+
 		let intervalId: ReturnType<typeof setInterval> | null = null;
 		
 		const fetchJoystickData = async () => {
@@ -952,11 +1262,17 @@ const JoystickCurveSettings = ({
 						stickY = Math.max(-1.0, Math.min(1.0, stickY));
 
 						const curveEnabled = values?.joystickCurveEnabled ?? false;
-						if (curveEnabled && leftCurvePoints.length > 0 && (stickX !== 0.0 || stickY !== 0.0)) {
+						if (curveEnabled && (stickX !== 0.0 || stickY !== 0.0)) {
 							const magnitude_sq = stickX * stickX + stickY * stickY;
 							if (magnitude_sq > 0.0) {
 								const magnitude = Math.sqrt(magnitude_sq);
-								const curvedMagnitude = applyResponseCurve(magnitude, leftCurvePoints);
+								let curvedMagnitude = magnitude;
+								if (curveMode === 1) {
+									const tParam = bezierFindT(Math.min(magnitude, 1), leftBezier.c1x, leftBezier.c2x);
+									curvedMagnitude = bezierEvalAxis(leftBezier.c1y, leftBezier.c2y, tParam);
+								} else if (leftCurvePoints.length > 0) {
+									curvedMagnitude = applyResponseCurve(Math.min(magnitude, 1), leftCurvePoints);
+								}
 								if (magnitude > 0) {
 									const scale = curvedMagnitude / magnitude;
 									stickX *= scale;
@@ -1034,11 +1350,17 @@ const JoystickCurveSettings = ({
 						stickY = Math.max(-1.0, Math.min(1.0, stickY));
 
 						const curveEnabled = values?.joystickCurveEnabled ?? false;
-						if (curveEnabled && rightCurvePoints.length > 0 && (stickX !== 0.0 || stickY !== 0.0)) {
+						if (curveEnabled && (stickX !== 0.0 || stickY !== 0.0)) {
 							const magnitude_sq = stickX * stickX + stickY * stickY;
 							if (magnitude_sq > 0.0) {
 								const magnitude = Math.sqrt(magnitude_sq);
-								const curvedMagnitude = applyResponseCurve(magnitude, rightCurvePoints);
+								let curvedMagnitude = magnitude;
+								if (curveMode === 1) {
+									const tParam = bezierFindT(Math.min(magnitude, 1), rightBezier.c1x, rightBezier.c2x);
+									curvedMagnitude = bezierEvalAxis(rightBezier.c1y, rightBezier.c2y, tParam);
+								} else if (rightCurvePoints.length > 0) {
+									curvedMagnitude = applyResponseCurve(Math.min(magnitude, 1), rightCurvePoints);
+								}
 								if (magnitude > 0) {
 									const scale = curvedMagnitude / magnitude;
 									stickX *= scale;
@@ -1062,11 +1384,11 @@ const JoystickCurveSettings = ({
 		return () => {
 			if (intervalId) clearInterval(intervalId);
 		};
-	}, [values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, leftCurvePoints, rightCurvePoints]);
+	}, [isExpanded, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, curveMode, leftCurvePoints, rightCurvePoints, leftBezier, rightBezier]);
 	
 	// Draw left curve canvas (optimized with requestAnimationFrame throttling)
 	useEffect(() => {
-		if (!isExpanded || !leftCurveCanvasRef.current) return;
+		if (!isExpanded || curveMode !== 0 || !leftCurveCanvasRef.current) return;
 
 		let animationFrameId: number | null = null;
 		let lastUpdateTime = 0;
@@ -1102,11 +1424,11 @@ const JoystickCurveSettings = ({
 				cancelAnimationFrame(animationFrameId);
 			}
 		};
-	}, [isExpanded, leftCurvePoints, leftLightX, leftLightY, values?.inner_deadzone, values?.anti_deadzone]);
+	}, [isExpanded, curveMode, leftCurvePoints, leftLightX, leftLightY, values?.inner_deadzone, values?.anti_deadzone]);
 	
 	// Draw right curve canvas (optimized with requestAnimationFrame throttling)
 	useEffect(() => {
-		if (!isExpanded || !rightCurveCanvasRef.current) return;
+		if (!isExpanded || curveMode !== 0 || !rightCurveCanvasRef.current) return;
 
 		let animationFrameId: number | null = null;
 		let lastUpdateTime = 0;
@@ -1142,7 +1464,81 @@ const JoystickCurveSettings = ({
 				cancelAnimationFrame(animationFrameId);
 			}
 		};
-	}, [isExpanded, rightCurvePoints, rightLightX, rightLightY, values?.inner_deadzone2, values?.anti_deadzone2]);
+	}, [isExpanded, curveMode, rightCurvePoints, rightLightX, rightLightY, values?.inner_deadzone2, values?.anti_deadzone2]);
+
+	// Draw left bezier canvas (mode 1)
+	useEffect(() => {
+		if (!isExpanded || curveMode !== 1 || !leftBezierCanvasRef.current) return;
+
+		let animationFrameId: number | null = null;
+		let lastUpdateTime = 0;
+		const TARGET_FPS = 60;
+		const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+		const updateCanvas = (currentTime: number) => {
+			if (currentTime - lastUpdateTime < FRAME_INTERVAL && leftLightX !== undefined) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+				return;
+			}
+			lastUpdateTime = currentTime;
+
+			const ctx = leftBezierCanvasRef.current?.getContext('2d');
+			if (ctx) {
+				const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
+				const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+				drawBezierEditor(ctx, 260, 260, leftBezier, leftLightX, innerDeadzone, antiDeadzone);
+			}
+
+			if (leftLightX !== undefined) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+			}
+		};
+
+		animationFrameId = requestAnimationFrame(updateCanvas);
+
+		return () => {
+			if (animationFrameId !== null) {
+				cancelAnimationFrame(animationFrameId);
+			}
+		};
+	}, [isExpanded, curveMode, leftBezier, leftLightX, values?.inner_deadzone, values?.anti_deadzone]);
+
+	// Draw right bezier canvas (mode 1)
+	useEffect(() => {
+		if (!isExpanded || curveMode !== 1 || !rightBezierCanvasRef.current) return;
+
+		let animationFrameId: number | null = null;
+		let lastUpdateTime = 0;
+		const TARGET_FPS = 60;
+		const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+		const updateCanvas = (currentTime: number) => {
+			if (currentTime - lastUpdateTime < FRAME_INTERVAL && rightLightX !== undefined) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+				return;
+			}
+			lastUpdateTime = currentTime;
+
+			const ctx = rightBezierCanvasRef.current?.getContext('2d');
+			if (ctx) {
+				const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
+				const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+				drawBezierEditor(ctx, 260, 260, rightBezier, rightLightX, innerDeadzone, antiDeadzone);
+			}
+
+			if (rightLightX !== undefined) {
+				animationFrameId = requestAnimationFrame(updateCanvas);
+			}
+		};
+
+		animationFrameId = requestAnimationFrame(updateCanvas);
+
+		return () => {
+			if (animationFrameId !== null) {
+				cancelAnimationFrame(animationFrameId);
+			}
+		};
+	}, [isExpanded, curveMode, rightBezier, rightLightX, values?.inner_deadzone2, values?.anti_deadzone2]);
 	
 	// Sync input values with curve points
 	useEffect(() => {
@@ -1431,10 +1827,13 @@ const JoystickCurveSettings = ({
 		activationButtonMask?: number;
 	};
 	
-	const [presetInputs, setPresetInputs] = useState<PresetInput[]>([
-		{ name: '', points: emptyPresetPointSlots(), activationButtonMask: 0 },
-		{ name: '', points: emptyPresetPointSlots(), activationButtonMask: 0 },
-	]);
+	const [presetInputs, setPresetInputs] = useState<PresetInput[]>(() =>
+		Array.from({ length: CURVE_PRESET_COUNT }, () => ({
+			name: '',
+			points: emptyPresetPointSlots(),
+			activationButtonMask: 0,
+		}))
+	);
 	
 	// Load presets from values on mount and when values change
 	useEffect(() => {
@@ -1456,9 +1855,12 @@ const JoystickCurveSettings = ({
 				
 				for (let i = 0; i < CURVE_POINT_COUNT; i++) {
 					if (i < points.length) {
+						const px = Number(points[i]?.x);
+						const py = Number(points[i]?.y);
+						if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
 						presetPoints[i] = {
-							x: parseFloat(points[i].x.toFixed(4)).toString(),
-							y: parseFloat(points[i].y.toFixed(4)).toString(),
+							x: parseFloat(px.toFixed(4)).toString(),
+							y: parseFloat(py.toFixed(4)).toString(),
 						};
 					}
 				}
@@ -1469,84 +1871,16 @@ const JoystickCurveSettings = ({
 			return { name: '', points: emptyPresetPointSlots(), activationButtonMask: 0 };
 		};
 		
-		setPresetInputs([loadPreset(0), loadPreset(1)]);
+		setPresetInputs(Array.from({ length: CURVE_PRESET_COUNT }, (_, i) => loadPreset(i)));
 	}, [values?.joystickCurvePresets]);
 	
 	// Handle preset name change
 	const handlePresetNameChange = (presetIndex: number, value: string) => {
 		const newPresets = [...presetInputs];
-		newPresets[presetIndex].name = sanitizePresetNameForPreset(value);
+		newPresets[presetIndex].name = sanitizePresetNameWhileTyping(value);
 		setPresetInputs(newPresets);
 
 		setFieldValue('joystickCurvePresets', joystickCurvePresetsSlotsForFormik(newPresets));
-	};
-	
-	// Handle preset point change
-	const handlePresetPointChange = (presetIndex: number, pointIndex: number, field: 'x' | 'y', value: string) => {
-		const newPresets = [...presetInputs];
-		newPresets[presetIndex].points[pointIndex][field] = value;
-		setPresetInputs(newPresets);
-	};
-	
-	// Handle preset point blur for individual input field (no auto-sorting)
-	const handlePresetPointBlur = (presetIndex: number, pointIndex: number, field: 'x' | 'y') => {
-		const preset = presetInputs[presetIndex];
-		const newPresetInputs = [...presetInputs];
-		const currentPoint = preset.points[pointIndex];
-		
-		// Get current input value
-		const inputValue = parseFloat(currentPoint[field]) || 0;
-		
-		// If input is 0, it means no control point, so skip validation
-		if (inputValue === 0) {
-			// Just save to formik without validation
-			savePresetToFormik(newPresetInputs);
-			return;
-		}
-		
-		// Find the previous non-zero control point (check all points before current index)
-		let prevX = 0;
-		let prevY = 0;
-		for (let i = pointIndex - 1; i >= 0; i--) {
-			const prevPoint = preset.points[i];
-			const prevXVal = parseFloat(prevPoint.x) || 0;
-			const prevYVal = parseFloat(prevPoint.y) || 0;
-			if (prevXVal > 0 || prevYVal > 0) {
-				prevX = prevXVal;
-				prevY = prevYVal;
-				break;
-			}
-		}
-		
-		// Validate and adjust value
-		const epsilon = 0.01; // 1% gap
-		let correctedValue = inputValue;
-		
-		if (field === 'x') {
-			// If X is less than previous X, adjust to previous X + 1%
-			if (prevX > 0 && correctedValue < prevX) {
-				correctedValue = Math.min(1, prevX + epsilon);
-			}
-		} else if (field === 'y') {
-			// If Y is less than previous Y, adjust to previous Y + 1%
-			if (prevY > 0 && correctedValue < prevY) {
-				correctedValue = Math.min(1, prevY + epsilon);
-			}
-		}
-		
-		// Clamp to valid range
-		correctedValue = Math.max(0, Math.min(1, correctedValue));
-		
-		// Update the input value
-		newPresetInputs[presetIndex].points[pointIndex] = {
-			...currentPoint,
-			[field]: parseFloat(correctedValue.toFixed(4)).toString()
-		};
-		
-		setPresetInputs(newPresetInputs);
-		
-		// Save to formik
-		savePresetToFormik(newPresetInputs);
 	};
 	
 	// Helper function to check if activation button mask is already used by another preset
@@ -1574,17 +1908,44 @@ const JoystickCurveSettings = ({
 		setFieldValue('joystickCurvePresets', joystickCurvePresetsSlotsForFormik(presetInputsToSave));
 	};
 
-	const presetImportFileRefs = useRef<Array<HTMLInputElement | null>>([]);
+	const polylineImportFileRefs = useRef<Array<HTMLInputElement | null>>([]);
 
 	const showPresetImportFormatError = () => {
 		alert(t('CalibrationSettings:hml-preset-import-invalid-format'));
 	};
 
-	const handlePresetImportClick = (presetIndex: number) => {
-		presetImportFileRefs.current[presetIndex]?.click();
+	// Apply string-slot points to a stick canvas (shared by preset apply + JSON file import)
+	const applyStringPointsToStick = (stickIndex: number, slots: Array<{ x: string; y: string }>) => {
+		const points: CurvePoint[] = [];
+		for (let i = 0; i < slots.length; i++) {
+			const x = parseFloat(slots[i].x) || 0;
+			const y = parseFloat(slots[i].y) || 0;
+			if (x > 0 || y > 0) {
+				points.push({
+					x: Math.max(0, Math.min(1, x)),
+					y: Math.max(0, Math.min(1, y)),
+				});
+			}
+		}
+		const validated = validateAllPointsMonotonicity(sortCurvePointsByX(points));
+		const inputValues = validated.map(p => ({
+			x: parseFloat(p.x.toFixed(4)).toString(),
+			y: parseFloat(p.y.toFixed(4)).toString(),
+		}));
+		if (stickIndex === 0) {
+			setLeftCurvePointsLocal(validated);
+			setLeftCurveInputValues(inputValues);
+		} else {
+			setRightCurvePointsLocal(validated);
+			setRightCurveInputValues(inputValues);
+		}
 	};
 
-	const handlePresetImportFileChange = (presetIndex: number, e: ChangeEvent<HTMLInputElement>) => {
+	const handlePolylineImportClick = (stickIndex: number) => {
+		polylineImportFileRefs.current[stickIndex]?.click();
+	};
+
+	const handlePolylineImportFileChange = (stickIndex: number, e: ChangeEvent<HTMLInputElement>) => {
 		const inputEl = e.target;
 		const file = inputEl.files?.[0];
 		inputEl.value = '';
@@ -1598,16 +1959,7 @@ const JoystickCurveSettings = ({
 				showPresetImportFormatError();
 				return;
 			}
-			setPresetInputs((prev) => {
-				const newPresets = [...prev];
-				newPresets[presetIndex] = {
-					...newPresets[presetIndex],
-					name: parsed.name,
-					points: parsed.points,
-				};
-				setFieldValue('joystickCurvePresets', joystickCurvePresetsSlotsForFormik(newPresets));
-				return newPresets;
-			});
+			applyStringPointsToStick(stickIndex, parsed.points);
 		};
 		reader.onerror = () => {
 			showPresetImportFormatError();
@@ -1633,60 +1985,310 @@ const JoystickCurveSettings = ({
 		savePresetToFormik(newPresets);
 	};
 	
-	// Handle apply preset to left stick
+	// Handle apply preset to left/right stick
 	const handleApplyPresetToLeft = (presetIndex: number) => {
-		const preset = presetInputs[presetIndex];
-		const points: CurvePoint[] = [];
-		
-		for (let i = 0; i < preset.points.length; i++) {
-			const x = parseFloat(preset.points[i].x) || 0;
-			const y = parseFloat(preset.points[i].y) || 0;
-			if (x > 0 || y > 0) {
-				points.push({ 
-					x: Math.max(0, Math.min(1, x)), 
-					y: Math.max(0, Math.min(1, y)),
-				});
-			}
-		}
-		
-		const sorted = sortCurvePointsByX(points);
-		const validated = validateAllPointsMonotonicity(sorted);
-		setLeftCurvePointsLocal(validated);
-		setLeftCurveInputValues(validated.map(p => ({ 
-			x: parseFloat(p.x.toFixed(4)).toString(), 
-			y: parseFloat(p.y.toFixed(4)).toString(),
-		})));
+		applyStringPointsToStick(0, presetInputs[presetIndex].points);
 	};
-	
-	// Handle apply preset to right stick
+
 	const handleApplyPresetToRight = (presetIndex: number) => {
-		const preset = presetInputs[presetIndex];
-		const points: CurvePoint[] = [];
-		
-		for (let i = 0; i < preset.points.length; i++) {
-			const x = parseFloat(preset.points[i].x) || 0;
-			const y = parseFloat(preset.points[i].y) || 0;
-			if (x > 0 || y > 0) {
-				points.push({ 
-					x: Math.max(0, Math.min(1, x)), 
-					y: Math.max(0, Math.min(1, y)),
-				});
+		applyStringPointsToStick(1, presetInputs[presetIndex].points);
+	};
+
+	// Import current stick canvas curve into preset slot (name unchanged)
+	const handlePresetImportFromStick = (presetIndex: number, stickIndex: number) => {
+		const canvasPoints = sortCurvePointsByX(stickIndex === 0 ? leftCurvePoints : rightCurvePoints);
+		const slots = emptyPresetPointSlots();
+		for (let i = 0; i < canvasPoints.length && i < CURVE_POINT_COUNT; i++) {
+			slots[i] = {
+				x: parseFloat(canvasPoints[i].x.toFixed(4)).toString(),
+				y: parseFloat(canvasPoints[i].y.toFixed(4)).toString(),
+			};
+		}
+		setPresetInputs((prev) => {
+			const newPresets = [...prev];
+			newPresets[presetIndex] = { ...newPresets[presetIndex], points: slots };
+			savePresetToFormik(newPresets);
+			return newPresets;
+		});
+	};
+
+	// ---------------- Bezier canvas mouse handlers (mode 1) ----------------
+	const handleLeftBezierMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+		if (!leftBezierCanvasRef.current) return;
+		const rect = leftBezierCanvasRef.current.getBoundingClientRect();
+		const mouseX = e.clientX - rect.left;
+		const mouseY = e.clientY - rect.top;
+		const threshold = 10;
+		const handles: Array<{ which: 'c1' | 'c2'; x: number; y: number }> = [
+			{ which: 'c2', x: leftBezier.c2x, y: leftBezier.c2y },
+			{ which: 'c1', x: leftBezier.c1x, y: leftBezier.c1y },
+		];
+		for (const h of handles) {
+			const px = h.x * 260;
+			const py = 260 - h.y * 260;
+			const dist = Math.sqrt(Math.pow(mouseX - px, 2) + Math.pow(mouseY - py, 2));
+			if (dist < threshold) {
+				setLeftBezierDragOffset({ x: mouseX - px, y: mouseY - py });
+				setLeftDraggingBezier(h.which);
+				return;
 			}
 		}
-		
-		const sorted = sortCurvePointsByX(points);
-		const validated = validateAllPointsMonotonicity(sorted);
-		setRightCurvePointsLocal(validated);
-		setRightCurveInputValues(validated.map(p => ({ 
-			x: parseFloat(p.x.toFixed(4)).toString(), 
-			y: parseFloat(p.y.toFixed(4)).toString(),
-		})));
 	};
-	
+
+	const handleLeftBezierMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+		if (leftDraggingBezier === null || !leftBezierCanvasRef.current) return;
+		const rect = leftBezierCanvasRef.current.getBoundingClientRect();
+		const mouseX = e.clientX - rect.left;
+		const mouseY = e.clientY - rect.top;
+		const adjustedMouseX = leftBezierDragOffset ? mouseX - leftBezierDragOffset.x : mouseX;
+		const adjustedMouseY = leftBezierDragOffset ? mouseY - leftBezierDragOffset.y : mouseY;
+		const newPoint = mouseToCurvePoint(adjustedMouseX, adjustedMouseY, 260, 260);
+		const next: BezierControl = leftDraggingBezier === 'c1'
+			? { ...leftBezier, c1x: newPoint.x, c1y: newPoint.y }
+			: { ...leftBezier, c2x: newPoint.x, c2y: newPoint.y };
+		const clamped = clampBezierControl(next);
+		setLeftBezierLocal(clamped);
+		setLeftBezierInputs(bezierToInputStrings(clamped));
+	};
+
+	const handleLeftBezierMouseUp = () => {
+		setLeftDraggingBezier(null);
+		setLeftBezierDragOffset(null);
+	};
+
+	const handleRightBezierMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+		if (!rightBezierCanvasRef.current) return;
+		const rect = rightBezierCanvasRef.current.getBoundingClientRect();
+		const mouseX = e.clientX - rect.left;
+		const mouseY = e.clientY - rect.top;
+		const threshold = 10;
+		const handles: Array<{ which: 'c1' | 'c2'; x: number; y: number }> = [
+			{ which: 'c2', x: rightBezier.c2x, y: rightBezier.c2y },
+			{ which: 'c1', x: rightBezier.c1x, y: rightBezier.c1y },
+		];
+		for (const h of handles) {
+			const px = h.x * 260;
+			const py = 260 - h.y * 260;
+			const dist = Math.sqrt(Math.pow(mouseX - px, 2) + Math.pow(mouseY - py, 2));
+			if (dist < threshold) {
+				setRightBezierDragOffset({ x: mouseX - px, y: mouseY - py });
+				setRightDraggingBezier(h.which);
+				return;
+			}
+		}
+	};
+
+	const handleRightBezierMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+		if (rightDraggingBezier === null || !rightBezierCanvasRef.current) return;
+		const rect = rightBezierCanvasRef.current.getBoundingClientRect();
+		const mouseX = e.clientX - rect.left;
+		const mouseY = e.clientY - rect.top;
+		const adjustedMouseX = rightBezierDragOffset ? mouseX - rightBezierDragOffset.x : mouseX;
+		const adjustedMouseY = rightBezierDragOffset ? mouseY - rightBezierDragOffset.y : mouseY;
+		const newPoint = mouseToCurvePoint(adjustedMouseX, adjustedMouseY, 260, 260);
+		const next: BezierControl = rightDraggingBezier === 'c1'
+			? { ...rightBezier, c1x: newPoint.x, c1y: newPoint.y }
+			: { ...rightBezier, c2x: newPoint.x, c2y: newPoint.y };
+		const clamped = clampBezierControl(next);
+		setRightBezierLocal(clamped);
+		setRightBezierInputs(bezierToInputStrings(clamped));
+	};
+
+	const handleRightBezierMouseUp = () => {
+		setRightDraggingBezier(null);
+		setRightBezierDragOffset(null);
+	};
+
+	// Bezier control point input handlers (blur commits with clamping)
+	const handleLeftBezierInputChange = (field: keyof BezierControlInput, value: string) => {
+		setLeftBezierInputs((prev) => ({ ...prev, [field]: value }));
+	};
+
+	const handleLeftBezierInputBlur = () => {
+		const clamped = clampBezierControl({
+			c1x: parseFloat(leftBezierInputs.c1x) || 0,
+			c1y: parseFloat(leftBezierInputs.c1y) || 0,
+			c2x: parseFloat(leftBezierInputs.c2x) || 0,
+			c2y: parseFloat(leftBezierInputs.c2y) || 0,
+		});
+		setLeftBezierLocal(clamped);
+		setLeftBezierInputs(bezierToInputStrings(clamped));
+	};
+
+	const handleRightBezierInputChange = (field: keyof BezierControlInput, value: string) => {
+		setRightBezierInputs((prev) => ({ ...prev, [field]: value }));
+	};
+
+	const handleRightBezierInputBlur = () => {
+		const clamped = clampBezierControl({
+			c1x: parseFloat(rightBezierInputs.c1x) || 0,
+			c1y: parseFloat(rightBezierInputs.c1y) || 0,
+			c2x: parseFloat(rightBezierInputs.c2x) || 0,
+			c2y: parseFloat(rightBezierInputs.c2y) || 0,
+		});
+		setRightBezierLocal(clamped);
+		setRightBezierInputs(bezierToInputStrings(clamped));
+	};
+
+	// Bezier curve JSON file import (writes into the stick canvas curve, not presets)
+	const bezierImportFileRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+	const handleBezierImportClick = (stickIndex: number) => {
+		bezierImportFileRefs.current[stickIndex]?.click();
+	};
+
+	const handleBezierImportFileChange = (stickIndex: number, e: ChangeEvent<HTMLInputElement>) => {
+		const inputEl = e.target;
+		const file = inputEl.files?.[0];
+		inputEl.value = '';
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = () => {
+			const text = typeof reader.result === 'string' ? reader.result : '';
+			const parsed = parseBezierImportJSON(text);
+			if (!parsed) {
+				showPresetImportFormatError();
+				return;
+			}
+			if (stickIndex === 0) {
+				setLeftBezierLocal(parsed);
+				setLeftBezierInputs(bezierToInputStrings(parsed));
+			} else {
+				setRightBezierLocal(parsed);
+				setRightBezierInputs(bezierToInputStrings(parsed));
+			}
+		};
+		reader.onerror = () => {
+			showPresetImportFormatError();
+		};
+		reader.readAsText(file);
+	};
+
+	// ---------------- Bezier presets (shared by both sticks, 4 slots) ----------------
+	type BezierPresetInput = {
+		name: string;
+		bezier: BezierControl;
+		activationButtonMask: number;
+	};
+
+	const emptyBezierPresetSlots = (): BezierPresetInput[] =>
+		Array.from({ length: BEZIER_PRESET_COUNT }, () => ({
+			name: '',
+			bezier: { ...BEZIER_LINEAR_DEFAULT },
+			activationButtonMask: 0,
+		}));
+
+	const [bezierPresetInputs, setBezierPresetInputs] = useState<BezierPresetInput[]>(emptyBezierPresetSlots);
+
+	/** Serialize preset slots for formik/firmware. Always length BEZIER_PRESET_COUNT so UI index matches API index. */
+	const bezierPresetsSlotsForFormik = (slots: BezierPresetInput[]) =>
+		Array.from({ length: BEZIER_PRESET_COUNT }, (_, i) => {
+			const slot = slots[i];
+			return {
+				name: sanitizePresetNameForPreset(slot?.name ?? ''),
+				bezier: clampBezierControl(slot?.bezier ?? { ...BEZIER_LINEAR_DEFAULT }),
+				activationButtonMask: slot?.activationButtonMask ?? 0,
+			};
+		});
+
+	// Load bezier presets from values on mount and when values change
+	useEffect(() => {
+		const presets =
+			(values?.joystickBezierPresets as Array<{
+				name: string;
+				bezier: BezierControl;
+				activationButtonMask?: number;
+			}>) || [];
+		setBezierPresetInputs(
+			Array.from({ length: BEZIER_PRESET_COUNT }, (_, i) => {
+				const preset = presets[i];
+				if (!preset) {
+					return { name: '', bezier: { ...BEZIER_LINEAR_DEFAULT }, activationButtonMask: 0 };
+				}
+				return {
+					name: sanitizePresetNameForPreset(preset.name || ''),
+					bezier: normalizeBezier(preset.bezier),
+					activationButtonMask: preset.activationButtonMask ?? 0,
+				};
+			}),
+		);
+	}, [values?.joystickBezierPresets]);
+
+	const saveBezierPresetsToFormik = (slots: BezierPresetInput[]) => {
+		setFieldValue('joystickBezierPresets', bezierPresetsSlotsForFormik(slots));
+	};
+
+	const handleBezierPresetNameChange = (presetIndex: number, value: string) => {
+		const newPresets = [...bezierPresetInputs];
+		newPresets[presetIndex] = { ...newPresets[presetIndex], name: sanitizePresetNameWhileTyping(value) };
+		setBezierPresetInputs(newPresets);
+		saveBezierPresetsToFormik(newPresets);
+	};
+
+	// Apply preset bezier to left/right stick canvas (marks the stick curve dirty)
+	const handleApplyBezierPresetToLeft = (presetIndex: number) => {
+		const preset = bezierPresetInputs[presetIndex];
+		if (!preset) return;
+		const clamped = clampBezierControl(preset.bezier);
+		setLeftBezierLocal(clamped);
+		setLeftBezierInputs(bezierToInputStrings(clamped));
+	};
+
+	const handleApplyBezierPresetToRight = (presetIndex: number) => {
+		const preset = bezierPresetInputs[presetIndex];
+		if (!preset) return;
+		const clamped = clampBezierControl(preset.bezier);
+		setRightBezierLocal(clamped);
+		setRightBezierInputs(bezierToInputStrings(clamped));
+	};
+
+	// Import stick canvas curve into preset slot (no file dialog; name unchanged)
+	const handleBezierPresetImportLeft = (presetIndex: number) => {
+		const next = [...bezierPresetInputs];
+		next[presetIndex] = { ...next[presetIndex], bezier: clampBezierControl(leftBezier) };
+		setBezierPresetInputs(next);
+		saveBezierPresetsToFormik(next);
+	};
+
+	const handleBezierPresetImportRight = (presetIndex: number) => {
+		const next = [...bezierPresetInputs];
+		next[presetIndex] = { ...next[presetIndex], bezier: clampBezierControl(rightBezier) };
+		setBezierPresetInputs(next);
+		saveBezierPresetsToFormik(next);
+	};
+
+	const isBezierActivationButtonMaskUsed = (presetIndex: number, buttonMask: number, slots: BezierPresetInput[]): boolean => {
+		if (buttonMask === 0) return false;
+		for (let i = 0; i < slots.length; i++) {
+			if (i !== presetIndex && (slots[i].activationButtonMask ?? 0) === buttonMask) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	const handleBezierPresetActivationSelectChange = (presetIndex: number, e: ChangeEvent<HTMLSelectElement>) => {
+		const buttonMask = parseInt(e.target.value, 10);
+		const finalButtonMask = Number.isNaN(buttonMask) ? 0 : buttonMask;
+		const newPresets = [...bezierPresetInputs];
+		newPresets[presetIndex] = { ...newPresets[presetIndex], activationButtonMask: finalButtonMask };
+
+		if (isBezierActivationButtonMaskUsed(presetIndex, finalButtonMask, newPresets)) {
+			alert(t('CalibrationSettings:hml-alert-preset-key-in-use'));
+			return;
+		}
+
+		setBezierPresetInputs(newPresets);
+		saveBezierPresetsToFormik(newPresets);
+	};
+
 	return (
 		<Section title={t('CalibrationSettings:hml-stick-curve-title')}>
 		{isExpanded && (
 			<>
+			{curveMode === 0 ? (
+			<div className="curve-polyline-container">
 			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
 				{/* Row 1, Column 1: Left stick curve canvas */}
 				<div className="text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', width: '260px' }}>
@@ -1762,6 +2364,25 @@ const JoystickCurveSettings = ({
 						) : (
 							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>{t('CalibrationSettings:hml-no-control-points')}</div>
 						)}
+						<input
+							ref={(el) => {
+								polylineImportFileRefs.current[0] = el;
+							}}
+							type="file"
+							accept=".json,application/json"
+							style={{ display: 'none' }}
+							aria-hidden
+							onChange={(e) => handlePolylineImportFileChange(0, e)}
+						/>
+						<Button
+							type="button"
+							variant="outline-secondary"
+							size="sm"
+							onClick={() => handlePolylineImportClick(0)}
+							style={{ fontSize: '0.75rem', padding: '2px 8px', marginTop: '8px' }}
+						>
+							{t('CalibrationSettings:hml-import-file')}
+						</Button>
 					</div>
 					<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
 						<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftLightX !== undefined ? leftLightX * 100 : 0).toFixed(1) })}</div>
@@ -1822,6 +2443,25 @@ const JoystickCurveSettings = ({
 						) : (
 							<div style={{ fontSize: '0.875rem', color: '#6c757d' }}>{t('CalibrationSettings:hml-no-control-points')}</div>
 						)}
+						<input
+							ref={(el) => {
+								polylineImportFileRefs.current[1] = el;
+							}}
+							type="file"
+							accept=".json,application/json"
+							style={{ display: 'none' }}
+							aria-hidden
+							onChange={(e) => handlePolylineImportFileChange(1, e)}
+						/>
+						<Button
+							type="button"
+							variant="outline-secondary"
+							size="sm"
+							onClick={() => handlePolylineImportClick(1)}
+							style={{ fontSize: '0.75rem', padding: '2px 8px', marginTop: '8px' }}
+						>
+							{t('CalibrationSettings:hml-import-file')}
+						</Button>
 					</div>
 					<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
 						<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightLightX !== undefined ? rightLightX * 100 : 0).toFixed(1) })}</div>
@@ -1851,8 +2491,8 @@ const JoystickCurveSettings = ({
 				</div>
 			</div>
 
-			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'start', width: '100%', marginTop: '16px', paddingBottom: '8px', minWidth: 0 }}>
-				{[0, 1].map((presetIndex) => (
+			<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '16px', alignItems: 'start', width: '100%', marginTop: '16px', paddingBottom: '8px', minWidth: 0 }}>
+				{[0, 1, 2, 3].map((presetIndex) => (
 					<div
 						key={presetIndex}
 						style={{
@@ -1866,22 +2506,23 @@ const JoystickCurveSettings = ({
 							borderRadius: '4px',
 						}}
 					>
-						{/* Row 1: name, apply left/right, import JSON */}
-						<div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-							<Form.Control
-								type="text"
-								size="sm"
-								maxLength={CURVE_PRESET_NAME_MAX_LEN}
-								placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
-								value={presetInputs[presetIndex].name}
-								onChange={(e) => handlePresetNameChange(presetIndex, e.target.value)}
-								style={{ flex: '1 1 120px', minWidth: '100px', fontSize: '0.875rem' }}
-							/>
+						{/* Row 1: preset name */}
+						<Form.Control
+							type="text"
+							size="sm"
+							maxLength={CURVE_PRESET_NAME_MAX_LEN}
+							placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
+							value={presetInputs[presetIndex].name}
+							onChange={(e) => handlePresetNameChange(presetIndex, e.target.value)}
+							style={{ width: '100%', fontSize: '0.875rem' }}
+						/>
+						{/* Row 2: apply to left/right stick */}
+						<div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
 							<Button
 								variant="outline-primary"
 								size="sm"
 								onClick={() => handleApplyPresetToLeft(presetIndex)}
-								style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
+								style={{ fontSize: '0.75rem', padding: '2px 4px', flex: '1 1 0', minWidth: 0 }}
 							>
 								{t('CalibrationSettings:hml-apply-left')}
 							</Button>
@@ -1889,42 +2530,42 @@ const JoystickCurveSettings = ({
 								variant="outline-primary"
 								size="sm"
 								onClick={() => handleApplyPresetToRight(presetIndex)}
-								style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
+								style={{ fontSize: '0.75rem', padding: '2px 4px', flex: '1 1 0', minWidth: 0 }}
 							>
 								{t('CalibrationSettings:hml-apply-right')}
 							</Button>
-							<input
-								ref={(el) => {
-									presetImportFileRefs.current[presetIndex] = el;
-								}}
-								type="file"
-								accept=".json,application/json"
-								style={{ display: 'none' }}
-								aria-hidden
-								onChange={(e) => handlePresetImportFileChange(presetIndex, e)}
-							/>
+						</div>
+						{/* Row 3: import stick canvas curve into preset slot */}
+						<div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
 							<Button
 								type="button"
 								variant="outline-secondary"
 								size="sm"
-								onClick={() => handlePresetImportClick(presetIndex)}
-								title={t('CalibrationSettings:hml-preset-import-settings')}
-								aria-label={t('CalibrationSettings:hml-preset-import-settings')}
-								style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
+								onClick={() => handlePresetImportFromStick(presetIndex, 0)}
+								style={{ fontSize: '0.75rem', padding: '2px 4px', flex: '1 1 0', minWidth: 0 }}
 							>
-								{t('CalibrationSettings:hml-preset-import-settings')}
+								{t('CalibrationSettings:hml-import-left')}
+							</Button>
+							<Button
+								type="button"
+								variant="outline-secondary"
+								size="sm"
+								onClick={() => handlePresetImportFromStick(presetIndex, 1)}
+								style={{ fontSize: '0.75rem', padding: '2px 4px', flex: '1 1 0', minWidth: 0 }}
+							>
+								{t('CalibrationSettings:hml-import-right')}
 							</Button>
 						</div>
-						{/* Row 2: right stick quick hot-switch key */}
-						<div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', marginBottom: '4px', width: '100%', minWidth: 0 }}>
-							<div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', flex: '0 1 auto', minWidth: 0 }}>
+						{/* Row 4: right stick quick hot-switch key */}
+						<div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', minWidth: 0 }}>
+							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', minWidth: 0 }}>
 								<RightStickQuickSwitchHeading t={t} tooltipIdSuffix={String(presetIndex)} />
 							</div>
 							<Form.Select
 								size="sm"
 								value={presetInputs[presetIndex].activationButtonMask ?? 0}
 								onChange={(e) => handlePresetActivationSelectChange(presetIndex, e)}
-								style={{ flex: '1 1 140px', minWidth: 0, fontSize: '0.75rem', padding: '2px 6px' }}
+								style={{ width: '100%', minWidth: 0, fontSize: '0.75rem', padding: '2px 6px' }}
 							>
 								{BUTTON_MASKS_OPTIONS.map((o) => (
 									<option key={o.value} value={o.value}>
@@ -1933,33 +2574,45 @@ const JoystickCurveSettings = ({
 								))}
 							</Form.Select>
 						</div>
-						{/* Rows 3–5: paired curve control points (stored x-sorted when saving) */}
-						{PRESET_POINT_ROW_PAIRS.map(([a, b], pairRowIdx) => (
-							<div
-								key={pairRowIdx}
+					</div>
+				))}
+			</div>
+			</div>
+			) : (
+				<DisabledCurveBar label={t('CalibrationSettings:hml-polyline-disabled')} />
+			)}
+			{curveMode === 1 ? (
+			<div className="curve-bezier-container" style={{ marginTop: '16px' }}>
+				<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gap: '16px', justifyContent: 'center', alignItems: 'start', width: 'max-content', margin: '0 auto' }}>
+					{/* Row 1, Column 1: Left stick bezier canvas */}
+					<div className="text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', width: '260px' }}>
+						<div style={{ position: 'relative', width: '260px', height: '260px' }}>
+							<canvas
+								ref={leftBezierCanvasRef}
+								width={260}
+								height={260}
 								style={{
-									display: 'flex',
-									gap: '8px',
-									alignItems: 'flex-start',
-									marginBottom: '4px',
-									width: '100%',
-									minWidth: 0,
+									border: '1px solid #ccc',
+									borderRadius: '4px',
+									cursor: 'crosshair',
+									display: 'block'
 								}}
-							>
-								{[a, b].map((pointIdx) => (
-									<div
-										key={pointIdx}
-										style={{
-											flex: 1,
-											minWidth: 0,
-											display: 'flex',
-											flexWrap: 'wrap',
-											gap: '4px',
-											alignItems: 'center',
-											fontSize: '0.875rem',
-										}}
-									>
-										<span style={{ flexShrink: 0 }}>{PRESET_ROW_LABELS[pointIdx]}:</span>
+								onMouseDown={handleLeftBezierMouseDown}
+								onMouseMove={handleLeftBezierMouseMove}
+								onMouseUp={handleLeftBezierMouseUp}
+								onMouseLeave={handleLeftBezierMouseUp}
+							/>
+						</div>
+					</div>
+
+					{/* Row 1, Column 2: Left stick bezier control points + import file */}
+					<div style={{ width: '260px', minHeight: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+						<div style={{ width: '260px', textAlign: 'left' }}>
+							<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>{t('CalibrationSettings:hml-bezier-points-title')}</div>
+							<div style={{ fontSize: '0.875rem' }}>
+								<div style={{ marginBottom: '8px' }}>
+									<div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
+										<span style={{ width: '24px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-bezier-c1')}</span>
 										<Form.Control
 											type="number"
 											size="sm"
@@ -1967,10 +2620,10 @@ const JoystickCurveSettings = ({
 											max={1}
 											step={0.001}
 											placeholder="X"
-											value={presetInputs[presetIndex].points[pointIdx].x}
-											onChange={(e) => handlePresetPointChange(presetIndex, pointIdx, 'x', e.target.value)}
-											onBlur={() => handlePresetPointBlur(presetIndex, pointIdx, 'x')}
-											style={{ flex: '1 1 56px', minWidth: '48px', fontSize: '0.8rem', padding: '2px 6px' }}
+											value={leftBezierInputs.c1x}
+											style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+											onChange={(e) => handleLeftBezierInputChange('c1x', e.target.value)}
+											onBlur={handleLeftBezierInputBlur}
 										/>
 										<Form.Control
 											type="number"
@@ -1979,21 +2632,277 @@ const JoystickCurveSettings = ({
 											max={1}
 											step={0.001}
 											placeholder="Y"
-											value={presetInputs[presetIndex].points[pointIdx].y}
-											onChange={(e) => handlePresetPointChange(presetIndex, pointIdx, 'y', e.target.value)}
-											onBlur={() => handlePresetPointBlur(presetIndex, pointIdx, 'y')}
-											style={{ flex: '1 1 56px', minWidth: '48px', fontSize: '0.8rem', padding: '2px 6px' }}
+											value={leftBezierInputs.c1y}
+											style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+											onChange={(e) => handleLeftBezierInputChange('c1y', e.target.value)}
+											onBlur={handleLeftBezierInputBlur}
 										/>
 									</div>
-								))}
+								</div>
+								<div style={{ marginBottom: '8px' }}>
+									<div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
+										<span style={{ width: '24px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-bezier-c2')}</span>
+										<Form.Control
+											type="number"
+											size="sm"
+											min={0}
+											max={1}
+											step={0.001}
+											placeholder="X"
+											value={leftBezierInputs.c2x}
+											style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+											onChange={(e) => handleLeftBezierInputChange('c2x', e.target.value)}
+											onBlur={handleLeftBezierInputBlur}
+										/>
+										<Form.Control
+											type="number"
+											size="sm"
+											min={0}
+											max={1}
+											step={0.001}
+											placeholder="Y"
+											value={leftBezierInputs.c2y}
+											style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+											onChange={(e) => handleLeftBezierInputChange('c2y', e.target.value)}
+											onBlur={handleLeftBezierInputBlur}
+										/>
+									</div>
+								</div>
 							</div>
-						))}
+							<input
+								ref={(el) => {
+									bezierImportFileRefs.current[0] = el;
+								}}
+								type="file"
+								accept=".json,application/json"
+								style={{ display: 'none' }}
+								aria-hidden
+								onChange={(e) => handleBezierImportFileChange(0, e)}
+							/>
+							<Button
+								type="button"
+								variant="outline-secondary"
+								size="sm"
+								onClick={() => handleBezierImportClick(0)}
+								style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+							>
+								{t('CalibrationSettings:hml-import-file')}
+							</Button>
+						</div>
+						<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
+							<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftLightX !== undefined ? leftLightX * 100 : 0).toFixed(1) })}</div>
+							<div>{t('CalibrationSettings:hml-out-distance-left', { pct: (leftLightY !== undefined ? leftLightY * 100 : 0).toFixed(1) })}</div>
+						</div>
 					</div>
-				))}
+
+					{/* Row 1, Column 3: Right stick bezier control points + import file */}
+					<div style={{ width: '260px', minHeight: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+						<div style={{ width: '260px', textAlign: 'left' }}>
+							<div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'left', fontSize: '0.875rem' }}>{t('CalibrationSettings:hml-bezier-points-title')}</div>
+							<div style={{ fontSize: '0.875rem' }}>
+								<div style={{ marginBottom: '8px' }}>
+									<div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
+										<span style={{ width: '24px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-bezier-c1')}</span>
+										<Form.Control
+											type="number"
+											size="sm"
+											min={0}
+											max={1}
+											step={0.001}
+											placeholder="X"
+											value={rightBezierInputs.c1x}
+											style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+											onChange={(e) => handleRightBezierInputChange('c1x', e.target.value)}
+											onBlur={handleRightBezierInputBlur}
+										/>
+										<Form.Control
+											type="number"
+											size="sm"
+											min={0}
+											max={1}
+											step={0.001}
+											placeholder="Y"
+											value={rightBezierInputs.c1y}
+											style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+											onChange={(e) => handleRightBezierInputChange('c1y', e.target.value)}
+											onBlur={handleRightBezierInputBlur}
+										/>
+									</div>
+								</div>
+								<div style={{ marginBottom: '8px' }}>
+									<div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
+										<span style={{ width: '24px', fontSize: '0.8rem' }}>{t('CalibrationSettings:hml-bezier-c2')}</span>
+										<Form.Control
+											type="number"
+											size="sm"
+											min={0}
+											max={1}
+											step={0.001}
+											placeholder="X"
+											value={rightBezierInputs.c2x}
+											style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+											onChange={(e) => handleRightBezierInputChange('c2x', e.target.value)}
+											onBlur={handleRightBezierInputBlur}
+										/>
+										<Form.Control
+											type="number"
+											size="sm"
+											min={0}
+											max={1}
+											step={0.001}
+											placeholder="Y"
+											value={rightBezierInputs.c2y}
+											style={{ width: '75px', fontSize: '0.8rem', padding: '2px 6px' }}
+											onChange={(e) => handleRightBezierInputChange('c2y', e.target.value)}
+											onBlur={handleRightBezierInputBlur}
+										/>
+									</div>
+								</div>
+							</div>
+							<input
+								ref={(el) => {
+									bezierImportFileRefs.current[1] = el;
+								}}
+								type="file"
+								accept=".json,application/json"
+								style={{ display: 'none' }}
+								aria-hidden
+								onChange={(e) => handleBezierImportFileChange(1, e)}
+							/>
+							<Button
+								type="button"
+								variant="outline-secondary"
+								size="sm"
+								onClick={() => handleBezierImportClick(1)}
+								style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+							>
+								{t('CalibrationSettings:hml-import-file')}
+							</Button>
+						</div>
+						<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
+							<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightLightX !== undefined ? rightLightX * 100 : 0).toFixed(1) })}</div>
+							<div>{t('CalibrationSettings:hml-out-distance-right', { pct: (rightLightY !== undefined ? rightLightY * 100 : 0).toFixed(1) })}</div>
+						</div>
+					</div>
+
+					{/* Row 1, Column 4: Right stick bezier canvas */}
+					<div className="text-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', width: '260px' }}>
+						<div style={{ position: 'relative', width: '260px', height: '260px' }}>
+							<canvas
+								ref={rightBezierCanvasRef}
+								width={260}
+								height={260}
+								style={{
+									border: '1px solid #ccc',
+									borderRadius: '4px',
+									cursor: 'crosshair',
+									display: 'block'
+								}}
+								onMouseDown={handleRightBezierMouseDown}
+								onMouseMove={handleRightBezierMouseMove}
+								onMouseUp={handleRightBezierMouseUp}
+								onMouseLeave={handleRightBezierMouseUp}
+							/>
+						</div>
+					</div>
+				</div>
+
+				{/* Bezier presets: shared by both sticks, 4 slots */}
+				<div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '16px', alignItems: 'start', width: '100%', marginTop: '16px', paddingBottom: '8px', minWidth: 0 }}>
+					{[0, 1, 2, 3].map((presetIndex) => (
+						<div
+							key={presetIndex}
+							style={{
+								display: 'flex',
+								flexDirection: 'column',
+								width: '100%',
+								minWidth: 0,
+								gap: '8px',
+								padding: '8px',
+								border: '1px solid #ddd',
+								borderRadius: '4px',
+							}}
+						>
+							{/* Row 1: preset name */}
+							<Form.Control
+								type="text"
+								size="sm"
+								maxLength={BEZIER_PRESET_NAME_MAX_LEN}
+								placeholder={t('CalibrationSettings:hml-preset-name-placeholder')}
+								value={bezierPresetInputs[presetIndex].name}
+								onChange={(e) => handleBezierPresetNameChange(presetIndex, e.target.value)}
+								style={{ width: '100%', fontSize: '0.875rem' }}
+							/>
+							{/* Row 2: apply to left/right stick */}
+							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+								<Button
+									variant="outline-primary"
+									size="sm"
+									onClick={() => handleApplyBezierPresetToLeft(presetIndex)}
+									style={{ fontSize: '0.75rem', padding: '2px 4px', flex: '1 1 0', minWidth: 0 }}
+								>
+									{t('CalibrationSettings:hml-apply-left')}
+								</Button>
+								<Button
+									variant="outline-primary"
+									size="sm"
+									onClick={() => handleApplyBezierPresetToRight(presetIndex)}
+									style={{ fontSize: '0.75rem', padding: '2px 4px', flex: '1 1 0', minWidth: 0 }}
+								>
+									{t('CalibrationSettings:hml-apply-right')}
+								</Button>
+							</div>
+							{/* Row 3: import stick canvas curve into preset slot */}
+							<div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
+								<Button
+									type="button"
+									variant="outline-secondary"
+									size="sm"
+									onClick={() => handleBezierPresetImportLeft(presetIndex)}
+									style={{ fontSize: '0.75rem', padding: '2px 4px', flex: '1 1 0', minWidth: 0 }}
+								>
+									{t('CalibrationSettings:hml-import-left')}
+								</Button>
+								<Button
+									type="button"
+									variant="outline-secondary"
+									size="sm"
+									onClick={() => handleBezierPresetImportRight(presetIndex)}
+									style={{ fontSize: '0.75rem', padding: '2px 4px', flex: '1 1 0', minWidth: 0 }}
+								>
+									{t('CalibrationSettings:hml-import-right')}
+								</Button>
+							</div>
+							{/* Row 4: quick-switch key */}
+							<div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', minWidth: 0 }}>
+								<div style={{ display: 'flex', gap: '4px', alignItems: 'center', minWidth: 0 }}>
+									<RightStickQuickSwitchHeading t={t} tooltipIdSuffix={`bezier-${presetIndex}`} />
+								</div>
+								<Form.Select
+									size="sm"
+									value={bezierPresetInputs[presetIndex].activationButtonMask ?? 0}
+									onChange={(e) => handleBezierPresetActivationSelectChange(presetIndex, e)}
+									style={{ width: '100%', minWidth: 0, fontSize: '0.75rem', padding: '2px 6px' }}
+								>
+									{BUTTON_MASKS_OPTIONS.map((o) => (
+										<option key={o.value} value={o.value}>
+											{(currentButtonLabels && currentButtonLabels[o.label]) || o.label}
+										</option>
+									))}
+								</Form.Select>
+							</div>
+						</div>
+					))}
+				</div>
 			</div>
+			) : (
+				<div style={{ marginTop: '16px' }}>
+					<DisabledCurveBar label={t('CalibrationSettings:hml-bezier-disabled')} />
+				</div>
+			)}
 			</>
 			)}
-			
+
 			{/* Bottom section: Save button (left) and Toggle switch (right) */}
 			<div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
 				{/* Save button on the left */}
@@ -2012,6 +2921,21 @@ const JoystickCurveSettings = ({
 							{saveMessage}
 						</span>
 					)}
+					{/* Curve mode switch: 0 = polyline, 1 = bezier (text on the right follows the mode) */}
+					<Form.Check
+						type="switch"
+						id="joystick-curve-mode"
+						checked={curveMode === 1}
+						onChange={(e) => {
+							setFieldValue('joystickCurveMode', e.target.checked ? 1 : 0);
+						}}
+						style={{ marginLeft: '12px' }}
+					/>
+					<span style={{ fontSize: '0.875rem' }}>
+						{curveMode === 1
+							? t('CalibrationSettings:hml-curve-mode-bezier')
+							: t('CalibrationSettings:hml-curve-mode-polyline')}
+					</span>
 				</div>
 				{/* Toggle switch on the right */}
 				<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

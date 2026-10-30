@@ -218,7 +218,7 @@ export default function CalibrationSettings() {
 
 		// Handle array fields specially - only update if changed
 		const valuesSchema = flattenObject(values);
-		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2', 'joystickCurvePresets', 'lsm6dsrEngageKeys'];
+		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2', 'joystickCurvePresets', 'joystickBezierPresets', 'lsm6dsrEngageKeys'];
 		const resultObject = { ...data };
 		arrayFields.forEach(field => {
 			const newVal = get(valuesSchema, field);
@@ -226,6 +226,13 @@ export default function CalibrationSettings() {
 			if (Array.isArray(newVal) && (!Array.isArray(oldVal) || JSON.stringify(newVal) !== JSON.stringify(oldVal))) {
 				set(resultObject, field, newVal);
 			}
+		});
+		// Bezier control point objects: keep as nested objects (flattenObject would turn them into dot keys)
+		(['joystickBezier1', 'joystickBezier2'] as const).forEach(field => {
+			Object.keys(resultObject).forEach(k => {
+				if (k.startsWith(field + '.')) delete (resultObject as Record<string, unknown>)[k];
+			});
+			set(resultObject, field, values[field]);
 		});
 		resultObject.inner_deadzone = encodeStickDeadzoneToDevice(Number(values.inner_deadzone ?? 0));
 		resultObject.inner_deadzone2 = encodeStickDeadzoneToDevice(Number(values.inner_deadzone2 ?? 0));

@@ -2233,11 +2233,11 @@ std::string setAddonOptions()
         }
     }
     readDoc(analogOptions.joystick_curve_enabled, doc, "joystickCurveEnabled");
-    // Read preset schemes (stored in protobuf, max 2 presets)
+    // Read preset schemes (stored in protobuf, max 4 presets)
     if (doc.containsKey("joystickCurvePresets") && doc["joystickCurvePresets"].is<JsonArray>()) {
         JsonArray presets = doc["joystickCurvePresets"];
         analogOptions.joystick_curve_presets_count = 0;
-        for (size_t i = 0; i < presets.size() && i < 2; i++) {
+        for (size_t i = 0; i < presets.size() && i < 4; i++) {
             if (presets[i].is<JsonObject>()) {
                 JsonObject preset = presets[i];
                 CurvePreset& curvePreset = analogOptions.joystick_curve_presets[i];
@@ -2284,6 +2284,66 @@ std::string setAddonOptions()
                 if (curvePreset.has_name || curvePreset.points_count > 0) {
                     analogOptions.joystick_curve_presets_count++;
                 }
+            }
+        }
+    }
+    // Read joystick curve mode (0 = polyline, 1 = bezier)
+    docToValue(analogOptions.joystick_curve_mode, doc, "joystickCurveMode");
+    // Read bezier control points (stored as JSON object {c1x, c1y, c2x, c2y})
+    if (doc.containsKey("joystickBezier1") && doc["joystickBezier1"].is<JsonObject>()) {
+        JsonObject bezier1 = doc["joystickBezier1"];
+        analogOptions.joystick_bezier_1.c1x = bezier1["c1x"] | 0.333f;
+        analogOptions.joystick_bezier_1.c1y = bezier1["c1y"] | 0.333f;
+        analogOptions.joystick_bezier_1.c2x = bezier1["c2x"] | 0.667f;
+        analogOptions.joystick_bezier_1.c2y = bezier1["c2y"] | 0.667f;
+    }
+    if (doc.containsKey("joystickBezier2") && doc["joystickBezier2"].is<JsonObject>()) {
+        JsonObject bezier2 = doc["joystickBezier2"];
+        analogOptions.joystick_bezier_2.c1x = bezier2["c1x"] | 0.333f;
+        analogOptions.joystick_bezier_2.c1y = bezier2["c1y"] | 0.333f;
+        analogOptions.joystick_bezier_2.c2x = bezier2["c2x"] | 0.667f;
+        analogOptions.joystick_bezier_2.c2y = bezier2["c2y"] | 0.667f;
+    }
+    // Read bezier presets (shared by both sticks, max 4)
+    if (doc.containsKey("joystickBezierPresets") && doc["joystickBezierPresets"].is<JsonArray>()) {
+        JsonArray bezierPresets = doc["joystickBezierPresets"];
+        analogOptions.joystick_bezier_presets_count = 0;
+        for (size_t i = 0; i < bezierPresets.size() && i < 4; i++) {
+            if (bezierPresets[i].is<JsonObject>()) {
+                JsonObject preset = bezierPresets[i];
+                BezierPreset& bezierPreset = analogOptions.joystick_bezier_presets[i];
+
+                // Read preset name
+                if (preset.containsKey("name") && preset["name"].is<const char*>()) {
+                    const char* name = preset["name"].as<const char*>();
+                    size_t nameLen = strlen(name);
+                    if (nameLen < sizeof(bezierPreset.name)) {
+                        strncpy(bezierPreset.name, name, sizeof(bezierPreset.name) - 1);
+                        bezierPreset.name[sizeof(bezierPreset.name) - 1] = '\0';
+                        bezierPreset.has_name = true;
+                    }
+                }
+
+                // Read bezier control points
+                if (preset.containsKey("bezier") && preset["bezier"].is<JsonObject>()) {
+                    JsonObject bezier = preset["bezier"];
+                    bezierPreset.bezier.c1x = bezier["c1x"] | 0.333f;
+                    bezierPreset.bezier.c1y = bezier["c1y"] | 0.333f;
+                    bezierPreset.bezier.c2x = bezier["c2x"] | 0.667f;
+                    bezierPreset.bezier.c2y = bezier["c2y"] | 0.667f;
+                    bezierPreset.has_bezier = true;
+                }
+
+                // Read activation button mask (default 0 = NONE, disabled)
+                if (preset.containsKey("activationButtonMask") && preset["activationButtonMask"].is<uint32_t>()) {
+                    bezierPreset.activationButtonMask = preset["activationButtonMask"].as<uint32_t>();
+                    bezierPreset.has_activationButtonMask = true;
+                } else {
+                    bezierPreset.activationButtonMask = 0;
+                    bezierPreset.has_activationButtonMask = true;
+                }
+
+                analogOptions.joystick_bezier_presets_count++;
             }
         }
     }
@@ -2690,9 +2750,9 @@ std::string getAddonOptions()
         point["y"] = analogOptions.joystick_curve_points_2[i].y;
     }
     writeDoc(doc, "joystickCurveEnabled", analogOptions.has_joystick_curve_enabled ? analogOptions.joystick_curve_enabled : false);
-    // Write preset schemes (stored in protobuf, max 2 presets)
+    // Write preset schemes (stored in protobuf, max 4 presets)
     JsonArray presets = doc.createNestedArray("joystickCurvePresets");
-    for (pb_size_t i = 0; i < analogOptions.joystick_curve_presets_count && i < 2; i++) {
+    for (pb_size_t i = 0; i < analogOptions.joystick_curve_presets_count && i < 4; i++) {
         const CurvePreset& curvePreset = analogOptions.joystick_curve_presets[i];
         JsonObject preset = presets.createNestedObject();
         
@@ -2714,6 +2774,53 @@ std::string getAddonOptions()
         // Write activation button mask (default 0 = NONE, disabled)
         if (curvePreset.has_activationButtonMask) {
             preset["activationButtonMask"] = curvePreset.activationButtonMask;
+        } else {
+            preset["activationButtonMask"] = 0;
+        }
+    }
+    // Write joystick curve mode (0 = polyline, 1 = bezier)
+    writeDoc(doc, "joystickCurveMode", analogOptions.has_joystick_curve_mode ? analogOptions.joystick_curve_mode : 0);
+    // Write bezier control points (default = linear when unset)
+    JsonObject bezier1 = doc.createNestedObject("joystickBezier1");
+    bezier1["c1x"] = analogOptions.has_joystick_bezier_1 ? analogOptions.joystick_bezier_1.c1x : 0.333f;
+    bezier1["c1y"] = analogOptions.has_joystick_bezier_1 ? analogOptions.joystick_bezier_1.c1y : 0.333f;
+    bezier1["c2x"] = analogOptions.has_joystick_bezier_1 ? analogOptions.joystick_bezier_1.c2x : 0.667f;
+    bezier1["c2y"] = analogOptions.has_joystick_bezier_1 ? analogOptions.joystick_bezier_1.c2y : 0.667f;
+    JsonObject bezier2 = doc.createNestedObject("joystickBezier2");
+    bezier2["c1x"] = analogOptions.has_joystick_bezier_2 ? analogOptions.joystick_bezier_2.c1x : 0.333f;
+    bezier2["c1y"] = analogOptions.has_joystick_bezier_2 ? analogOptions.joystick_bezier_2.c1y : 0.333f;
+    bezier2["c2x"] = analogOptions.has_joystick_bezier_2 ? analogOptions.joystick_bezier_2.c2x : 0.667f;
+    bezier2["c2y"] = analogOptions.has_joystick_bezier_2 ? analogOptions.joystick_bezier_2.c2y : 0.667f;
+    // Write bezier presets (shared by both sticks, max 4)
+    JsonArray bezierPresets = doc.createNestedArray("joystickBezierPresets");
+    for (pb_size_t i = 0; i < analogOptions.joystick_bezier_presets_count && i < 4; i++) {
+        const BezierPreset& bezierPreset = analogOptions.joystick_bezier_presets[i];
+        JsonObject preset = bezierPresets.createNestedObject();
+
+        // Write preset name
+        if (bezierPreset.has_name) {
+            preset["name"] = bezierPreset.name;
+        } else {
+            preset["name"] = "";
+        }
+
+        // Write bezier control points
+        JsonObject bezier = preset.createNestedObject("bezier");
+        if (bezierPreset.has_bezier) {
+            bezier["c1x"] = bezierPreset.bezier.c1x;
+            bezier["c1y"] = bezierPreset.bezier.c1y;
+            bezier["c2x"] = bezierPreset.bezier.c2x;
+            bezier["c2y"] = bezierPreset.bezier.c2y;
+        } else {
+            bezier["c1x"] = 0.333f;
+            bezier["c1y"] = 0.333f;
+            bezier["c2x"] = 0.667f;
+            bezier["c2y"] = 0.667f;
+        }
+
+        // Write activation button mask (default 0 = NONE, disabled)
+        if (bezierPreset.has_activationButtonMask) {
+            preset["activationButtonMask"] = bezierPreset.activationButtonMask;
         } else {
             preset["activationButtonMask"] = 0;
         }

@@ -84,7 +84,6 @@ export default {
 	'hml-no-control-points': '制御点なし',
 	'hml-reset': 'リセット',
 	'hml-preset-name-placeholder': 'プリセット名',
-	'hml-preset-import-settings': '設定をインポート',
 	'hml-preset-import-invalid-format':
 		'ControllerMetaでカーブを「动感指尖」形式でエクスポートしてください。',
 	'hml-apply-left': '左スティックに適用',
@@ -158,4 +157,14 @@ export default {
 	'hml-axis-x-short': 'X:',
 	'hml-axis-y-short': 'Y:',
 	'hml-angle-range-value': '{{start}}° ~ {{end}}°',
+	'hml-curve-mode-bezier': 'ベジェ曲線',
+	'hml-curve-mode-polyline': '折れ線曲線',
+	'hml-bezier-disabled': 'ベジェ曲線は無効です',
+	'hml-polyline-disabled': '折れ線曲線は無効です',
+	'hml-import-left': '左曲線をインポート',
+	'hml-import-right': '右曲線をインポート',
+	'hml-import-file': 'ファイルをインポート',
+	'hml-bezier-points-title': 'ベジェ制御点',
+	'hml-bezier-c1': 'C1',
+	'hml-bezier-c2': 'C2',
 };
