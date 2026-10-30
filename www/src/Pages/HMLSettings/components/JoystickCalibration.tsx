@@ -771,9 +771,10 @@ const JoystickCalibration = ({
 							let stickX = (invert1 === 1 || invert1 === 3) ? -rawStickX : rawStickX;
 							let stickY = (invert1 === 2 || invert1 === 3) ? -rawStickY : rawStickY;
 							
-							// Step 4: Apply deadzone and anti-deadzone (matches backend Step 4)
+							// Step 4: Apply inner deadzone (matches backend: radial mask shared by both modes)
 							const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
 							const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
+							const fixedAntiDeadzone = values?.fixed_anti_deadzone || false;
 							const dist_sq = stickX * stickX + stickY * stickY;
 							const deadzone_sq = innerDeadzone * innerDeadzone;
 							
@@ -781,41 +782,38 @@ const JoystickCalibration = ({
 								// Inside deadzone: set to center (matches backend)
 								stickX = 0.0;
 								stickY = 0.0;
-							} else if (antiDeadzone > 0.0) {
-								// Anti-deadzone enabled: compute sqrt and apply if needed
-								const dist = Math.sqrt(dist_sq);
-								const baseline = antiDeadzone;
-								const fixedAntiDeadzone = values?.fixed_anti_deadzone || false;
-								
-								if (fixedAntiDeadzone) {
-									// Fixed anti-deadzone mode: scale distance to baseline (fixed output)
-									// Only applies when dist < baseline to provide a fixed minimum output
-									// When dist >= baseline, no anti-deadzone is applied (normal output)
-									if (dist > 0.0 && dist < baseline) {
-										const scale_factor = baseline / dist;
-										stickX = stickX * scale_factor;
-										stickY = stickY * scale_factor;
+							} else if (!fixedAntiDeadzone) {
+								// Linear mode (fixed_anti_deadzone == false): pure radial translation
+								// by -innerDeadzone (no rescale, curve proportion is preserved).
+								// Travel within the last (dz + 1% snap margin) snaps to full scale 1.0,
+								// so the curve endpoint (1,1) stays reachable.
+								const r = Math.sqrt(dist_sq);
+								if (r > 0.0) {
+									let target = r - innerDeadzone;
+									if (r >= 1.0 - innerDeadzone - 0.01) {
+										target = 1.0;
 									}
-								} else {
-									// Linear anti-deadzone mode: add baseline to distance across the entire range
-									// This maintains linear feel by adding a constant offset to all movements
-									// Unlike fixed mode, this applies regardless of distance magnitude
-									if (dist > 0.0) {
-										const new_dist = dist + baseline;
-										const scale_factor = new_dist / dist;
-										stickX = stickX * scale_factor;
-										stickY = stickY * scale_factor;
-									}
+									const scale_factor = target / r;
+									stickX = stickX * scale_factor;
+									stickY = stickY * scale_factor;
 								}
 							}
+							// Fixed mode (fixed_anti_deadzone == true): pure mask, no processing
+							// outside the deadzone; output equals the raw stick input.
 							
-							// Step 5: Square trimming (matches backend Step 5)
-							stickX = Math.max(-1.0, Math.min(1.0, stickX));
-							stickY = Math.max(-1.0, Math.min(1.0, stickY));
+							// Capture pre-curve magnitude and direction for the post-curve
+							// anti-deadzone offset (dist == 0 means the input was masked).
+							const preCurveDist = Math.sqrt(stickX * stickX + stickY * stickY);
+							let ux = 0.0;
+							let uy = 0.0;
+							if (preCurveDist > 0.0) {
+								ux = stickX / preCurveDist;
+								uy = stickY / preCurveDist;
+							}
 							
-							// Step 6: Apply response curve if configured (matches backend Step 6)
+							// Step 5: Apply response curve if configured (matches backend)
 							// Backend checks: curve_points_sorted_count > 0 (which is set only when curveEnabled && points_count > 0)
-							// Backend directly calculates magnitude from normalizedX and normalizedY (after square trimming)
+							// Backend directly calculates magnitude from normalizedX and normalizedY (before square trimming)
 							const curveEnabled = values?.joystickCurveEnabled ?? false;
 							const leftCurvePoints: CurvePoint[] = Array.isArray(values?.joystickCurvePoints1) ? values.joystickCurvePoints1 as CurvePoint[] : [];
 							if (curveEnabled && leftCurvePoints.length > 0) {
@@ -839,6 +837,18 @@ const JoystickCalibration = ({
 									}
 								}
 							}
+							
+							// Step 6: Anti-deadzone (matches backend: fixed amount added after the
+							// curve along the original direction; az is never scaled and
+							// masked/centered sticks are not offset).
+							if (antiDeadzone > 0.0 && preCurveDist > 0.0) {
+								stickX += ux * antiDeadzone;
+								stickY += uy * antiDeadzone;
+							}
+							
+							// Step 7: Square trimming (matches backend: clamped after curve and anti-deadzone)
+							stickX = Math.max(-1.0, Math.min(1.0, stickX));
+							stickY = Math.max(-1.0, Math.min(1.0, stickY));
 							
 							// Calculate progress ratio for curve visualization
 							// rawDist = currentDistance - distance from center in ADC units (before range calibration scaling)
@@ -914,9 +924,10 @@ const JoystickCalibration = ({
 							let stickX = (invert2 === 1 || invert2 === 3) ? -rawStickX : rawStickX;
 							let stickY = (invert2 === 2 || invert2 === 3) ? -rawStickY : rawStickY;
 							
-							// Step 4: Apply deadzone and anti-deadzone (matches backend Step 4)
+							// Step 4: Apply inner deadzone (matches backend: radial mask shared by both modes)
 							const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
 							const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
+							const fixedAntiDeadzone = values?.fixed_anti_deadzone2 || false;
 							const dist_sq = stickX * stickX + stickY * stickY;
 							const deadzone_sq = innerDeadzone * innerDeadzone;
 							
@@ -924,41 +935,38 @@ const JoystickCalibration = ({
 								// Inside deadzone: set to center (matches backend)
 								stickX = 0.0;
 								stickY = 0.0;
-							} else if (antiDeadzone > 0.0) {
-								// Anti-deadzone enabled: compute sqrt and apply if needed
-								const dist = Math.sqrt(dist_sq);
-								const baseline = antiDeadzone;
-								const fixedAntiDeadzone = values?.fixed_anti_deadzone2 || false;
-								
-								if (fixedAntiDeadzone) {
-									// Fixed anti-deadzone mode: scale distance to baseline (fixed output)
-									// Only applies when dist < baseline to provide a fixed minimum output
-									// When dist >= baseline, no anti-deadzone is applied (normal output)
-									if (dist > 0.0 && dist < baseline) {
-										const scale_factor = baseline / dist;
-										stickX = stickX * scale_factor;
-										stickY = stickY * scale_factor;
+							} else if (!fixedAntiDeadzone) {
+								// Linear mode (fixed_anti_deadzone == false): pure radial translation
+								// by -innerDeadzone (no rescale, curve proportion is preserved).
+								// Travel within the last (dz + 1% snap margin) snaps to full scale 1.0,
+								// so the curve endpoint (1,1) stays reachable.
+								const r = Math.sqrt(dist_sq);
+								if (r > 0.0) {
+									let target = r - innerDeadzone;
+									if (r >= 1.0 - innerDeadzone - 0.01) {
+										target = 1.0;
 									}
-								} else {
-									// Linear anti-deadzone mode: add baseline to distance across the entire range
-									// This maintains linear feel by adding a constant offset to all movements
-									// Unlike fixed mode, this applies regardless of distance magnitude
-									if (dist > 0.0) {
-										const new_dist = dist + baseline;
-										const scale_factor = new_dist / dist;
-										stickX = stickX * scale_factor;
-										stickY = stickY * scale_factor;
-									}
+									const scale_factor = target / r;
+									stickX = stickX * scale_factor;
+									stickY = stickY * scale_factor;
 								}
 							}
+							// Fixed mode (fixed_anti_deadzone == true): pure mask, no processing
+							// outside the deadzone; output equals the raw stick input.
 							
-							// Step 5: Square trimming (matches backend Step 5)
-							stickX = Math.max(-1.0, Math.min(1.0, stickX));
-							stickY = Math.max(-1.0, Math.min(1.0, stickY));
+							// Capture pre-curve magnitude and direction for the post-curve
+							// anti-deadzone offset (dist == 0 means the input was masked).
+							const preCurveDist = Math.sqrt(stickX * stickX + stickY * stickY);
+							let ux = 0.0;
+							let uy = 0.0;
+							if (preCurveDist > 0.0) {
+								ux = stickX / preCurveDist;
+								uy = stickY / preCurveDist;
+							}
 							
-							// Step 6: Apply response curve if configured (matches backend Step 6)
+							// Step 5: Apply response curve if configured (matches backend)
 							// Backend checks: curve_points_sorted_count > 0 (which is set only when curveEnabled && points_count > 0)
-							// Backend directly calculates magnitude from normalizedX and normalizedY (after square trimming)
+							// Backend directly calculates magnitude from normalizedX and normalizedY (before square trimming)
 							const curveEnabled = values?.joystickCurveEnabled ?? false;
 							const rightCurvePoints: CurvePoint[] = Array.isArray(values?.joystickCurvePoints2) ? values.joystickCurvePoints2 as CurvePoint[] : [];
 							if (curveEnabled && rightCurvePoints.length > 0) {
@@ -982,6 +990,18 @@ const JoystickCalibration = ({
 									}
 								}
 							}
+							
+							// Step 6: Anti-deadzone (matches backend: fixed amount added after the
+							// curve along the original direction; az is never scaled and
+							// masked/centered sticks are not offset).
+							if (antiDeadzone > 0.0 && preCurveDist > 0.0) {
+								stickX += ux * antiDeadzone;
+								stickY += uy * antiDeadzone;
+							}
+							
+							// Step 7: Square trimming (matches backend: clamped after curve and anti-deadzone)
+							stickX = Math.max(-1.0, Math.min(1.0, stickX));
+							stickY = Math.max(-1.0, Math.min(1.0, stickY));
 							
 							// Calculate progress ratio for curve visualization
 							// rawDist = currentDistance - distance from center in ADC units (before range calibration scaling)

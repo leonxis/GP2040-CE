@@ -740,12 +740,14 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone, DEFAULT_INNER_DEADZONE);
     // outer_deadzone removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone, DEFAULT_ANTI_DEADZONE);
+    // fixed_anti_deadzone repurposed as inner deadzone mode: false = linear, true = fixed
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, fixed_anti_deadzone, false);
     // Auto calibration removed - deprecated field ignored
     // EMA smoothing removed - no longer used
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone2, DEFAULT_INNER_DEADZONE2);
     // outer_deadzone2 removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, anti_deadzone2, DEFAULT_ANTI_DEADZONE2);
+    // fixed_anti_deadzone2 repurposed as inner deadzone mode: false = linear, true = fixed
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, fixed_anti_deadzone2, false);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_action, GpioAction::NONE);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, joystick_travel_button_custom_dpad_mask, 0);

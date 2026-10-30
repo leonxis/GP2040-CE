@@ -104,13 +104,13 @@ export default {
 	'hml-out-distance-right': 'Current output distance: {{pct}}%',
 	'hml-inner-deadzone-right': 'Right stick inner deadzone: {{pct}}%',
 	'hml-anti-deadzone-right': 'Right stick anti-deadzone: {{pct}}%',
-	'hml-anti-deadzone-mode-label': 'Anti-deadzone mode:',
+	'hml-inner-deadzone-mode-label': 'Inner deadzone mode:',
 	'hml-joystick-travel-mapping-key-left': 'Left stick travel trigger key mapping:',
 	'hml-joystick-travel-mapping-key-right': 'Right stick travel trigger key mapping:',
 	'hml-joystick-travel-button-threshold-left': 'Left stick travel key threshold: {{pct}}%',
 	'hml-joystick-travel-button-threshold-right': 'Right stick travel key threshold: {{pct}}%',
-	'hml-anti-deadzone-overlay-mode-tooltip':
-		'Linear: applies anti-deadzone across the full stick output. Fixed: outputs the anti-deadzone value within the anti-deadzone range; beyond that range, native stick output is used.',
+	'hml-inner-deadzone-mode-hint':
+		'Linear: output = travel − deadzone, snapping to full travel near the edge. Fixed: pure mask, output is untouched outside the deadzone.',
 	'hml-modal-outer-ring-left-title': 'Left stick outer ring calibration data',
 	'hml-modal-outer-ring-right-title': 'Right stick outer ring calibration data',
 	'hml-stick-center-data': 'Stick center:',

@@ -39,6 +39,8 @@ private:
         DpadMode analog_dpad;
         float in_deadzone;
         float anti_deadzone;
+        // Inner deadzone mode (repurposed field): false = linear (translate by
+        // -dz with full-travel snap), true = fixed (pure mask, untouched outside).
         bool fixed_anti_deadzone;
         uint32_t jitter_filter;
         uint16_t last_x_adc;

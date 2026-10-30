@@ -234,14 +234,14 @@ export default function AxisTiltOverlaySettings({ values, errors, setFieldValue,
 					</div>
 					<div style={columnCellStyle}>
 						<div style={{ ...row1Style, justifyContent: 'flex-end', gap: '8px' }}>
-							<span className="mb-0 text-nowrap">{t('CalibrationSettings:hml-anti-deadzone-mode-label')}</span>
+							<span className="mb-0 text-nowrap">{t('CalibrationSettings:hml-inner-deadzone-mode-label')}</span>
 							<span>{values?.fixed_anti_deadzone ? t('CalibrationSettings:hml-fixed') : t('CalibrationSettings:hml-linear')}</span>
 							<Form.Check type="switch" id="fixed-anti-deadzone-1" label="" checked={values?.fixed_anti_deadzone || false} onChange={(e) => setFieldValue('fixed_anti_deadzone', e.target.checked)} />
 							<OverlayTrigger
 								placement="top"
 								overlay={(
 									<Tooltip id="fixed-anti-deadzone-1-tip">
-										{t('CalibrationSettings:hml-anti-deadzone-overlay-mode-tooltip')}
+										{t('CalibrationSettings:hml-inner-deadzone-mode-hint')}
 									</Tooltip>
 								)}
 							>
@@ -265,14 +265,14 @@ export default function AxisTiltOverlaySettings({ values, errors, setFieldValue,
 					</div>
 					<div style={columnCellStyle}>
 						<div style={{ ...row1Style, justifyContent: 'flex-end', gap: '8px' }}>
-							<span className="mb-0 text-nowrap">{t('CalibrationSettings:hml-anti-deadzone-mode-label')}</span>
+							<span className="mb-0 text-nowrap">{t('CalibrationSettings:hml-inner-deadzone-mode-label')}</span>
 							<span>{values?.fixed_anti_deadzone2 ? t('CalibrationSettings:hml-fixed') : t('CalibrationSettings:hml-linear')}</span>
 							<Form.Check type="switch" id="fixed-anti-deadzone-2" label="" checked={values?.fixed_anti_deadzone2 || false} onChange={(e) => setFieldValue('fixed_anti_deadzone2', e.target.checked)} />
 							<OverlayTrigger
 								placement="top"
 								overlay={(
 									<Tooltip id="fixed-anti-deadzone-2-tip">
-										{t('CalibrationSettings:hml-anti-deadzone-overlay-mode-tooltip')}
+										{t('CalibrationSettings:hml-inner-deadzone-mode-hint')}
 									</Tooltip>
 								)}
 							>
