@@ -449,7 +449,7 @@ void UnifiedAnalogProcessorAddon::restoreCurveData(int stickNum) {
 }
 
 void UnifiedAnalogProcessorAddon::applyPresetCurve(int stickNum, int presetIndex) {
-    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= 2) return;
+    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= 4) return;
 
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     if (presetIndex >= analogOptions.joystick_curve_presets_count ||
