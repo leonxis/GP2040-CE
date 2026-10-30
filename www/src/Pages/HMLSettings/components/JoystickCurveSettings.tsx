@@ -739,12 +739,18 @@ function clampBezierControl(b: BezierControl): BezierControl {
 function normalizeBezier(raw: unknown): BezierControl {
 	if (raw && typeof raw === 'object') {
 		const o = raw as Record<string, unknown>;
-		return clampBezierControl({
+		const clamped = clampBezierControl({
 			c1x: Number(o.c1x),
 			c1y: Number(o.c1y),
 			c2x: Number(o.c2x),
 			c2y: Number(o.c2y),
 		});
+		// All-zero control points are degenerate (both handles overlap at origin, curve is
+		// unusable) — treat as unset, e.g. flash data written before has_ flags were persisted.
+		if (clamped.c1x === 0 && clamped.c1y === 0 && clamped.c2x === 0 && clamped.c2y === 0) {
+			return { ...BEZIER_LINEAR_DEFAULT };
+		}
+		return clamped;
 	}
 	return { ...BEZIER_LINEAR_DEFAULT };
 }
