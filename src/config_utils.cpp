@@ -387,6 +387,30 @@ static void seedFixedProfileOptions(Config& config)
     config.profileOptions.gpioMappingsSets_count = 3;
 }
 
+// 基础映射2 与基础映射1（BoardConfig 核心映射）使用相同的默认设置。
+// 必须在 gpioMappingsMigrationCore() 之后调用：新配置播种出的空 sets[0] 以及旧固件
+// 遗留的空 sets[0] 都按核心映射填充，避免切到配置档 2 后所有按键解绑导致菜单无响应。
+// 若 sets[0] 内已有真实按键动作（用户自定义），则保留不覆盖。
+static void seedBaseProfile2FromCore(Config& config)
+{
+    seedFixedProfileOptions(config);
+    if (config.profileOptions.gpioMappingsSets_count < 1) return;
+
+    GpioMappings& base2 = config.profileOptions.gpioMappingsSets[0];
+    for (uint8_t pinNum = 0; pinNum < base2.pins_count; pinNum++) {
+        if (base2.pins[pinNum].action > 0) return;
+    }
+
+    for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
+        if (pin < (Pin_t)config.gpioMappings.pins_count)
+            base2.pins[pin] = config.gpioMappings.pins[pin];
+        else
+            base2.pins[pin] = GpioMappingInfo_init_default;
+    }
+    base2.pins_count = NUM_BANK0_GPIOS;
+    base2.enabled = true;
+}
+
 void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 {
     const uint8_t emptyByteArray[0] = {};
@@ -1905,6 +1929,9 @@ void ConfigUtils::load(Config& config)
     if (!config.migrations.gpioMappingsMigrated)
         gpioMappingsMigrationCore(config);
 
+    // 基础映射2 默认与核心映射（BoardConfig）一致
+    seedBaseProfile2FromCore(config);
+
     // Run migration to enable or disable pre-existing profiles
     if (!config.migrations.profileEnabledFlagsMigrated)
         profileEnabledFlagsMigration(config);
@@ -2559,6 +2586,8 @@ bool ConfigUtils::fromJSON(Config& config, const char* data, size_t dataLen)
 
     // we need to run migrations here too, in case the json document changed pins or things derived from pins
     gpioMappingsMigrationCore(config);
+    // 基础映射2 默认与核心映射（BoardConfig）一致
+    seedBaseProfile2FromCore(config);
     migrateAuthenticationMethods(config);
     migrateMacroPinsToGpio(config);
 
