@@ -480,6 +480,7 @@ message TurboOptions
     optional uint32 shotCount = 4;
 
     optional bool shmupModeEnabled = 6;
+    // 常开连发 GPIO 引脚号（0 = 未设置；显示名称由 BoardConfig 的 GPIO→按键映射决定）
     optional uint32 shmupAlwaysOn1 = 7;
     optional uint32 shmupAlwaysOn2 = 8;
     optional uint32 shmupAlwaysOn3 = 9;

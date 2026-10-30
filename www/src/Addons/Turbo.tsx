@@ -10,20 +10,25 @@ import { BUTTON_ACTIONS } from '../Data/Pins';
 import { getButtonLabels } from '../Data/Buttons';
 import WebApi from '../Services/WebApi';
 
-// SHMUP 自动连发按键（None + 10 游戏按键，含 L3/R3），label 为逻辑按键名，运行时按显示模式翻译
-const TURBO_MASKS = [
-	{ label: 'None', value: 0 },
-	{ label: 'B1', value: 1 << 0 },
-	{ label: 'B2', value: 1 << 1 },
-	{ label: 'B3', value: 1 << 2 },
-	{ label: 'B4', value: 1 << 3 },
-	{ label: 'L1', value: 1 << 4 },
-	{ label: 'R1', value: 1 << 5 },
-	{ label: 'L2', value: 1 << 6 },
-	{ label: 'R2', value: 1 << 7 },
-	{ label: 'L3', value: 1 << 10 },
-	{ label: 'R3', value: 1 << 11 },
+// SHMUP 常开连发选项来源：BoardConfig 中映射为游戏按键的 GPIO 引脚。
+// 选项值 = GPIO 引脚号，显示名沿用该引脚对应逻辑按键的本地化名称
+const SHMUP_PIN_ACTIONS = [
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_B1, labelKey: 'B1' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_B2, labelKey: 'B2' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_B3, labelKey: 'B3' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_B4, labelKey: 'B4' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_L1, labelKey: 'L1' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_R1, labelKey: 'R1' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_L2, labelKey: 'L2' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_R2, labelKey: 'R2' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_L3, labelKey: 'L3' },
+	{ action: BUTTON_ACTIONS.BUTTON_PRESS_R3, labelKey: 'R3' },
 ];
+
+interface ShmupPinOption {
+	value: number; // GPIO 引脚号
+	labelKey: string; // 逻辑按键名，用于本地化显示
+}
 
 // 背键插件 10 键（与后端 kHmlBackKeyDefs 字段一致）
 const BACK_KEY_FIELDS = [
@@ -39,10 +44,14 @@ const BACK_KEY_FIELDS = [
 	'rightMt',
 ] as const;
 
-// 判定是否存在连发键：基础映射槽标准 GPIO 或当前背键 preset 任意键映射为 BUTTON_PRESS_TURBO
-// 返回 null=加载中/失败（不显示提示），false=无连发键（显示提示），true=有连发键
-function useHasTurboKey(): boolean | null {
+// 读取当前映射：SHMUP 常开选项（游戏按键对应的 GPIO 引脚）+ 是否存在连发键
+// hasTurboKey 返回 null=加载中/失败（不显示提示），false=无连发键（显示提示），true=有连发键
+function useTurboPinData(): {
+	hasTurboKey: boolean | null;
+	shmupOptions: ShmupPinOption[];
+} {
 	const [hasTurboKey, setHasTurboKey] = useState<boolean | null>(null);
+	const [shmupOptions, setShmupOptions] = useState<ShmupPinOption[]>([]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -50,12 +59,22 @@ function useHasTurboKey(): boolean | null {
 			try {
 			let found = false;
 			let anyFailed = false;
+			const options: ShmupPinOption[] = [];
 			// 标准 GPIO 基础映射槽
 			const pins = await WebApi.getPinMappings();
 			if (pins) {
-				found = Object.keys(pins)
-					.filter((k) => /^pin\d{2}$/.test(k))
-					.some((k) => Number(pins[k]?.action) === BUTTON_ACTIONS.BUTTON_PRESS_TURBO);
+				const pinKeys = Object.keys(pins).filter((k) => /^pin\d{2}$/.test(k));
+				found = pinKeys.some(
+					(k) => Number(pins[k]?.action) === BUTTON_ACTIONS.BUTTON_PRESS_TURBO,
+				);
+				// 按 BoardConfig 的 GPIO→按键映射收集常开选项，值取引脚号
+				for (const { action, labelKey } of SHMUP_PIN_ACTIONS) {
+					for (const k of pinKeys) {
+						if (Number(pins[k]?.action) !== action) continue;
+						const pin = Number(k.slice(3));
+						if (pin > 0) options.push({ value: pin, labelKey });
+					}
+				}
 			} else {
 				anyFailed = true;
 			}
@@ -76,7 +95,10 @@ function useHasTurboKey(): boolean | null {
 					anyFailed = true;
 				}
 			}
-			if (!cancelled) setHasTurboKey(anyFailed ? null : found);
+			if (!cancelled) {
+				setHasTurboKey(anyFailed ? null : found);
+				setShmupOptions(options);
+			}
 		} catch {
 			if (!cancelled) setHasTurboKey(null);
 		}
@@ -86,7 +108,7 @@ function useHasTurboKey(): boolean | null {
 		};
 	}, []);
 
-	return hasTurboKey;
+	return { hasTurboKey, shmupOptions };
 }
 
 export const turboHmlScheme = {
@@ -127,7 +149,7 @@ export default function TurboSettings({
 	const { t } = useTranslation();
 	const { handleSubmit } = useFormikContext();
 	const { buttonLabels } = useContext(AppContext);
-	const hasTurboKey = useHasTurboKey();
+	const { hasTurboKey, shmupOptions } = useTurboPinData();
 	const saveOk = saveMessage === t('Common:saved-success-message');
 	const enabled = Boolean(values?.TurboInputEnabled);
 
@@ -203,9 +225,10 @@ export default function TurboSettings({
 											setFieldValue(`shmupAlwaysOn${n}`, parseInt(e.target.value))
 										}
 									>
-										{TURBO_MASKS.map((o, i) => (
-											<option key={`hml-turbo-mask-${n}-${i}`} value={o.value}>
-												{o.label === 'None' ? o.label : buttonNames[o.label]}
+										<option value={0}>None</option>
+										{shmupOptions.map((o) => (
+											<option key={`hml-turbo-pin-${n}-${o.value}`} value={o.value}>
+												{buttonNames[o.labelKey] ?? o.labelKey}
 											</option>
 										))}
 									</Form.Select>

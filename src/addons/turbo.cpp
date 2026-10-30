@@ -107,12 +107,28 @@ void __not_in_flash_func(TurboInput::process)() {
         if (linearTrigger->getHwR2() > 0) heldGpios |= Mask_t{1} << LINEAR_R2_PIN;
     }
 
+    // ---- SHMUP 常开连发：配置项直接为 GPIO 引脚号（0 = 未设置）----
+    // 引脚与按键的对应关系由 BoardConfig 映射决定，输出经 resolvePinToAction 解析，
+    // 与 turboGpioMask 走同一连发路径
+    Mask_t shmupGpioMask = 0;
+    if (options.shmupModeEnabled) {
+        const uint32_t shmupPins[4] = {
+            options.shmupAlwaysOn1, options.shmupAlwaysOn2,
+            options.shmupAlwaysOn3, options.shmupAlwaysOn4,
+        };
+        for (uint32_t pin : shmupPins) {
+            if (pin > 0 && pin < (uint32_t)NUM_BANK0_GPIOS) {
+                shmupGpioMask |= Mask_t{1} << pin;
+            }
+        }
+    }
+
     // ---- 切换检测：Turbo 键（标准 GPIO ∪ 背键 10 键映射）按住期间 ----
     Mask_t turboKeyMask = turboPinMask | backKeys->getTurboKeyMask();
     if (heldGpios & turboKeyMask) {
-        // 白名单 GPIO 新按下沿（Turbo 键自身不可被切换）
+        // 白名单 GPIO 新按下沿（Turbo 键自身不可被切换；SHMUP 常开引脚恒为连发，不参与切换）
         Mask_t newGpios = (heldGpios ^ lastHeldGpios) & heldGpios
-                        & TURBO_GPIO_WHITELIST_MASK & ~turboKeyMask;
+                        & TURBO_GPIO_WHITELIST_MASK & ~turboKeyMask & ~shmupGpioMask;
         // 灯效事件：1=连发开 2=长按开 3=关（同帧多键切换以最后事件为准，单次反馈）
         uint8_t pulseEvent = 0;
         for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS && newGpios; pin++) {
@@ -183,13 +199,18 @@ void __not_in_flash_func(TurboInput::process)() {
     }
 
     // ---- 阶段二A：按钮通道分类（第一阶段仅游戏按键，键鼠通道第二阶段实施）----
-    uint32_t turboBtns = 0, lpBtns = 0, otherBtns = 0;
-    Mask_t classify = heldGpios | longpressActiveMask;  // 长按闩锁激活的 GPIO 物理松开后仍持续贡献
+    uint32_t turboBtns = 0, lpBtns = 0, otherBtns = 0, shmupBtns = 0;
+    // 长按闩锁激活的 GPIO 物理松开后仍持续贡献；SHMUP 常开引脚无物理按下亦须参与分类
+    Mask_t classify = heldGpios | longpressActiveMask | shmupGpioMask;
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {
         Mask_t bit = Mask_t{1} << pin;
         if (!(classify & bit)) continue;
         TurboResolvedAction act = resolvePinToAction(pin);
-        if (turboGpioMask & bit)           turboBtns |= act.buttonMask;
+        bool inShmup = (shmupGpioMask & bit) != 0;
+        if ((turboGpioMask & bit) || inShmup) {
+            turboBtns |= act.buttonMask;
+            if (inShmup) shmupBtns |= act.buttonMask;
+        }
         else if (longpressGpioMask & bit) {
             // 长按输出闩锁激活：恒定输出（长触发）；未激活但物理按下：正常输出（点击触发的按住过程）
             if (longpressActiveMask & bit)     lpBtns |= act.buttonMask;
@@ -199,32 +220,30 @@ void __not_in_flash_func(TurboInput::process)() {
     }
 
     // ---- 阶段二B：或集干预 ----
-    uint32_t alwaysEnabled = options.shmupModeEnabled
-        ? (options.shmupAlwaysOn1 | options.shmupAlwaysOn2 |
-           options.shmupAlwaysOn3 | options.shmupAlwaysOn4)
-        : 0;
-    uint32_t managed = turboBtns | lpBtns | alwaysEnabled;
+    uint32_t managed = turboBtns | lpBtns;
     if (managed == 0) return;
 
     uint32_t steady  = lpBtns | otherBtns;          // 恒定输出：长按闩锁 + 其他 GPIO 来源
-    uint32_t flicker = turboBtns | alwaysEnabled;   // 跟随闪烁：连发绑定 + SHMUP always-on
+    uint32_t flicker = turboBtns;                   // 跟随闪烁：连发绑定 + SHMUP 常开引脚
     uint32_t result  = steady | (bTurboFlicker ? 0 : flicker);
 
     gamepad->state.buttons |= lpBtns;               // 长按强制置位（或集）
+    // 普通连发的点亮相位依赖物理按下已置位；SHMUP 常开引脚无物理输入，须主动置位
+    if (!bTurboFlicker) gamepad->state.buttons |= shmupBtns;
     // 管辖位且无任何来源贡献才清除；掩码走 uint64 防 state.buttons 高位被误清
     gamepad->state.buttons &= ~(uint64_t)(managed & ~result);
 
     // 模拟扳机跟随管辖位（数字模式普通映射 / 线性扳机模拟模式统一适用）
     if (managed & GAMEPAD_MASK_L2) {
         if (result & GAMEPAD_MASK_L2) {
-            if (lpBtns & GAMEPAD_MASK_L2) gamepad->state.lt = GAMEPAD_TRIGGER_MAX;
+            if ((lpBtns | shmupBtns) & GAMEPAD_MASK_L2) gamepad->state.lt = GAMEPAD_TRIGGER_MAX;
         } else {
             gamepad->state.lt = 0;
         }
     }
     if (managed & GAMEPAD_MASK_R2) {
         if (result & GAMEPAD_MASK_R2) {
-            if (lpBtns & GAMEPAD_MASK_R2) gamepad->state.rt = GAMEPAD_TRIGGER_MAX;
+            if ((lpBtns | shmupBtns) & GAMEPAD_MASK_R2) gamepad->state.rt = GAMEPAD_TRIGGER_MAX;
         } else {
             gamepad->state.rt = 0;
         }
