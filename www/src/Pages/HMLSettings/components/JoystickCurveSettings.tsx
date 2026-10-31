@@ -720,19 +720,34 @@ const BEZIER_PRESET_NAME_MAX_LEN = 64;
 
 const BEZIER_LINEAR_DEFAULT: BezierControl = { c1x: 1 / 3, c1y: 1 / 3, c2x: 2 / 3, c2y: 2 / 3 };
 
-/** Clamp control points to [0,1]^2 and enforce C1 <= C2 component-wise (keeps curve monotonic). */
+/** Clamp control point coordinates to [0,1]. Monotonicity is validated separately via
+ *  isBezierMonotone — C1 <= C2 is only a sufficient condition, not a necessary one. */
 function clampBezierControl(b: BezierControl): BezierControl {
-	const c1x = Math.max(0, Math.min(1, Number.isFinite(b.c1x) ? b.c1x : BEZIER_LINEAR_DEFAULT.c1x));
-	const c1y = Math.max(0, Math.min(1, Number.isFinite(b.c1y) ? b.c1y : BEZIER_LINEAR_DEFAULT.c1y));
-	const c2x = Math.max(0, Math.min(1, Number.isFinite(b.c2x) ? b.c2x : BEZIER_LINEAR_DEFAULT.c2x));
-	const c2y = Math.max(0, Math.min(1, Number.isFinite(b.c2y) ? b.c2y : BEZIER_LINEAR_DEFAULT.c2y));
 	return {
-		c1x: Math.min(c1x, c2x),
-		c1y: Math.min(c1y, c2y),
-		c2x: Math.max(c1x, c2x),
-		c2y: Math.max(c1y, c2y),
+		c1x: Math.max(0, Math.min(1, Number.isFinite(b.c1x) ? b.c1x : BEZIER_LINEAR_DEFAULT.c1x)),
+		c1y: Math.max(0, Math.min(1, Number.isFinite(b.c1y) ? b.c1y : BEZIER_LINEAR_DEFAULT.c1y)),
+		c2x: Math.max(0, Math.min(1, Number.isFinite(b.c2x) ? b.c2x : BEZIER_LINEAR_DEFAULT.c2x)),
+		c2y: Math.max(0, Math.min(1, Number.isFinite(b.c2y) ? b.c2y : BEZIER_LINEAR_DEFAULT.c2y)),
 	};
 }
+
+/** True iff the quadratic bezier with control values (a, b, c) stays >= 0 on [0,1].
+ *  d/dt of each axis polynomial is such a quadratic (a=c1, b=c2-c1, c=1-c2), so this
+ *  is the exact monotonicity test: the parabola may dip (b < 0, i.e. C2 < C1) as long
+ *  as its interior vertex minimum (a*c - b*b) / (a - 2b + c) stays >= 0. */
+const quadBezierNonNegative = (a: number, b: number, c: number): boolean => {
+	if (a < 0 || c < 0) return false;
+	const d = a - 2 * b + c;
+	if (d <= 0) return true; // concave: minimum is at an endpoint (already >= 0)
+	if (a <= b || c <= b) return true; // vertex outside (0,1): minimum is at an endpoint
+	return a * c >= b * b - 1e-9;
+};
+
+/** y(x) is monotonically increasing iff both x(t) and y(t) are non-decreasing on [0,1].
+ *  Looser than C1 <= C2: handles may cross as long as the derivative never goes negative. */
+const isBezierMonotone = (b: BezierControl): boolean =>
+	quadBezierNonNegative(b.c1x, b.c2x - b.c1x, 1 - b.c2x) &&
+	quadBezierNonNegative(b.c1y, b.c2y - b.c1y, 1 - b.c2y);
 
 function normalizeBezier(raw: unknown): BezierControl {
 	if (raw && typeof raw === 'object') {
@@ -746,6 +761,11 @@ function normalizeBezier(raw: unknown): BezierControl {
 		// All-zero control points are degenerate (both handles overlap at origin, curve is
 		// unusable) — treat as unset, e.g. flash data written before has_ flags were persisted.
 		if (clamped.c1x === 0 && clamped.c1y === 0 && clamped.c2x === 0 && clamped.c2y === 0) {
+			return { ...BEZIER_LINEAR_DEFAULT };
+		}
+		// Non-monotone values can't be produced by the editor but may arrive via raw flash
+		// data — fall back to linear rather than showing a non-functional curve.
+		if (!isBezierMonotone(clamped)) {
 			return { ...BEZIER_LINEAR_DEFAULT };
 		}
 		return clamped;
@@ -772,21 +792,22 @@ const bezierEvalAxis = (c1: number, c2: number, t: number): number => {
 	return 3 * mt * mt * t * c1 + 3 * mt * t * t * c2 + t * t * t;
 };
 
-/** dB/dt for the axis polynomial above */
-const bezierDerivAxis = (c1: number, c2: number, t: number): number => {
-	const mt = 1 - t;
-	return 3 * mt * mt * c1 + 6 * mt * t * (c2 - c1) + 3 * t * t * (1 - c2);
-};
-
-/** Newton solve x(t) = xTarget with clamped monotonic curve (single root guaranteed). */
-const bezierFindT = (xTarget: number, c1x: number, c2x: number, seed = 0.5): number => {
-	let t = Math.max(0, Math.min(1, seed));
-	for (let i = 0; i < 8; i++) {
+/** Bisection solve x(t) = xTarget. x(t) is monotonic (enforced by isBezierMonotone), so
+ *  exactly one root exists and bisection always converges — unlike Newton, which stalls
+ *  when x'(t) approaches 0 (possible now that C1 <= C2 is no longer enforced). */
+const bezierFindT = (xTarget: number, c1x: number, c2x: number): number => {
+	let lo = 0;
+	let hi = 1;
+	let t = 0.5;
+	for (let i = 0; i < 24; i++) {
+		t = (lo + hi) / 2;
 		const err = bezierEvalAxis(c1x, c2x, t) - xTarget;
-		if (Math.abs(err) < 1e-5) break;
-		const d = bezierDerivAxis(c1x, c2x, t);
-		if (Math.abs(d) < 1e-6) break;
-		t = Math.max(0, Math.min(1, t - err / d));
+		if (Math.abs(err) < 1e-6) break;
+		if (err > 0) {
+			hi = t;
+		} else {
+			lo = t;
+		}
 	}
 	return t;
 };
@@ -828,7 +849,8 @@ function parseBezierImportJSON(text: string): BezierControl | null {
 		if (vals.length !== 4) return null;
 		const nums = vals.map((v) => Number(v));
 		if (!nums.every((n) => Number.isFinite(n))) return null;
-		return clampBezierControl({ c1x: nums[0], c1y: nums[1], c2x: nums[2], c2y: nums[3] });
+		const b = clampBezierControl({ c1x: nums[0], c1y: nums[1], c2x: nums[2], c2y: nums[3] });
+		return isBezierMonotone(b) ? b : null;
 	};
 	if (Array.isArray(parsed)) {
 		return readNums(parsed);
@@ -2085,6 +2107,8 @@ const JoystickCurveSettings = ({
 			? { ...leftBezier, c1x: newPoint.x, c1y: newPoint.y }
 			: { ...leftBezier, c2x: newPoint.x, c2y: newPoint.y };
 		const clamped = clampBezierControl(next);
+		// Reject moves that would break monotonicity (handle stays at last valid position)
+		if (!isBezierMonotone(clamped)) return;
 		setLeftBezierLocal(clamped);
 		setLeftBezierInputs(bezierToInputStrings(clamped));
 	};
@@ -2128,6 +2152,8 @@ const JoystickCurveSettings = ({
 			? { ...rightBezier, c1x: newPoint.x, c1y: newPoint.y }
 			: { ...rightBezier, c2x: newPoint.x, c2y: newPoint.y };
 		const clamped = clampBezierControl(next);
+		// Reject moves that would break monotonicity (handle stays at last valid position)
+		if (!isBezierMonotone(clamped)) return;
 		setRightBezierLocal(clamped);
 		setRightBezierInputs(bezierToInputStrings(clamped));
 	};
@@ -2149,6 +2175,11 @@ const JoystickCurveSettings = ({
 			c2x: parseFloat(leftBezierInputs.c2x) || 0,
 			c2y: parseFloat(leftBezierInputs.c2y) || 0,
 		});
+		if (!isBezierMonotone(clamped)) {
+			// Reject non-monotone input: revert text to the last valid control points
+			setLeftBezierInputs(bezierToInputStrings(leftBezier));
+			return;
+		}
 		setLeftBezierLocal(clamped);
 		setLeftBezierInputs(bezierToInputStrings(clamped));
 	};
@@ -2164,6 +2195,11 @@ const JoystickCurveSettings = ({
 			c2x: parseFloat(rightBezierInputs.c2x) || 0,
 			c2y: parseFloat(rightBezierInputs.c2y) || 0,
 		});
+		if (!isBezierMonotone(clamped)) {
+			// Reject non-monotone input: revert text to the last valid control points
+			setRightBezierInputs(bezierToInputStrings(rightBezier));
+			return;
+		}
 		setRightBezierLocal(clamped);
 		setRightBezierInputs(bezierToInputStrings(clamped));
 	};
