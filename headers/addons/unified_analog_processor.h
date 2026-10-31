@@ -47,8 +47,13 @@ private:
         uint16_t last_y_adc;
         float range_data[48];
         bool has_range_calibration;
-        bool finetune_shape_force_circular;
         float finetune_shape_amplify;
+        float uniform_scale; // Precomputed direction-independent scale (set at init)
+        // Per-sector snap need (linear deadzone mode): r1_sector - in_deadzone,
+        // i.e. this direction's max reachable output. >= 1 means the direction
+        // never needs snap; < 1 means snap triggers at r >= value + dz - margin.
+        float snap_need[48];
+        float min_snap_trigger; // min trigger over snap-enabled sectors (+inf if none)
         struct {
             float x;
             float y;
@@ -80,8 +85,8 @@ private:
     void resolveSource();
     void initializeStickFromOptions(int stickNum, const AnalogOptions& options, bool curveEnabled);
     uint16_t quantizeRaw(int stickNum, uint16_t value, bool isXAxis, uint16_t adcMax);
-    float getInterpolatedScale(int stickNum, float angle) const;
-    void applyFinetuneShapeAdjustments(int stickNum);
+    void applyInnerDeadzone(int stickNum, float& nx, float& ny);
+    void updateUniformScale(int stickNum);
     void initializeCurveSegments(int stickNum, const UnifiedAnalogCurvePoint* controlPoints, int controlPointsCount);
     void applyResponseCurveToCoordinates(float& normalizedX, float& normalizedY, int stickNum);
     void saveCurrentCurveData(int stickNum);

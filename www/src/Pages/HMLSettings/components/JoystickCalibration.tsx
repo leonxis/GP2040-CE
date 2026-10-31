@@ -156,73 +156,52 @@ export const finetuneButtonStyle: React.CSSProperties = {
 
 /**
  * Apply finetune shape adjustments to range_data (matches backend logic)
+ * Force circular was removed; only the amplify factor adjustment remains.
  * @param rangeData Original calibration data array
- * @param forceCircular Whether force circular is enabled
  * @param amplify Amplify factor
  * @returns Adjusted range data array
  */
 const applyFinetuneShapeAdjustments = (
 	rangeData: number[],
-	forceCircular: boolean,
 	amplify: number
 ): number[] => {
 	// Create a copy of the range data to avoid mutating the original
 	const adjustedData = [...rangeData];
-	
-	if (!forceCircular) {
-		// When force circular is disabled, set all scaling ratios to the minimum value
-		// Find the minimum scaling ratio
-		let minScale = adjustedData[0];
-		for (let i = 1; i < adjustedData.length; i++) {
-			if (adjustedData[i] < minScale) {
-				minScale = adjustedData[i];
-			}
-		}
-		
-		// Set all scaling ratios to the minimum value
-		for (let i = 0; i < adjustedData.length; i++) {
-			adjustedData[i] = minScale;
-		}
-	}
-	// Note: When force_circular is true, scaling ratios remain unchanged at this point
-	
-	// Apply amplify factor to all scaling ratios (regardless of force_circular setting)
+
+	// Apply amplify factor to all scaling ratios
 	const amplifyFactor = 1.0 + amplify / 100.0;
 	if (amplifyFactor > 0.0) {
 		for (let i = 0; i < adjustedData.length; i++) {
 			adjustedData[i] /= amplifyFactor;
 		}
 	}
-	
+
 	return adjustedData;
 };
 
 /**
- * Get interpolated scale for a given angle using range calibration data (matches backend logic)
- * @param angle Angle in radians (-PI to PI)
+ * Get uniform scale from range calibration data (matches backend logic)
+ * Per-direction interpolation was removed together with force circular.
+ * @param angle Angle in radians (unused, kept for call-site compatibility)
  * @param rangeData Range calibration data array (already adjusted by applyFinetuneShapeAdjustments)
- * @returns Interpolated scale value, or 0.65 if no calibration data (default scaling)
+ * @returns Uniform scale value: min(rangeData), or 0.6 if no calibration data
  */
 const getInterpolatedScale = (angle: number, rangeData: number[]): number => {
-	// Check if we have calibration data
-	// If no calibration data, return 0.65 for default scaling (matches backend logic)
+	void angle;
+	// If no calibration data, return 0.6 for default scaling (matches backend logic)
 	if (!rangeData || rangeData.length === 0 || rangeData.every(v => v <= 0)) {
-		return 0.65;
+		return 0.6;
 	}
-	
-	// Convert angle from [-PI, PI] to [0, 2*PI] then to [0, CIRCULARITY_DATA_SIZE]
-	const normalizedAngle = (angle + Math.PI) / (2.0 * Math.PI);  // 0.0 to 1.0
-	const index = normalizedAngle * CIRCULARITY_DATA_SIZE;
-	
-	// Get the two adjacent indices for interpolation
-	const i0 = Math.floor(index) % CIRCULARITY_DATA_SIZE;
-	const i1 = (i0 + 1) % CIRCULARITY_DATA_SIZE;
-	const t = index - Math.floor(index);  // Fractional part (0.0 to 1.0)
-	
-	// Linear interpolation of adjusted calibration data
-	const r0 = rangeData[i0] || 0;
-	const r1 = rangeData[i1] || 0;
-	return r0 * (1.0 - t) + r1 * t;
+
+	// Uniform scale: minimum of the calibration points (ignore empty slots;
+	// a zero first slot must not zero out the scale)
+	let minScale = Infinity;
+	for (let i = 0; i < rangeData.length; i++) {
+		if (rangeData[i] > 0 && rangeData[i] < minScale) {
+			minScale = rangeData[i];
+		}
+	}
+	return minScale;
 };
 
 /**
@@ -684,9 +663,7 @@ const JoystickCalibration = ({
 	const [rightJitterSliderDirty, setRightJitterSliderDirty] = useState(false);
 	
 	// Finetune shape modal state - initialize from values
-	const [leftFinetuneShapeForceCircular, setLeftFinetuneShapeForceCircular] = useState(values?.joystickFinetuneShapeForceCircular1 ?? false);
 	const [leftFinetuneShapeAmplify, setLeftFinetuneShapeAmplify] = useState(values?.joystickFinetuneShapeAmplify1 ?? 0.0);
-	const [rightFinetuneShapeForceCircular, setRightFinetuneShapeForceCircular] = useState(values?.joystickFinetuneShapeForceCircular2 ?? false);
 	const [rightFinetuneShapeAmplify, setRightFinetuneShapeAmplify] = useState(values?.joystickFinetuneShapeAmplify2 ?? 0.0);
 	
 	// Error rate display toggle state
@@ -695,11 +672,9 @@ const JoystickCalibration = ({
 	
 	// Update state when values change
 	useEffect(() => {
-			setLeftFinetuneShapeForceCircular(values?.joystickFinetuneShapeForceCircular1 ?? false);
 			setLeftFinetuneShapeAmplify(values?.joystickFinetuneShapeAmplify1 ?? 0.0);
-			setRightFinetuneShapeForceCircular(values?.joystickFinetuneShapeForceCircular2 ?? false);
 			setRightFinetuneShapeAmplify(values?.joystickFinetuneShapeAmplify2 ?? 0.0);
-	}, [values?.joystickFinetuneShapeForceCircular1, values?.joystickFinetuneShapeAmplify1, values?.joystickFinetuneShapeForceCircular2, values?.joystickFinetuneShapeAmplify2]);
+	}, [values?.joystickFinetuneShapeAmplify1, values?.joystickFinetuneShapeAmplify2]);
 	
 	// Load jitter filter (threshold → bits) when modal opens
 	useEffect(() => {
@@ -748,12 +723,10 @@ const JoystickCalibration = ({
 							const originalRangeData = values?.joystickRangeData1 || [];
 							
 							// Use current state values for real-time updates
-							const forceCircular = leftFinetuneShapeForceCircular;
 							const amplify = leftFinetuneShapeAmplify;
-							
+
 							const adjustedRangeData = applyFinetuneShapeAdjustments(
 								originalRangeData,
-								forceCircular,
 								amplify
 							);
 							
@@ -779,28 +752,53 @@ const JoystickCalibration = ({
 							const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
 							const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
 							const fixedAntiDeadzone = values?.fixed_anti_deadzone || false;
+							const hasRangeCal = originalRangeData.some((v: number) => v > 0);
 							const dist_sq = stickX * stickX + stickY * stickY;
 							const deadzone_sq = innerDeadzone * innerDeadzone;
 							
-							if (dist_sq < deadzone_sq) {
+							if (hasRangeCal && innerDeadzone > 0 && dist_sq < deadzone_sq) {
 								// Inside deadzone: set to center (matches backend)
 								stickX = 0.0;
 								stickY = 0.0;
-							} else if (!fixedAntiDeadzone) {
+							} else if (hasRangeCal && innerDeadzone > 0 && !fixedAntiDeadzone) {
 								// Linear mode (fixed_anti_deadzone == false): pure radial translation
 								// by -innerDeadzone (no rescale, curve proportion is preserved).
-								// Travel within the last 1% snaps up to full scale 1.0,
+								// Travel within the last 2% snaps up to full scale 1.0,
 								// so the curve endpoint (1,1) stays reachable.
 								const r = Math.sqrt(dist_sq);
-								if (r > 0.0) {
-									let target = r - innerDeadzone;
-									if (r >= 0.99) {
-										target = Math.max(target, 1.0);
+								// r >= innerDeadzone > 0 in this branch; the division is safe.
+								let target = r - innerDeadzone;
+								// Tiered snap filter (matches backend): neighbor snap-need check,
+								// neighbor travel gate, then interpolated precise trigger.
+								const scale = detailData.scale;
+								const needAt = (idx: number): number => {
+									// Use the raw range data (matches backend range_data): the
+									// amplify factor lives in scale, so adjusted data would
+									// cancel it out of the ratio.
+									const rd = originalRangeData[idx] || 0;
+									return (rd > 0 && scale > 0) ? rd / scale - innerDeadzone : Infinity;
+								};
+								let sector = Math.floor(((Math.atan2(rawStickY, rawStickX) + Math.PI) / (2 * Math.PI)) * CIRCULARITY_DATA_SIZE);
+								if (sector >= CIRCULARITY_DATA_SIZE) sector = CIRCULARITY_DATA_SIZE - 1;
+								if (sector < 0) sector = 0;
+								const next = (sector + 1) % CIRCULARITY_DATA_SIZE;
+								const v0 = needAt(sector);
+								const v1 = needAt(next);
+								if (v0 < 1.0 || v1 < 1.0) {
+									const t0 = v0 < 1.0 ? v0 + innerDeadzone - 0.02 : Infinity;
+									const t1 = v1 < 1.0 ? v1 + innerDeadzone - 0.02 : Infinity;
+									if (r >= Math.min(t0, t1)) {
+										const angleNorm = ((Math.atan2(rawStickY, rawStickX) + Math.PI) / (2 * Math.PI)) * CIRCULARITY_DATA_SIZE;
+										const t = Math.min(1, Math.max(0, angleNorm - sector));
+										const trigger = t0 === Infinity ? t1 : t1 === Infinity ? t0 : t0 + (t1 - t0) * t;
+										if (r >= trigger) {
+											target = Math.max(target, 1.0);
+										}
 									}
-									const scale_factor = target / r;
-									stickX = stickX * scale_factor;
-									stickY = stickY * scale_factor;
 								}
+								const scale_factor = target / r;
+								stickX = stickX * scale_factor;
+								stickY = stickY * scale_factor;
 							}
 							// Fixed mode (fixed_anti_deadzone == true): pure mask, no processing
 							// outside the deadzone; output equals the raw stick input.
@@ -878,7 +876,7 @@ const JoystickCalibration = ({
 							// Collect circularity data only when error rate is enabled
 							if (leftShowErrorRate) {
 								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
+								const circAngleIndex = (Math.round(Math.atan2(rawStickY, rawStickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
 								setLeftFinetuneShapeCircularityData(prev => {
 									const newData = [...prev];
 									if (distance > newData[circAngleIndex]) {
@@ -901,12 +899,10 @@ const JoystickCalibration = ({
 							const originalRangeData = values?.joystickRangeData2 || [];
 							
 							// Use current state values for real-time updates
-							const forceCircular = rightFinetuneShapeForceCircular;
 							const amplify = rightFinetuneShapeAmplify;
-							
+
 							const adjustedRangeData = applyFinetuneShapeAdjustments(
 								originalRangeData,
-								forceCircular,
 								amplify
 							);
 							
@@ -931,28 +927,53 @@ const JoystickCalibration = ({
 							const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
 							const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
 							const fixedAntiDeadzone = values?.fixed_anti_deadzone2 || false;
+							const hasRangeCal = originalRangeData.some((v: number) => v > 0);
 							const dist_sq = stickX * stickX + stickY * stickY;
 							const deadzone_sq = innerDeadzone * innerDeadzone;
 							
-							if (dist_sq < deadzone_sq) {
+							if (hasRangeCal && innerDeadzone > 0 && dist_sq < deadzone_sq) {
 								// Inside deadzone: set to center (matches backend)
 								stickX = 0.0;
 								stickY = 0.0;
-							} else if (!fixedAntiDeadzone) {
+							} else if (hasRangeCal && innerDeadzone > 0 && !fixedAntiDeadzone) {
 								// Linear mode (fixed_anti_deadzone == false): pure radial translation
 								// by -innerDeadzone (no rescale, curve proportion is preserved).
-								// Travel within the last 1% snaps up to full scale 1.0,
+								// Travel within the last 2% snaps up to full scale 1.0,
 								// so the curve endpoint (1,1) stays reachable.
 								const r = Math.sqrt(dist_sq);
-								if (r > 0.0) {
-									let target = r - innerDeadzone;
-									if (r >= 0.99) {
-										target = Math.max(target, 1.0);
+								// r >= innerDeadzone > 0 in this branch; the division is safe.
+								let target = r - innerDeadzone;
+								// Tiered snap filter (matches backend): neighbor snap-need check,
+								// neighbor travel gate, then interpolated precise trigger.
+								const scale = detailData.scale;
+								const needAt = (idx: number): number => {
+									// Use the raw range data (matches backend range_data): the
+									// amplify factor lives in scale, so adjusted data would
+									// cancel it out of the ratio.
+									const rd = originalRangeData[idx] || 0;
+									return (rd > 0 && scale > 0) ? rd / scale - innerDeadzone : Infinity;
+								};
+								let sector = Math.floor(((Math.atan2(rawStickY, rawStickX) + Math.PI) / (2 * Math.PI)) * CIRCULARITY_DATA_SIZE);
+								if (sector >= CIRCULARITY_DATA_SIZE) sector = CIRCULARITY_DATA_SIZE - 1;
+								if (sector < 0) sector = 0;
+								const next = (sector + 1) % CIRCULARITY_DATA_SIZE;
+								const v0 = needAt(sector);
+								const v1 = needAt(next);
+								if (v0 < 1.0 || v1 < 1.0) {
+									const t0 = v0 < 1.0 ? v0 + innerDeadzone - 0.02 : Infinity;
+									const t1 = v1 < 1.0 ? v1 + innerDeadzone - 0.02 : Infinity;
+									if (r >= Math.min(t0, t1)) {
+										const angleNorm = ((Math.atan2(rawStickY, rawStickX) + Math.PI) / (2 * Math.PI)) * CIRCULARITY_DATA_SIZE;
+										const t = Math.min(1, Math.max(0, angleNorm - sector));
+										const trigger = t0 === Infinity ? t1 : t1 === Infinity ? t0 : t0 + (t1 - t0) * t;
+										if (r >= trigger) {
+											target = Math.max(target, 1.0);
+										}
 									}
-									const scale_factor = target / r;
-									stickX = stickX * scale_factor;
-									stickY = stickY * scale_factor;
 								}
+								const scale_factor = target / r;
+								stickX = stickX * scale_factor;
+								stickY = stickY * scale_factor;
 							}
 							// Fixed mode (fixed_anti_deadzone == true): pure mask, no processing
 							// outside the deadzone; output equals the raw stick input.
@@ -1028,7 +1049,7 @@ const JoystickCalibration = ({
 							// Collect circularity data only when error rate is enabled
 							if (rightShowErrorRate) {
 								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
+								const circAngleIndex = (Math.round(Math.atan2(rawStickY, rawStickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
 								setRightFinetuneShapeCircularityData(prev => {
 									const newData = [...prev];
 									if (distance > newData[circAngleIndex]) {
@@ -1075,10 +1096,8 @@ const JoystickCalibration = ({
 		values.joystickCenterY2, 
 		values.joystickRangeData1, 
 		values.joystickRangeData2, 
-		leftFinetuneShapeForceCircular, 
-		leftFinetuneShapeAmplify, 
-		rightFinetuneShapeForceCircular, 
-		rightFinetuneShapeAmplify, 
+		leftFinetuneShapeAmplify,
+		rightFinetuneShapeAmplify,
 		values?.joystickCurvePoints1, 
 		values?.joystickCurvePoints2, 
 		values?.joystickCurveEnabled,
@@ -1205,11 +1224,11 @@ const JoystickCalibration = ({
 	// Reset finetune shape data when values change
 	useEffect(() => {
 			setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
-	}, [leftFinetuneShapeForceCircular, leftFinetuneShapeAmplify]);
+	}, [leftFinetuneShapeAmplify]);
 
 	useEffect(() => {
 		setRightFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
-	}, [rightFinetuneShapeForceCircular, rightFinetuneShapeAmplify]);
+	}, [rightFinetuneShapeAmplify]);
 
 
 	return (
@@ -1232,12 +1251,7 @@ const JoystickCalibration = ({
 					{/* Row 1, Column 2: Left finetune shape controls */}
 					<FinetuneShapeControls
 						title={t('CalibrationSettings:hml-outer-tune-left-title')}
-						forceCircular={leftFinetuneShapeForceCircular}
 						amplify={leftFinetuneShapeAmplify}
-						onForceCircularChange={(value) => {
-							setLeftFinetuneShapeForceCircular(value);
-							setFieldValue('joystickFinetuneShapeForceCircular1', value);
-						}}
 						onAmplifyChange={(value) => {
 							setLeftFinetuneShapeAmplify(value);
 							setFieldValue('joystickFinetuneShapeAmplify1', value);
@@ -1247,12 +1261,7 @@ const JoystickCalibration = ({
 					{/* Row 1, Column 3: Right finetune shape controls */}
 					<FinetuneShapeControls
 						title={t('CalibrationSettings:hml-outer-tune-right-title')}
-						forceCircular={rightFinetuneShapeForceCircular}
 						amplify={rightFinetuneShapeAmplify}
-						onForceCircularChange={(value) => {
-							setRightFinetuneShapeForceCircular(value);
-							setFieldValue('joystickFinetuneShapeForceCircular2', value);
-						}}
 						onAmplifyChange={(value) => {
 							setRightFinetuneShapeAmplify(value);
 							setFieldValue('joystickFinetuneShapeAmplify2', value);

@@ -56,18 +56,18 @@ private:
 };
 
 /**
- * Inner/anti deadzone (uint32): 0–200 = tenths of a percent (55 → 5.5%).
+ * Inner/anti deadzone (uint32): 0–800 = tenths of a percent (55 → 5.5%).
  * Percent = clamp(raw)/10, normalized factor = clamp(raw)/1000.
  */
 inline float analogDeadzonePercentFromRaw(uint32_t raw)
 {
-    const uint32_t t = std::min<uint32_t>(raw, 200u);
-    return std::min(20.0f, static_cast<float>(t) / 10.0f);
+    const uint32_t t = std::min<uint32_t>(raw, 800u);
+    return std::min(80.0f, static_cast<float>(t) / 10.0f);
 }
 
 inline float analogDeadzoneNormFromRaw(uint32_t raw)
 {
-    const uint32_t t = std::min<uint32_t>(raw, 200u);
+    const uint32_t t = std::min<uint32_t>(raw, 800u);
     return static_cast<float>(t) / 1000.0f;
 }
 

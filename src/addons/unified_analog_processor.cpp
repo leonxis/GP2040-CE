@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -20,9 +21,13 @@
 #define ANALOG_CENTER 0.5f
 #define CIRCULARITY_DATA_SIZE 48
 
-// Linear inner-deadzone mode: physical travel within the last (dz + 1%) snaps
-// to full-scale input so the curve endpoint stays reachable.
-static constexpr float kSnapMargin = 0.01f;
+// Linear inner-deadzone mode: physical travel within the last kSnapMargin
+// (2%) of a direction's range snaps to full-scale input so the curve
+// endpoint stays reachable.
+static constexpr float kSnapMargin = 0.02f;
+
+// Slope-space sector classification (defined below, avoids atan2).
+static void classifySectorSlope(float nx, float ny, int& sectorOut, float& tOut);
 
 namespace {
 static void convertCurvePoints(const CurvePoint* protobuf_points, int count, UnifiedAnalogCurvePoint* output) {
@@ -73,8 +78,9 @@ void UnifiedAnalogProcessorAddon::initializeFromOptions() {
     initializeStickFromOptions(0, analogOptions, curveEnabled);
     initializeStickFromOptions(1, analogOptions, curveEnabled);
 
-    applyFinetuneShapeAdjustments(0);
-    applyFinetuneShapeAdjustments(1);
+    // Scale is direction-independent; compute once at init instead of per-frame
+    updateUniformScale(0);
+    updateUniformScale(1);
 }
 
 void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const AnalogOptions& options, bool curveEnabled) {
@@ -98,18 +104,22 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.y_center = static_cast<uint16_t>((isFirst ? options.joystick_center_y : options.joystick_center_y2) > 0
         ? (isFirst ? options.joystick_center_y : options.joystick_center_y2)
         : 0u);
-    stick.has_range_calibration = isFirst ? (options.joystick_range_data_1_count > 0) : (options.joystick_range_data_2_count > 0);
-    stick.finetune_shape_force_circular = isFirst ? options.joystick_finetune_shape_force_circular_1 : options.joystick_finetune_shape_force_circular_2;
     stick.finetune_shape_amplify = isFirst ? options.joystick_finetune_shape_amplify_1 : options.joystick_finetune_shape_amplify_2;
     stick.last_x_adc = stick.x_center;
     stick.last_y_adc = stick.y_center;
     stick.curve_points_sorted_count = 0;
     stick.curve_segments_count = 0;
 
+    // Calibrated means at least one valid (positive) range point; a stored
+    // count with only non-positive samples is treated as no calibration.
+    stick.has_range_calibration = false;
     for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
         const bool hasPoint = isFirst ? (i < options.joystick_range_data_1_count) : (i < options.joystick_range_data_2_count);
         const float point = isFirst ? options.joystick_range_data_1[i] : options.joystick_range_data_2[i];
         stick.range_data[i] = (hasPoint && point > 0.0f) ? point : 0.0f;
+        if (stick.range_data[i] > 0.0f) {
+            stick.has_range_calibration = true;
+        }
     }
 
     if (curveEnabled) {
@@ -144,6 +154,66 @@ uint16_t __not_in_flash_func(UnifiedAnalogProcessorAddon::quantizeRaw)(int stick
     }
     *last = value;
     return value;
+}
+
+void __not_in_flash_func(UnifiedAnalogProcessorAddon::applyInnerDeadzone)(int stickNum, float& nx, float& ny) {
+    const StickState& stick = sticks_[stickNum];
+    const float distSq = nx * nx + ny * ny;
+    const float deadzoneSq = stick.in_deadzone * stick.in_deadzone;
+    if (distSq < deadzoneSq) {
+        // Both modes mask inputs inside the inner deadzone to zero.
+        nx = 0.0f;
+        ny = 0.0f;
+        return;
+    }
+    // Fixed mode (fixed_anti_deadzone == true): pure mask, no processing
+    // outside the deadzone; output equals the raw stick input.
+    if (stick.fixed_anti_deadzone) {
+        return;
+    }
+
+    // Linear mode (fixed_anti_deadzone == false): pure radial translation
+    // by -in_deadzone (no rescale, curve proportion is preserved).
+    // Snap uses tiered filtering on the per-sector snap_need table:
+    // cheap global gate, slope-space direction classification (no
+    // atan2), neighbor need check, neighbor travel gate, and only
+    // then interpolation for the precise trigger.
+    const float r = std::sqrt(distSq);
+    // r >= in_deadzone > 0 in this branch; the division is safe.
+    float target = r - stick.in_deadzone;
+    if (r >= stick.min_snap_trigger) {
+        int sector;
+        float t;
+        // snap_need is indexed in the raw ADC frame (range calibration is
+        // captured pre-inversion); map the direction back to that frame.
+        const bool invX = (stick.analog_invert == InvertMode::INVERT_X) ||
+                          (stick.analog_invert == InvertMode::INVERT_XY);
+        const bool invY = (stick.analog_invert == InvertMode::INVERT_Y) ||
+                          (stick.analog_invert == InvertMode::INVERT_XY);
+        classifySectorSlope(invX ? -nx : nx, invY ? -ny : ny, sector, t);
+        const int next = (sector + 1 < CIRCULARITY_DATA_SIZE) ? (sector + 1) : 0;
+        const float v0 = stick.snap_need[sector];
+        const float v1 = stick.snap_need[next];
+        if (v0 < 1.0f || v1 < 1.0f) {
+            const float inf = std::numeric_limits<float>::infinity();
+            const float t0 = (v0 < 1.0f) ? (v0 + stick.in_deadzone - kSnapMargin) : inf;
+            const float t1 = (v1 < 1.0f) ? (v1 + stick.in_deadzone - kSnapMargin) : inf;
+            if (r >= std::fmin(t0, t1)) {
+                // Avoid inf arithmetic: a disabled neighbor just
+                // yields the enabled one's trigger.
+                const float trigger = (t0 == inf) ? t1
+                                    : (t1 == inf) ? t0
+                                    : (t0 + (t1 - t0) * t);
+                if (r >= trigger) {
+                    // Never squash values already above 1 (preserves gate shape).
+                    target = std::max(target, 1.0f);
+                }
+            }
+        }
+    }
+    const float s = target / r;
+    nx *= s;
+    ny *= s;
 }
 
 void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
@@ -241,7 +311,7 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         float cx = xValid ? static_cast<float>(rawX) - static_cast<float>(calibratedXCenter) : 0.0f;
         float cy = yValid ? static_cast<float>(rawY) - static_cast<float>(calibratedYCenter) : 0.0f;
 
-        float scale = getInterpolatedScale(i, std::atan2(cy, cx));
+        const float scale = sticks_[i].uniform_scale; // Precomputed at init (direction-independent)
         float sx = cx / scale;
         float sy = cy / scale;
 
@@ -251,32 +321,13 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         if (sticks_[i].analog_invert == InvertMode::INVERT_X || sticks_[i].analog_invert == InvertMode::INVERT_XY) nx = -nx;
         if (sticks_[i].analog_invert == InvertMode::INVERT_Y || sticks_[i].analog_invert == InvertMode::INVERT_XY) ny = -ny;
 
-        float distSq = nx * nx + ny * ny;
-        float deadzoneSq = sticks_[i].in_deadzone * sticks_[i].in_deadzone;
-        if (distSq < deadzoneSq) {
-            // Both modes mask inputs inside the inner deadzone to zero.
-            nx = 0.0f;
-            ny = 0.0f;
-        } else if (!sticks_[i].fixed_anti_deadzone) {
-            // Linear mode (fixed_anti_deadzone == false): pure radial translation
-            // by -in_deadzone (no rescale, curve proportion is preserved).
-            // Physical travel within the last kSnapMargin snaps the input up to
-            // full scale 1.0, so the curve endpoint (1,1) stays reachable.
-            float r = std::sqrt(distSq);
-            if (r > 0.0f) {
-                float target = r - sticks_[i].in_deadzone;
-                if (r >= 1.0f - kSnapMargin) {
-                    // Snap up to full-scale input in the last 1% of travel; never
-                    // squash values already above 1 (preserves gate shape).
-                    target = std::max(target, 1.0f);
-                }
-                float s = target / r;
-                nx *= s;
-                ny *= s;
-            }
+        // Inner deadzone stage admission: only meaningful in calibrated
+        // normalized space with a non-zero deadzone (dz == 0 = feature off).
+        // Both modes mask radially; linear mode additionally translates by
+        // -dz with per-direction full-travel snap.
+        if (sticks_[i].has_range_calibration && sticks_[i].in_deadzone > 0.0f) {
+            applyInnerDeadzone(i, nx, ny);
         }
-        // Fixed mode (fixed_anti_deadzone == true): pure mask, no processing
-        // outside the deadzone; output equals the raw stick input.
 
         // Capture pre-curve magnitude and direction for the post-curve
         // anti-deadzone offset (dist == 0 means the input was masked).
@@ -323,49 +374,113 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
     }
 }
 
-float __not_in_flash_func(UnifiedAnalogProcessorAddon::getInterpolatedScale)(int stickNum, float angle) const {
-    if (!sticks_[stickNum].has_range_calibration) {
-        return 0.65f;
-    }
-
-    float normalizedAngle = (angle + static_cast<float>(M_PI)) / (2.0f * static_cast<float>(M_PI));
-    float index = normalizedAngle * CIRCULARITY_DATA_SIZE;
-    int i0 = static_cast<int>(index);
-    if (i0 >= CIRCULARITY_DATA_SIZE) {
-        i0 = CIRCULARITY_DATA_SIZE - 1;
-    }
-    int i1 = (i0 + 1 < CIRCULARITY_DATA_SIZE) ? (i0 + 1) : 0;
-    float t = index - static_cast<float>(i0);
-    float r0 = sticks_[stickNum].range_data[i0];
-    float r1 = sticks_[stickNum].range_data[i1];
-    return r0 * (1.0f - t) + r1 * t;
-}
-
-void UnifiedAnalogProcessorAddon::applyFinetuneShapeAdjustments(int stickNum) {
-    if (!sticks_[stickNum].has_range_calibration) {
+void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
+    StickState& stick = sticks_[stickNum];
+    if (!stick.has_range_calibration) {
+        stick.uniform_scale = 0.6f;
+        // Inner deadzone processing is skipped entirely without calibration;
+        // keep snap disabled so no stale table is ever consulted.
+        stick.min_snap_trigger = std::numeric_limits<float>::infinity();
+        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+            stick.snap_need[i] = std::numeric_limits<float>::infinity();
+        }
         return;
     }
 
-    if (!sticks_[stickNum].finetune_shape_force_circular) {
-        float minScale = sticks_[stickNum].range_data[0];
-        for (int i = 1; i < CIRCULARITY_DATA_SIZE; i++) {
-            if (sticks_[stickNum].range_data[i] < minScale) {
-                minScale = sticks_[stickNum].range_data[i];
-            }
-        }
-        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
-            sticks_[stickNum].range_data[i] = minScale;
+    // Uniform scale: minimum of the calibration points, ignoring empty slots
+    // (a non-positive sample would otherwise zero the scale and divide by 0).
+    float minScale = std::numeric_limits<float>::infinity();
+    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+        if (stick.range_data[i] > 0.0f && stick.range_data[i] < minScale) {
+            minScale = stick.range_data[i];
         }
     }
 
-    const float amplifyFactor = 1.0f + sticks_[stickNum].finetune_shape_amplify / 100.0f;
+    // Apply finetune amplify factor (matches legacy range_data /= amplifyFactor behavior)
+    const float amplifyFactor = 1.0f + stick.finetune_shape_amplify / 100.0f;
     if (amplifyFactor > 0.0f) {
+        minScale /= amplifyFactor;
+    }
+
+    stick.uniform_scale = minScale;
+
+    // Deadzone feature is off when in_deadzone is zero: process() early-exits
+    // before any deadzone/snap work, so keep the snap table fully disabled.
+    if (stick.in_deadzone <= 0.0f) {
+        stick.min_snap_trigger = std::numeric_limits<float>::infinity();
         for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
-            if (sticks_[stickNum].range_data[i] > 0.0f) {
-                sticks_[stickNum].range_data[i] /= amplifyFactor;
+            stick.snap_need[i] = std::numeric_limits<float>::infinity();
+        }
+        return;
+    }
+
+    // Per-sector snap need: r1 (this direction's physical max travel in
+    // normalized units) minus in_deadzone = max reachable output. A sector
+    // needs snap only when this value is below 1.
+    float minTrigger = std::numeric_limits<float>::infinity();
+    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+        // Empty slots have no physical travel: never snap in their direction.
+        if (stick.range_data[i] <= 0.0f) {
+            stick.snap_need[i] = std::numeric_limits<float>::infinity();
+            continue;
+        }
+        const float r1 = stick.range_data[i] / stick.uniform_scale;
+        const float need = r1 - stick.in_deadzone;
+        stick.snap_need[i] = need;
+        if (need < 1.0f) {
+            const float trigger = need + stick.in_deadzone - kSnapMargin;
+            if (trigger < minTrigger) {
+                minTrigger = trigger;
             }
         }
     }
+    stick.min_snap_trigger = minTrigger;
+}
+
+// Slope-space sector classification: locates the calibration sector of a
+// direction vector without atan2 (one division + a few comparisons).
+// Sectors match the legacy convention floor(((angle+PI)/(2*PI)) * 48).
+// Outputs sector index [0,48) and interpolation parameter t in [0,1].
+static void classifySectorSlope(float nx, float ny, int& sectorOut, float& tOut) {
+    const float ax = std::fabs(nx);
+    const float ay = std::fabs(ny);
+    // Octant layout: [0,45):24, [45,90):30, [90,135):36, [135,180):42,
+    //                [-180,-135):0, [-135,-90):6, [-90,-45):12, [-45,0):18
+    int oct;
+    if (ny >= 0.0f) {
+        if (nx >= 0.0f) oct = (ay > ax) ? 1 : 0;
+        else            oct = (ay > ax) ? 2 : 3;
+    } else {
+        if (nx < 0.0f)  oct = (ay > ax) ? 5 : 4;
+        else            oct = (ay > ax) ? 6 : 7;
+    }
+
+    // m = tan(angle within octant) in [0,1]; max is non-zero because r > 0
+    const float m = (ax >= ay) ? (ay / ax) : (ax / ay);
+
+    // Sector-within-octant boundaries: tan(0), tan(7.5), ..., tan(45)
+    static const float kTan[7] = {
+        0.0f, 0.13165250f, 0.26794919f, 0.41421356f, 0.57735027f, 0.76732699f, 1.0f
+    };
+    int sm;
+    if (m < kTan[3]) {
+        if (m < kTan[1]) sm = 0;
+        else             sm = (m < kTan[2]) ? 1 : 2;
+    } else {
+        if (m < kTan[4]) sm = 3;
+        else             sm = (m < kTan[5]) ? 4 : 5;
+    }
+    float t = (m - kTan[sm]) / (kTan[sm + 1] - kTan[sm]);
+
+    // Odd octants run counter to slope growth (angle decreases as m grows)
+    const int s = (oct & 1) ? (5 - sm) : sm;
+    if (oct & 1) {
+        t = 1.0f - t;
+    }
+
+    static const int kOctBase[8] = {24, 30, 36, 42, 0, 6, 12, 18};
+    sectorOut = kOctBase[oct] + s;
+    tOut = t;
 }
 
 void UnifiedAnalogProcessorAddon::initializeCurveSegments(int stickNum, const UnifiedAnalogCurvePoint* controlPoints, int controlPointsCount) {

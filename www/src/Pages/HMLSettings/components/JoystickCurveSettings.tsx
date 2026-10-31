@@ -179,21 +179,19 @@ const areCurvePointsEqual = (a: CurvePoint[], b: CurvePoint[]) => {
 };
 
 /**
- * Get interpolated scale for a given angle using range calibration data
+ * Get uniform scale from range calibration data (matches backend updateUniformScale)
+ * Per-direction interpolation was removed together with force circular.
  */
-const getInterpolatedScale = (angle: number, rangeData: number[]): number => {
-	if (rangeData.length === 0) return 1.0;
-	
-	const normalizedAngle = (angle + Math.PI) / (2.0 * Math.PI);
-	const index = normalizedAngle * CIRCULARITY_DATA_SIZE;
-	const i0 = Math.floor(index) % CIRCULARITY_DATA_SIZE;
-	const i1 = (i0 + 1) % CIRCULARITY_DATA_SIZE;
-	const t = index - Math.floor(index);
-	
-	const r0 = rangeData[i0] || 0;
-	const r1 = rangeData[i1] || 0;
-	
-	return r0 * (1.0 - t) + r1 * t;
+const getUniformScale = (rangeData: number[]): number => {
+	if (!rangeData || rangeData.length === 0 || rangeData.every(v => v <= 0)) return 0.6;
+
+	let minScale = Infinity;
+	for (let i = 0; i < rangeData.length; i++) {
+		if (rangeData[i] > 0 && rangeData[i] < minScale) {
+			minScale = rangeData[i];
+		}
+	}
+	return minScale;
 };
 
 /**
@@ -216,10 +214,10 @@ const processJoystickData = (
 	const offset_center_x = offset_x - adcCenter;
 	const offset_center_y = offset_y - adcCenter;
 	
-	// Step 2: Range calibration scaling
+	// Step 2: Range calibration scaling (uniform scale, direction-independent)
 	const current_distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
 	const angle = Math.atan2(offset_center_y, offset_center_x);
-	const rawScale = getInterpolatedScale(angle, rangeData);
+	const rawScale = getUniformScale(rangeData);
 	const scale = rawScale > 0 ? rawScale : 1.0;
 	
 	const scaled_center_x = offset_center_x / scale;
@@ -1035,8 +1033,9 @@ const JoystickCurveSettings = ({
 	const [leftDragOffset, setLeftDragOffset] = useState<{ x: number; y: number } | null>(null);
 	const leftCurveCanvasRef = useRef<HTMLCanvasElement>(null);
 	const leftCurveDirtyRef = useRef(false);
-	const [leftLightX, setLeftLightX] = useState<number | undefined>(undefined); // Physical distance (pre-curve magnitude) as percentage
+	const [leftLightX, setLeftLightX] = useState<number | undefined>(undefined); // Curve input (post-deadzone, pre-curve magnitude) for the highlight
 	const [leftLightY, setLeftLightY] = useState<number | undefined>(undefined); // Output distance (sqrt(stickX*stickX + stickY*stickY)) as percentage
+	const [leftPhysDist, setLeftPhysDist] = useState<number | undefined>(undefined); // Physical travel before deadzone processing
 	
 	// State for right stick
 	const [rightCurvePoints, setRightCurvePoints] = useState<CurvePoint[]>(() => {
@@ -1057,8 +1056,9 @@ const JoystickCurveSettings = ({
 	const [rightDragOffset, setRightDragOffset] = useState<{ x: number; y: number } | null>(null);
 	const rightCurveCanvasRef = useRef<HTMLCanvasElement>(null);
 	const rightCurveDirtyRef = useRef(false);
-	const [rightLightX, setRightLightX] = useState<number | undefined>(undefined); // Physical distance (pre-curve magnitude) as percentage
+	const [rightLightX, setRightLightX] = useState<number | undefined>(undefined); // Curve input (post-deadzone, pre-curve magnitude) for the highlight
 	const [rightLightY, setRightLightY] = useState<number | undefined>(undefined); // Output distance (sqrt(stickX*stickX + stickY*stickY)) as percentage
+	const [rightPhysDist, setRightPhysDist] = useState<number | undefined>(undefined); // Physical travel before deadzone processing
 
 	// ---------------- Bezier state (mode 1) ----------------
 	// Curve mode: 0 = polyline (existing behavior), 1 = bezier. Derived from formik values.
@@ -1262,25 +1262,50 @@ const JoystickCurveSettings = ({
 						const innerDeadzone = (values?.inner_deadzone || 0) / 100.0;
 						const antiDeadzone = (values?.anti_deadzone || 0) / 100.0;
 						const fixedAntiDeadzone = values?.fixed_anti_deadzone || false;
+						const hasRangeCal = rangeData.some((v: number) => v > 0);
 						const dist_sq = stickX * stickX + stickY * stickY;
+						// Physical travel before deadzone processing (the r computed
+						// at the entry of backend applyInnerDeadzone)
+						const physDist = Math.sqrt(dist_sq);
 						const deadzone_sq = innerDeadzone * innerDeadzone;
 
-						if (dist_sq < deadzone_sq) {
+						if (hasRangeCal && innerDeadzone > 0 && dist_sq < deadzone_sq) {
 							stickX = 0.0;
 							stickY = 0.0;
-						} else if (!fixedAntiDeadzone) {
+						} else if (hasRangeCal && innerDeadzone > 0 && !fixedAntiDeadzone) {
 							// Linear mode: pure radial translation by -innerDeadzone,
-							// snapping up to full scale within the last 1% of travel
+							// snapping up to full scale within the last 2% of travel
 							const r = Math.sqrt(dist_sq);
-							if (r > 0.0) {
-								let target = r - innerDeadzone;
-								if (r >= 0.99) {
-									target = Math.max(target, 1.0);
+							// r >= innerDeadzone > 0 in this branch; the division is safe.
+							let target = r - innerDeadzone;
+							// Tiered snap filter (matches backend): neighbor snap-need check,
+							// neighbor travel gate, then interpolated precise trigger.
+							const scale = getUniformScale(rangeData);
+							const needAt = (idx: number): number => {
+								const rd = rangeData[idx] || 0;
+								return (rd > 0 && scale > 0) ? rd / scale - innerDeadzone : Infinity;
+							};
+							let sector = Math.floor(((Math.atan2(rawStickY, rawStickX) + Math.PI) / (2 * Math.PI)) * CIRCULARITY_DATA_SIZE);
+							if (sector >= CIRCULARITY_DATA_SIZE) sector = CIRCULARITY_DATA_SIZE - 1;
+							if (sector < 0) sector = 0;
+							const next = (sector + 1) % CIRCULARITY_DATA_SIZE;
+							const v0 = needAt(sector);
+							const v1 = needAt(next);
+							if (v0 < 1.0 || v1 < 1.0) {
+								const t0 = v0 < 1.0 ? v0 + innerDeadzone - 0.02 : Infinity;
+								const t1 = v1 < 1.0 ? v1 + innerDeadzone - 0.02 : Infinity;
+								if (r >= Math.min(t0, t1)) {
+									const angleNorm = ((Math.atan2(rawStickY, rawStickX) + Math.PI) / (2 * Math.PI)) * CIRCULARITY_DATA_SIZE;
+									const t = Math.min(1, Math.max(0, angleNorm - sector));
+									const trigger = t0 === Infinity ? t1 : t1 === Infinity ? t0 : t0 + (t1 - t0) * t;
+									if (r >= trigger) {
+										target = Math.max(target, 1.0);
+									}
 								}
-								const scale_factor = target / r;
-								stickX *= scale_factor;
-								stickY *= scale_factor;
 							}
+							const scale_factor = target / r;
+							stickX *= scale_factor;
+							stickY *= scale_factor;
 						}
 						// Fixed mode: pure mask, no processing outside the deadzone
 
@@ -1326,6 +1351,7 @@ const JoystickCurveSettings = ({
 						const lightY = Math.sqrt(stickX * stickX + stickY * stickY);
 						setLeftLightX(lightX);
 						setLeftLightY(lightY);
+						setLeftPhysDist(physDist);
 					}
 				}
 			} catch (e) {
@@ -1363,25 +1389,50 @@ const JoystickCurveSettings = ({
 						const innerDeadzone = (values?.inner_deadzone2 || 0) / 100.0;
 						const antiDeadzone = (values?.anti_deadzone2 || 0) / 100.0;
 						const fixedAntiDeadzone = values?.fixed_anti_deadzone2 || false;
+						const hasRangeCal = rangeData.some((v: number) => v > 0);
 						const dist_sq = stickX * stickX + stickY * stickY;
+						// Physical travel before deadzone processing (the r computed
+						// at the entry of backend applyInnerDeadzone)
+						const physDist = Math.sqrt(dist_sq);
 						const deadzone_sq = innerDeadzone * innerDeadzone;
 
-						if (dist_sq < deadzone_sq) {
+						if (hasRangeCal && innerDeadzone > 0 && dist_sq < deadzone_sq) {
 							stickX = 0.0;
 							stickY = 0.0;
-						} else if (!fixedAntiDeadzone) {
+						} else if (hasRangeCal && innerDeadzone > 0 && !fixedAntiDeadzone) {
 							// Linear mode: pure radial translation by -innerDeadzone,
-							// snapping up to full scale within the last 1% of travel
+							// snapping up to full scale within the last 2% of travel
 							const r = Math.sqrt(dist_sq);
-							if (r > 0.0) {
-								let target = r - innerDeadzone;
-								if (r >= 0.99) {
-									target = Math.max(target, 1.0);
+							// r >= innerDeadzone > 0 in this branch; the division is safe.
+							let target = r - innerDeadzone;
+							// Tiered snap filter (matches backend): neighbor snap-need check,
+							// neighbor travel gate, then interpolated precise trigger.
+							const scale = getUniformScale(rangeData);
+							const needAt = (idx: number): number => {
+								const rd = rangeData[idx] || 0;
+								return (rd > 0 && scale > 0) ? rd / scale - innerDeadzone : Infinity;
+							};
+							let sector = Math.floor(((Math.atan2(rawStickY, rawStickX) + Math.PI) / (2 * Math.PI)) * CIRCULARITY_DATA_SIZE);
+							if (sector >= CIRCULARITY_DATA_SIZE) sector = CIRCULARITY_DATA_SIZE - 1;
+							if (sector < 0) sector = 0;
+							const next = (sector + 1) % CIRCULARITY_DATA_SIZE;
+							const v0 = needAt(sector);
+							const v1 = needAt(next);
+							if (v0 < 1.0 || v1 < 1.0) {
+								const t0 = v0 < 1.0 ? v0 + innerDeadzone - 0.02 : Infinity;
+								const t1 = v1 < 1.0 ? v1 + innerDeadzone - 0.02 : Infinity;
+								if (r >= Math.min(t0, t1)) {
+									const angleNorm = ((Math.atan2(rawStickY, rawStickX) + Math.PI) / (2 * Math.PI)) * CIRCULARITY_DATA_SIZE;
+									const t = Math.min(1, Math.max(0, angleNorm - sector));
+									const trigger = t0 === Infinity ? t1 : t1 === Infinity ? t0 : t0 + (t1 - t0) * t;
+									if (r >= trigger) {
+										target = Math.max(target, 1.0);
+									}
 								}
-								const scale_factor = target / r;
-								stickX *= scale_factor;
-								stickY *= scale_factor;
 							}
+							const scale_factor = target / r;
+							stickX *= scale_factor;
+							stickY *= scale_factor;
 						}
 						// Fixed mode: pure mask, no processing outside the deadzone
 
@@ -1427,6 +1478,7 @@ const JoystickCurveSettings = ({
 						const lightY = Math.sqrt(stickX * stickX + stickY * stickY);
 						setRightLightX(lightX);
 						setRightLightY(lightY);
+						setRightPhysDist(physDist);
 					}
 				}
 			} catch (e) {
@@ -2459,7 +2511,7 @@ const JoystickCurveSettings = ({
 						</Button>
 					</div>
 					<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
-						<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftLightX !== undefined ? leftLightX * 100 : 0).toFixed(1) })}</div>
+						<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftPhysDist !== undefined ? leftPhysDist * 100 : 0).toFixed(1) })}</div>
 						<div>{t('CalibrationSettings:hml-out-distance-left', { pct: (leftLightY !== undefined ? leftLightY * 100 : 0).toFixed(1) })}</div>
 					</div>
 				</div>
@@ -2538,7 +2590,7 @@ const JoystickCurveSettings = ({
 						</Button>
 					</div>
 					<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
-						<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightLightX !== undefined ? rightLightX * 100 : 0).toFixed(1) })}</div>
+						<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightPhysDist !== undefined ? rightPhysDist * 100 : 0).toFixed(1) })}</div>
 						<div>{t('CalibrationSettings:hml-out-distance-right', { pct: (rightLightY !== undefined ? rightLightY * 100 : 0).toFixed(1) })}</div>
 					</div>
 				</div>
@@ -2764,7 +2816,7 @@ const JoystickCurveSettings = ({
 							</Button>
 						</div>
 						<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
-							<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftLightX !== undefined ? leftLightX * 100 : 0).toFixed(1) })}</div>
+							<div>{t('CalibrationSettings:hml-phys-distance-left', { pct: (leftPhysDist !== undefined ? leftPhysDist * 100 : 0).toFixed(1) })}</div>
 							<div>{t('CalibrationSettings:hml-out-distance-left', { pct: (leftLightY !== undefined ? leftLightY * 100 : 0).toFixed(1) })}</div>
 						</div>
 					</div>
@@ -2854,7 +2906,7 @@ const JoystickCurveSettings = ({
 							</Button>
 						</div>
 						<div style={{ width: '100%', fontSize: '0.875rem', textAlign: 'center', alignSelf: 'center', paddingTop: '8px' }}>
-							<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightLightX !== undefined ? rightLightX * 100 : 0).toFixed(1) })}</div>
+							<div>{t('CalibrationSettings:hml-phys-distance-right', { pct: (rightPhysDist !== undefined ? rightPhysDist * 100 : 0).toFixed(1) })}</div>
 							<div>{t('CalibrationSettings:hml-out-distance-right', { pct: (rightLightY !== undefined ? rightLightY * 100 : 0).toFixed(1) })}</div>
 						</div>
 					</div>
