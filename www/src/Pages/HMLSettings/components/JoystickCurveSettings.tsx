@@ -1202,14 +1202,17 @@ const JoystickCurveSettings = ({
 	// Fetch joystick data to get progress ratio for highlight line
 	useEffect(() => {
 		if (!isExpanded) return;
-
-		let intervalId: ReturnType<typeof setInterval> | null = null;
 		
 		const fetchJoystickData = async () => {
-			// Fetch left stick from unified joystick API.
+			// Fetch both sticks in parallel; a failed request no longer blocks the other stick.
+			const [resLeft, resRight] = await Promise.all([
+				fetch('/api/getJoystickRaw').catch(() => null),
+				fetch('/api/getJoystickRaw2').catch(() => null),
+			]);
+			// Process left stick response.
 			try {
-				const res = await fetch('/api/getJoystickRaw');
-				if (res.ok) {
+				const res = resLeft;
+				if (res && res.ok) {
 					const data = await res.json();
 					if (data.success) {
 						const adcMax1 = Number(data?.adcMax) > 0 ? Number(data.adcMax) : DEFAULT_ADC_MAX;
@@ -1307,10 +1310,10 @@ const JoystickCurveSettings = ({
 				// Ignore errors
 			}
 			
-			// Fetch right stick from unified joystick API.
+			// Process right stick response.
 			try {
-				const res = await fetch('/api/getJoystickRaw2');
-				if (res.ok) {
+				const res = resRight;
+				if (res && res.ok) {
 					const data = await res.json();
 					if (data.success) {
 						const adcMax2 = Number(data?.adcMax) > 0 ? Number(data.adcMax) : DEFAULT_ADC_MAX;
@@ -1409,10 +1412,25 @@ const JoystickCurveSettings = ({
 			}
 		};
 		
-		intervalId = setInterval(fetchJoystickData, 100);
-		
+		// Self-scheduling loop: the next round is only queued after the previous
+		// one settles, so a slow device can never accumulate request backlog
+		// (the old setInterval overlapped rounds and requests piled up).
+		let cancelled = false;
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		const poll = async () => {
+			if (cancelled) return;
+			try {
+				await fetchJoystickData();
+			} catch {
+				// per-stick errors are already handled; never break the loop
+			}
+			if (!cancelled) timeoutId = setTimeout(poll, 100);
+		};
+		void poll();
+
 		return () => {
-			if (intervalId) clearInterval(intervalId);
+			cancelled = true;
+			if (timeoutId !== null) clearTimeout(timeoutId);
 		};
 	}, [isExpanded, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, curveMode, leftCurvePoints, rightCurvePoints, leftBezier, rightBezier]);
 	

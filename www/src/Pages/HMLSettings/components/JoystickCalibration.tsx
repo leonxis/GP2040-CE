@@ -732,9 +732,13 @@ const JoystickCalibration = ({
 
 		const fetchJoystickData = async () => {
 			try {
-				// Fetch left stick (stick 1) from unified API.
-				const res1 = await fetch('/api/getJoystickRaw');
-				if (res1.ok) {
+				// Fetch both sticks in parallel; a failed request no longer blocks the other stick.
+				const [res1, res2] = await Promise.all([
+					fetch('/api/getJoystickRaw').catch(() => null),
+					fetch('/api/getJoystickRaw2').catch(() => null),
+				]);
+				// Process left stick (stick 1) response.
+				if (res1 && res1.ok) {
 					const data1 = await res1.json();
 					if (data1.success) {
 							const adcMax1 = Number(data1?.adcMax) > 0 ? Number(data1.adcMax) : DEFAULT_ADC_MAX;
@@ -886,9 +890,8 @@ const JoystickCalibration = ({
 					}
 				}
 
-				// Fetch right stick (stick 2) from unified API.
-				const res2 = await fetch('/api/getJoystickRaw2');
-				if (res2.ok) {
+				// Process right stick (stick 2) response.
+				if (res2 && res2.ok) {
 					const data2 = await res2.json();
 					if (data2.success) {
 							const adcMax2 = Number(data2?.adcMax) > 0 ? Number(data2.adcMax) : DEFAULT_ADC_MAX;
@@ -1041,11 +1044,25 @@ const JoystickCalibration = ({
 			}
 		};
 
-		// Update at ~30fps (every 33ms)
-		const intervalId = setInterval(fetchJoystickData, 33);
+		// Self-scheduling loop (~30fps target): the next round is only queued after
+		// the previous one settles, so a slow device can never accumulate request
+		// backlog (the old setInterval overlapped rounds and requests piled up).
+		let cancelled = false;
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		const poll = async () => {
+			if (cancelled) return;
+			try {
+				await fetchJoystickData();
+			} catch {
+				// fetchJoystickData handles its own errors; never break the loop
+			}
+			if (!cancelled) timeoutId = setTimeout(poll, 33);
+		};
+		void poll();
 
 		return () => {
-			clearInterval(intervalId);
+			cancelled = true;
+			if (timeoutId !== null) clearTimeout(timeoutId);
 		};
 	}, [
 		values?.analogAdc1PinX, 
