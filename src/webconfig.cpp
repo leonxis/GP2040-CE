@@ -3501,11 +3501,12 @@ std::string calibrateJoystickRange() {
     const int REQUIRED_CYCLES = 3;        // 需完成3轮完整48点采样
     const uint32_t TIMEOUT_MS = 15000;    // 安全超时，避免无限阻塞
 
-    float rangeData[BINS];   // 跨轮累积最大值（最终输出）
-    float cycleData[BINS];   // 当前轮各角度最大值
+    float rangeData[BINS];   // 跨轮取各轮最小值中的最大者（最终输出）
+    float cycleData[BINS];   // 当前轮各角度最小值（NO_SAMPLE 表示未采到）
+    const float NO_SAMPLE = 1e30f;
     for (int i = 0; i < BINS; i++) {
         rangeData[i] = 0.0f;
-        cycleData[i] = 0.0f;
+        cycleData[i] = NO_SAMPLE;
     }
     int fullCycles = 0;
 
@@ -3526,15 +3527,15 @@ std::string calibrateJoystickRange() {
 
             if (scale > EXTREME_THRESHOLD) {
                 const float angle = atan2f(oy, ox);
-                int idx = (int)roundf((angle + PI_F) * (float)BINS / (2.0f * PI_F));
-                idx = ((idx % BINS) + BINS) % BINS;
-                // 当前轮取最大值
-                if (scale > cycleData[idx]) {
+                // floor binning: bin j covers [j, j+1) * 7.5 degrees, matching the
+                // runtime snap lookup (classifySectorSlope / frontend Math.floor).
+                int idx = (int)floorf((angle + PI_F) * (float)BINS / (2.0f * PI_F));
+                if (idx >= BINS) idx = BINS - 1; // angle == +PI edge
+                // 轮内取最小值：窗口最小值 <= 该 bin 任意角度的真实可达半径
+                //（gate 物理约束保证采样永不超出真实半径），snap 触发点因此
+                // 可证明可达；最大值采样会在陡坡方向高估 trigger 导致无法 snap。
+                if (scale < cycleData[idx]) {
                     cycleData[idx] = scale;
-                }
-                // 跨轮累积最大值
-                if (scale > rangeData[idx]) {
-                    rangeData[idx] = scale;
                 }
             }
         }
@@ -3542,16 +3543,20 @@ std::string calibrateJoystickRange() {
         // 检查当前轮是否48个角度全部采到值
         bool cycleFull = true;
         for (int i = 0; i < BINS; i++) {
-            if (cycleData[i] <= 0.0f) {
+            if (cycleData[i] >= NO_SAMPLE) {
                 cycleFull = false;
                 break;
             }
         }
         if (cycleFull) {
             fullCycles++;
-            // 重置当前轮缓冲，开始下一轮
+            // 本轮完成：各 bin 的轮内最小值并入跨轮最大值，然后重置开始下一轮。
+            // 跨轮取大可丢弃用户某轮未推满的偷懒数据（欠采样只会偏小、不会偏高）。
             for (int i = 0; i < BINS; i++) {
-                cycleData[i] = 0.0f;
+                if (cycleData[i] > rangeData[i]) {
+                    rangeData[i] = cycleData[i];
+                }
+                cycleData[i] = NO_SAMPLE;
             }
             if (fullCycles >= REQUIRED_CYCLES) break;
         }

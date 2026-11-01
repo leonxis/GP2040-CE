@@ -251,7 +251,7 @@ const processJoystickData = (
 	const current_distance = Math.sqrt(offset_center_x * offset_center_x + offset_center_y * offset_center_y);
 	const angle = Math.atan2(offset_center_y, offset_center_x);
 	const scale = getInterpolatedScale(angle, rangeData);
-	const angleIndex = Math.round((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
+	const angleIndex = Math.floor((angle + Math.PI) * CIRCULARITY_DATA_SIZE / (2 * Math.PI)) % CIRCULARITY_DATA_SIZE;
 	
 	// Backend directly divides by scale: sx = cx / scale (no zero distance check needed, as 0/scale = 0)
 	const scaled_center_x = offset_center_x / scale;
