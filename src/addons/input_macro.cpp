@@ -658,8 +658,8 @@ bool InputMacro::hasStickDirection() const
 // --- Recording ---
 
 void InputMacro::startRecording(uint8_t slot) {
-    // One-shot erase of this slot's 192KB before the first sample is taken.
-    // Typical ~0.45s stall (3 x 64KB block erases); no samples exist yet.
+    // One-shot erase of this slot's 320KB before the first sample is taken.
+    // Typical ~0.75s stall (5 x 64KB block erases); no samples exist yet.
     FlashPROM::eraseRange(
         MACRO_REC_FLASH_OFFSET + static_cast<uint32_t>(slot) * MACRO_REC_SLOT_SIZE,
         MACRO_REC_SLOT_SIZE);

@@ -19,11 +19,11 @@
 // Warning: If the write wait is too long it can stall other processes
 #define EEPROM_WRITE_WAIT    50             // Amount of time in ms to wait before blocking core1 and committing to flash
 
-// Dedicated macro-recording area: 384KB (6 x 64KB blocks, 64KB aligned) directly
-// below the config region, holding two 192KB recorded-macro slots (macro 1/2).
+// Dedicated macro-recording area: 640KB (10 x 64KB blocks, 64KB aligned) directly
+// below the config region, holding two 320KB recorded-macro slots (macro 1/2).
 // Firmware image must stay below this offset (build check).
-#define MACRO_REC_FLASH_OFFSET _u(0x190000)
-#define MACRO_REC_FLASH_SIZE   _u(0x60000)
+#define MACRO_REC_FLASH_OFFSET _u(0x150000)
+#define MACRO_REC_FLASH_SIZE   _u(0xA0000)
 
 class FlashPROM
 {

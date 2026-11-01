@@ -21,28 +21,28 @@
 // ---------------------------------------------------------------------------
 // Macro recording flash layout (two slots: macro 1 index 0, macro 2 index 1)
 //
-// Region: MACRO_REC_FLASH_OFFSET..+MACRO_REC_FLASH_SIZE (384KB, 6 x 64KB
+// Region: MACRO_REC_FLASH_OFFSET..+MACRO_REC_FLASH_SIZE (640KB, 10 x 64KB
 // blocks, defined in FlashPROM.h). Each slot occupies MACRO_REC_SLOT_SIZE
-// (192KB, 3 x 64KB blocks) and is erased as one range when recording starts;
+// (320KB, 5 x 64KB blocks) and is erased as one range when recording starts;
 // only 256B page programs happen while recording.
 //
 // Per slot:
 //   offset 0x000000 : header page (256B, written last -> power-loss safe)
 //   offset 0x000100 : event track (variable length, 7936B)
-//   offset 0x002000 : frame track (4B/frame, 188,416B = 47,104 frames)
+//   offset 0x002000 : frame track (4B/frame, 319,488B = 79,872 frames ~ 5m19s)
 //
 // Event wire format: [frameIndex uvarint][mask uvarint32][lt u8][rt u8]
 // mask packs state.buttons plus dpad low nibble shifted to bits 16..19.
 // ---------------------------------------------------------------------------
 #define MACRO_REC_SLOT_COUNT       2u
-#define MACRO_REC_SLOT_SIZE        0x00030000u        // 192KB per slot
+#define MACRO_REC_SLOT_SIZE        0x00050000u        // 320KB per slot
 #define MACRO_REC_TICK_US          4000u              // 250Hz
 #define MACRO_REC_HEADER_OFFSET    0x00000000u
 #define MACRO_REC_EVENT_OFFSET     0x00000100u
 #define MACRO_REC_EVENT_SIZE       (0x00002000u - MACRO_REC_EVENT_OFFSET)  // 7936B
 #define MACRO_REC_FRAME_OFFSET     0x00002000u
-#define MACRO_REC_FRAME_SIZE       (MACRO_REC_SLOT_SIZE - MACRO_REC_FRAME_OFFSET) // 188,416B
-#define MACRO_REC_FRAME_CAP        (MACRO_REC_FRAME_SIZE / 4u)           // 47,104 frames
+#define MACRO_REC_FRAME_SIZE       (MACRO_REC_SLOT_SIZE - MACRO_REC_FRAME_OFFSET) // 319,488B
+#define MACRO_REC_FRAME_CAP        (MACRO_REC_FRAME_SIZE / 4u)           // 79,872 frames
 #define MACRO_REC_VERSION          1u
 #define MACRO_REC_MAX_EVENT_BYTES  10u
 
