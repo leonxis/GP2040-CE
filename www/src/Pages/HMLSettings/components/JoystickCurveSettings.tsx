@@ -1273,8 +1273,9 @@ const JoystickCurveSettings = ({
 							stickX = 0.0;
 							stickY = 0.0;
 						} else if (hasRangeCal && innerDeadzone > 0 && !fixedAntiDeadzone) {
-							// Linear mode: pure radial translation by -innerDeadzone,
-							// snapping up to full scale within the last 2% of travel
+							// Linear mode: pure radial translation by -innerDeadzone;
+							// travel within the last 2% is compensated back by (dz + margin),
+							// restoring the original outer gate shape (clamp caps overshoot)
 							const r = Math.sqrt(dist_sq);
 							// r >= innerDeadzone > 0 in this branch; the division is safe.
 							let target = r - innerDeadzone;
@@ -1299,7 +1300,7 @@ const JoystickCurveSettings = ({
 									const t = Math.min(1, Math.max(0, angleNorm - sector));
 									const trigger = t0 === Infinity ? t1 : t1 === Infinity ? t0 : t0 + (t1 - t0) * t;
 									if (r >= trigger) {
-										target = Math.max(target, 1.0);
+										target = r + 0.02; // Compensate back (dz + margin): trigger fires margin early at r1 - margin, where output lags no-deadzone travel by exactly dz + margin; adding it back restores the original outer gate shape (matches backend)
 									}
 								}
 							}
@@ -1400,8 +1401,9 @@ const JoystickCurveSettings = ({
 							stickX = 0.0;
 							stickY = 0.0;
 						} else if (hasRangeCal && innerDeadzone > 0 && !fixedAntiDeadzone) {
-							// Linear mode: pure radial translation by -innerDeadzone,
-							// snapping up to full scale within the last 2% of travel
+							// Linear mode: pure radial translation by -innerDeadzone;
+							// travel within the last 2% is compensated back by (dz + margin),
+							// restoring the original outer gate shape (clamp caps overshoot)
 							const r = Math.sqrt(dist_sq);
 							// r >= innerDeadzone > 0 in this branch; the division is safe.
 							let target = r - innerDeadzone;
@@ -1426,7 +1428,7 @@ const JoystickCurveSettings = ({
 									const t = Math.min(1, Math.max(0, angleNorm - sector));
 									const trigger = t0 === Infinity ? t1 : t1 === Infinity ? t0 : t0 + (t1 - t0) * t;
 									if (r >= trigger) {
-										target = Math.max(target, 1.0);
+										target = r + 0.02; // Compensate back (dz + margin): trigger fires margin early at r1 - margin, where output lags no-deadzone travel by exactly dz + margin; adding it back restores the original outer gate shape (matches backend)
 									}
 								}
 							}
