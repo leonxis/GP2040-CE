@@ -951,8 +951,37 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 				else if (action == HOTKEY_APPLY_CURVE_PRESET_2_LEFT) { presetIndex = 1; stickNum = 0; }
 				else if (action == HOTKEY_APPLY_CURVE_PRESET_2_RIGHT) { presetIndex = 1; stickNum = 1; }
 				
+				if (analogOptions.joystick_curve_mode == 1) {
+					// Bezier mode: apply the shared bezier preset list (same hotkey
+					// actions, same profile slots, same event — only the data differs).
+					if (presetIndex < analogOptions.joystick_bezier_presets_count &&
+					    analogOptions.joystick_bezier_presets[presetIndex].has_bezier &&
+					    analogOptions.joystick_bezier_presets[presetIndex].bezier.has_c1x &&
+					    analogOptions.joystick_bezier_presets[presetIndex].bezier.has_c1y &&
+					    analogOptions.joystick_bezier_presets[presetIndex].bezier.has_c2x &&
+					    analogOptions.joystick_bezier_presets[presetIndex].bezier.has_c2y) {
+						const BezierPreset& preset = analogOptions.joystick_bezier_presets[presetIndex];
+
+						// Struct copy carries the per-component has_ flags along.
+						if (stickNum == 0) {
+							analogOptions.joystick_bezier_1 = preset.bezier;
+							analogOptions.has_joystick_bezier_1 = true;
+							analogOptions.curve_profile_1 = presetIndex + 1;  // presetIndex is 0-3, profile is 1-4
+						} else {
+							analogOptions.joystick_bezier_2 = preset.bezier;
+							analogOptions.has_joystick_bezier_2 = true;
+							analogOptions.curve_profile_2 = presetIndex + 1;
+						}
+
+						// Note: Do not modify joystick_curve_enabled state - keep it as user configured
+
+						// Trigger curve preset change event to display on screen
+						EventManager::getInstance().triggerEvent(new GPCurvePresetChangeEvent(presetIndex, stickNum == 0));
+
+						reqSave = true;
+					}
 				// Check if preset exists and has points
-				if (presetIndex < analogOptions.joystick_curve_presets_count &&
+				} else if (presetIndex < analogOptions.joystick_curve_presets_count &&
 				    analogOptions.joystick_curve_presets[presetIndex].points_count > 0) {
 					const CurvePreset& preset = analogOptions.joystick_curve_presets[presetIndex];
 					
