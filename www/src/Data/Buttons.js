@@ -800,10 +800,13 @@ export const getButtonLabels = (labelType, swapTpShareLabels = false) => {
 
 // 将按键英文标签通过 i18n 翻译为当前语言；缺失时回退到原英文
 const translateButtonLabels = (buttons) => {
+	/** @type {Record<string, string>} */
 	const result = {};
 	for (const key of Object.keys(buttons)) {
 		const val = buttons[key];
-		if (typeof val === 'string') {
+		// label/value 是布局元数据而非按键名，原样保留；否则会拿布局名
+		// （'arcade'/'ps4' 等）去 Buttons 命名空间查找，产生 missingKey 警告
+		if (typeof val === 'string' && key !== 'label' && key !== 'value') {
 			result[key] = i18n.t(val, { ns: 'Buttons', defaultValue: val });
 		} else {
 			result[key] = val;
