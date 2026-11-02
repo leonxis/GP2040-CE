@@ -121,9 +121,9 @@ const clampRcPercent = (value: number) => Math.min(100, Math.max(0, value));
 /** RC jitter amplitude (reserved2): firmware samples in [1.9%, value]; UI lower bound 2%. */
 const clampRcJitterAmplitudePercent = (value: number) => Math.min(100, Math.max(2, value));
 const clampRcDecayPercent = (value: number) => Math.min(100, Math.max(3, value));
-/** Inner/anti deadzone sliders: 0–20%, step 0.1 in UI */
+/** Inner/anti deadzone sliders: 0–80%, step 0.1 in UI */
 const clampStickDeadzonePct = (value: number) =>
-	Math.min(20, Math.max(0, Math.round(value * 10) / 10));
+	Math.min(80, Math.max(0, Math.round(value * 10) / 10));
 
 export default function AxisTiltOverlaySettings({ values, errors, setFieldValue, saveMessage = '', onSaveClick }: AddonPropTypes) {
 	const { t } = useTranslation();
@@ -256,11 +256,11 @@ export default function AxisTiltOverlaySettings({ values, errors, setFieldValue,
 						</div>
 						<div style={sliderBlockStyle}>
 							<Form.Label className="mb-1">{t('CalibrationSettings:hml-inner-deadzone-left', { pct: (values?.inner_deadzone || 0).toFixed(1) })}</Form.Label>
-							<Form.Range min={0} max={20} step={0.1} value={values?.inner_deadzone || 0} onChange={(e) => setFieldValue('inner_deadzone', clampStickDeadzonePct(parseFloat(e.target.value)))} />
+							<Form.Range min={0} max={80} step={0.1} value={values?.inner_deadzone || 0} onChange={(e) => setFieldValue('inner_deadzone', clampStickDeadzonePct(parseFloat(e.target.value)))} />
 						</div>
 						<div style={sliderBlockStyle}>
 							<Form.Label className="mb-1">{t('CalibrationSettings:hml-anti-deadzone-left', { pct: (values?.anti_deadzone || 0).toFixed(1) })}</Form.Label>
-							<Form.Range min={0} max={20} step={0.1} value={values?.anti_deadzone || 0} onChange={(e) => setFieldValue('anti_deadzone', clampStickDeadzonePct(parseFloat(e.target.value)))} />
+							<Form.Range min={0} max={80} step={0.1} value={values?.anti_deadzone || 0} onChange={(e) => setFieldValue('anti_deadzone', clampStickDeadzonePct(parseFloat(e.target.value)))} />
 						</div>
 					</div>
 					<div style={columnCellStyle}>
@@ -287,11 +287,11 @@ export default function AxisTiltOverlaySettings({ values, errors, setFieldValue,
 						</div>
 						<div style={sliderBlockStyle}>
 							<Form.Label className="mb-1">{t('CalibrationSettings:hml-inner-deadzone-right', { pct: (values?.inner_deadzone2 || 0).toFixed(1) })}</Form.Label>
-							<Form.Range min={0} max={20} step={0.1} value={values?.inner_deadzone2 || 0} onChange={(e) => setFieldValue('inner_deadzone2', clampStickDeadzonePct(parseFloat(e.target.value)))} />
+							<Form.Range min={0} max={80} step={0.1} value={values?.inner_deadzone2 || 0} onChange={(e) => setFieldValue('inner_deadzone2', clampStickDeadzonePct(parseFloat(e.target.value)))} />
 						</div>
 						<div style={sliderBlockStyle}>
 							<Form.Label className="mb-1">{t('CalibrationSettings:hml-anti-deadzone-right', { pct: (values?.anti_deadzone2 || 0).toFixed(1) })}</Form.Label>
-							<Form.Range min={0} max={20} step={0.1} value={values?.anti_deadzone2 || 0} onChange={(e) => setFieldValue('anti_deadzone2', clampStickDeadzonePct(parseFloat(e.target.value)))} />
+							<Form.Range min={0} max={80} step={0.1} value={values?.anti_deadzone2 || 0} onChange={(e) => setFieldValue('anti_deadzone2', clampStickDeadzonePct(parseFloat(e.target.value)))} />
 						</div>
 					</div>
 				</div>

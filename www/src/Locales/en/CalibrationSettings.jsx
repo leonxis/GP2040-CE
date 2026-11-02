@@ -53,9 +53,6 @@ export default {
 	'hml-ads8332-iir-hint':
 		'Lower strength = stronger filtering and steadier stick; higher strength = lighter filtering and more responsive stick. Recommended default for normal feel: 0.5.',
 	'hml-stick-step-settings': 'Stick step settings',
-	'hml-force-circular-label': 'Force circular',
-	'hml-force-circular-hint-on': 'Forces outer ring motion to a strict circle.',
-	'hml-force-circular-hint-off': 'When off, outer ring reflects real stick shape and error rate.',
 	'hml-outer-amplify-label': 'Outer scale factor: {{value}}%',
 	'hml-outer-amplify-hint': 'Scales stick range for faster response.',
 	'hml-yup-linear-trigger': 'Linear triggers',

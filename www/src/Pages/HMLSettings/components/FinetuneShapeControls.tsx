@@ -1,20 +1,16 @@
-import { FormCheck, Form } from 'react-bootstrap';
+import { Form } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { finetuneControlsContainerStyle, finetuneControlsBoxStyle, finetuneControlsTitleStyle } from './JoystickCalibration';
 
 interface FinetuneShapeControlsProps {
 	title: string;
-	forceCircular: boolean;
 	amplify: number;
-	onForceCircularChange: (value: boolean) => void;
 	onAmplifyChange: (value: number) => void;
 }
 
 const FinetuneShapeControls: React.FC<FinetuneShapeControlsProps> = ({
 	title,
-	forceCircular,
 	amplify,
-	onForceCircularChange,
 	onAmplifyChange,
 }) => {
 	const { t } = useTranslation();
@@ -23,19 +19,6 @@ const FinetuneShapeControls: React.FC<FinetuneShapeControlsProps> = ({
 			<div style={finetuneControlsBoxStyle}>
 				<div style={finetuneControlsTitleStyle}>{title}</div>
 				<div className="p-2">
-					<div className="mb-3">
-						<FormCheck
-							type="switch"
-							label={t('CalibrationSettings:hml-force-circular-label')}
-							checked={forceCircular}
-							onChange={(e) => onForceCircularChange(e.target.checked)}
-						/>
-						<p className="text-muted small mt-1 mb-0">
-							{forceCircular
-								? t('CalibrationSettings:hml-force-circular-hint-on')
-								: t('CalibrationSettings:hml-force-circular-hint-off')}
-						</p>
-					</div>
 					<div className="mb-2">
 						<Form.Label className="mb-1">{t('CalibrationSettings:hml-outer-amplify-label', { value: amplify.toFixed(1) })}</Form.Label>
 						<Form.Range

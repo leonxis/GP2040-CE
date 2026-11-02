@@ -62,28 +62,8 @@ export const analogScheme = {
 		.validateSelectionWhenValue('AnalogInputEnabled', INVERT_MODES),
 
 	// forced_circularity and forced_circularity2 removed - replaced by range calibration
-	inner_deadzone: yup
-		.number()
-		.label('Inner Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 20),
-	anti_deadzone: yup
-		.number()
-		.label('Inner Anti-Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 20),
-	fixed_anti_deadzone: yup
-		.boolean()
-		.label('Fixed Anti-Deadzone Mode'),
-	inner_deadzone2: yup
-		.number()
-		.label('Inner Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 20),
-	anti_deadzone2: yup
-		.number()
-		.label('Inner Anti-Deadzone Size (%)')
-		.validateRangeWhenValue('AnalogInputEnabled', 0, 20),
-	fixed_anti_deadzone2: yup
-		.boolean()
-		.label('Fixed Anti-Deadzone Mode 2'),
+	// Inner/anti deadzone fields removed - owned by unified_analog_process,
+	// configured on the HML settings page (per-mille encoding)
 	// Auto calibration removed - deprecated fields
 	// Outer deadzone removed - replaced by range calibration
 	// EMA smoothing removed - deprecated fields
@@ -116,13 +96,11 @@ export const analogScheme = {
 	joystickFinetuneShapeXBottomPercent1: yup.number().label('Joystick Finetune Shape X Bottom Percent 1'),
 	joystickFinetuneShapeYLeftPercent1: yup.number().label('Joystick Finetune Shape Y Left Percent 1'),
 	joystickFinetuneShapeYRightPercent1: yup.number().label('Joystick Finetune Shape Y Right Percent 1'),
-	joystickFinetuneShapeForceCircular1: yup.boolean().label('Joystick Finetune Shape Force Circular 1'),
 	joystickFinetuneShapeAmplify1: yup.number().label('Joystick Finetune Shape Amplify 1'),
 	joystickFinetuneShapeXTopPercent2: yup.number().label('Joystick Finetune Shape X Top Percent 2'),
 	joystickFinetuneShapeXBottomPercent2: yup.number().label('Joystick Finetune Shape X Bottom Percent 2'),
 	joystickFinetuneShapeYLeftPercent2: yup.number().label('Joystick Finetune Shape Y Left Percent 2'),
 	joystickFinetuneShapeYRightPercent2: yup.number().label('Joystick Finetune Shape Y Right Percent 2'),
-	joystickFinetuneShapeForceCircular2: yup.boolean().label('Joystick Finetune Shape Force Circular 2'),
 	joystickFinetuneShapeAmplify2: yup.number().label('Joystick Finetune Shape Amplify 2'),
 	joystickCurvePoints1: yup
 		.array()
@@ -194,12 +172,7 @@ export const analogState = {
 	analogAdc2Mode: 2,
 	analogAdc2Invert: 0,
 	// forced_circularity and forced_circularity2 removed - replaced by range calibration
-	inner_deadzone: 5,
-	anti_deadzone: 0,
-	fixed_anti_deadzone: false,
-	inner_deadzone2: 5,
-	anti_deadzone2: 0,
-	fixed_anti_deadzone2: false,
+	// Inner/anti deadzone defaults removed - owned by unified_analog_process
 	// Auto calibration removed - deprecated fields
 	// Outer deadzone removed - replaced by range calibration
 	joystickCenterX: 0,
@@ -211,13 +184,11 @@ export const analogState = {
 	joystickFinetuneShapeXBottomPercent1: 100.0,
 	joystickFinetuneShapeYLeftPercent1: 100.0,
 	joystickFinetuneShapeYRightPercent1: 100.0,
-	joystickFinetuneShapeForceCircular1: false,
 	joystickFinetuneShapeAmplify1: 0.0,
 	joystickFinetuneShapeXTopPercent2: 100.0,
 	joystickFinetuneShapeXBottomPercent2: 100.0,
 	joystickFinetuneShapeYLeftPercent2: 100.0,
 	joystickFinetuneShapeYRightPercent2: 100.0,
-	joystickFinetuneShapeForceCircular2: false,
 	joystickFinetuneShapeAmplify2: 0.0,
 	joystickRangeData1: [],
 	joystickRangeData2: [],
@@ -342,34 +313,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										))}
 									</FormSelect>
 								</Row>
-								<Row className="mb-3">
-									<FormControl
-										type="number"
-										label={t('AddonsConfig:inner-deadzone-size')}
-										name="inner_deadzone"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.inner_deadzone}
-										error={errors.inner_deadzone}
-										isInvalid={Boolean(errors.inner_deadzone)}
-										onChange={handleChange}
-										min={0}
-										max={100}
-									/>
-									<FormControl
-										type="number"
-										label={t('AddonsConfig:inner-anti-deadzone-size')}
-										name="anti_deadzone"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.anti_deadzone}
-										error={errors.anti_deadzone}
-										isInvalid={Boolean(errors.anti_deadzone)}
-										onChange={handleChange}
-										min={0}
-										max={100}
-									/>
-								</Row>
+								{/* Inner/anti deadzone UI removed - configured on HML settings page */}
 								{/* forced_circularity and error_rate UI removed - replaced by range calibration */}
 						</Tab>
 						<Tab
@@ -440,34 +384,7 @@ const Analog = ({ values, errors, handleChange, handleCheckbox, setFieldValue }:
 										))}
 									</FormSelect>
 								</Row>
-								<Row className="mb-3">
-									<FormControl
-										type="number"
-										label={t('AddonsConfig:inner-deadzone-size')}
-										name="inner_deadzone2"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.inner_deadzone2}
-										error={errors.inner_deadzone2}
-										isInvalid={Boolean(errors.inner_deadzone2)}
-										onChange={handleChange}
-										min={0}
-										max={100}
-									/>
-									<FormControl
-										type="number"
-										label={t('AddonsConfig:inner-anti-deadzone-size')}
-										name="anti_deadzone2"
-										className="form-control-sm"
-										groupClassName="col-sm-3 mb-3"
-										value={values.anti_deadzone2}
-										error={errors.anti_deadzone2}
-										isInvalid={Boolean(errors.anti_deadzone2)}
-										onChange={handleChange}
-										min={0}
-										max={100}
-									/>
-								</Row>
+								{/* Inner/anti deadzone UI removed - configured on HML settings page */}
 								{/* forced_circularity2 and error_rate2 UI removed - replaced by range calibration */}
 						</Tab>
 					</Tabs>

@@ -53,9 +53,6 @@ export default {
 	'hml-ads8332-iir-hint':
 		'強度が低いほどフィルターが強く、スティックは安定します。高いほどフィルターが弱く、反応は素早くなります。通常の操作感には 0.5 を推奨します。',
 	'hml-stick-step-settings': 'スティックステップ設定',
-	'hml-force-circular-label': '真円に強制',
-	'hml-force-circular-hint-on': '外周移動を厳密な円に揃えます。',
-	'hml-force-circular-hint-off': 'オフのときは実形状と誤差率に基づきます。',
 	'hml-outer-amplify-label': '外周スケール: {{value}}%',
 	'hml-outer-amplify-hint': 'スティック範囲を拡大し応答を速めます。',
 	'hml-yup-linear-trigger': '線形トリガー',

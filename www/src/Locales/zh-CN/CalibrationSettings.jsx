@@ -52,9 +52,6 @@ export default {
 	'hml-ads8332-iir-hint':
 		'档位越低滤波越强，摇杆越稳定；档位越高滤波越低，摇杆越灵敏。推荐正常灵敏档位 0.5。',
 	'hml-stick-step-settings': '摇杆步长设置',
-	'hml-force-circular-label': '强制圆形',
-	'hml-force-circular-hint-on': '强制圆形会将摇杆外圈移动半径严格归一到圆形。',
-	'hml-force-circular-hint-off': '关闭强制圆形时将产生反映摇杆真实形状的外圈与误差率。',
 	'hml-outer-amplify-label': '外圈放大系数: {{value}}%',
 	'hml-outer-amplify-hint': '扩大系数可以放大摇杆覆盖范围，加快移动响应速度。',
 	'hml-yup-linear-trigger': '启用线性扳机',
