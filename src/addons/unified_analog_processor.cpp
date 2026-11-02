@@ -277,13 +277,15 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         } else if (!sticks_[i].fixed_anti_deadzone) {
             // Linear mode (fixed_anti_deadzone == false): pure radial translation
             // by -in_deadzone (no rescale, curve proportion is preserved).
-            // Physical travel within the last (dz + kSnapMargin) snaps the input
-            // to full scale 1.0, so the curve endpoint (1,1) stays reachable.
+            // Physical travel within the last kSnapMargin snaps the input up to
+            // full scale 1.0, so the curve endpoint (1,1) stays reachable.
             float r = std::sqrt(distSq);
             if (r > 0.0f) {
                 float target = r - sticks_[i].in_deadzone;
-                if (r >= 1.0f - sticks_[i].in_deadzone - kSnapMargin) {
-                    target = 1.0f;
+                if (r >= 1.0f - kSnapMargin) {
+                    // Snap up to full-scale input in the last 1% of travel; never
+                    // squash values already above 1 (preserves gate shape).
+                    target = std::max(target, 1.0f);
                 }
                 float s = target / r;
                 nx *= s;

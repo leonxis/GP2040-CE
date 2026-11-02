@@ -789,13 +789,13 @@ const JoystickCalibration = ({
 							} else if (!fixedAntiDeadzone) {
 								// Linear mode (fixed_anti_deadzone == false): pure radial translation
 								// by -innerDeadzone (no rescale, curve proportion is preserved).
-								// Travel within the last (dz + 1% snap margin) snaps to full scale 1.0,
+								// Travel within the last 1% snaps up to full scale 1.0,
 								// so the curve endpoint (1,1) stays reachable.
 								const r = Math.sqrt(dist_sq);
 								if (r > 0.0) {
 									let target = r - innerDeadzone;
-									if (r >= 1.0 - innerDeadzone - 0.01) {
-										target = 1.0;
+									if (r >= 0.99) {
+										target = Math.max(target, 1.0);
 									}
 									const scale_factor = target / r;
 									stickX = stickX * scale_factor;
@@ -941,13 +941,13 @@ const JoystickCalibration = ({
 							} else if (!fixedAntiDeadzone) {
 								// Linear mode (fixed_anti_deadzone == false): pure radial translation
 								// by -innerDeadzone (no rescale, curve proportion is preserved).
-								// Travel within the last (dz + 1% snap margin) snaps to full scale 1.0,
+								// Travel within the last 1% snaps up to full scale 1.0,
 								// so the curve endpoint (1,1) stays reachable.
 								const r = Math.sqrt(dist_sq);
 								if (r > 0.0) {
 									let target = r - innerDeadzone;
-									if (r >= 1.0 - innerDeadzone - 0.01) {
-										target = 1.0;
+									if (r >= 0.99) {
+										target = Math.max(target, 1.0);
 									}
 									const scale_factor = target / r;
 									stickX = stickX * scale_factor;
