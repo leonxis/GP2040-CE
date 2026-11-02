@@ -763,8 +763,9 @@ const JoystickCalibration = ({
 							} else if (hasRangeCal && innerDeadzone > 0 && !fixedAntiDeadzone) {
 								// Linear mode (fixed_anti_deadzone == false): pure radial translation
 								// by -innerDeadzone (no rescale, curve proportion is preserved).
-								// Travel within the last 2% snaps up to full scale 1.0,
-								// so the curve endpoint (1,1) stays reachable.
+								// Travel within the last 2% is compensated back by (dz + margin),
+								// restoring the original outer gate shape; the curve endpoint (1,1)
+								// stays reachable and the per-axis clamp caps the overshoot.
 								const r = Math.sqrt(dist_sq);
 								// r >= innerDeadzone > 0 in this branch; the division is safe.
 								let target = r - innerDeadzone;
@@ -792,7 +793,7 @@ const JoystickCalibration = ({
 										const t = Math.min(1, Math.max(0, angleNorm - sector));
 										const trigger = t0 === Infinity ? t1 : t1 === Infinity ? t0 : t0 + (t1 - t0) * t;
 										if (r >= trigger) {
-											target = Math.max(target, 1.0);
+											target = r + 0.02; // Compensate back (dz + margin): trigger fires margin early at r1 - margin, where output lags no-deadzone travel by exactly dz + margin; adding it back restores the original outer gate shape (matches backend)
 										}
 									}
 								}
@@ -938,8 +939,9 @@ const JoystickCalibration = ({
 							} else if (hasRangeCal && innerDeadzone > 0 && !fixedAntiDeadzone) {
 								// Linear mode (fixed_anti_deadzone == false): pure radial translation
 								// by -innerDeadzone (no rescale, curve proportion is preserved).
-								// Travel within the last 2% snaps up to full scale 1.0,
-								// so the curve endpoint (1,1) stays reachable.
+								// Travel within the last 2% is compensated back by (dz + margin),
+								// restoring the original outer gate shape; the curve endpoint (1,1)
+								// stays reachable and the per-axis clamp caps the overshoot.
 								const r = Math.sqrt(dist_sq);
 								// r >= innerDeadzone > 0 in this branch; the division is safe.
 								let target = r - innerDeadzone;
@@ -967,7 +969,7 @@ const JoystickCalibration = ({
 										const t = Math.min(1, Math.max(0, angleNorm - sector));
 										const trigger = t0 === Infinity ? t1 : t1 === Infinity ? t0 : t0 + (t1 - t0) * t;
 										if (r >= trigger) {
-											target = Math.max(target, 1.0);
+											target = r + 0.02; // Compensate back (dz + margin): trigger fires margin early at r1 - margin, where output lags no-deadzone travel by exactly dz + margin; adding it back restores the original outer gate shape (matches backend)
 										}
 									}
 								}

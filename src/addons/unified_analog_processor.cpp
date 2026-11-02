@@ -23,8 +23,9 @@
 #define CIRCULARITY_DATA_SIZE 48
 
 // Linear inner-deadzone mode: physical travel within the last kSnapMargin
-// (2%) of a direction's range snaps to full-scale input so the curve
-// endpoint stays reachable.
+// (2%) of a direction's range is compensated back by (dz + kSnapMargin),
+// restoring the original outer gate shape; the curve endpoint stays
+// reachable and the per-axis output clamp caps the overshoot.
 static constexpr float kSnapMargin = 0.02f;
 
 // Slope-space sector classification (defined below, avoids atan2).
@@ -220,8 +221,16 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::applyInnerDeadzone)(int st
                                     : (t1 == inf) ? t0
                                     : (t0 + (t1 - t0) * t);
                 if (r >= trigger) {
-                    // Never squash values already above 1 (preserves gate shape).
-                    target = std::max(target, 1.0f);
+                    // Compensate back (dz + margin) instead of snapping to
+                    // the unit circle: the trigger fires margin early at
+                    // r1 - margin, where the translated output lags the
+                    // no-deadzone travel by exactly dz + margin. Adding it
+                    // back (target = (r - dz) + (dz + margin) = r + margin)
+                    // restores the original outer gate shape and makes the
+                    // output at the trigger equal the no-deadzone full-travel
+                    // value r1 (>= 1), so full scale stays reachable and the
+                    // per-axis clamp at the end caps the small overshoot.
+                    target = r + kSnapMargin;
                 }
             }
         }
