@@ -939,6 +939,10 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 		case HOTKEY_APPLY_CURVE_PRESET_1_RIGHT:
 		case HOTKEY_APPLY_CURVE_PRESET_2_LEFT:
 		case HOTKEY_APPLY_CURVE_PRESET_2_RIGHT:
+		case HOTKEY_APPLY_CURVE_PRESET_3_LEFT:
+		case HOTKEY_APPLY_CURVE_PRESET_3_RIGHT:
+		case HOTKEY_APPLY_CURVE_PRESET_4_LEFT:
+		case HOTKEY_APPLY_CURVE_PRESET_4_RIGHT:
 			if (action != lastAction) {
 				AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
 				
@@ -950,6 +954,10 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 				else if (action == HOTKEY_APPLY_CURVE_PRESET_1_RIGHT) { presetIndex = 0; stickNum = 1; }
 				else if (action == HOTKEY_APPLY_CURVE_PRESET_2_LEFT) { presetIndex = 1; stickNum = 0; }
 				else if (action == HOTKEY_APPLY_CURVE_PRESET_2_RIGHT) { presetIndex = 1; stickNum = 1; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_3_LEFT) { presetIndex = 2; stickNum = 0; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_3_RIGHT) { presetIndex = 2; stickNum = 1; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_4_LEFT) { presetIndex = 3; stickNum = 0; }
+				else if (action == HOTKEY_APPLY_CURVE_PRESET_4_RIGHT) { presetIndex = 3; stickNum = 1; }
 				
 				if (analogOptions.joystick_curve_mode == 1) {
 					// Bezier mode: apply the shared bezier preset list (same hotkey
@@ -1008,10 +1016,10 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 						}
 					}
 					
-					// Update curve profile (1-2 for preset slots, or 0 for custom)
+					// Update curve profile (1-4 for preset slots, or 0 for custom)
 					if (stickNum == 0) {
 						// Left stick (stick 1)
-						analogOptions.curve_profile_1 = presetIndex + 1;  // presetIndex is 0-1, profile is 1-2
+						analogOptions.curve_profile_1 = presetIndex + 1;  // presetIndex is 0-3, profile is 1-4
 					} else {
 						// Right stick (stick 2)
 						analogOptions.curve_profile_2 = presetIndex + 1;
