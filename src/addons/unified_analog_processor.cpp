@@ -12,14 +12,15 @@
 #include <cmath>
 #include <limits>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-#define ADC_MAX ((1 << 12) - 1)
-#define ADC_MAX_HALF (ADC_MAX * 0.5f)
-#define ANALOG_CENTER 0.5f
-#define CIRCULARITY_DATA_SIZE 48
+namespace {
+// MCP3208 is a fixed 12-bit source. Typed constants instead of macros —
+// analog.cpp defines the same ADC_MAX macro name, so a macro here would
+// collide on any future include change.
+constexpr uint16_t kAdcMax = (1 << 12) - 1;
+constexpr float kAdcMaxHalf = kAdcMax * 0.5f;
+constexpr float kAnalogCenter = 0.5f;
+constexpr int kCircularityDataSize = 48;
+}
 
 // Linear inner-deadzone mode: physical travel within the last kSnapMargin
 // (2%) of a direction's range is compensated back by (dz + kSnapMargin),
@@ -27,12 +28,31 @@
 // reachable and the per-axis output clamp caps the overshoot.
 static constexpr float kSnapMargin = 0.02f;
 
-// Slope-space sector classification (defined below, avoids atan2).
-static void classifySectorSlope(float nx, float ny, int& sectorOut, float& tOut);
+// Fallback scale for uncalibrated sticks; mirrors the frontend
+// getInterpolatedScale() fallback so both sides agree on behavior.
+static constexpr float kUncalibratedScale = 0.6f;
+
+// Hard caps shared with config.proto (nanopb max_count). The asserts pin the
+// C++ fixed arrays to the proto side so a future proto bump fails the build
+// instead of silently overflowing them.
+static constexpr int kMaxCurvePoints = 6;
+static constexpr int kMaxPresets = 4;
+static_assert(sizeof(((AnalogOptions*)nullptr)->joystick_curve_points_1) / sizeof(CurvePoint) == kMaxCurvePoints,
+              "joystick_curve_points_1 max_count changed; update kMaxCurvePoints");
+static_assert(sizeof(((AnalogOptions*)nullptr)->joystick_curve_points_2) / sizeof(CurvePoint) == kMaxCurvePoints,
+              "joystick_curve_points_2 max_count changed; update kMaxCurvePoints");
+static_assert(sizeof(((AnalogOptions*)nullptr)->joystick_curve_presets) / sizeof(CurvePreset) == kMaxPresets,
+              "joystick_curve_presets max_count changed; update kMaxPresets");
+static_assert(sizeof(((AnalogOptions*)nullptr)->joystick_bezier_presets) / sizeof(BezierPreset) == kMaxPresets,
+              "joystick_bezier_presets max_count changed; update kMaxPresets");
+
+// Slope-space sector classification (defined below, avoids atan2). RAM-resident:
+// it runs on the snap path where flash stalls (config save) hurt most.
+static void __not_in_flash_func(classifySectorSlope)(float nx, float ny, int& sectorOut, float& tOut);
 
 namespace {
 static void convertCurvePoints(const CurvePoint* protobuf_points, int count, UnifiedAnalogCurvePoint* output) {
-    for (int i = 0; i < count && i < 6; i++) {
+    for (int i = 0; i < count && i < kMaxCurvePoints; i++) {
         output[i].x = protobuf_points[i].x;
         output[i].y = protobuf_points[i].y;
     }
@@ -99,8 +119,9 @@ static void resolveBezierControl(const BezierControl& src, float& c1x, float& c1
     }
 }
 
-// Cubic bezier axis value with endpoints 0 and 1.
-static float bezierEvalAxis(float c1, float c2, float t) {
+// Cubic bezier axis value with endpoints 0 and 1. RAM-resident: called from
+// the hot curve path (applyBezierResponseCurve).
+static float __not_in_flash_func(bezierEvalAxis)(float c1, float c2, float t) {
     const float mt = 1.0f - t;
     return 3.0f * mt * mt * t * c1 + 3.0f * mt * t * t * c2 + t * t * t;
 }
@@ -108,7 +129,7 @@ static float bezierEvalAxis(float c1, float c2, float t) {
 // Bisection solve x(t) = xTarget. x(t) is monotonic (enforced at init), so exactly
 // one root exists and bisection always converges — unlike Newton, which stalls when
 // x'(t) approaches 0 (possible now that C1 <= C2 is no longer enforced).
-static float bezierFindT(float xTarget, float c1x, float c2x) {
+static float __not_in_flash_func(bezierFindT)(float xTarget, float c1x, float c2x) {
     float lo = 0.0f, hi = 1.0f, t = 0.5f;
     for (int i = 0; i < 24; i++) {
         t = (lo + hi) * 0.5f;
@@ -121,7 +142,10 @@ static float bezierFindT(float xTarget, float c1x, float c2x) {
 } // namespace
 
 bool UnifiedAnalogProcessorAddon::available() {
-    // MCP3208 ADC is always enabled on HML boards.
+    // Always on: the MCP3208 sticks are this board's primary input, so the
+    // AnalogOptions.enabled Web UI toggle is intentionally ignored — it
+    // defaults to false and gating on it would kill the sticks for users who
+    // never opened the analog settings page.
     return true;
 }
 
@@ -171,8 +195,8 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     const bool isFirst = (stickNum == 0);
     StickState& stick = sticks_[stickNum];
 
-    stick.x_value = ANALOG_CENTER;
-    stick.y_value = ANALOG_CENTER;
+    stick.x_value = kAnalogCenter;
+    stick.y_value = kAnalogCenter;
     stick.analog_invert = isFirst ? options.analogAdc1Invert : options.analogAdc2Invert;
     stick.analog_dpad = isFirst ? options.analogAdc1Mode : options.analogAdc2Mode;
     stick.in_deadzone = analogDeadzoneNormFromRaw(isFirst ? options.inner_deadzone : options.inner_deadzone2);
@@ -197,7 +221,7 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     // Calibrated means at least one valid (positive) range point; a stored
     // count with only non-positive samples is treated as no calibration.
     stick.has_range_calibration = false;
-    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+    for (int i = 0; i < kCircularityDataSize; i++) {
         const bool hasPoint = isFirst ? (i < options.joystick_range_data_1_count) : (i < options.joystick_range_data_2_count);
         const float point = isFirst ? options.joystick_range_data_1[i] : options.joystick_range_data_2[i];
         stick.range_data[i] = (hasPoint && point > 0.0f) ? point : 0.0f;
@@ -207,9 +231,11 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     }
 
     if (curveEnabled) {
-        const int curveCount = isFirst ? options.joystick_curve_points_1_count : options.joystick_curve_points_2_count;
+        const int curveCount = std::min<int>(
+            isFirst ? options.joystick_curve_points_1_count : options.joystick_curve_points_2_count,
+            kMaxCurvePoints);
         if (curveCount > 0) {
-            UnifiedAnalogCurvePoint converted[6];
+            UnifiedAnalogCurvePoint converted[kMaxCurvePoints];
             if (isFirst) {
                 convertCurvePoints(options.joystick_curve_points_1, curveCount, converted);
             } else {
@@ -291,7 +317,7 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::applyInnerDeadzone)(int st
         const bool invY = (stick.analog_invert == InvertMode::INVERT_Y) ||
                           (stick.analog_invert == InvertMode::INVERT_XY);
         classifySectorSlope(invX ? -nx : nx, invY ? -ny : ny, sector, t);
-        const int next = (sector + 1 < CIRCULARITY_DATA_SIZE) ? (sector + 1) : 0;
+        const int next = (sector + 1 < kCircularityDataSize) ? (sector + 1) : 0;
         const float v0 = stick.snap_need[sector];
         const float v1 = stick.snap_need[next];
         if (v0 < 1.0f || v1 < 1.0f) {
@@ -340,8 +366,10 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         // bezier_active == curveEnabled && mode == 1 (init always resolves to a
         // valid curve, falling back to linear).
         const bool useBezier = sticks_[stickNum].bezier_active;
-        const int presetCount = useBezier ? analogOptions.joystick_bezier_presets_count
-                                          : analogOptions.joystick_curve_presets_count;
+        const int presetCount = std::min<int>(
+            useBezier ? analogOptions.joystick_bezier_presets_count
+                      : analogOptions.joystick_curve_presets_count,
+            kMaxPresets);
         bool foundPressed = false;
         int pressedPresetIdx = -1;
         for (int presetIdx = 0; presetIdx < presetCount; presetIdx++) {
@@ -357,10 +385,17 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
 
             if (regularMask != 0 && (gamepad->state.buttons & regularMask) == regularMask) isPressed = true;
             if (dpadMask != 0) {
-                if ((dpadMask & GAMEPAD_MASK_DU) && (gamepad->state.dpad & GAMEPAD_MASK_UP)) isPressed = true;
-                if ((dpadMask & GAMEPAD_MASK_DD) && (gamepad->state.dpad & GAMEPAD_MASK_DOWN)) isPressed = true;
-                if ((dpadMask & GAMEPAD_MASK_DL) && (gamepad->state.dpad & GAMEPAD_MASK_LEFT)) isPressed = true;
-                if ((dpadMask & GAMEPAD_MASK_DR) && (gamepad->state.dpad & GAMEPAD_MASK_RIGHT)) isPressed = true;
+                // dpadOriginal = physical directions before SOCD/dpad-mode
+                // cleaning (addons run after gamepad->process(), so state.dpad
+                // is post-cleaning and a bound direction could be neutralized
+                // or remapped). Fold the high nibble (DIGITAL_DIRECTION_*
+                // sources) into the low one.
+                const uint8_t dpadRaw = static_cast<uint8_t>(gamepad->state.dpadOriginal |
+                                                             (gamepad->state.dpadOriginal >> 4));
+                if ((dpadMask & GAMEPAD_MASK_DU) && (dpadRaw & GAMEPAD_MASK_UP)) isPressed = true;
+                if ((dpadMask & GAMEPAD_MASK_DD) && (dpadRaw & GAMEPAD_MASK_DOWN)) isPressed = true;
+                if ((dpadMask & GAMEPAD_MASK_DL) && (dpadRaw & GAMEPAD_MASK_LEFT)) isPressed = true;
+                if ((dpadMask & GAMEPAD_MASK_DR) && (dpadRaw & GAMEPAD_MASK_RIGHT)) isPressed = true;
             }
 
             if (isPressed) {
@@ -413,9 +448,9 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
     for (int i = 0; i < STICK_COUNT; i++) {
         uint16_t rawX = 0;
         uint16_t rawY = 0;
-        uint16_t xCenter = static_cast<uint16_t>(ADC_MAX_HALF);
-        uint16_t yCenter = static_cast<uint16_t>(ADC_MAX_HALF);
-        uint16_t adcMax = ADC_MAX;
+        uint16_t xCenter = static_cast<uint16_t>(kAdcMaxHalf);
+        uint16_t yCenter = static_cast<uint16_t>(kAdcMaxHalf);
+        uint16_t adcMax = kAdcMax;
         bool xValid = false;
         bool yValid = false;
 
@@ -432,9 +467,12 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
 
         rawX = quantizeRaw(i, rawX, true, adcMax);
         rawY = quantizeRaw(i, rawY, false, adcMax);
-        // If center is uncalibrated (0), use source-native center (12-bit/16-bit aware).
-        const uint16_t calibratedXCenter = (sticks_[i].x_center > 0u) ? sticks_[i].x_center : xCenter;
-        const uint16_t calibratedYCenter = (sticks_[i].y_center > 0u) ? sticks_[i].y_center : yCenter;
+        // If center is uncalibrated (0) or out of range for the active source
+        // (stale flash data), use source-native center (12-bit/16-bit aware).
+        const uint16_t calibratedXCenter =
+            (sticks_[i].x_center > 0u && sticks_[i].x_center <= adcMax) ? sticks_[i].x_center : xCenter;
+        const uint16_t calibratedYCenter =
+            (sticks_[i].y_center > 0u && sticks_[i].y_center <= adcMax) ? sticks_[i].y_center : yCenter;
         const float adcHalf = static_cast<float>(adcMax) * 0.5f;
 
         float cx = xValid ? static_cast<float>(rawX) - static_cast<float>(calibratedXCenter) : 0.0f;
@@ -450,11 +488,13 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         if (sticks_[i].analog_invert == InvertMode::INVERT_X || sticks_[i].analog_invert == InvertMode::INVERT_XY) nx = -nx;
         if (sticks_[i].analog_invert == InvertMode::INVERT_Y || sticks_[i].analog_invert == InvertMode::INVERT_XY) ny = -ny;
 
-        // Inner deadzone stage admission: only meaningful in calibrated
-        // normalized space with a non-zero deadzone (dz == 0 = feature off).
-        // Both modes mask radially; linear mode additionally translates by
-        // -dz with per-direction full-travel snap.
-        if (sticks_[i].has_range_calibration && sticks_[i].in_deadzone > 0.0f) {
+        // Inner deadzone stage admission: gated only on a non-zero deadzone
+        // (dz == 0 = feature off). Calibration is NOT required — without it
+        // the snap table stays at +inf (updateUniformScale), so snap skips
+        // itself while the radial mask/translate still applies. Both modes
+        // mask radially; linear mode additionally translates by -dz with
+        // per-direction full-travel snap.
+        if (sticks_[i].in_deadzone > 0.0f) {
             applyInnerDeadzone(i, nx, ny);
         }
 
@@ -485,8 +525,8 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         nx = std::clamp(nx, -1.0f, 1.0f);
         ny = std::clamp(ny, -1.0f, 1.0f);
 
-        float xValue = nx * 0.5f + ANALOG_CENTER;
-        float yValue = ny * 0.5f + ANALOG_CENTER;
+        float xValue = nx * 0.5f + kAnalogCenter;
+        float yValue = ny * 0.5f + kAnalogCenter;
         sticks_[i].x_value = xValue;
         sticks_[i].y_value = yValue;
 
@@ -508,11 +548,12 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
 void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
     StickState& stick = sticks_[stickNum];
     if (!stick.has_range_calibration) {
-        stick.uniform_scale = 0.6f;
-        // Inner deadzone processing is skipped entirely without calibration;
-        // keep snap disabled so no stale table is ever consulted.
+        stick.uniform_scale = kUncalibratedScale;
+        // Snap is meaningless without per-direction calibration data; keep it
+        // disabled so no stale table is ever consulted. (The deadzone
+        // mask/translate itself does not need calibration and stays active.)
         stick.min_snap_trigger = std::numeric_limits<float>::infinity();
-        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+        for (int i = 0; i < kCircularityDataSize; i++) {
             stick.snap_need[i] = std::numeric_limits<float>::infinity();
         }
         return;
@@ -521,7 +562,7 @@ void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
     // Uniform scale: minimum of the calibration points, ignoring empty slots
     // (a non-positive sample would otherwise zero the scale and divide by 0).
     float minScale = std::numeric_limits<float>::infinity();
-    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+    for (int i = 0; i < kCircularityDataSize; i++) {
         if (stick.range_data[i] > 0.0f && stick.range_data[i] < minScale) {
             minScale = stick.range_data[i];
         }
@@ -533,13 +574,16 @@ void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
         minScale /= amplifyFactor;
     }
 
-    stick.uniform_scale = minScale;
+    // range_data stores normalized radial travel (distance/adcCenter), so
+    // sane values are ~0.7-1.2. A corrupt tiny sample would otherwise shrink
+    // the scale and reduce the stick to a few percent of usable travel.
+    stick.uniform_scale = std::clamp(minScale, 0.2f, 1.5f);
 
     // Deadzone feature is off when in_deadzone is zero: process() early-exits
     // before any deadzone/snap work, so keep the snap table fully disabled.
     if (stick.in_deadzone <= 0.0f) {
         stick.min_snap_trigger = std::numeric_limits<float>::infinity();
-        for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+        for (int i = 0; i < kCircularityDataSize; i++) {
             stick.snap_need[i] = std::numeric_limits<float>::infinity();
         }
         return;
@@ -549,7 +593,7 @@ void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
     // normalized units) minus in_deadzone = max reachable output. A sector
     // needs snap only when this value is below 1.
     float minTrigger = std::numeric_limits<float>::infinity();
-    for (int i = 0; i < CIRCULARITY_DATA_SIZE; i++) {
+    for (int i = 0; i < kCircularityDataSize; i++) {
         // Empty slots have no physical travel: never snap in their direction.
         if (stick.range_data[i] <= 0.0f) {
             stick.snap_need[i] = std::numeric_limits<float>::infinity();
@@ -615,18 +659,36 @@ static void classifySectorSlope(float nx, float ny, int& sectorOut, float& tOut)
 }
 
 void UnifiedAnalogProcessorAddon::initializeCurveSegments(int stickNum, const UnifiedAnalogCurvePoint* controlPoints, int controlPointsCount) {
+    // Clamp defensively: the sorted array has room for exactly kMaxCurvePoints
+    // user points plus the two anchors.
+    controlPointsCount = std::clamp(controlPointsCount, 0, kMaxCurvePoints);
     sticks_[stickNum].curve_points_sorted_count = 0;
     sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {
         0.0f,
         0.0f,
     };
+    // Sanitize user points (the bezier path gets equivalent treatment in
+    // resolveBezierControl): drop non-finite values that would otherwise turn
+    // into NaN slopes and poison the whole output chain, clamp into [0,1],
+    // and force x strictly increasing so segment lookup stays well-defined.
+    float lastX = 0.0f;
     for (int i = 0; i < controlPointsCount; i++) {
-        sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {
-            controlPoints[i].x,
-            controlPoints[i].y,
-        };
+        UnifiedAnalogCurvePoint p{controlPoints[i].x, controlPoints[i].y};
+        if (!std::isfinite(p.x) || !std::isfinite(p.y)) {
+            continue;
+        }
+        p.x = std::clamp(p.x, 0.0f, 1.0f);
+        p.y = std::clamp(p.y, 0.0f, 1.0f);
+        if (p.x <= lastX) {
+            continue;
+        }
+        lastX = p.x;
+        sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {p.x, p.y};
     }
-    sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {1.0f, 1.0f};
+    // Endpoint anchor; skipped only if a user point already sits at x == 1.
+    if (lastX < 1.0f) {
+        sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {1.0f, 1.0f};
+    }
 
     sticks_[stickNum].curve_segments_count = 0;
     for (int i = 0; i < sticks_[stickNum].curve_points_sorted_count - 1; i++) {
@@ -657,23 +719,23 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::applyResponseCurveToCoordi
     float clampdistSq = normalizedX * normalizedX + normalizedY * normalizedY;
     float clampdist = std::sqrt(clampdistSq);
 
-    int segmentIdx = -1;
-    if (clampdist > 1.0f) {
-        segmentIdx = sticks_[stickNum].curve_segments_count;
-    } else {
-        for (int i = 0; i < sticks_[stickNum].curve_segments_count; i++) {
-            if (clampdist >= sticks_[stickNum].curve_segments[i].x_start &&
-                clampdist < sticks_[stickNum].curve_segments[i].x_end) {
-                segmentIdx = i;
-                break;
-            }
-        }
-        if (segmentIdx == -1) segmentIdx = sticks_[stickNum].curve_segments_count - 1;
-    }
-
+    // Beyond the unit circle the input is left unscaled; the per-axis clamp
+    // at the end of process() caps the overshoot.
     if (clampdist > 1.0f) {
         return;
     }
+
+    int segmentIdx = -1;
+    for (int i = 0; i < sticks_[stickNum].curve_segments_count; i++) {
+        if (clampdist >= sticks_[stickNum].curve_segments[i].x_start &&
+            clampdist < sticks_[stickNum].curve_segments[i].x_end) {
+            segmentIdx = i;
+            break;
+        }
+    }
+    // dist == 1.0 exactly misses every segment (x_end is exclusive); use the
+    // last one.
+    if (segmentIdx == -1) segmentIdx = sticks_[stickNum].curve_segments_count - 1;
 
     float curvedMagnitude;
     int validSegIdx = std::min(segmentIdx, static_cast<int>(sticks_[stickNum].curve_segments_count) - 1);
@@ -695,7 +757,7 @@ void UnifiedAnalogProcessorAddon::saveCurrentCurveData(int stickNum) {
     temp_curve_storage_[stickNum].saved_points_count = 0;
     if (sticks_[stickNum].curve_points_sorted_count > 2) {
         for (int i = 1; i < sticks_[stickNum].curve_points_sorted_count - 1; i++) {
-            if (temp_curve_storage_[stickNum].saved_points_count < 6) {
+            if (temp_curve_storage_[stickNum].saved_points_count < kMaxCurvePoints) {
                 temp_curve_storage_[stickNum].saved_points[temp_curve_storage_[stickNum].saved_points_count] = {
                     sticks_[stickNum].curve_points_sorted[i].x,
                     sticks_[stickNum].curve_points_sorted[i].y,
@@ -722,7 +784,7 @@ void UnifiedAnalogProcessorAddon::restoreCurveData(int stickNum) {
 }
 
 void UnifiedAnalogProcessorAddon::applyPresetCurve(int stickNum, int presetIndex) {
-    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= 4) return;
+    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= kMaxPresets) return;
 
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     if (presetIndex >= analogOptions.joystick_curve_presets_count ||
@@ -732,8 +794,8 @@ void UnifiedAnalogProcessorAddon::applyPresetCurve(int stickNum, int presetIndex
 
     const CurvePreset& preset = analogOptions.joystick_curve_presets[presetIndex];
 
-    UnifiedAnalogCurvePoint converted[6];
-    for (int i = 0; i < preset.points_count && i < 6; i++) {
+    UnifiedAnalogCurvePoint converted[kMaxCurvePoints];
+    for (int i = 0; i < preset.points_count && i < kMaxCurvePoints; i++) {
         converted[i].x = preset.points[i].x;
         converted[i].y = preset.points[i].y;
     }
@@ -790,7 +852,7 @@ void UnifiedAnalogProcessorAddon::restoreBezierData(int stickNum) {
 }
 
 void UnifiedAnalogProcessorAddon::applyBezierPresetCurve(int stickNum, int presetIndex) {
-    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= 4) return;
+    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= kMaxPresets) return;
 
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     if (presetIndex >= analogOptions.joystick_bezier_presets_count ||
