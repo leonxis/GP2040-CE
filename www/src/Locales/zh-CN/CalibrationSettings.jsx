@@ -105,13 +105,13 @@ export default {
 	'hml-out-distance-right': '当前摇杆输出距离：{{pct}}%',
 	'hml-inner-deadzone-right': '右摇杆内部死区: {{pct}}%',
 	'hml-anti-deadzone-right': '右摇杆反死区: {{pct}}%',
-	'hml-anti-deadzone-mode-label': '反死区模式：',
+	'hml-inner-deadzone-mode-label': '内死区模式：',
 	'hml-joystick-travel-mapping-key-left': '左摇杆行程触发按键映射：',
 	'hml-joystick-travel-mapping-key-right': '右摇杆行程触发按键映射：',
 	'hml-joystick-travel-button-threshold-left': '左摇杆行程按键阈值：{{pct}}%',
 	'hml-joystick-travel-button-threshold-right': '右摇杆行程按键阈值：{{pct}}%',
-	'hml-anti-deadzone-overlay-mode-tooltip':
-		'线性模式：对整个摇杆输出都叠加反死区输出；固定模式：在反死区范围固定输出反死区值，超过反死区范围按摇杆原生输出。',
+	'hml-inner-deadzone-mode-hint':
+		'线性：输出=行程−死区，接近满行程时捕捉满量程；固定：纯屏蔽，死区外不做处理。',
 	'hml-modal-outer-ring-left-title': '左摇杆外圈校准数据',
 	'hml-modal-outer-ring-right-title': '右摇杆外圈校准数据',
 	'hml-stick-center-data': '摇杆中心数据:',

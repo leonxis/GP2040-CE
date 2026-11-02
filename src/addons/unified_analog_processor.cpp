@@ -21,6 +21,10 @@
 #define ANALOG_CENTER 0.5f
 #define CIRCULARITY_DATA_SIZE 48
 
+// Linear inner-deadzone mode: physical travel within the last (dz + 1%) snaps
+// to full-scale input so the curve endpoint stays reachable.
+static constexpr float kSnapMargin = 0.01f;
+
 namespace {
 static void convertCurvePoints(const CurvePoint* protobuf_points, int count, UnifiedAnalogCurvePoint* output) {
     for (int i = 0; i < count && i < 6; i++) {
@@ -267,31 +271,52 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         float distSq = nx * nx + ny * ny;
         float deadzoneSq = sticks_[i].in_deadzone * sticks_[i].in_deadzone;
         if (distSq < deadzoneSq) {
+            // Both modes mask inputs inside the inner deadzone to zero.
             nx = 0.0f;
             ny = 0.0f;
-        } else if (sticks_[i].anti_deadzone > 0.0f) {
-            float dist = std::sqrt(distSq);
-            float baseline = sticks_[i].anti_deadzone;
-            if (sticks_[i].fixed_anti_deadzone) {
-                if (dist > 0.0f && dist < baseline) {
-                    float scaleFactor = baseline / dist;
-                    nx *= scaleFactor;
-                    ny *= scaleFactor;
+        } else if (!sticks_[i].fixed_anti_deadzone) {
+            // Linear mode (fixed_anti_deadzone == false): pure radial translation
+            // by -in_deadzone (no rescale, curve proportion is preserved).
+            // Physical travel within the last (dz + kSnapMargin) snaps the input
+            // to full scale 1.0, so the curve endpoint (1,1) stays reachable.
+            float r = std::sqrt(distSq);
+            if (r > 0.0f) {
+                float target = r - sticks_[i].in_deadzone;
+                if (r >= 1.0f - sticks_[i].in_deadzone - kSnapMargin) {
+                    target = 1.0f;
                 }
-            } else if (dist > 0.0f) {
-                float newDist = dist + baseline;
-                float scaleFactor = newDist / dist;
-                nx *= scaleFactor;
-                ny *= scaleFactor;
+                float s = target / r;
+                nx *= s;
+                ny *= s;
             }
         }
+        // Fixed mode (fixed_anti_deadzone == true): pure mask, no processing
+        // outside the deadzone; output equals the raw stick input.
 
-        nx = std::clamp(nx, -1.0f, 1.0f);
-        ny = std::clamp(ny, -1.0f, 1.0f);
+        // Capture pre-curve magnitude and direction for the post-curve
+        // anti-deadzone offset (dist == 0 means the input was masked).
+        float dist = std::sqrt(nx * nx + ny * ny);
+        float ux = 0.0f;
+        float uy = 0.0f;
+        if (dist > 0.0f) {
+            ux = nx / dist;
+            uy = ny / dist;
+        }
 
         if (sticks_[i].curve_points_sorted_count > 0 || active_activation_preset_[i] != 0) {
             applyResponseCurveToCoordinates(nx, ny, i);
         }
+
+        // Anti-deadzone: fixed amount added after the curve along the original
+        // direction (vertical translation of the output; az is never scaled and
+        // masked/centered sticks are not offset).
+        if (sticks_[i].anti_deadzone > 0.0f && dist > 0.0f) {
+            nx += ux * sticks_[i].anti_deadzone;
+            ny += uy * sticks_[i].anti_deadzone;
+        }
+
+        nx = std::clamp(nx, -1.0f, 1.0f);
+        ny = std::clamp(ny, -1.0f, 1.0f);
 
         float xValue = nx * 0.5f + ANALOG_CENTER;
         float yValue = ny * 0.5f + ANALOG_CENTER;
@@ -361,8 +386,8 @@ void UnifiedAnalogProcessorAddon::applyFinetuneShapeAdjustments(int stickNum) {
 void UnifiedAnalogProcessorAddon::initializeCurveSegments(int stickNum, const UnifiedAnalogCurvePoint* controlPoints, int controlPointsCount) {
     sticks_[stickNum].curve_points_sorted_count = 0;
     sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {
-        sticks_[stickNum].in_deadzone,
-        sticks_[stickNum].anti_deadzone,
+        0.0f,
+        0.0f,
     };
     for (int i = 0; i < controlPointsCount; i++) {
         sticks_[stickNum].curve_points_sorted[sticks_[stickNum].curve_points_sorted_count++] = {

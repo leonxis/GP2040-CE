@@ -109,6 +109,9 @@ export default {
 	'hml-out-distance-right': '現在の出力距離: {{pct}}%',
 	'hml-inner-deadzone-right': '内側デッドゾーン: {{pct}}%',
 	'hml-anti-deadzone-right': 'アンチデッドゾーン: {{pct}}%',
+	'hml-inner-deadzone-mode-label': '内側デッドゾーンモード:',
+	'hml-inner-deadzone-mode-hint':
+		'線形: 出力 = ストローク − デッドゾーン。端の近くでフルストロークにスナップします。固定: 純粋なマスクで、デッドゾーン外の出力はそのままです。',
 	'hml-modal-outer-ring-left-title': '左スティック外周キャリブレーションデータ',
 	'hml-modal-outer-ring-right-title': '右スティック外周キャリブレーションデータ',
 	'hml-stick-center-data': 'スティック中心:',
