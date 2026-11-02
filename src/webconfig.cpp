@@ -3098,6 +3098,10 @@ std::string getMemoryReport()
     return serialize_json(doc);
 }
 
+// 外圈校准完成请求标志：置位后 calibrateJoystickRange 采样循环退出并校验数据。
+// 仿 _abortGetHeldPins 模式，配合循环内 rndis_task() 实现无超时采样 + 用户手动结束。
+static bool _rangeCalibFinishRequested = false;
+
 static bool _abortGetHeldPins = false;
 
 // 等待首次按键的窗口
@@ -3340,7 +3344,10 @@ std::string calibrateJoystickCenter() {
 }
 
 // 外圈校准：后端高频采样，按"轮"统计——每轮要求48个角度全部采到值才算完成一轮，
-// 累计完成 REQUIRED_CYCLES 轮后取各角度跨轮最大值返回。避免单角度连续命中导致的漏采样。
+// 每完成一轮即把各角度轮内最小值并入跨轮最大值，持续采样不断完善数据。避免单角度连续命中导致的漏采样。
+// 无超时设计：循环内维持 rndis_task() 保持网络栈运转，采样不自动结束；用户点击确定后由
+// /api/finishCalibrateJoystickRange 置位 _rangeCalibFinishRequested 结束采样并校验数据：
+// 满 REQUIRED_CYCLES 轮且48桶全有值才返回 rangeData（前端写入），否则返回失败（前端不写入）。
 // POST { stick: 1|2, centerX, centerY }
 std::string calibrateJoystickRange() {
     DynamicJsonDocument doc = get_post_data();
@@ -3351,8 +3358,7 @@ std::string calibrateJoystickRange() {
 
     const int BINS = 48;
     const float EXTREME_THRESHOLD = 0.35f;
-    const int REQUIRED_CYCLES = 3;
-    const uint32_t TIMEOUT_MS = 15000;
+    const int REQUIRED_CYCLES = 3;        // 需完成3轮完整48点采样
 
     float rangeData[BINS];   // 跨轮取各轮最小值中的最大者（最终输出）
     float cycleData[BINS];   // 当前轮各角度最小值（NO_SAMPLE 表示未采到）
@@ -3364,9 +3370,14 @@ std::string calibrateJoystickRange() {
     int fullCycles = 0;
 
     const float PI_F = 3.14159265358979323846f;
-    uint32_t startMs = to_ms_since_boot(get_absolute_time());
+    // 清掉上一轮延迟到达的完成标志，避免残留让新一轮采样立即退出
+    _rangeCalibFinishRequested = false;
 
     while (true) {
+        // 维持 USB RNDIS / lwIP 运转：无超时采样期间页面需全程保持响应，
+        // 使 /api/finishCalibrateJoystickRange 能被重入处理
+        rndis_task();
+
         uint32_t x = 0, y = 0, adcMax = 0;
         if (readJoystickADC(stick - 1, x, y, adcMax)) {
             const float adcCenter = (float)adcMax * 0.5f;
@@ -3403,16 +3414,17 @@ std::string calibrateJoystickRange() {
             fullCycles++;
             // 本轮完成：各 bin 的轮内最小值并入跨轮最大值，然后重置开始下一轮。
             // 跨轮取大可丢弃用户某轮未推满的偷懒数据（欠采样只会偏小、不会偏高）。
+            // 不自动结束：持续采样更新，直到用户点击确定（finish 端点置标志）
             for (int i = 0; i < BINS; i++) {
                 if (cycleData[i] > rangeData[i]) {
                     rangeData[i] = cycleData[i];
                 }
                 cycleData[i] = NO_SAMPLE;
             }
-            if (fullCycles >= REQUIRED_CYCLES) break;
         }
 
-        if (to_ms_since_boot(get_absolute_time()) - startMs > TIMEOUT_MS) break;
+        // 用户点击确定：结束采样并进入数据校验
+        if (_rangeCalibFinishRequested) break;
         busy_wait_ms(1);
     }
 
@@ -3437,6 +3449,14 @@ std::string calibrateJoystickRange() {
         o["error"] = "Calibration incomplete: not all angles sampled";
     }
     return serialize_json(doc);
+}
+
+// 外圈校准完成请求：置标志位通知 calibrateJoystickRange 采样循环退出并校验数据。
+// 必须返回合法 JSON；空响应会被 httpd 当作 404，前端解析失败会卡死弹窗
+std::string finishCalibrateJoystickRange()
+{
+    _rangeCalibFinishRequested = true;
+    return "{}";
 }
 
 std::string getBoardDefinition() {
@@ -3577,6 +3597,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getJoystickRaw2", getJoystickRaw2 },
     { "/api/calibrateJoystickCenter", calibrateJoystickCenter },
     { "/api/calibrateJoystickRange", calibrateJoystickRange },
+    { "/api/finishCalibrateJoystickRange", finishCalibrateJoystickRange },
     { "/api/getBoardDefinition", getBoardDefinition },
 #if !defined(NDEBUG)
     { "/api/echo", echo },

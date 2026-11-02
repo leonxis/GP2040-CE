@@ -26,29 +26,42 @@ const RangeCalibrationModal = ({
 	const { t } = useTranslation();
 	const [isCollecting, setIsCollecting] = useState(false);
 	const [isCompleted, setIsCompleted] = useState(false);
-	const [errorMsg, setErrorMsg] = useState('');
-	const abortRef = useRef(false);
+	const [isFailed, setIsFailed] = useState(false);
+	const [failMsg, setFailMsg] = useState('');
+	const aliveRef = useRef(true);
+	// isCollecting 的 ref 镜像，供卸载清理判断是否需要通知后端退出采样
+	const collectingRef = useRef(false);
+
+	useEffect(() => {
+		aliveRef.current = true;
+		return () => {
+			aliveRef.current = false;
+			// 页面切走时若仍在采样，通知设备端退出采样循环（后端无超时，否则会一直空转）
+			if (collectingRef.current) {
+				fetch('/api/finishCalibrateJoystickRange').catch(() => {});
+			}
+		};
+	}, []);
 
 	// Reset state when modal opens/closes.
-	// 注意：不在 show=true 时重置 abortRef，避免上一轮未完成的 fetch 在重开后
-	// 返回并写入过期数据。abortRef 仅在 startCalibration 中重置为 false。
+	// 采样中模态框无法关闭，挂起的 fetch 只会随采样结束而返回，不存在过期数据写入问题
 	useEffect(() => {
 		if (show) {
 			setIsCollecting(false);
 			setIsCompleted(false);
-			setErrorMsg('');
-		} else {
-			abortRef.current = true;
+			setIsFailed(false);
+			setFailMsg('');
 		}
 	}, [show]);
 
 	const startCalibration = async () => {
 		setIsCollecting(true);
-		setErrorMsg('');
-		abortRef.current = false;
+		collectingRef.current = true;
 
 		try {
-			// 后端高频采样：按轮统计（每轮需48角度全覆盖，轮内取最小值），完成3轮后返回跨轮最大值
+			// 后端高频采样：按轮统计（每轮需48角度全覆盖，轮内取最小值），跨轮取最大值并
+			// 随持续采样不断完善。采样无超时不自动结束，用户点击确定后后端结束采样并校验
+			// 数据（满3轮48点），本请求随之返回
 			const res = await fetch('/api/calibrateJoystickRange', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -59,17 +72,20 @@ const RangeCalibrationModal = ({
 				}),
 			});
 
-			if (abortRef.current) return;
+			if (!aliveRef.current) return;
 
 			if (!res.ok) {
 				throw new Error(`HTTP error! status: ${res.status}`);
 			}
 
 			const data = await res.json();
-			if (abortRef.current) return;
+			if (!aliveRef.current) return;
 
 			if (!data.success) {
-				throw new Error(data.error || 'Calibration incomplete');
+				// 采样未满3轮48点：不写入校准数据，进入失败态提示
+				setFailMsg(t('AddonsConfig:joystick-range-calibration-modal-incomplete'));
+				setIsFailed(true);
+				return;
 			}
 
 			// 校验返回的 rangeData 必须是完整的48个非零值
@@ -83,22 +99,28 @@ const RangeCalibrationModal = ({
 			// 仅在后端返回成功且数据完整时写入校准数据
 			onComplete(rangeData);
 		} catch (error) {
-			if (abortRef.current) return;
+			if (!aliveRef.current) return;
 			console.error('Range calibration error:', error);
-			const msg = error instanceof Error ? error.message : String(error);
-			setErrorMsg(msg);
-			alert(t('AddonsConfig:analog-calibration-failed', { error: msg }));
+			setFailMsg(error instanceof Error ? error.message : String(error));
+			setIsFailed(true);
 		} finally {
-			if (!abortRef.current) {
+			collectingRef.current = false;
+			if (aliveRef.current) {
 				setIsCollecting(false);
 			}
 		}
 	};
 
+	// 确定：通知后端结束采样并校验数据，结果由 startCalibration 中挂起的请求返回
+	const handleConfirm = () => {
+		fetch('/api/finishCalibrateJoystickRange').catch((e) =>
+			console.error('Failed to finish range calibration:', e)
+		);
+	};
+
+	// 采样中不允许直接关闭，须点击确定结束采样
 	const handleCancel = () => {
-		abortRef.current = true;
-		setIsCollecting(false);
-		setIsCompleted(false);
+		if (isCollecting) return;
 		onHide();
 	};
 
@@ -111,6 +133,14 @@ const RangeCalibrationModal = ({
 				</div>
 			);
 		}
+		if (isFailed) {
+			return (
+				<div>
+					<h4>{t('AddonsConfig:joystick-range-calibration-modal-failed-title')}</h4>
+					<p className="text-danger">{failMsg}</p>
+				</div>
+			);
+		}
 		if (isCollecting) {
 			return (
 				<div className="text-center py-3">
@@ -119,10 +149,10 @@ const RangeCalibrationModal = ({
 					</Spinner>
 					<h4>{t('AddonsConfig:joystick-range-calibration-modal-collecting-title') || '正在采样'}</h4>
 					<p>
-						请缓慢转动{stickLabel}画圈，覆盖所有方向。
+						{t('AddonsConfig:joystick-range-calibration-modal-collecting-rotate', { stick: stickLabel })}
 					</p>
 					<p className="small text-muted">
-						系统将在所有角度采样完成后自动结束。
+						{t('AddonsConfig:joystick-range-calibration-modal-collecting-hint')}
 					</p>
 				</div>
 			);
@@ -135,7 +165,6 @@ const RangeCalibrationModal = ({
 					<em>{t('AddonsConfig:joystick-range-calibration-modal-warning')}</em>
 				</p>
 				<p>{t('AddonsConfig:joystick-range-calibration-modal-welcome-instruction')}</p>
-				{errorMsg && <p className="text-danger small">{errorMsg}</p>}
 			</div>
 		);
 	};
@@ -156,21 +185,27 @@ const RangeCalibrationModal = ({
 				{getContent()}
 			</Modal.Body>
 			<Modal.Footer>
-				{!isCompleted ? (
-					<>
-						<Button variant="secondary" onClick={handleCancel} disabled={isCollecting}>
-							{t('AddonsConfig:joystick-range-calibration-modal-cancel')}
-						</Button>
-						{!isCollecting && (
-							<Button variant="primary" onClick={startCalibration}>
-								{t('AddonsConfig:joystick-range-calibration-modal-start')}
-							</Button>
-						)}
-					</>
-				) : (
+				{isCompleted ? (
 					<Button variant="primary" onClick={onHide}>
 						{t('AddonsConfig:joystick-range-calibration-modal-done') || '完成'}
 					</Button>
+				) : isFailed ? (
+					<Button variant="primary" onClick={onHide}>
+						{t('AddonsConfig:joystick-range-calibration-modal-confirm')}
+					</Button>
+				) : isCollecting ? (
+					<Button variant="primary" onClick={handleConfirm}>
+						{t('AddonsConfig:joystick-range-calibration-modal-confirm')}
+					</Button>
+				) : (
+					<>
+						<Button variant="secondary" onClick={handleCancel}>
+							{t('AddonsConfig:joystick-range-calibration-modal-cancel')}
+						</Button>
+						<Button variant="primary" onClick={startCalibration}>
+							{t('AddonsConfig:joystick-range-calibration-modal-start')}
+						</Button>
+					</>
 				)}
 			</Modal.Footer>
 		</Modal>
