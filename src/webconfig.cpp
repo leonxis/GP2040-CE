@@ -2307,6 +2307,11 @@ std::string setAddonOptions()
         analogOptions.joystick_bezier_1.c1y = bezier1["c1y"] | 0.333f;
         analogOptions.joystick_bezier_1.c2x = bezier1["c2x"] | 0.667f;
         analogOptions.joystick_bezier_1.c2y = bezier1["c2y"] | 0.667f;
+        analogOptions.joystick_bezier_1.has_c1x = true;
+        analogOptions.joystick_bezier_1.has_c1y = true;
+        analogOptions.joystick_bezier_1.has_c2x = true;
+        analogOptions.joystick_bezier_1.has_c2y = true;
+        analogOptions.has_joystick_bezier_1 = true;
     }
     if (doc.containsKey("joystickBezier2") && doc["joystickBezier2"].is<JsonObject>()) {
         JsonObject bezier2 = doc["joystickBezier2"];
@@ -2314,6 +2319,11 @@ std::string setAddonOptions()
         analogOptions.joystick_bezier_2.c1y = bezier2["c1y"] | 0.333f;
         analogOptions.joystick_bezier_2.c2x = bezier2["c2x"] | 0.667f;
         analogOptions.joystick_bezier_2.c2y = bezier2["c2y"] | 0.667f;
+        analogOptions.joystick_bezier_2.has_c1x = true;
+        analogOptions.joystick_bezier_2.has_c1y = true;
+        analogOptions.joystick_bezier_2.has_c2x = true;
+        analogOptions.joystick_bezier_2.has_c2y = true;
+        analogOptions.has_joystick_bezier_2 = true;
     }
     // Read bezier presets (shared by both sticks, max 4)
     if (doc.containsKey("joystickBezierPresets") && doc["joystickBezierPresets"].is<JsonArray>()) {
@@ -2342,6 +2352,10 @@ std::string setAddonOptions()
                     bezierPreset.bezier.c1y = bezier["c1y"] | 0.333f;
                     bezierPreset.bezier.c2x = bezier["c2x"] | 0.667f;
                     bezierPreset.bezier.c2y = bezier["c2y"] | 0.667f;
+                    bezierPreset.bezier.has_c1x = true;
+                    bezierPreset.bezier.has_c1y = true;
+                    bezierPreset.bezier.has_c2x = true;
+                    bezierPreset.bezier.has_c2y = true;
                     bezierPreset.has_bezier = true;
                 }
 
