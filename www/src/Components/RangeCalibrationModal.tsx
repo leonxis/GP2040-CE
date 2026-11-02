@@ -48,7 +48,7 @@ const RangeCalibrationModal = ({
 		abortRef.current = false;
 
 		try {
-			// 后端高频采样：按轮统计（每轮需48角度全覆盖），完成3轮后返回跨轮最大值
+			// 后端高频采样：按轮统计（每轮需48角度全覆盖，轮内取最小值），完成3轮后返回跨轮最大值
 			const res = await fetch('/api/calibrateJoystickRange', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
