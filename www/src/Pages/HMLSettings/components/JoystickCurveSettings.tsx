@@ -833,7 +833,10 @@ const splitBezierAt = (b: BezierControl, t: number): BezierSegment => {
 
 /**
  * Parse bezier curve JSON file. Accepted shapes:
- * { name, bezier: { c1x, c1y, c2x, c2y } } (name ignored), { c1x, c1y, c2x, c2y }, [c1x, c1y, c2x, c2y].
+ * - ControllerMeta export: { identifier: "ControllerMeta", items: [ { curve: { kind: "bezier",
+ *   bezier: { p1: {x,y}, p2: {x,y} } } } ] } — control points in percent (0-100), p1->C1, p2->C2.
+ * - { name, bezier: { c1x, c1y, c2x, c2y } } (name ignored), { c1x, c1y, c2x, c2y },
+ *   [c1x, c1y, c2x, c2y] — normalized 0-1.
  * Returns null if invalid (caller shows unified alert).
  */
 function parseBezierImportJSON(text: string): BezierControl | null {
@@ -850,17 +853,30 @@ function parseBezierImportJSON(text: string): BezierControl | null {
 		const b = clampBezierControl({ c1x: nums[0], c1y: nums[1], c2x: nums[2], c2y: nums[3] });
 		return isBezierMonotone(b) ? b : null;
 	};
+	const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+		v !== null && typeof v === 'object' && !Array.isArray(v);
 	if (Array.isArray(parsed)) {
 		return readNums(parsed);
 	}
-	if (parsed !== null && typeof parsed === 'object') {
-		const o = parsed as Record<string, unknown>;
-		if (o.bezier !== undefined) {
-			if (o.bezier === null || typeof o.bezier !== 'object' || Array.isArray(o.bezier)) return null;
-			const b = o.bezier as Record<string, unknown>;
+	if (isPlainObject(parsed)) {
+		// ControllerMeta export format: first item whose curve.kind is "bezier"
+		if (Array.isArray(parsed.items)) {
+			for (const item of parsed.items) {
+				if (!isPlainObject(item) || !isPlainObject(item.curve)) continue;
+				const curve = item.curve;
+				if (curve.kind !== 'bezier' || !isPlainObject(curve.bezier)) continue;
+				const { p1, p2 } = curve.bezier;
+				if (!isPlainObject(p1) || !isPlainObject(p2)) continue;
+				return readNums([Number(p1.x) / 100, Number(p1.y) / 100, Number(p2.x) / 100, Number(p2.y) / 100]);
+			}
+			return null;
+		}
+		if (parsed.bezier !== undefined) {
+			if (!isPlainObject(parsed.bezier)) return null;
+			const b = parsed.bezier;
 			return readNums([b.c1x, b.c1y, b.c2x, b.c2y]);
 		}
-		return readNums([o.c1x, o.c1y, o.c2x, o.c2y]);
+		return readNums([parsed.c1x, parsed.c1y, parsed.c2x, parsed.c2y]);
 	}
 	return null;
 }
