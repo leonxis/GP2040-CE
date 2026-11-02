@@ -37,6 +37,87 @@ static void convertCurvePoints(const CurvePoint* protobuf_points, int count, Uni
         output[i].y = protobuf_points[i].y;
     }
 }
+
+// Bezier curve support (joystick_curve_mode == 1). The helpers below mirror the
+// frontend JoystickCurveSettings.tsx implementations line by line (frontend uses
+// double, firmware uses float — the precision difference is negligible).
+
+// Linear default control points: the identity cubic y = x.
+static constexpr float kBezierLinearC1 = 1.0f / 3.0f;
+static constexpr float kBezierLinearC2 = 2.0f / 3.0f;
+
+// Clamp one component to [0,1]; non-finite falls back to the linear-default
+// component (matches frontend clampBezierControl).
+static float clampBezierComponent(float v, float fallback) {
+    if (!std::isfinite(v)) return fallback;
+    return std::clamp(v, 0.0f, 1.0f);
+}
+
+// True iff the quadratic bezier with control values (a, b, c) stays >= 0 on [0,1].
+static bool quadBezierNonNegative(float a, float b, float c) {
+    if (a < 0.0f || c < 0.0f) return false;
+    const float d = a - 2.0f * b + c;
+    if (d <= 0.0f) return true;              // concave: minimum at endpoint
+    if (a <= b || c <= b) return true;       // vertex outside (0,1)
+    return a * c >= b * b - 1e-9f;
+}
+
+static bool isBezierMonotone(float c1x, float c2x, float c1y, float c2y) {
+    return quadBezierNonNegative(c1x, c2x - c1x, 1.0f - c2x) &&
+           quadBezierNonNegative(c1y, c2y - c1y, 1.0f - c2y);
+}
+
+// Normalize raw control points exactly like frontend normalizeBezier: missing
+// components, all-zero data, or a non-monotone curve all fall back to linear.
+static void resolveBezierControl(const BezierControl& src, float& c1x, float& c1y, float& c2x, float& c2y) {
+    if (!src.has_c1x || !src.has_c1y || !src.has_c2x || !src.has_c2y) {
+        c1x = kBezierLinearC1;
+        c1y = kBezierLinearC1;
+        c2x = kBezierLinearC2;
+        c2y = kBezierLinearC2;
+        return;
+    }
+    c1x = clampBezierComponent(src.c1x, kBezierLinearC1);
+    c1y = clampBezierComponent(src.c1y, kBezierLinearC1);
+    c2x = clampBezierComponent(src.c2x, kBezierLinearC2);
+    c2y = clampBezierComponent(src.c2y, kBezierLinearC2);
+    // All-zero control points are degenerate (legacy flash data written before
+    // the has_ flags existed) — treat as unset.
+    if (c1x == 0.0f && c1y == 0.0f && c2x == 0.0f && c2y == 0.0f) {
+        c1x = kBezierLinearC1;
+        c1y = kBezierLinearC1;
+        c2x = kBezierLinearC2;
+        c2y = kBezierLinearC2;
+        return;
+    }
+    if (!isBezierMonotone(c1x, c2x, c1y, c2y)) {
+        c1x = kBezierLinearC1;
+        c1y = kBezierLinearC1;
+        c2x = kBezierLinearC2;
+        c2y = kBezierLinearC2;
+        return;
+    }
+}
+
+// Cubic bezier axis value with endpoints 0 and 1.
+static float bezierEvalAxis(float c1, float c2, float t) {
+    const float mt = 1.0f - t;
+    return 3.0f * mt * mt * t * c1 + 3.0f * mt * t * t * c2 + t * t * t;
+}
+
+// Bisection solve x(t) = xTarget. x(t) is monotonic (enforced at init), so exactly
+// one root exists and bisection always converges — unlike Newton, which stalls when
+// x'(t) approaches 0 (possible now that C1 <= C2 is no longer enforced).
+static float bezierFindT(float xTarget, float c1x, float c2x) {
+    float lo = 0.0f, hi = 1.0f, t = 0.5f;
+    for (int i = 0; i < 24; i++) {
+        t = (lo + hi) * 0.5f;
+        const float err = bezierEvalAxis(c1x, c2x, t) - xTarget;
+        if (std::fabs(err) < 1e-6f) break;
+        if (err > 0.0f) hi = t; else lo = t;
+    }
+    return t;
+}
 } // namespace
 
 bool UnifiedAnalogProcessorAddon::available() {
@@ -73,6 +154,8 @@ void UnifiedAnalogProcessorAddon::initializeFromOptions() {
     temp_curve_storage_[1].is_saved = false;
     temp_curve_storage_[0].saved_points_count = 0;
     temp_curve_storage_[1].saved_points_count = 0;
+    temp_bezier_storage_[0].is_saved = false;
+    temp_bezier_storage_[1].is_saved = false;
     active_activation_preset_[0] = 0;
     active_activation_preset_[1] = 0;
 
@@ -133,6 +216,22 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
                 convertCurvePoints(options.joystick_curve_points_2, curveCount, converted);
             }
             initializeCurveSegments(stickNum, converted, curveCount);
+        }
+    }
+
+    // Bezier mode: the same "enable joystick curve" toggle gates both modes; with
+    // the toggle on and mode == 1 the bezier path always activates, falling back
+    // to the linear default on missing/invalid data (initializeBezierCurve never
+    // fails, so a fallback still counts as active).
+    stick.bezier_active = false;
+    if (curveEnabled && options.joystick_curve_mode == 1) {
+        const bool hasBezier = isFirst ? options.has_joystick_bezier_1 : options.has_joystick_bezier_2;
+        if (hasBezier) {
+            initializeBezierCurve(stickNum, isFirst ? options.joystick_bezier_1 : options.joystick_bezier_2);
+        } else {
+            // Never configured: all component has_ flags false -> linear default.
+            const BezierControl emptyBezier = {};
+            initializeBezierCurve(stickNum, emptyBezier);
         }
     }
 }
@@ -236,15 +335,23 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
 
     if (analogOptions.joystick_curve_enabled) {
         int stickNum = 1;
+        // In bezier mode the same hot-swap mechanism polls the shared bezier
+        // preset list instead of the polyline one (no new options either way).
+        // bezier_active == curveEnabled && mode == 1 (init always resolves to a
+        // valid curve, falling back to linear).
+        const bool useBezier = sticks_[stickNum].bezier_active;
+        const int presetCount = useBezier ? analogOptions.joystick_bezier_presets_count
+                                          : analogOptions.joystick_curve_presets_count;
         bool foundPressed = false;
         int pressedPresetIdx = -1;
-        for (int presetIdx = 0; presetIdx < analogOptions.joystick_curve_presets_count; presetIdx++) {
-            const CurvePreset& preset = analogOptions.joystick_curve_presets[presetIdx];
-            if (preset.activationButtonMask == 0) {
+        for (int presetIdx = 0; presetIdx < presetCount; presetIdx++) {
+            const uint32_t buttonMask = useBezier
+                ? analogOptions.joystick_bezier_presets[presetIdx].activationButtonMask
+                : analogOptions.joystick_curve_presets[presetIdx].activationButtonMask;
+            if (buttonMask == 0) {
                 continue;
             }
             bool isPressed = false;
-            const uint32_t buttonMask = preset.activationButtonMask;
             const uint32_t dpadMask = buttonMask & (GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
             const uint32_t regularMask = buttonMask & ~(GAMEPAD_MASK_DU | GAMEPAD_MASK_DD | GAMEPAD_MASK_DL | GAMEPAD_MASK_DR);
 
@@ -265,15 +372,28 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
 
         if (foundPressed) {
             if (active_activation_preset_[stickNum] == 0) {
-                saveCurrentCurveData(stickNum);
-                if (pressedPresetIdx < analogOptions.joystick_curve_presets_count &&
-                    analogOptions.joystick_curve_presets[pressedPresetIdx].points_count > 0) {
-                    applyPresetCurve(stickNum, pressedPresetIdx);
-                    active_activation_preset_[stickNum] = static_cast<uint8_t>(pressedPresetIdx + 1);
+                if (useBezier) {
+                    saveCurrentBezierData(stickNum);
+                    if (pressedPresetIdx < analogOptions.joystick_bezier_presets_count &&
+                        analogOptions.joystick_bezier_presets[pressedPresetIdx].has_bezier) {
+                        applyBezierPresetCurve(stickNum, pressedPresetIdx);
+                        active_activation_preset_[stickNum] = static_cast<uint8_t>(pressedPresetIdx + 1);
+                    }
+                } else {
+                    saveCurrentCurveData(stickNum);
+                    if (pressedPresetIdx < analogOptions.joystick_curve_presets_count &&
+                        analogOptions.joystick_curve_presets[pressedPresetIdx].points_count > 0) {
+                        applyPresetCurve(stickNum, pressedPresetIdx);
+                        active_activation_preset_[stickNum] = static_cast<uint8_t>(pressedPresetIdx + 1);
+                    }
                 }
             }
         } else if (active_activation_preset_[stickNum] != 0) {
-            restoreCurveData(stickNum);
+            if (useBezier) {
+                restoreBezierData(stickNum);
+            } else {
+                restoreCurveData(stickNum);
+            }
         }
 
         const uint32_t currentProfile1 = analogOptions.curve_profile_1;
@@ -348,7 +468,9 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
             uy = ny / dist;
         }
 
-        if (sticks_[i].curve_points_sorted_count > 0 || active_activation_preset_[i] != 0) {
+        if (sticks_[i].bezier_active) {
+            applyBezierResponseCurve(nx, ny, i);
+        } else if (sticks_[i].curve_points_sorted_count > 0 || active_activation_preset_[i] != 0) {
             applyResponseCurveToCoordinates(nx, ny, i);
         }
 
@@ -616,4 +738,72 @@ void UnifiedAnalogProcessorAddon::applyPresetCurve(int stickNum, int presetIndex
         converted[i].y = preset.points[i].y;
     }
     initializeCurveSegments(stickNum, converted, preset.points_count);
+}
+
+void UnifiedAnalogProcessorAddon::initializeBezierCurve(int stickNum, const BezierControl& bezier) {
+    StickState& stick = sticks_[stickNum];
+    resolveBezierControl(bezier, stick.bezier_c1x, stick.bezier_c1y, stick.bezier_c2x, stick.bezier_c2y);
+    // Always active in bezier mode: invalid data falls back to the linear default.
+    stick.bezier_active = true;
+}
+
+void __not_in_flash_func(UnifiedAnalogProcessorAddon::applyBezierResponseCurve)(float& normalizedX, float& normalizedY, int stickNum) {
+    if (normalizedX == 0.0f && normalizedY == 0.0f) {
+        return;
+    }
+
+    const float dist = std::sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+    // Match the polyline curve boundary behavior: beyond the unit circle the
+    // input is left unscaled and the per-axis clamp at the end of process()
+    // caps the overshoot.
+    if (dist > 1.0f) {
+        return;
+    }
+
+    const float t = bezierFindT(dist, sticks_[stickNum].bezier_c1x, sticks_[stickNum].bezier_c2x);
+    const float y = bezierEvalAxis(sticks_[stickNum].bezier_c1y, sticks_[stickNum].bezier_c2y, t);
+    const float scale = y / dist;
+    normalizedX *= scale;
+    normalizedY *= scale;
+}
+
+void UnifiedAnalogProcessorAddon::saveCurrentBezierData(int stickNum) {
+    if (stickNum < 0 || stickNum >= STICK_COUNT) return;
+
+    temp_bezier_storage_[stickNum].c1x = sticks_[stickNum].bezier_c1x;
+    temp_bezier_storage_[stickNum].c1y = sticks_[stickNum].bezier_c1y;
+    temp_bezier_storage_[stickNum].c2x = sticks_[stickNum].bezier_c2x;
+    temp_bezier_storage_[stickNum].c2y = sticks_[stickNum].bezier_c2y;
+    temp_bezier_storage_[stickNum].is_saved = true;
+}
+
+void UnifiedAnalogProcessorAddon::restoreBezierData(int stickNum) {
+    if (stickNum < 0 || stickNum >= STICK_COUNT || !temp_bezier_storage_[stickNum].is_saved) return;
+
+    sticks_[stickNum].bezier_c1x = temp_bezier_storage_[stickNum].c1x;
+    sticks_[stickNum].bezier_c1y = temp_bezier_storage_[stickNum].c1y;
+    sticks_[stickNum].bezier_c2x = temp_bezier_storage_[stickNum].c2x;
+    sticks_[stickNum].bezier_c2y = temp_bezier_storage_[stickNum].c2y;
+
+    temp_bezier_storage_[stickNum].is_saved = false;
+    active_activation_preset_[stickNum] = 0;
+}
+
+void UnifiedAnalogProcessorAddon::applyBezierPresetCurve(int stickNum, int presetIndex) {
+    if (stickNum < 0 || stickNum >= STICK_COUNT || presetIndex < 0 || presetIndex >= 4) return;
+
+    const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
+    if (presetIndex >= analogOptions.joystick_bezier_presets_count ||
+        !analogOptions.joystick_bezier_presets[presetIndex].has_bezier) {
+        return;
+    }
+
+    const BezierPreset& preset = analogOptions.joystick_bezier_presets[presetIndex];
+    // Pure in-memory temporary switch: preset data is normalized exactly like at
+    // init (invalid data falls back to linear), never written to flash.
+    resolveBezierControl(preset.bezier,
+                         sticks_[stickNum].bezier_c1x,
+                         sticks_[stickNum].bezier_c1y,
+                         sticks_[stickNum].bezier_c2x,
+                         sticks_[stickNum].bezier_c2y);
 }

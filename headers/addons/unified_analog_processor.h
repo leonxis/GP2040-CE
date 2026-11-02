@@ -66,6 +66,13 @@ private:
             float x_end;
         } curve_segments[7];
         uint8_t curve_segments_count;
+        // Bezier mode (joystick_curve_mode == 1): active whenever the curve toggle
+        // is on in bezier mode — invalid data falls back to the linear default.
+        bool bezier_active;
+        float bezier_c1x;
+        float bezier_c1y;
+        float bezier_c2x;
+        float bezier_c2y;
     };
 
     struct TempCurveStorage {
@@ -74,10 +81,19 @@ private:
         uint8_t saved_points_count;
     };
 
+    struct TempBezierStorage {
+        bool is_saved;
+        float c1x;
+        float c1y;
+        float c2x;
+        float c2y;
+    };
+
     uint32_t usage_curve_profile_1_ = 0;
     uint32_t usage_curve_profile_2_ = 0;
     StickSource source_ = StickSource::None;
     TempCurveStorage temp_curve_storage_[STICK_COUNT];
+    TempBezierStorage temp_bezier_storage_[STICK_COUNT];
     uint8_t active_activation_preset_[STICK_COUNT] = {0, 0};
     StickState sticks_[STICK_COUNT];
 
@@ -92,6 +108,11 @@ private:
     void saveCurrentCurveData(int stickNum);
     void restoreCurveData(int stickNum);
     void applyPresetCurve(int stickNum, int presetIndex);
+    void initializeBezierCurve(int stickNum, const BezierControl& bezier);
+    void applyBezierResponseCurve(float& normalizedX, float& normalizedY, int stickNum);
+    void saveCurrentBezierData(int stickNum);
+    void restoreBezierData(int stickNum);
+    void applyBezierPresetCurve(int stickNum, int presetIndex);
 };
 
 #endif
