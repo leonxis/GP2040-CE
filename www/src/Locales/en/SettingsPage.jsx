@@ -233,6 +233,8 @@ export default {
 		'XInput PC mode: XInput gamepad plus composite HID keyboard/mouse; no console authentication.',
 	'hml-p5general-mode-hint':
 		'For P5 General mode, enable the USB authenticator in Hardware, and plug the P5 General dongle into the built-in USB port.',
+	'hml-xbone-mode-hint':
+		'For Xbox One mode, enable the USB authenticator in Hardware, and plug the Xbox One dongle into the built-in USB port.',
 	'hml-error-app-context': 'Application context is not initialized.',
 	'hml-error-gamepad-options': 'Could not load gamepad options.',
 	'hml-error-gamepad-options-detail': 'Failed to load gamepad options. Please refresh the page.',

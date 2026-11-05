@@ -282,6 +282,19 @@ export default function ModeSettings() {
 		);
 	};
 
+	// Xbox One模式特定配置（与P5G一致：提示需开启USB验证器）
+	const xboneModeSpecifics = () => {
+		return (
+			<Row className="mb-3">
+				<Col sm={10}>
+					<span className="text-success">
+						{t('SettingsPage:hml-xbone-mode-hint')}
+					</span>
+				</Col>
+			</Row>
+		);
+	};
+
 	// 根据输入模式显示特定配置
 	const inputModeSpecifics = (
 		modeValues: ModeValues,
@@ -311,6 +324,8 @@ export default function ModeSettings() {
 				return xinputbModeSpecifics();
 			case 'input-mode-options.p5general':
 				return p5generalModeSpecifics();
+			case 'input-mode-options.xbone':
+				return xboneModeSpecifics();
 			default:
 				return null;
 		}
@@ -336,6 +351,22 @@ export default function ModeSettings() {
 			await WebApi.setKeyMappings(keyMappings);
 		}
 		const success = await WebApi.setGamepadOptions(data);
+		if (success && (inputMode === 5 || inputMode === 16)) {
+			// Xbox One / P5G 需要 USB 验证器：保存时自动开启硬件配置中的 USB 验证器开关
+			const peripheral = await WebApi.getPeripheralOptions();
+			if (peripheral && !peripheral?.peripheral?.usb0?.enabled) {
+				await WebApi.setPeripheralOptions({
+					...peripheral,
+					peripheral: {
+						...peripheral.peripheral,
+						usb0: {
+							...peripheral.peripheral?.usb0,
+							enabled: 1,
+						},
+					},
+				});
+			}
+		}
 		if (success) {
 			setSaveMessage(t('SettingsPage:hml-save-success'));
 			setTimeout(() => setSaveMessage(''), 3000);
