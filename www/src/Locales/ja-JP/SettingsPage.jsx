@@ -195,6 +195,8 @@ export default {
 		'XInput PCモード：XInputゲームパッドと複合HIDキーボード/マウス。コンソール認証はありません。',
 	'hml-p5general-mode-hint':
 		'P5 Generalモードでは、ハードウェアでUSB認証器を有効にし、本体USBにP5 Generalドングルを接続してください。',
+	'hml-xbone-mode-hint':
+		'Xbox Oneモードでは、ハードウェアでUSB認証器を有効にし、本体USBにXbox Oneドングルを接続してください。',
 	'hml-error-app-context': 'アプリケーションコンテキストが初期化されていません。',
 	'hml-error-gamepad-options': 'ゲームパッド設定を読み込めませんでした。',
 	'hml-error-gamepad-options-detail':

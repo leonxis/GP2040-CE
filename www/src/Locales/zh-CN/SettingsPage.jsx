@@ -212,6 +212,8 @@ export default {
 	'hml-xinputb-mode-hint': 'XINPUT电脑模式：支持XInput手柄与复合HID键鼠，不支持主机认证',
 	'hml-p5general-mode-hint':
 		'使用P5General验证器选择本模式，需要在硬件配置中开启USB验证器，并在手柄内置USB接口插入P5General验证器',
+	'hml-xbone-mode-hint':
+		'使用Xbox One验证器选择本模式，需要在硬件配置中开启USB验证器，并在手柄内置USB接口插入Xbox One验证器',
 	'hml-error-app-context': '应用上下文未初始化',
 	'hml-error-gamepad-options': '无法获取游戏手柄选项数据',
 	'hml-error-gamepad-options-detail': '获取游戏手柄选项失败，请刷新页面重试',
