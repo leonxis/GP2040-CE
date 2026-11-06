@@ -972,9 +972,8 @@ void __not_in_flash_func(GP2040::run)() {
 		}
 		if (gateAction == MainLoopGateAction::RetrySubmit) {
 			USBHostManager::getInstance().process();
-			// 抑制 USB 按键输出：仅 miniled 菜单操作中（防止菜单操作泄漏到主机）。
-			// 无线/蓝牙链路激活时不清零——USB 与无线并行输出真实按键，
-			// 报文照常构建上报，不影响枚举/轮询/认证与门控时序。
+			// 抑制 USB 按键输出：miniled 菜单（屏幕操作状态）中防止菜单操作泄漏到主机。
+			// 蓝牙与 nRF24 链路在各自 postprocess 中读取同一标志位并发送中位帧。
 			const bool suppressUsb = g_screenOperationActive;
 			GamepadState savedUsbState;
 			if (suppressUsb) {
@@ -1078,9 +1077,8 @@ void __not_in_flash_func(GP2040::run)() {
 		// Copy Processed Gamepad for Core1 (race condition otherwise)
 		memcpy(&processedGamepad->state, &gamepad->state, sizeof(GamepadState));
 
-		// 抑制 USB 按键输出：仅 miniled 菜单操作中（防止菜单操作泄漏到主机）。
-		// 无线/蓝牙链路激活时不清零——USB 与无线并行输出真实按键，
-		// 报文照常构建上报，不影响枚举/轮询/认证与门控时序。
+		// 抑制 USB 按键输出：miniled 菜单（屏幕操作状态）中防止菜单操作泄漏到主机。
+		// 蓝牙与 nRF24 链路在各自 postprocess 中读取同一标志位并发送中位帧。
 		GamepadState savedUsbState;
 		const bool suppressUsb = g_screenOperationActive;
 		if (suppressUsb) {

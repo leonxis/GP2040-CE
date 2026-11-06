@@ -1,10 +1,14 @@
 #include "addons/uart_link.h"
 #include "storagemanager.h"
 #include "gamepad.h"
+#include "drivermanager.h"
 #include "pico/time.h"
 
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
+
+// 跨核标志位：Core1 的 DisplayAddon 设置，true 时处于屏幕操作状态（miniled 菜单）。
+extern volatile bool g_screenOperationActive;
 
 // CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF)
 static uint16_t __not_in_flash_func(crc16_update)(uint16_t crc, uint8_t b) {
@@ -170,11 +174,28 @@ void __not_in_flash_func(UARTLinkAddon::postprocess)(bool sent) {
     Gamepad* g = Storage::getInstance().GetProcessedGamepad();
     if (g == nullptr) return;
 
-    uint16_t buttons = (uint16_t)(g->state.buttons & 0xFFFF);
-    uint8_t dpad = (uint8_t)g->state.dpad;
-    uint16_t lx = (uint16_t)g->state.lx, ly = (uint16_t)g->state.ly;
-    uint16_t rx = (uint16_t)g->state.rx, ry = (uint16_t)g->state.ry;
-    uint8_t lt = (uint8_t)g->state.lt, rt = (uint8_t)g->state.rt;
+    uint16_t buttons;
+    uint8_t dpad;
+    uint16_t lx, ly, rx, ry;
+    uint8_t lt, rt;
+    if (g_screenOperationActive) {
+        // 屏幕操作状态（miniled 菜单）：不向蓝牙输出手柄按键/摇杆，
+        // 发送中位空帧维持 BLE 连接事件的输入刷新，避免菜单操作泄漏到主机。
+        buttons = 0;
+        dpad = 0;
+        lx = ly = rx = ry =
+            DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+        lt = rt = 0;
+    } else {
+        buttons = (uint16_t)(g->state.buttons & 0xFFFF);
+        dpad = (uint8_t)g->state.dpad;
+        lx = (uint16_t)g->state.lx;
+        ly = (uint16_t)g->state.ly;
+        rx = (uint16_t)g->state.rx;
+        ry = (uint16_t)g->state.ry;
+        lt = (uint8_t)g->state.lt;
+        rt = (uint8_t)g->state.rt;
+    }
 
     // 限流取消：主循环每轮 postprocess 都发一帧 INPUT（门控模式 ~960~1000Hz），
     // 保证 BLE 每个连接事件都能取到最新输入。

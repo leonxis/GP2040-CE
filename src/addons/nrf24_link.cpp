@@ -1,10 +1,14 @@
 #include "addons/nrf24_link.h"
 #include "storagemanager.h"
 #include "gamepad.h"
+#include "drivermanager.h"
 #include "peripheralmanager.h"
 
 #include "hardware/gpio.h"
 #include "pico/time.h"
+
+// 跨核标志位：Core1 的 DisplayAddon 设置，true 时处于屏幕操作状态（miniled 菜单）。
+extern volatile bool g_screenOperationActive;
 
 // available() 由 GamepadOptions.nrf24LinkEnabled 单独驱动（与 uart_link 互斥，三选一）
 bool NRF24LinkAddon::available() {
@@ -207,14 +211,28 @@ void __not_in_flash_func(NRF24LinkAddon::postprocess)(bool sent) {
 
     // 始终读取【最新】绝对状态：payload 是状态快照而非事件流，
     // 被跳过的中间快照语义等同无线丢包，无需排队补寄
-    uint16_t buttons = static_cast<uint16_t>(g->state.buttons & 0xFFFF);
-    uint8_t  dpad    = static_cast<uint8_t>(g->state.dpad);
-    uint16_t lx = static_cast<uint16_t>(g->state.lx);
-    uint16_t ly = static_cast<uint16_t>(g->state.ly);
-    uint16_t rx = static_cast<uint16_t>(g->state.rx);
-    uint16_t ry = static_cast<uint16_t>(g->state.ry);
-    uint8_t  lt = static_cast<uint8_t>(g->state.lt);
-    uint8_t  rt = static_cast<uint8_t>(g->state.rt);
+    uint16_t buttons;
+    uint8_t  dpad;
+    uint16_t lx, ly, rx, ry;
+    uint8_t  lt, rt;
+    if (g_screenOperationActive) {
+        // 屏幕操作状态（miniled 菜单）：不向 nRF24 输出手柄按键/摇杆，
+        // 继续按 1ms 恒流发送中位空帧，维持接收端链路与在线判定。
+        buttons = 0;
+        dpad    = 0;
+        lx = ly = rx = ry =
+            DriverManager::getInstance().getDriver()->GetJoystickMidValue();
+        lt = rt = 0;
+    } else {
+        buttons = static_cast<uint16_t>(g->state.buttons & 0xFFFF);
+        dpad    = static_cast<uint8_t>(g->state.dpad);
+        lx = static_cast<uint16_t>(g->state.lx);
+        ly = static_cast<uint16_t>(g->state.ly);
+        rx = static_cast<uint16_t>(g->state.rx);
+        ry = static_cast<uint16_t>(g->state.ry);
+        lt = static_cast<uint8_t>(g->state.lt);
+        rt = static_cast<uint8_t>(g->state.rt);
+    }
 
     // ===== 阶段 1：在飞事务只做一次 STATUS 轮询 =====
     if (txPending) {
