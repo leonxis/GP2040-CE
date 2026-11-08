@@ -1,4 +1,5 @@
 #include "addons/input_macro.h"
+#include "addons/hml_back_key.h"
 #include "storagemanager.h"
 #include "GamepadState.h"
 #include "enums.pb.h"
@@ -77,6 +78,8 @@ inline void applyMacroStickDirection(GamepadState & state,
 }
 
 } // namespace
+
+InputMacro::InputMacro(HmlBackKeyAddon* backKeys) : backKeys(backKeys) {}
 
 bool InputMacro::available() {
     const MacroOptions& macroOptions = Storage::getInstance().getAddonOptions().macroOptions;
@@ -208,6 +211,12 @@ bool InputMacro::validateRecordingStream(uint8_t slot) {
 void InputMacro::checkMacroPress() {
     Gamepad * gamepad = Storage::getInstance().GetGamepad();
     Mask_t allPins = gamepad->debouncedGpio;
+    // 背键不在 debouncedGpio 中，单独并入其按下状态与宏按钮映射
+    Mask_t macroBtnMask = macroButtonMask;
+    if (backKeys != nullptr) {
+        allPins |= backKeys->getPressedGpioMask();
+        macroBtnMask |= backKeys->getMacroButtonMask();
+    }
 
     // Go through our macro list
     pressedMacro = -1;
@@ -227,7 +236,7 @@ void InputMacro::checkMacroPress() {
             break;
         } else if ( macro->useMacroTriggerButton ) {
             // Use Gamepad Button for Macro Trigger
-            if ((allPins & macroButtonMask) &&
+            if ((allPins & macroBtnMask) &&
                 ((gamepad->state.buttons & macro->macroTriggerButton) ||
                     (gamepad->state.dpad & (macro->macroTriggerButton >> 16))) ) {
                 pressedMacro = i;

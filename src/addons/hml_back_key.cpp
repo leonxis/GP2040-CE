@@ -117,3 +117,14 @@ Mask_t HmlBackKeyAddon::getTurboKeyMask() const {
     }
     return mask;
 }
+
+Mask_t HmlBackKeyAddon::getMacroButtonMask() const {
+    Mask_t mask = 0;
+    for (uint8_t i = 0; i < HML_BACK_KEY_COUNT; i++) {
+        const ActionMappingCommon::ActionMappingEntry* entry = mapTable_.at(i);
+        if (entry != nullptr && entry->complexAction == GpioAction::BUTTON_PRESS_MACRO) {
+            mask |= Mask_t{1} << kHmlBackKeyDefs[i].pin;
+        }
+    }
+    return mask;
+}

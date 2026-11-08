@@ -50,6 +50,8 @@ public:
     const ActionMappingCommon::ActionMappingEntry* getActionForPin(uint8_t pin) const;
     // Turbo 查询：当前映射 BUTTON_PRESS_TURBO 的背键 GPIO 掩码（preset 方案切换自动跟随）
     Mask_t getTurboKeyMask() const;
+    // InputMacro 查询：当前映射 BUTTON_PRESS_MACRO（无编号宏按钮）的背键 GPIO 掩码
+    Mask_t getMacroButtonMask() const;
 private:
     void buildMappings();
 

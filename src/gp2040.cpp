@@ -690,7 +690,8 @@ void GP2040::setup() {
 	addons.LoadAddon(new UnifiedAnalogProcessorAddon());  // 处理
 	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon()); // 后处理
 	addons.LoadAddon(new AxisTiltOverlayInput());   // 最终叠加
-	addons.LoadAddon(new InputMacro());             // 覆盖摇杆值
+	addons.LoadAddon(new InputMacro(
+			(HmlBackKeyAddon*)addons.GetAddon(HML_BACK_KEY_ADDON_NAME)));  // 覆盖摇杆值
 	addons.LoadAddon(new UARTLinkAddon());
 
 	// nRF24 板载模块引脚安全固定（无论 nrf24_link 插件是否启用）：CE=0、CSN=1。

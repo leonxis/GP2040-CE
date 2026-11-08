@@ -133,8 +133,12 @@ static inline uint16_t macroRecRestoreAxis(uint8_t q)
 // InputMacro Module Name
 #define InputMacroName "Input Macro"
 
+class HmlBackKeyAddon;
+
 class InputMacro : public GPAddon {
 public:
+    // backKeys 可为 nullptr（非 HML 版型无背键插件）
+    explicit InputMacro(HmlBackKeyAddon* backKeys = nullptr);
     virtual bool available();   // GPAddon available
     virtual void setup();       // Analog Setup
     virtual void process();     // Analog Process - reapply stick values after other addons
@@ -169,6 +173,7 @@ private:
     bool isMacroRunning = false;
     bool isMacroTriggerHeld = false;
     int macroPosition = -1;
+    HmlBackKeyAddon* backKeys = nullptr;
     Mask_t macroButtonMask;
     Mask_t macroPinMasks[6];
     uint64_t macroStartTime;
