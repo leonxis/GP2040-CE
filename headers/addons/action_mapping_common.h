@@ -8,8 +8,11 @@ class Gamepad;
 
 namespace ActionMappingCommon {
 
-static constexpr uint8_t ACTION_MAPPING_TABLE_MAX_ENTRIES = 8;
-static constexpr uint8_t ACTION_OUTPUT_SCOPE_MAX_COMPLEX_ACTIONS = 8;
+// 背键映射表需容纳 HML_BACK_KEY_COUNT=10 项（8 背键+FN+左右MT），留余量取 12
+static constexpr uint8_t ACTION_MAPPING_TABLE_MAX_ENTRIES = 12;
+// 与映射表容量一致：背键复杂动作种类可达 9 种（连发/宏/宏1~6/菜单切换），
+// 槽位不足会导致超出的复杂动作无法在下一帧被清除（宏触发位粘滞）
+static constexpr uint8_t ACTION_OUTPUT_SCOPE_MAX_COMPLEX_ACTIONS = 12;
 
 struct ActionMappingEntry {
     uint32_t buttonMask = 0;
