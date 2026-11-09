@@ -1,10 +1,10 @@
 #include "addons/unified_joystick_travel_key.h"
 
-#include "addons/analog.h"
-#include "addons/mcp3208_adc.h"
-#include "config.pb.h"
+#include "addons/unified_analog_processor.h"
 #include "gamepad.h"
 #include "storagemanager.h"
+
+#include <algorithm>
 
 namespace {
 static constexpr uint8_t TRAVEL_KEY_DEBOUNCE_FRAMES = 2u;
@@ -14,7 +14,6 @@ bool UnifiedJoystickTravelKeyAddon::available() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const AnalogOptions& analogOptions = addonOptions.analogOptions;
 
-    // MCP3208 ADC is always enabled, so a sampling source always exists.
     const bool leftEnabled = (analogOptions.joystick_travel_button_threshold > 0u) &&
         (analogOptions.joystick_travel_button_action != GpioAction::NONE);
     const bool rightEnabled = (analogOptions.joystick_travel_button_threshold2 > 0u) &&
@@ -23,7 +22,6 @@ bool UnifiedJoystickTravelKeyAddon::available() {
 }
 
 void UnifiedJoystickTravelKeyAddon::setup() {
-    resolveSource();
     buildMapsAndThresholds();
     outputScope_.reset();
     ActionMappingCommon::resetDebounceBool(debounceState_[0], false);
@@ -31,26 +29,10 @@ void UnifiedJoystickTravelKeyAddon::setup() {
 }
 
 void UnifiedJoystickTravelKeyAddon::reinit() {
-    resolveSource();
     buildMapsAndThresholds();
     outputScope_.reset();
     ActionMappingCommon::resetDebounceBool(debounceState_[0], false);
     ActionMappingCommon::resetDebounceBool(debounceState_[1], false);
-}
-
-void UnifiedJoystickTravelKeyAddon::resolveSource() {
-    // MCP3208 is the fixed external ADC provider and is always enabled.
-    source_ = StickSource::MCP3208;
-}
-
-uint64_t UnifiedJoystickTravelKeyAddon::getThresholdSquared(uint16_t adcMax, uint32_t thresholdPercent) {
-    if (adcMax == 0u || thresholdPercent == 0u) {
-        return 0u;
-    }
-    // Distance is measured from stick center, so threshold percent should map to half-range.
-    const uint64_t halfRange = static_cast<uint64_t>(adcMax) / 2u;
-    const uint64_t threshold = (halfRange * thresholdPercent) / 100u;
-    return threshold * threshold;
 }
 
 void UnifiedJoystickTravelKeyAddon::buildMapsAndThresholds() {
@@ -74,33 +56,21 @@ void UnifiedJoystickTravelKeyAddon::buildMapsAndThresholds() {
         );
     }
 
-    uint16_t adcMax = 4095u;
+    // Threshold percent maps directly onto the unified processor's normalized
+    // travel, so 99% means near-full calibrated travel and stays reachable even
+    // when the pot's electrical center/max are far from 2047/4095.
+    const auto toNormalized = [](uint32_t percent) {
+        return std::clamp(static_cast<float>(percent) / 100.0f, 0.0f, 1.0f);
+    };
 
     const ActionMappingCommon::ActionMappingEntry* leftEntry = entries_.at(0);
     const ActionMappingCommon::ActionMappingEntry* rightEntry = entries_.at(1);
-    thresholdSquared_[0] = (leftEntry && leftEntry->enabled)
-        ? getThresholdSquared(adcMax, analogOptions.joystick_travel_button_threshold)
-        : 0u;
-    thresholdSquared_[1] = (rightEntry && rightEntry->enabled)
-        ? getThresholdSquared(adcMax, analogOptions.joystick_travel_button_threshold2)
-        : 0u;
-}
-
-bool UnifiedJoystickTravelKeyAddon::readRawStick(uint8_t stickNum, uint16_t& rawX, uint16_t& rawY, uint16_t& centerX, uint16_t& centerY, uint16_t& adcMax) {
-    bool xValid = false;
-    bool yValid = false;
-
-    // Unified sampler contract:
-    // stick0 => ANALOG_ADC_1_VRX/VRY, stick1 => ANALOG_ADC_2_VRX/VRY.
-    switch (source_) {
-        case StickSource::MCP3208:
-            return MCP3208ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, centerX, centerY, xValid, yValid, adcMax) && xValid && yValid;
-        case StickSource::OnboardADC:
-            return AnalogInput::getRawStickForProcessor(stickNum, rawX, rawY, centerX, centerY, xValid, yValid, adcMax) && xValid && yValid;
-        case StickSource::None:
-        default:
-            return false;
-    }
+    thresholds_[0] = (leftEntry && leftEntry->enabled)
+        ? toNormalized(analogOptions.joystick_travel_button_threshold)
+        : 0.0f;
+    thresholds_[1] = (rightEntry && rightEntry->enabled)
+        ? toNormalized(analogOptions.joystick_travel_button_threshold2)
+        : 0.0f;
 }
 
 void __not_in_flash_func(UnifiedJoystickTravelKeyAddon::process)() {
@@ -111,7 +81,7 @@ void __not_in_flash_func(UnifiedJoystickTravelKeyAddon::process)() {
 
     outputScope_.beginFrame(gamepad);
 
-    if (!available() || source_ == StickSource::None) {
+    if (!available()) {
         outputScope_.endFrame();
         ActionMappingCommon::resetDebounceBool(debounceState_[0], false);
         ActionMappingCommon::resetDebounceBool(debounceState_[1], false);
@@ -122,22 +92,19 @@ void __not_in_flash_func(UnifiedJoystickTravelKeyAddon::process)() {
 
     for (uint8_t stick = 0; stick < 2; stick++) {
         const ActionMappingCommon::ActionMappingEntry* entry = entries_.at(stick);
-        if (entry == nullptr || !entry->enabled || thresholdSquared_[stick] == 0u) {
+        if (entry == nullptr || !entry->enabled || thresholds_[stick] <= 0.0f) {
             continue;
         }
 
-        uint16_t rawX = 0, rawY = 0, centerX = 0, centerY = 0, adcMax = 0;
-        if (!readRawStick(stick, rawX, rawY, centerX, centerY, adcMax) || adcMax == 0u) {
+        float nx = 0.0f;
+        float ny = 0.0f;
+        if (!UnifiedAnalogProcessorAddon::getNormalizedStick(stick, nx, ny)) {
             continue;
         }
 
-        const int32_t dx = static_cast<int32_t>(rawX) - static_cast<int32_t>(centerX);
-        const int32_t dy = static_cast<int32_t>(rawY) - static_cast<int32_t>(centerY);
-        const int64_t dx64 = static_cast<int64_t>(dx);
-        const int64_t dy64 = static_cast<int64_t>(dy);
-        const uint64_t distSquared =
-            static_cast<uint64_t>(dx64 * dx64) + static_cast<uint64_t>(dy64 * dy64);
-        candidateActive[stick] = (distSquared > thresholdSquared_[stick]);
+        // Radial travel normalized to 1.0 = calibrated full travel.
+        const float travelSquared = nx * nx + ny * ny;
+        candidateActive[stick] = travelSquared > thresholds_[stick] * thresholds_[stick];
     }
 
     for (uint8_t stick = 0; stick < 2; stick++) {

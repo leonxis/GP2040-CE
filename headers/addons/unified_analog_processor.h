@@ -22,8 +22,15 @@ public:
     virtual void reinit();
     virtual std::string name() { return UnifiedAnalogProcessorName; }
 
+    // Latest calibration-normalized stick travel before deadzone/curve shaping.
+    // nx/ny are in [-1, 1] along each axis; 1.0 corresponds to the calibrated
+    // full travel of a direction (uniform_scale normalization), so the radial
+    // magnitude maxes out at ~1.0 regardless of the ADC's electrical range.
+    static bool getNormalizedStick(uint8_t stickNum, float& nx, float& ny);
+
 private:
     static constexpr int STICK_COUNT = 2;
+    static UnifiedAnalogProcessorAddon* s_instance_;
     enum class StickSource : uint8_t {
         None = 0,
         MCP3208,
@@ -96,6 +103,9 @@ private:
     TempBezierStorage temp_bezier_storage_[STICK_COUNT];
     uint8_t active_activation_preset_[STICK_COUNT] = {0, 0};
     StickState sticks_[STICK_COUNT];
+    float normalizedX_[STICK_COUNT] = {0.0f, 0.0f};
+    float normalizedY_[STICK_COUNT] = {0.0f, 0.0f};
+    bool normalizedValid_[STICK_COUNT] = {false, false};
 
     void initializeFromOptions();
     void resolveSource();

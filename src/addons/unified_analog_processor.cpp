@@ -141,6 +141,8 @@ static float __not_in_flash_func(bezierFindT)(float xTarget, float c1x, float c2
 }
 } // namespace
 
+UnifiedAnalogProcessorAddon* UnifiedAnalogProcessorAddon::s_instance_ = nullptr;
+
 bool UnifiedAnalogProcessorAddon::available() {
     // Always on: the MCP3208 sticks are this board's primary input, so the
     // AnalogOptions.enabled Web UI toggle is intentionally ignored — it
@@ -150,13 +152,25 @@ bool UnifiedAnalogProcessorAddon::available() {
 }
 
 void UnifiedAnalogProcessorAddon::setup() {
+    s_instance_ = this;
     resolveSource();
     initializeFromOptions();
 }
 
 void UnifiedAnalogProcessorAddon::reinit() {
+    s_instance_ = this;
     resolveSource();
     initializeFromOptions();
+}
+
+bool UnifiedAnalogProcessorAddon::getNormalizedStick(uint8_t stickNum, float& nx, float& ny) {
+    if (s_instance_ == nullptr || stickNum >= STICK_COUNT ||
+        !s_instance_->normalizedValid_[stickNum]) {
+        return false;
+    }
+    nx = s_instance_->normalizedX_[stickNum];
+    ny = s_instance_->normalizedY_[stickNum];
+    return true;
 }
 
 void UnifiedAnalogProcessorAddon::resolveSource() {
@@ -217,6 +231,9 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.last_y_adc = stick.y_center;
     stick.curve_points_sorted_count = 0;
     stick.curve_segments_count = 0;
+    normalizedX_[stickNum] = 0.0f;
+    normalizedY_[stickNum] = 0.0f;
+    normalizedValid_[stickNum] = false;
 
     // Calibrated means at least one valid (positive) range point; a stored
     // count with only non-positive samples is treated as no calibration.
@@ -462,6 +479,7 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
             hasSource = AnalogInput::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
         }
         if (!hasSource) {
+            normalizedValid_[i] = false;
             continue;
         }
 
@@ -487,6 +505,13 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
 
         if (sticks_[i].analog_invert == InvertMode::INVERT_X || sticks_[i].analog_invert == InvertMode::INVERT_XY) nx = -nx;
         if (sticks_[i].analog_invert == InvertMode::INVERT_Y || sticks_[i].analog_invert == InvertMode::INVERT_XY) ny = -ny;
+
+        // Publish pre-shaping travel (calibrated center + uniform scale) for
+        // addons that gate on the physical stick position: deadzone and curve
+        // shaping must not move the travel percentage the user configured.
+        normalizedX_[i] = nx;
+        normalizedY_[i] = ny;
+        normalizedValid_[i] = true;
 
         // Inner deadzone stage admission: gated only on a non-zero deadzone
         // (dz == 0 = feature off). Calibration is NOT required — without it

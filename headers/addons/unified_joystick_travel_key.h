@@ -19,20 +19,11 @@ public:
     virtual std::string name() { return UnifiedJoystickTravelKeyName; }
 
 private:
-    enum class StickSource : uint8_t {
-        None = 0,
-        MCP3208,
-        OnboardADC,
-    };
-
-    void resolveSource();
     void buildMapsAndThresholds();
-    bool readRawStick(uint8_t stickNum, uint16_t& rawX, uint16_t& rawY, uint16_t& centerX, uint16_t& centerY, uint16_t& adcMax);
-    static uint64_t getThresholdSquared(uint16_t adcMax, uint32_t thresholdPercent);
 
     ActionMappingCommon::ActionMappingTable entries_;
-    uint64_t thresholdSquared_[2] = {0, 0};
-    StickSource source_ = StickSource::None;
+    // Normalized travel thresholds (0..1), derived from the configured percent.
+    float thresholds_[2] = {0.0f, 0.0f};
     ActionMappingCommon::ActionOutputScope outputScope_;
     ActionMappingCommon::DebounceBoolState debounceState_[2];
 };
