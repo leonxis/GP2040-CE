@@ -67,6 +67,14 @@
 #define LWIP_HTTPD_SUPPORT_11_KEEPALIVE 0 // Causes lockups with CGI requests
 #define LWIP_HTTPD_ABORT_ON_CLOSE_MEM_ERROR 1
 
+/* 长耗时同步请求（摇杆外圈校准、getHeldPins 等）会在同一个 TCP 连接上阻塞等待
+   用户操作。lwIP httpd 默认每 4*500ms 轮询一次，连续 4 次（约 8 秒）没有数据发送
+   就强制关闭该连接，前端 fetch 因此中断并误报“采样未完成”，同时后端采样循环仍在
+   空转。这里把轮询间隔和重试次数放到上限，使这类长请求不会因 httpd 的空闲重试被
+   断开；真正的死连接仍由 TCP 重传超时回收。 */
+#define HTTPD_POLL_INTERVAL             255
+#define HTTPD_MAX_RETRIES               255
+
 #define LWIP_SINGLE_NETIF               1
 
 #define LWIP_IGMP                         1
