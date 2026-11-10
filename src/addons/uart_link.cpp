@@ -36,6 +36,7 @@ void UARTLinkAddon::setup() {
         gpio_set_function(UART_LINK_RX_PIN, GPIO_FUNC_UART_AUX);
         gpio_set_pulls(UART_LINK_RX_PIN, true, false);
 
+        lastInputSentUs = 0;
         lastStatusSentUs = 0;
         lastInputMode = 0xFF;
         // 上电/重初始化默认 ESP32 离线：环境光立即按蓝牙未连接闪烁，
@@ -197,9 +198,14 @@ void __not_in_flash_func(UARTLinkAddon::postprocess)(bool sent) {
         rt = (uint8_t)g->state.rt;
     }
 
-    // 限流取消：主循环每轮 postprocess 都发一帧 INPUT（门控模式 ~960~1000Hz），
-    // 保证 BLE 每个连接事件都能取到最新输入。
-    sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt);
+    // 恒流 2ms 定频：距上次发送 ≥2ms 才发一帧最新快照（状态快照语义，
+    // 被跳过的中间值等同无线丢包，无需补寄）。无线模式主循环 free-run，
+    // 不限流会把 921600 链路写满并阻塞主循环；ESP32 侧每 ~8ms 连接事件
+    // 只取最新快照，更密的帧不会降低延迟。
+    if (now - lastInputSentUs >= UART_INPUT_INTERVAL_US) {
+        sendInputFrame(buttons, dpad, lx, ly, rx, ry, lt, rt);
+        lastInputSentUs = now;
+    }
 
     // inputMode 变化立即上报 + 1s 心跳：供 ESP32 选 BLE 设备类型。
     const GamepadOptions& options = Storage::getInstance().getGamepadOptions();

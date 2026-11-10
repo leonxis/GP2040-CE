@@ -43,6 +43,9 @@
 #define LINK_FRAME_TYPE_MUTE 0x0A
 #define LINK_FRAME_TYPE_LINK_STATUS 0x0B
 
+// INPUT 帧恒流发送间隔（微秒）：距上次发送 ≥2ms 才发一帧最新快照，
+// 避免 free-run 主循环把 921600 链路写满并阻塞主循环。
+#define UART_INPUT_INTERVAL_US    2000
 // STATUS 帧心跳间隔（微秒）：inputMode 变化即发，空闲时 1s 保底
 #define UART_STATUS_HEARTBEAT_US  1000000
 // ESP32 LINK_STATUS 心跳 100ms；超过 500ms（连续 5 帧丢失）判 ESP32 离线，
@@ -68,6 +71,7 @@ private:
     // LINK_STATUS 帧（ESP32 BLE 主机连接状态）：刷新时间戳并发布到 Storage
     void handleLinkStatus();
     bool initialized = false;
+    uint32_t lastInputSentUs;
     uint32_t lastStatusSentUs;
     uint8_t lastInputMode;
     // 最近一次收到合法 LINK_STATUS 帧的时间（0=从未收到/已超时），驱动未配对灯效
