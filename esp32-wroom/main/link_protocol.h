@@ -28,9 +28,12 @@ typedef struct {
     uint8_t  lt, rt;    // 0..255 linear triggers
 } lp_input_t;
 
-// STATUS frame payload (len=3): only inputMode is consumed by the ESP32.
+// STATUS frame payload (len=4, len=3 legacy tolerated):
+//   [0]=socdMode (unused) [1]=dpadMode (unused) [2]=inputMode (BLE identity)
+//   [3]=radioMode: 0=BLE, 1=nRF24 (absent on len=3 -> defaults to BLE)
 typedef struct {
     uint8_t inputMode;
+    uint8_t radioMode;   // 0=BLE, 1=nRF24
 } lp_status_t;
 
 typedef void (*lp_input_cb_t)(const lp_input_t *in);

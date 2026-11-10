@@ -301,6 +301,10 @@ void NeoPicoLEDAddon::setup() {
 	webConfigHintPhase_ = 0;
 	webConfigOverridePrev_ = false;
 	webConfigHintNextPhaseAt_ = delayed_by_ms(get_absolute_time(), 100);
+
+	linkHintPhase_ = 0;
+	linkHintPrev_ = false;
+	linkHintNextPhaseAt_ = delayed_by_ms(get_absolute_time(), 100);
 }
 
 void NeoPicoLEDAddon::pollOneShotBlink(AmbientOneShotBlink& blink, uint32_t seq) {
@@ -367,6 +371,29 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 	    DriverManager::getInstance().isConfigMode() &&
 	    Storage::getInstance().isAmbientWebConfigOverrideActive();
 
+	// Link hints: 蓝牙/2.4G 任一开启时 uart_link 即运行；ESP32 按当前射频
+	// 模式回报 connected（BLE 主机已连接，或 nRF24 接收端 ACK 在线），
+	// 未配对提示共用蓝闪，伴随机离线（无心跳）为红闪。
+	const GamepadOptions& linkOpts = Storage::getInstance().getGamepadOptions();
+	const bool wirelessLinkEnabled =
+	    linkOpts.bluetoothLinkEnabled || linkOpts.wireless24gLinkEnabled;
+	const bool companionOfflineHint =
+	    wirelessLinkEnabled && !Storage::getInstance().isUartStatusOnline();
+	const bool wirelessUnlinkedHint =
+	    wirelessLinkEnabled && Storage::getInstance().isUartStatusOnline() &&
+	    !Storage::getInstance().isUartBleConnected();
+
+	// 与 WEB_CONFIG_HINT 同节奏的共享相位机；任一提示的上升沿复位相位，
+	// 保证每次提示会话从相位 0 开始。
+	static const uint32_t kLinkHintPhaseMs[] = {100, 100, 100, 100, 100, 500};
+	const bool linkHintActive = companionOfflineHint || wirelessUnlinkedHint;
+	if (linkHintActive && !linkHintPrev_) {
+		linkHintPhase_ = 0;
+		linkHintNextPhaseAt_ =
+		    delayed_by_ms(get_absolute_time(), kLinkHintPhaseMs[0]);
+	}
+	linkHintPrev_ = linkHintActive;
+
 	// One-shot hints take priority over the web-config hint. All share the
 	// same phase machine (AmbientOneShotBlink): red 3-blink =
 	// capacity-induced recording stop; blue single blink = playback end;
@@ -401,6 +428,10 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 		effectIdx = AL_CUSTOM_EFFECT_MACRO_RECORDING;
 	} else if (webHintActive) {
 		effectIdx = AL_CUSTOM_EFFECT_WEB_CONFIG_HINT;
+	} else if (companionOfflineHint) {
+		effectIdx = AL_CUSTOM_EFFECT_COMPANION_OFFLINE;
+	} else if (wirelessUnlinkedHint) {
+		effectIdx = AL_CUSTOM_EFFECT_BLE_UNLINKED;
 	}
 
 	// Start-up Animations in Haute were here
@@ -606,6 +637,37 @@ void NeoPicoLEDAddon::ambientLightCustom() {
 			// Yellow: turbo button disabled.
 			renderOneShotBlink(turboOffBlink_, 0xFFFF00);
 			break;
+		// Link hints share the same rhythm as the web-config hint; color
+		// identifies state — companion (ESP32) absent = red;
+		// online but host unlinked (BLE 未配对 / nRF24 无 ACK) = blue.
+		case AL_CUSTOM_EFFECT_BLE_UNLINKED:
+		case AL_CUSTOM_EFFECT_COMPANION_OFFLINE: {
+			constexpr size_t kLinkHintPhaseCount =
+			    sizeof(kLinkHintPhaseMs) / sizeof(kLinkHintPhaseMs[0]);
+			while (time_reached(linkHintNextPhaseAt_)) {
+				linkHintPhase_ =
+				    static_cast<uint8_t>((linkHintPhase_ + 1) % kLinkHintPhaseCount);
+				linkHintNextPhaseAt_ = delayed_by_ms(
+				    get_absolute_time(), kLinkHintPhaseMs[linkHintPhase_]);
+			}
+			const bool on =
+			    (linkHintPhase_ == 0 || linkHintPhase_ == 2 || linkHintPhase_ == 4);
+			const uint32_t hintColor =
+			    (effectIdx == AL_CUSTOM_EFFECT_COMPANION_OFFLINE)
+			        ? 0xFF0000 : 0x0000FF;
+			RGB amb(hintColor);
+			if (on) {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] =
+					    amb.value(Animation::format, options.alStaticBrightnessCustomThemeX);
+				}
+			} else {
+				for (int i = 0; i < maxFrame; i++) {
+					frame[alStartIndex + i] = 0;
+				}
+			}
+			break;
+		}
 		default:
 			break;
 	}

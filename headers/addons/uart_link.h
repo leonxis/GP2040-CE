@@ -22,7 +22,8 @@
 // ---- frame protocol (shared with ESP32 side) ----
 // 帧格式: 0xAA + version + type + len + payload + CRC16(CCITT-FALSE)
 // STATUS 帧 payload: [0]=socdMode(固定0) [1]=dpadMode(固定0) [2]=inputMode
-//                    （BLE 设备类型选择依据），len=3，帧长 9
+//                    （BLE 设备类型选择依据） [3]=radioMode(0=BLE,1=nRF24)，len=4，帧长 10
+//                    ESP32 侧兼容 len=3 旧帧（radioMode 默认 0=BLE）
 // LINK_STATUS 帧（ESP32 -> Pico，type=0x0B，len=1，帧长 7）:
 //   [0]=bleConnected(主机已连接)
 // 发射端 RP2040 发送 INPUT/STATUS；接收方向仅处理 LINK_STATUS（驱动未配对灯效），
@@ -42,9 +43,9 @@
 #define LINK_FRAME_TYPE_MUTE 0x0A
 #define LINK_FRAME_TYPE_LINK_STATUS 0x0B
 
-// INPUT 帧恒流发送间隔（微秒）：距上次发送 ≥2ms 才发一帧最新快照，
-// 避免 free-run 主循环把 921600 链路写满。
-#define UART_INPUT_INTERVAL_US    2000
+// INPUT 帧恒流发送间隔（微秒）：距上次发送 ≥900us 才发一帧最新快照，
+// 与 2354 验证版 nRF24 恒流节拍一致；避免 free-run 主循环把 921600 链路写满。
+#define UART_INPUT_INTERVAL_US    900
 // STATUS 帧心跳间隔（微秒）：inputMode 变化即发，空闲时 1s 保底
 #define UART_STATUS_HEARTBEAT_US  1000000
 // ESP32 LINK_STATUS 心跳 100ms；超过 500ms（连续 5 帧丢失）判 ESP32 离线，
@@ -65,8 +66,9 @@ private:
     bool sendInputFrame(uint16_t buttons, uint8_t dpad,
                         uint16_t lx, uint16_t ly, uint16_t rx, uint16_t ry,
                         uint8_t lt, uint8_t rt);
-    // STATUS 帧: 仅 inputMode 真实，其余字段固定默认值（ESP32 据此选 BLE 设备类型）
-    bool sendStatusFrame(uint8_t inputMode);
+    // STATUS 帧: inputMode（BLE 设备类型）+ radioMode（0=BLE,1=nRF24），
+    // 其余字段固定默认值
+    bool sendStatusFrame(uint8_t inputMode, uint8_t radioMode);
     void handleRxByte(uint8_t b);
     // LINK_STATUS 帧（ESP32 BLE 主机连接状态）：刷新时间戳并发布到 Storage
     void handleLinkStatus();
@@ -75,6 +77,7 @@ private:
     uint32_t lastInputSentUs;
     uint32_t lastStatusSentUs;
     uint8_t lastInputMode;
+    uint8_t lastRadioMode;
     // 最近一次收到合法 LINK_STATUS 帧的时间（0=从未收到/已超时），驱动未配对灯效
     uint32_t lastLinkStatusUs;
 

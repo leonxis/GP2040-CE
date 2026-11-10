@@ -23,12 +23,11 @@ static uint16_t __not_in_flash_func(crc16_update)(uint16_t crc, uint8_t b) {
     return crc;
 }
 
-// available() 由网页开关驱动：仅扩展蓝牙开关开启时启用该插件。
-// 扩展2.4G无线开关（wireless24gLinkEnabled）为保留位，不驱动 uart_link。
-// config_utils 初始化时已通过 INIT_UNSET_PROPERTY 写入默认值并置 has_ 标志，
-// 此处直接读取值即可。
+// available() 由网页开关驱动：扩展蓝牙 / 扩展2.4G无线 任一开启即启用该插件。
+// 具体走 BLE 还是 nRF24 由 STATUS 帧的 radioMode 字段告知 ESP32 侧切换。
 bool UARTLinkAddon::available() {
-    return Storage::getInstance().getGamepadOptions().bluetoothLinkEnabled;
+    const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
+    return options.bluetoothLinkEnabled || options.wireless24gLinkEnabled;
 }
 
 void UARTLinkAddon::setup() {
@@ -38,6 +37,7 @@ void UARTLinkAddon::setup() {
     lastInputSentUs = 0;
     lastStatusSentUs = 0;
     lastInputMode = 0xFF;
+    lastRadioMode = 0xFF;
     lastLinkStatusUs = 0;
     Storage::getInstance().setUartLinkStatus(false, false);
     rxState = 0;
@@ -149,25 +149,26 @@ bool __not_in_flash_func(UARTLinkAddon::sendInputFrame)(uint16_t buttons, uint8_
     return true;
 }
 
-bool UARTLinkAddon::sendStatusFrame(uint8_t inputMode) {
+bool UARTLinkAddon::sendStatusFrame(uint8_t inputMode, uint8_t radioMode) {
     if (!initialized || dmaChanTx < 0) return false;
     if (dma_channel_is_busy(dmaChanTx)) return false;
 
-    uint8_t frame[9];
+    uint8_t frame[10];
     frame[0] = LINK_FRAME_MAGIC;
     frame[1] = LINK_FRAME_VERSION;
     frame[2] = LINK_FRAME_TYPE_STATUS;
-    frame[3] = 3;
+    frame[3] = 4;
     frame[4] = 0;
     frame[5] = 0;
     frame[6] = inputMode;
+    frame[7] = radioMode;
     uint16_t crc = 0xFFFF;
-    for (int i = 1; i <= 6; i++) crc = crc16_update(crc, frame[i]);
-    frame[7] = (uint8_t)(crc & 0xFF);
-    frame[8] = (uint8_t)(crc >> 8);
+    for (int i = 1; i <= 7; i++) crc = crc16_update(crc, frame[i]);
+    frame[8] = (uint8_t)(crc & 0xFF);
+    frame[9] = (uint8_t)(crc >> 8);
 
-    packFrameToBuffer(frame, 9, txBuffer);
-    dma_channel_transfer_from_buffer_now(dmaChanTx, txBuffer, 9);
+    packFrameToBuffer(frame, 10, txBuffer);
+    dma_channel_transfer_from_buffer_now(dmaChanTx, txBuffer, 10);
     return true;
 }
 
@@ -275,10 +276,13 @@ void __not_in_flash_func(UARTLinkAddon::postprocess)(bool sent) {
 
     const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
     uint8_t inputMode = (uint8_t)options.inputMode;
-    if (inputMode != lastInputMode ||
+    // radioMode: 0=BLE（扩展蓝牙），1=nRF24（扩展2.4G无线）；两开关互斥已归一化
+    uint8_t radioMode = options.wireless24gLinkEnabled ? 1 : 0;
+    if (inputMode != lastInputMode || radioMode != lastRadioMode ||
         now - lastStatusSentUs >= UART_STATUS_HEARTBEAT_US) {
-        if (sendStatusFrame(inputMode)) {
+        if (sendStatusFrame(inputMode, radioMode)) {
             lastInputMode = inputMode;
+            lastRadioMode = radioMode;
             lastStatusSentUs = now;
         }
     }

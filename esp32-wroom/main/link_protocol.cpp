@@ -44,10 +44,12 @@ static void lp_dispatch(lp_parser_t *p) {
             in.rt      = p->payload[12];
             p->onInput(&in);
         }
-    } else if (p->type == LP_TYPE_STATUS && p->len == 3) {
+    } else if (p->type == LP_TYPE_STATUS && p->len >= 3) {
         if (p->onStatus) {
             lp_status_t st;
             st.inputMode = p->payload[2];
+            // radioMode exists from len=4 onwards; legacy len=3 means BLE.
+            st.radioMode = (p->len >= 4) ? p->payload[3] : 0;
             p->onStatus(&st);
         }
     }

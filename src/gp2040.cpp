@@ -158,9 +158,10 @@ static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
 	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
 	const InputMode inputMode = DriverManager::getInstance().getInputMode();
-	// 扩展蓝牙开启时关闭门控，主循环 free-run，
-	// 避免 1kHz 门控节拍限制 UART 链路发送。
-	const bool wirelessLinkEnabled = gamepadOptions.bluetoothLinkEnabled;
+	// 扩展蓝牙 / 扩展2.4G无线 任一开启时关闭门控，主循环 free-run，
+	// 避免 1kHz 门控节拍限制 UART 链路发送（两模式共用 uart_link）。
+	const bool wirelessLinkEnabled =
+		gamepadOptions.bluetoothLinkEnabled || gamepadOptions.wireless24gLinkEnabled;
 	// Note: SWITCH_PRO (NS PRO) is excluded from main-loop gating because its
 	// handshake/feature report phases do not consistently trigger HID IN
 	// completions, causing the gate to stall the main loop and drop inputs.

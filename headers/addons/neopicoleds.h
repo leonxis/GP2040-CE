@@ -300,6 +300,12 @@ private:
     absolute_time_t webConfigHintNextPhaseAt_;
     bool webConfigOverridePrev_ = false;
 
+    /// Wireless link hint blink (AL_CUSTOM_EFFECT_COMPANION_OFFLINE red /
+    /// AL_CUSTOM_EFFECT_BLE_UNLINKED blue); phase resets on the rising edge.
+    uint8_t linkHintPhase_ = 0;
+    absolute_time_t linkHintNextPhaseAt_;
+    bool linkHintPrev_ = false;
+
     /// RAM-only one-shot hints (armed from Storage seq counters on Core0):
     /// recFull: red 3-blink when recording stops on flash capacity;
     /// macroHint: blue single blink on playback end;
