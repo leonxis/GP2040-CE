@@ -1,0 +1,48 @@
+; -------------------------------------------------------------------------
+; uart_link PIO 程序组（8N1 LSB-first，每 bit 8 PIO cycles）
+;   clkdiv = clock_get_hz(clk_sys) / (8 * 921600) ≈ 16.95
+; -------------------------------------------------------------------------
+
+; ---- TX SM：LSB-first 8N1 UART 发送 ----
+; 发送顺序：start(0) → bit0..bit7(LSB first) → stop(1)
+; DMA 往 TX FIFO 写 uint32_t，低 8 位 = 待发送字节
+; idle 时 pin=1（side 1），start bit pin=0（side 0）
+.program uart_tx
+.side_set 1 opt
+.wrap_target
+    pull block    side 1          ; 阻塞取新字节；side=1 驱动空闲高
+    set pins, 0   side 0 [7]     ; start bit (pin=0, side=0 一致)
+    out pins, 1   [7]            ; data bit 0 (LSB)，仅 out 驱动 pin
+    out pins, 1   [7]            ; data bit 1
+    out pins, 1   [7]            ; data bit 2
+    out pins, 1   [7]            ; data bit 3
+    out pins, 1   [7]            ; data bit 4
+    out pins, 1   [7]            ; data bit 5
+    out pins, 1   [7]            ; data bit 6
+    out pins, 1   [7]            ; data bit 7 (MSB)
+    out pins, 1   side 1 [7]     ; stop bit (pin=1, out=side=1 一致)
+.wrap
+
+; ---- RX SM：LSB-first 8N1 UART 接收 ----
+; 时序：wait 检测起始位下降沿后
+;   等待 start bit 后半段 4 cycles + bit0 前半 4 cycles = 8 cycles
+;   然后连续采 8 个数据位，每 bit 8 cycles，正好落在 bit 中间
+; RX FIFO 深度 4；100ms 心跳帧(7B) 在主循环 2ms 周期内必定排空
+.program uart_rx
+.side_set 1 opt
+.wrap_target
+    wait 0 pin, 0   side 0       ; 等待 RX pin 变低（起始位）
+    jmp _after_start side 0 [7]  ; 8 cycles: 到起始位中间稍过后
+_after_start:
+    jmp _sample     side 0 [3]   ; 再加 4 cycles: 正好到 bit0 中间
+_sample:
+    in pins, 1      side 0 [7]   ; bit 0 (8 cycles)
+    in pins, 1      side 0 [7]   ; bit 1
+    in pins, 1      side 0 [7]   ; bit 2
+    in pins, 1      side 0 [7]   ; bit 3
+    in pins, 1      side 0 [7]   ; bit 4
+    in pins, 1      side 0 [7]   ; bit 5
+    in pins, 1      side 0 [7]   ; bit 6
+    in pins, 1      side 0 [7]   ; bit 7
+    push            side 0 [7]   ; OSR 入 RX FIFO (8 cycles)
+.wrap

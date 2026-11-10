@@ -310,6 +310,7 @@ src/addons/reverse.cpp
 src/addons/turbo.cpp
 src/addons/slider_socd.cpp
 src/addons/input_macro.cpp
+src/addons/uart_link.cpp
 src/addons/snes_input.cpp
 src/addons/tilt.cpp
 src/addons/axis_tilt_overlay.cpp
@@ -337,6 +338,8 @@ pico_add_linker_script_override_path(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/c
 pico_set_program_name(GP2040-CE "GP2040-CE")
 pico_set_program_version(GP2040-CE ${GIT_REPO_VERSION})
 
+pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_SOURCE_DIR}/headers/addons/uart_link.pio)
+
 target_link_libraries(${PROJECT_NAME}
 pico_stdlib
 pico_bootsel_via_double_reset
@@ -350,6 +353,8 @@ ArduinoJson
 rndis
 hardware_adc
 hardware_pwm
+hardware_pio
+hardware_dma
 PicoPeripherals
 SNESpad
 pico_mbedtls

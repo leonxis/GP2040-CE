@@ -1168,6 +1168,16 @@ std::string setGamepadOptions()
     readDoc(gamepadOptions.ps4ControllerIDMode, doc, "ps4ControllerIDMode");
     readDoc(gamepadOptions.usbDescOverride, doc, "usbDescOverride");
     readDoc(gamepadOptions.miniMenuGamepadInput, doc, "miniMenuGamepadInput");
+    readDoc(gamepadOptions.bluetoothLinkEnabled, doc, "bluetoothLinkEnabled");
+    readDoc(gamepadOptions.wireless24gLinkEnabled, doc, "wireless24gLinkEnabled");
+
+    // 三开关互斥：2.4G 优先于蓝牙；任一无线开关开启时关闭 USB0
+    if (gamepadOptions.wireless24gLinkEnabled) {
+        gamepadOptions.bluetoothLinkEnabled = false;
+        Storage::getInstance().getPeripheralOptions().blockUSB0.enabled = false;
+    } else if (gamepadOptions.bluetoothLinkEnabled) {
+        Storage::getInstance().getPeripheralOptions().blockUSB0.enabled = false;
+    }
     // Copy USB descriptor strings
     size_t strSize = sizeof(gamepadOptions.usbDescManufacturer);
     strncpy(gamepadOptions.usbDescManufacturer, doc["usbDescManufacturer"], strSize - 1);
@@ -1237,6 +1247,8 @@ std::string getGamepadOptions()
     writeDoc(doc, "usbDescVersion", gamepadOptions.usbDescVersion);
     writeDoc(doc, "usbOverrideID", gamepadOptions.usbOverrideID);
     writeDoc(doc, "miniMenuGamepadInput", gamepadOptions.miniMenuGamepadInput);
+    writeDoc(doc, "bluetoothLinkEnabled", gamepadOptions.bluetoothLinkEnabled ? 1 : 0);
+    writeDoc(doc, "wireless24gLinkEnabled", gamepadOptions.wireless24gLinkEnabled ? 1 : 0);
     // Write USB Vendor ID and Product ID as 4 character hex strings with 0 padding
     char usbVendorStr[5];
     snprintf(usbVendorStr, 5, "%04X", (unsigned int)gamepadOptions.usbVendorID);
@@ -1955,6 +1967,13 @@ std::string setPeripheralOptions()
     docToValue(peripheralOptions.blockUSB0.enabled, doc, "peripheral", "usb0", "enabled");
     docToValue(peripheralOptions.blockUSB0.enable5v, doc, "peripheral", "usb0", "enable5v");
     docToValue(peripheralOptions.blockUSB0.order, doc, "peripheral", "usb0", "order");
+
+    // USB验证器与无线扩展模块互斥：启用 USB 口时关闭两个无线开关
+    if (peripheralOptions.blockUSB0.enabled) {
+        GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
+        gamepadOptions.bluetoothLinkEnabled = false;
+        gamepadOptions.wireless24gLinkEnabled = false;
+    }
 
     // need to reserve previous/next pin for dp
     GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;

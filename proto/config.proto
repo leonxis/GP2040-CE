@@ -36,6 +36,8 @@ message GamepadOptions
     optional int32 runtimeModeHotkeyO = 37;
     optional int32 runtimeModeHotkeySquare = 38;
     optional int32 runtimeModeHotkeyTriangle = 39;
+    optional bool bluetoothLinkEnabled = 42;  // 扩展蓝牙开关（UARTLinkAddon）；与 USB验证器 互斥
+    optional bool wireless24gLinkEnabled = 43; // 扩展2.4G无线开关（UARTLinkAddon）；与 USB验证器 互斥
 }
 
 message KeyboardMapping

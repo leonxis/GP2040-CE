@@ -31,6 +31,7 @@
 #include "addons/turbo.h"
 #include "addons/slider_socd.h"
 #include "addons/input_macro.h"
+#include "addons/uart_link.h"
 #include "addons/snes_input.h"
 #include "addons/rotaryencoder.h"
 #include "addons/gamepad_usb_host.h"
@@ -155,14 +156,19 @@ void getMainLoopGateStats(MainLoopGateStats* stats) {
 
 static inline bool shouldUseMainLoopGate() {
 	const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+	const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
 	const InputMode inputMode = DriverManager::getInstance().getInputMode();
+	// 扩展蓝牙开启时关闭门控，主循环 free-run，
+	// 避免 1kHz 门控节拍限制 UART 链路发送。
+	const bool wirelessLinkEnabled = gamepadOptions.bluetoothLinkEnabled;
 	// Note: SWITCH_PRO (NS PRO) is excluded from main-loop gating because its
 	// handshake/feature report phases do not consistently trigger HID IN
 	// completions, causing the gate to stall the main loop and drop inputs.
 	const bool supportedMode =
 		(inputMode == INPUT_MODE_PS4 || inputMode == INPUT_MODE_PS4B ||
 		 inputMode == INPUT_MODE_XINPUT || inputMode == INPUT_MODE_XINPUTB);
-	return (addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
+	return !wirelessLinkEnabled &&
+		(addonOptions.reportRate == MAIN_LOOP_GATE_REPORT_RATE_HZ) && supportedMode;
 }
 
 static void resetMainLoopGateTiming() {
@@ -678,6 +684,8 @@ void GP2040::setup() {
 	addons.LoadAddon(new InputMacro());
 	// Must execute after all joystick processing, including InputMacro stick writes.
 	addons.LoadAddon(new AxisTiltOverlayInput());
+	// 无线扩展模块（扩展2.4G无线/扩展蓝牙任一开启时可用）
+	addons.LoadAddon(new UARTLinkAddon());
 
 	InputMode inputMode = gamepad->getOptions().inputMode;
 	const BootAction bootAction = getBootAction();

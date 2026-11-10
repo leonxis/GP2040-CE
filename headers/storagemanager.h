@@ -70,6 +70,12 @@ public:
 	void dismissAmbientWebConfigOverride();
 	bool isAmbientWebConfigOverrideActive() const;
 
+	/** UART 无线扩展模块(ESP32)链路状态，Core0 写入，Core1 读取。
+	 *  online = 收到有效的 LINK_STATUS 心跳；bleConnected = 蓝牙主机已连接。 */
+	void setUartLinkStatus(bool online, bool bleConnected);
+	bool isUartStatusOnline() const;
+	bool isUartBleConnected() const;
+
 	/** Macro hints, written on Core0 by InputMacro, read from Core1 NeoPico.
 	 *  hintPulseSeq arms the one-shot blue blink on playback end;
 	 *  recPulseSeq arms the one-shot red 3-blink on a capacity-induced
@@ -102,6 +108,8 @@ private:
 	uint32_t systemFlashSize;
 
 	std::atomic<bool> ambientWebConfigOverrideActive { false };
+	std::atomic<bool> uartStatusOnline { false };
+	std::atomic<bool> uartBleConnected { false };
 	std::atomic<uint32_t> macroRecPulseSeqValue { 0 };
 	std::atomic<uint32_t> macroHintPulseSeqValue { 0 };
 	std::atomic<uint32_t> turboPulseSeqValue { 0 };

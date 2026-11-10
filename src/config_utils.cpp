@@ -359,6 +359,8 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.gamepadOptions, usbVendorID, DEFAULT_USB_VENDOR_ID);
     INIT_UNSET_PROPERTY(config.gamepadOptions, usbProductID, DEFAULT_USB_PRODUCT_ID);
     INIT_UNSET_PROPERTY(config.gamepadOptions, miniMenuGamepadInput, MINI_MENU_GAMEPAD_INPUT);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, bluetoothLinkEnabled, false);
+    INIT_UNSET_PROPERTY(config.gamepadOptions, wireless24gLinkEnabled, false);
 
     // hotkeyOptions
     HotkeyOptions& hotkeyOptions = config.hotkeyOptions;
@@ -1893,6 +1895,15 @@ void ConfigUtils::load(Config& config)
     // Make sure that fields that were not deserialized are properly initialized.
     // They were probably added with a newer version of the firmware.
     initUnsetPropertiesWithDefaults(config);
+
+    // 三开关硬件互斥归一化：扩展2.4G无线 / 扩展蓝牙 / USB验证器 三者互斥，
+    // 共享内置 USB 口。优先级：2.4G > 蓝牙 > USB验证器；兜底绕过 UI 写入的脏配置。
+    if (config.gamepadOptions.wireless24gLinkEnabled) {
+        config.gamepadOptions.bluetoothLinkEnabled = false;
+        config.peripheralOptions.blockUSB0.enabled = false;
+    } else if (config.gamepadOptions.bluetoothLinkEnabled) {
+        config.peripheralOptions.blockUSB0.enabled = false;
+    }
 
     // Run migrations that need to happen after initUnset...
     // ProtoBuf && Board Config settings are loaded here

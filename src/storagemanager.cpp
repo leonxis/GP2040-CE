@@ -153,6 +153,22 @@ bool Storage::isAmbientWebConfigOverrideActive() const
 	return ambientWebConfigOverrideActive.load(std::memory_order_acquire);
 }
 
+void Storage::setUartLinkStatus(bool online, bool bleConnected)
+{
+	uartStatusOnline.store(online, std::memory_order_release);
+	uartBleConnected.store(bleConnected, std::memory_order_release);
+}
+
+bool Storage::isUartStatusOnline() const
+{
+	return uartStatusOnline.load(std::memory_order_acquire);
+}
+
+bool Storage::isUartBleConnected() const
+{
+	return uartBleConnected.load(std::memory_order_acquire);
+}
+
 void Storage::pulseMacroHint()
 {
 	macroHintPulseSeqValue.fetch_add(1, std::memory_order_acq_rel);

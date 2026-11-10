@@ -62,6 +62,10 @@ export default function HardwareConfig() {
 		enabled: 0,
 		enableKey: { action: -10, customButtonMask: 0, customDpadMask: 0 },
 	});
+	const [wirelessLinkOptions, setWirelessLinkOptions] = useState({
+		wireless24gLinkEnabled: 0,
+		bluetoothLinkEnabled: 0,
+	});
 	const [reportRate, setReportRate] = useState(1000);
 	const [cpuOverclockLevel, setCpuOverclockLevel] = useState(0);
 	const [ledOptions, setLedOptions] = useState({
@@ -99,6 +103,7 @@ export default function HardwareConfig() {
 				const led = await WebApi.getLedOptions();
 				const ambient = await WebApi.getAmbientOptions();
 				const addons = await WebApi.getAddonsOptions();
+				const gamepad = await WebApi.getGamepadOptions();
 
 				setPeripheralOptions(peripheral);
 				setDisplayOptions(display || { enabled: 0 });
@@ -115,6 +120,10 @@ export default function HardwareConfig() {
 						? Number(addons.reportRate)
 						: 1000
 				);
+				setWirelessLinkOptions({
+					wireless24gLinkEnabled: Number(gamepad?.wireless24gLinkEnabled) ? 1 : 0,
+					bluetoothLinkEnabled: Number(gamepad?.bluetoothLinkEnabled) ? 1 : 0,
+				});
 				setCpuOverclockLevel(
 					[0, 1, 2, 3].includes(Number(addons?.cpuOverclockLevel))
 						? Number(addons.cpuOverclockLevel)
@@ -183,6 +192,7 @@ export default function HardwareConfig() {
 		try {
 			// Get current peripheral options to preserve other settings
 			const currentPeripheralOptions = await WebApi.getPeripheralOptions();
+			const currentGamepadOptions = (await WebApi.getGamepadOptions()) ?? {};
 			
 			// Prepare data to save, preserving existing settings and updating usb0.enabled 和 i2c1.enabled
 			const dataToSave = {
@@ -216,6 +226,12 @@ export default function HardwareConfig() {
 				enableKey: twoKeyTouchpadOptions?.enableKey,
 			});
 			await WebApi.setAddonsOptions({ reportRate, cpuOverclockLevel });
+			// 无线扩展开关与 USB验证器互斥（后端同样做兜底归一化）
+			await WebApi.setGamepadOptions({
+				...currentGamepadOptions,
+				wireless24gLinkEnabled: wirelessLinkOptions?.wireless24gLinkEnabled ? 1 : 0,
+				bluetoothLinkEnabled: wirelessLinkOptions?.bluetoothLinkEnabled ? 1 : 0,
+			});
 			setHostSaveMessage(t('SettingsPage:hml-save-success-reboot'));
 			setTimeout(() => setHostSaveMessage(''), 5000);
 		} catch (error) {
@@ -309,6 +325,13 @@ export default function HardwareConfig() {
 											},
 										},
 									}));
+									// USB验证器与无线扩展模块互斥
+									if (checked) {
+										setWirelessLinkOptions({
+											wireless24gLinkEnabled: 0,
+											bluetoothLinkEnabled: 0,
+										});
+									}
 								}}
 							/>
 							<span className="text-muted">
@@ -375,6 +398,76 @@ export default function HardwareConfig() {
 						/>
 						<span className="text-muted">
 							{t('SettingsPage:hml-two-key-touchpad-hint')}
+						</span>
+					</div>
+
+					{/* 扩展2.4G无线开关 */}
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Form.Check
+							type="switch"
+							id="wireless-24g-switch"
+							label={t('SettingsPage:hml-wireless-24g-label')}
+							checked={Boolean(wirelessLinkOptions?.wireless24gLinkEnabled)}
+							onChange={(e) => {
+								const isEnabled = e.target.checked ? 1 : 0;
+								setWirelessLinkOptions((prev) => ({
+									...prev,
+									wireless24gLinkEnabled: isEnabled,
+									// 三者互斥：开启 2.4G 时关闭蓝牙
+									bluetoothLinkEnabled: isEnabled ? 0 : prev.bluetoothLinkEnabled,
+								}));
+								// 与 USB验证器互斥
+								if (isEnabled) {
+									setPeripheralOptions((prev) => ({
+										...prev,
+										peripheral: {
+											...prev.peripheral,
+											usb0: {
+												...prev.peripheral?.usb0,
+												enabled: 0,
+											},
+										},
+									}));
+								}
+							}}
+						/>
+						<span className="text-muted">
+							{t('SettingsPage:hml-wireless-module-hint')}
+						</span>
+					</div>
+
+					{/* 扩展蓝牙开关 */}
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+						<Form.Check
+							type="switch"
+							id="bluetooth-extension-switch"
+							label={t('SettingsPage:hml-bluetooth-extension-label')}
+							checked={Boolean(wirelessLinkOptions?.bluetoothLinkEnabled)}
+							onChange={(e) => {
+								const isEnabled = e.target.checked ? 1 : 0;
+								setWirelessLinkOptions((prev) => ({
+									...prev,
+									bluetoothLinkEnabled: isEnabled,
+									// 三者互斥：开启蓝牙时关闭 2.4G
+									wireless24gLinkEnabled: isEnabled ? 0 : prev.wireless24gLinkEnabled,
+								}));
+								// 与 USB验证器互斥
+								if (isEnabled) {
+									setPeripheralOptions((prev) => ({
+										...prev,
+										peripheral: {
+											...prev.peripheral,
+											usb0: {
+												...prev.peripheral?.usb0,
+												enabled: 0,
+											},
+										},
+									}));
+								}
+							}}
+						/>
+						<span className="text-muted">
+							{t('SettingsPage:hml-wireless-module-hint')}
 						</span>
 					</div>
 
