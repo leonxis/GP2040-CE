@@ -217,7 +217,7 @@ void __not_in_flash_func(NRF24LinkAddon::postprocess)(bool sent) {
     uint8_t  lt, rt;
     if (g_screenOperationActive) {
         // 屏幕操作状态（miniled 菜单）：不向 nRF24 输出手柄按键/摇杆，
-        // 继续按 1ms 恒流发送中位空帧，维持接收端链路与在线判定。
+        // 继续按 900us 恒流发送中位空帧，维持接收端链路与在线判定。
         buttons = 0;
         dpad    = 0;
         lx = ly = rx = ry =
@@ -259,10 +259,11 @@ void __not_in_flash_func(NRF24LinkAddon::postprocess)(bool sent) {
     }
 
     // ===== 阶段 2：芯片空闲，恒流发送 =====
-    // 恒流 1ms 定频：距上次发送 ≥1ms 无条件发当前快照，
+    // 恒流 900us 定频：距上次发送 ≥900us 无条件发当前快照，
     // 静止时也不断流。旧"变化触发+50ms 心跳"策略会在摇杆静止时留下长包
     // 间隙，周期性触发接收器回中闪现（2026-09-23 定位），已废弃。
-    // 门控循环 ~0.95~1.04ms 每轮必满足；在飞重发最坏 ~1.14ms 拉长单事务而非堆积。
+    // 无线模式门控禁用、主循环 free-run，发送节奏由 900us 限流决定；
+    // 在飞重发最坏 ~1.14ms，会拉长单事务间隔而非堆积。
     if ((now - lastSentUs) >= NRF24_SEND_INTERVAL_US) {
         const GamepadOptions& options = Storage::getInstance().getGamepadOptions();
         uint8_t inputMode = static_cast<uint8_t>(options.inputMode);
