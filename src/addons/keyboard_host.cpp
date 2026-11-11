@@ -16,6 +16,6 @@ void KeyboardHostAddon::setup() {
   ((KeyboardHostListener*)listener)->setup();
 }
 
-void __not_in_flash_func(KeyboardHostAddon::preprocess)() {
+void KeyboardHostAddon::preprocess() {
   ((KeyboardHostListener*)listener)->process();
 }
