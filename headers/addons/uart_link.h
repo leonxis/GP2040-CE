@@ -51,6 +51,9 @@
 // ESP32 LINK_STATUS 心跳 100ms；超过 500ms（连续 5 帧丢失）判 ESP32 离线，
 // 未配对灯效按蓝牙未连接/伴侣缺失闪烁。
 #define UART_LINK_STATUS_TIMEOUT_US 500000
+// TX DMA 看门狗（微秒）：单帧最长 19 字节约 206us，超过该时限仍 busy 说明
+// SM 停摆或 DREQ 不再触发，abort 通道，避免永久 busy 导致链路静默死亡。
+#define UART_TX_STUCK_TIMEOUT_US  20000
 
 class UARTLinkAddon : public GPAddon {
 public:
@@ -76,6 +79,7 @@ private:
     bool initialized = false;
     uint32_t lastInputSentUs;
     uint32_t lastStatusSentUs;
+    uint32_t lastTxStartUs;       // 最近一次启动 TX DMA 的时间（看门狗用）
     uint8_t lastInputMode;
     uint8_t lastRadioMode;
     // 最近一次收到合法 LINK_STATUS 帧的时间（0=从未收到/已超时），驱动未配对灯效

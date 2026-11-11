@@ -36,6 +36,7 @@ void UARTLinkAddon::setup() {
     // 重置状态
     lastInputSentUs = 0;
     lastStatusSentUs = 0;
+    lastTxStartUs = 0;
     lastInputMode = 0xFF;
     lastRadioMode = 0xFF;
     lastLinkStatusUs = 0;
@@ -54,36 +55,52 @@ void UARTLinkAddon::setup() {
     pio_sm_set_enabled(UART_LINK_PIO, UART_LINK_SM_TX, false);
     pio_sm_set_enabled(UART_LINK_PIO, UART_LINK_SM_RX, false);
 
-    // 加载两个 PIO 程序到 PIO0 instruction memory
-    txOffset = pio_add_program(UART_LINK_PIO, &uart_tx_program);
-    rxOffset = pio_add_program(UART_LINK_PIO, &uart_rx_program);
+    // 加载两个 PIO 程序到 PIO0 instruction memory（失败返回 -1，说明指令空间不足）
+    int txProgramOffset = pio_add_program(UART_LINK_PIO, &uart_tx_program);
+    int rxProgramOffset = pio_add_program(UART_LINK_PIO, &uart_rx_program);
+    if (txProgramOffset < 0 || rxProgramOffset < 0) {
+        // 不能用无效 offset 配置 SM，直接保持未初始化，链路不启用
+        return;
+    }
+    txOffset = (uint)txProgramOffset;
+    rxOffset = (uint)rxProgramOffset;
 
     const float clkdiv = (float)clock_get_hz(clk_sys) / (8.0f * (float)UART_LINK_BAUD);
 
+    // --- GPIO 复用 ---
+    // 必须把引脚功能选择切到 PIO，否则 PIO 的 out/in 信号不会接到 GPIO 上
+    pio_gpio_init(UART_LINK_PIO, UART_LINK_TX_PIN);
+    pio_gpio_init(UART_LINK_PIO, UART_LINK_RX_PIN);
+    gpio_set_pulls(UART_LINK_RX_PIN, true, false);
+
     // --- TX SM：SM0 ---
-    pio_sm_config tx_cfg = pio_get_default_sm_config();
-    sm_config_set_wrap(&tx_cfg, txOffset, txOffset + uart_tx_program.length - 1);
+    // 用 pioasm 生成的默认配置（含 .side_set 1 opt 对应的 sideset 设置）
+    pio_sm_config tx_cfg = uart_tx_program_get_default_config(txOffset);
     sm_config_set_out_pins(&tx_cfg, UART_LINK_TX_PIN, 1);
-    sm_config_set_sideset_pins(&tx_cfg, UART_LINK_TX_PIN); // side_set 驱动同一 pin
+    sm_config_set_set_pins(&tx_cfg, UART_LINK_TX_PIN, 1);   // start bit 的 set pins,0 也作用于 TX
+    sm_config_set_sideset_pins(&tx_cfg, UART_LINK_TX_PIN);  // side_set 驱动同一 pin
     sm_config_set_clkdiv(&tx_cfg, clkdiv);
     pio_sm_init(UART_LINK_PIO, UART_LINK_SM_TX, txOffset, &tx_cfg);
+    // TX 引脚方向设为输出（由 PIO 控制，不能用 gpio_set_dir）
+    pio_sm_set_consecutive_pindirs(UART_LINK_PIO, UART_LINK_SM_TX,
+                                   UART_LINK_TX_PIN, 1, true);
 
     // --- RX SM：SM1 ---
     // in_shift_right=true：新采样进 ISR 最高位，8 次 LSB-first 采样后高 8 位 = 原始顺序
-    pio_sm_config rx_cfg = pio_get_default_sm_config();
-    sm_config_set_wrap(&rx_cfg, rxOffset, rxOffset + uart_rx_program.length - 1);
+    pio_sm_config rx_cfg = uart_rx_program_get_default_config(rxOffset);
     sm_config_set_in_pins(&rx_cfg, UART_LINK_RX_PIN);
     sm_config_set_jmp_pin(&rx_cfg, UART_LINK_RX_PIN);
+    sm_config_set_sideset_pins(&rx_cfg, UART_LINK_RX_PIN);  // side 只写输入引脚，无外部影响
     sm_config_set_clkdiv(&rx_cfg, clkdiv);
     sm_config_set_in_shift(&rx_cfg, true, true, 8);  // 右移 + 自动 push，阈值 8 位
     pio_sm_init(UART_LINK_PIO, UART_LINK_SM_RX, rxOffset, &rx_cfg);
 
-    // --- GPIO ---
-    gpio_set_pulls(UART_LINK_RX_PIN, true, false);
-    // TX pin 由 PIO side_set/out 驱动方向；PIO 会自动接管方向
-
     // --- DMA ---
-    dmaChanTx = dma_claim_unused_channel(true);
+    dmaChanTx = dma_claim_unused_channel(false);
+    if (dmaChanTx < 0) {
+        // 没有空闲 DMA 通道：不启用链路，避免启动卡死
+        return;
+    }
     {
         dma_channel_config dcfg = dma_channel_get_default_config(dmaChanTx);
         channel_config_set_transfer_data_size(&dcfg, DMA_SIZE_32);
@@ -146,6 +163,7 @@ bool __not_in_flash_func(UARTLinkAddon::sendInputFrame)(uint16_t buttons, uint8_
 
     packFrameToBuffer(frame, 19, txBuffer);
     dma_channel_transfer_from_buffer_now(dmaChanTx, txBuffer, 19);
+    lastTxStartUs = to_us_since_boot(get_absolute_time());
     return true;
 }
 
@@ -169,6 +187,7 @@ bool UARTLinkAddon::sendStatusFrame(uint8_t inputMode, uint8_t radioMode) {
 
     packFrameToBuffer(frame, 10, txBuffer);
     dma_channel_transfer_from_buffer_now(dmaChanTx, txBuffer, 10);
+    lastTxStartUs = to_us_since_boot(get_absolute_time());
     return true;
 }
 
@@ -237,6 +256,13 @@ void __not_in_flash_func(UARTLinkAddon::postprocess)(bool sent) {
     if (!initialized) return;
 
     uint32_t now = to_us_since_boot(get_absolute_time());
+
+    // TX 看门狗：单帧最长约 206us，超过 20ms 仍 busy 说明 SM 停摆或 DREQ
+    // 不再触发，abort 通道让下一次发送重新装载，避免永久 busy 静默死链。
+    if (dmaChanTx >= 0 && dma_channel_is_busy(dmaChanTx) &&
+        now - lastTxStartUs >= UART_TX_STUCK_TIMEOUT_US) {
+        dma_channel_abort(dmaChanTx);
+    }
 
     // ESP32 离线检测：LINK_STATUS 心跳（100ms）静默超过 500ms 判离线。
     if (lastLinkStatusUs != 0 &&
