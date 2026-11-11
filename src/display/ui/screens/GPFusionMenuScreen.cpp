@@ -136,7 +136,40 @@ static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; nee
 
 // USB 验证器开关（对应网页配置 GNS设置-硬件配置 中的 USB验证器，即 blockUSB0.enabled）
 static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
-static void sUsbAuth(int v) { POP().blockUSB0.enabled = v ? 1 : 0; needsReboot = true; }
+static void sUsbAuth(int v) {
+  const bool en = v ? true : false;
+  POP().blockUSB0.enabled = en;
+  // 验证器与无线扩展互斥：开启时关闭 2.4G 与蓝牙
+  if (en) {
+    GOP().wireless24gLinkEnabled = false;
+    GOP().bluetoothLinkEnabled = false;
+  }
+  needsReboot = true;
+}
+
+// 扩展2.4G无线 / 扩展蓝牙开关（对应网页 硬件配置）：与验证器三者互斥，保存重启后生效
+static int gWireless24g() { return GOP().wireless24gLinkEnabled ? 1 : 0; }
+static void sWireless24g(int v) {
+  const bool en = v ? true : false;
+  if (GOP().wireless24gLinkEnabled == en) return;
+  GOP().wireless24gLinkEnabled = en;
+  if (en) {
+    GOP().bluetoothLinkEnabled = false;
+    POP().blockUSB0.enabled = false;
+  }
+  needsReboot = true;
+}
+static int gBtLink() { return GOP().bluetoothLinkEnabled ? 1 : 0; }
+static void sBtLink(int v) {
+  const bool en = v ? true : false;
+  if (GOP().bluetoothLinkEnabled == en) return;
+  GOP().bluetoothLinkEnabled = en;
+  if (en) {
+    GOP().wireless24gLinkEnabled = false;
+    POP().blockUSB0.enabled = false;
+  }
+  needsReboot = true;
+}
 
 // 摇杆死区/反死区（原始值0-200，对应0.0%-20.0%，0.1%步进）
 static int gInnerDz() { return (int)AOP2().analogOptions.inner_deadzone; }
@@ -399,10 +432,12 @@ static LiteOpt optStick[] = {
   {"右摇杆死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gInnerDz2, sInnerDz2},
   {"右摇杆反死区", OPT_DEC, 0, 200, 1, NULL, 0, "%", gAntiDz2, sAntiDz2},
 };
-// 页面3 硬件开关（去掉 BLE/无线，当前分支 proto 无对应字段）
+// 页面3 硬件开关（验证器 / 无线 / BLE 三者互斥）
 static LiteOpt optHardware[] = {
   {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
   {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
+  {"无线模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gWireless24g, sWireless24g},
+  {"BLE模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gBtLink, sBtLink},
 };
 // 页面4 功能设置
 static LiteOpt optFunc[] = {
@@ -429,7 +464,7 @@ static LiteOpt optLed[] = {
 static LiteSection secOnboard[]  = {{"板载方案", optOnboard, 5}};
 static LiteSection secBackMap[]  = {{"背键映射", optBackMap, 6}};
 static LiteSection secStick[]    = {{"摇杆", optStick, 5}};
-static LiteSection secHardware[] = {{"硬件开关", optHardware, 2}};
+static LiteSection secHardware[] = {{"硬件开关", optHardware, 4}};
 static LiteSection secFunc[]     = {{"功能设置", optFunc, 7}};
 static LiteSection secLed[]      = {{"彩灯", optLed, 7}};
 
