@@ -83,18 +83,20 @@ void __not_in_flash_func(UARTLinkAddon::sendInputFrame)(uint16_t buttons, uint8_
 
 void UARTLinkAddon::sendStatusFrame(uint8_t inputMode) {
     // inputMode 真实——BLE 设备类型选择依据；其余字段固定默认值。
-    uint8_t frame[9];
+    // radioMode 与 wireless-tx 帧格式对齐：本分支无无线模式切换，固定 0(BLE)。
+    uint8_t frame[10];
     frame[0] = LINK_FRAME_MAGIC;
     frame[1] = LINK_FRAME_VERSION;
     frame[2] = LINK_FRAME_TYPE_STATUS;
-    frame[3] = 3;          // socdMode + dpadMode + inputMode
+    frame[3] = 4;          // socdMode + dpadMode + inputMode + radioMode
     frame[4] = 0;          // socdMode: 默认(UPRIGHT)
     frame[5] = 0;          // dpadMode: 默认(DIGITAL)
     frame[6] = inputMode;  // inputMode: 真实值
+    frame[7] = 0;          // radioMode: 0=BLE（本分支固定值）
     uint16_t crc = 0xFFFF;
-    for (int i = 1; i <= 6; i++) crc = crc16_update(crc, frame[i]);
-    frame[7] = (uint8_t)(crc & 0xFF);
-    frame[8] = (uint8_t)(crc >> 8);
+    for (int i = 1; i <= 7; i++) crc = crc16_update(crc, frame[i]);
+    frame[8] = (uint8_t)(crc & 0xFF);
+    frame[9] = (uint8_t)(crc >> 8);
     uart_write_blocking(uart0, frame, sizeof(frame));
 }
 

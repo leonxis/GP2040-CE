@@ -23,7 +23,9 @@
 // ---- frame protocol (shared with ESP32 side) ----
 // 帧格式: 0xAA + version + type + len + payload + CRC16(CCITT-FALSE)
 // STATUS 帧 payload: [0]=socdMode(固定0) [1]=dpadMode(固定0) [2]=inputMode
-//                    （BLE 设备类型选择依据），len=3，帧长 9
+//                    （BLE 设备类型选择依据） [3]=radioMode，len=4，帧长 10
+//                    本分支无无线模式切换，radioMode 固定 0(BLE)；ESP32 侧
+//                    收到后忽略该位（兼容 len=3 旧帧）。
 // LINK_STATUS 帧（ESP32 -> Pico，type=0x0B，len=1，帧长 7）:
 //   [0]=bleConnected(主机已连接)
 // 发射端 RP2040 发送 INPUT/STATUS；接收方向仅处理 LINK_STATUS（驱动未配对灯效），
@@ -65,7 +67,8 @@ private:
     void sendInputFrame(uint16_t buttons, uint8_t dpad,
                         uint16_t lx, uint16_t ly, uint16_t rx, uint16_t ry,
                         uint8_t lt, uint8_t rt);
-    // STATUS 帧: 仅 inputMode 真实，其余字段固定默认值（ESP32 据此选 BLE 设备类型）
+    // STATUS 帧: 仅 inputMode 真实，其余字段固定默认值（ESP32 据此选 BLE 设备类型）。
+    // radioMode 字段与 wireless-tx 帧格式对齐，本分支固定 0(BLE)。
     void sendStatusFrame(uint8_t inputMode);
     void handleRxByte(uint8_t b);
     // LINK_STATUS 帧（ESP32 BLE 主机连接状态）：刷新时间戳并发布到 Storage
