@@ -11,6 +11,10 @@ static constexpr uint8_t TRAVEL_KEY_DEBOUNCE_FRAMES = 2u;
 }
 
 bool UnifiedJoystickTravelKeyAddon::available() {
+    return isActive();
+}
+
+bool UnifiedJoystickTravelKeyAddon::isActive() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const AnalogOptions& analogOptions = addonOptions.analogOptions;
 

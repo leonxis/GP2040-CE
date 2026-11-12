@@ -2,6 +2,7 @@
 
 #include "addons/analog.h"
 #include "addons/mcp3208_adc.h"
+#include "addons/unified_joystick_travel_key.h"
 #include "config.pb.h"
 #include "drivermanager.h"
 #include "gamepad.h"
@@ -187,6 +188,7 @@ void UnifiedAnalogProcessorAddon::initializeFromOptions() {
 
     usage_curve_profile_1_ = analogOptions.curve_profile_1;
     usage_curve_profile_2_ = analogOptions.curve_profile_2;
+    travel_key_active_ = UnifiedJoystickTravelKeyAddon::isActive();
 
     temp_curve_storage_[0].is_saved = false;
     temp_curve_storage_[1].is_saved = false;
@@ -226,6 +228,15 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     stick.y_center = static_cast<uint16_t>((isFirst ? options.joystick_center_y : options.joystick_center_y2) > 0
         ? (isFirst ? options.joystick_center_y : options.joystick_center_y2)
         : 0u);
+    // Resolve the effective center once: an uncalibrated (0) or out-of-range
+    // (stale flash) value falls back to the source-native electrical center.
+    // Both sampler sources are fixed 12-bit with center = adcMax/2, and the
+    // calibrated center cannot change while running, so this is setup-invariant.
+    stick.center_x_eff = (stick.x_center > 0u && stick.x_center <= kAdcMax)
+        ? stick.x_center : static_cast<uint16_t>(kAdcMaxHalf);
+    stick.center_y_eff = (stick.y_center > 0u && stick.y_center <= kAdcMax)
+        ? stick.y_center : static_cast<uint16_t>(kAdcMaxHalf);
+    stick.adc_half = kAdcMaxHalf;
     stick.finetune_shape_amplify = isFirst ? options.joystick_finetune_shape_amplify_1 : options.joystick_finetune_shape_amplify_2;
     stick.last_x_adc = stick.x_center;
     stick.last_y_adc = stick.y_center;
@@ -485,13 +496,12 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
 
         rawX = quantizeRaw(i, rawX, true, adcMax);
         rawY = quantizeRaw(i, rawY, false, adcMax);
-        // If center is uncalibrated (0) or out of range for the active source
-        // (stale flash data), use source-native center (12-bit/16-bit aware).
-        const uint16_t calibratedXCenter =
-            (sticks_[i].x_center > 0u && sticks_[i].x_center <= adcMax) ? sticks_[i].x_center : xCenter;
-        const uint16_t calibratedYCenter =
-            (sticks_[i].y_center > 0u && sticks_[i].y_center <= adcMax) ? sticks_[i].y_center : yCenter;
-        const float adcHalf = static_cast<float>(adcMax) * 0.5f;
+        // Effective center and half-scale were resolved once at init
+        // (setup-invariant: calibration and the source's electrical range
+        // cannot change while running).
+        const uint16_t calibratedXCenter = sticks_[i].center_x_eff;
+        const uint16_t calibratedYCenter = sticks_[i].center_y_eff;
+        const float adcHalf = sticks_[i].adc_half;
 
         float cx = xValid ? static_cast<float>(rawX) - static_cast<float>(calibratedXCenter) : 0.0f;
         float cy = yValid ? static_cast<float>(rawY) - static_cast<float>(calibratedYCenter) : 0.0f;
@@ -503,14 +513,42 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         float nx = sx / adcHalf;
         float ny = sy / adcHalf;
 
+        // Per-direction physical-travel remap factor for the travel-key
+        // consumer only. The uniform (min-based) scale makes non-minimum
+        // directions overshoot 1.0 at full physical travel, so the uniform-
+        // scaled magnitude no longer equals the physical-travel fraction.
+        // Dividing the published value by this direction's calibrated max
+        // output magnitude (interpolated from range_norm) maps the published
+        // magnitude to a direction-independent fraction of the physical outer
+        // ring in [0, 1]. The pipeline (nx, ny) stays uniform-scaled so the
+        // deadzone/curve/output stages are unaffected.
+        float rMax = 1.0f;
+        if (travel_key_active_ &&
+            sticks_[i].has_range_calibration &&
+            (nx != 0.0f || ny != 0.0f)) {
+            int sector;
+            float t;
+            classifySectorSlope(nx, ny, sector, t);
+            const int next = (sector + 1 < kCircularityDataSize) ? (sector + 1) : 0;
+            const float r0 = sticks_[i].range_norm[sector];
+            const float r1 = sticks_[i].range_norm[next];
+            const float r = r0 + (r1 - r0) * t;
+            if (r > 0.0f) {
+                rMax = r;
+            }
+        }
+
         if (sticks_[i].analog_invert == InvertMode::INVERT_X || sticks_[i].analog_invert == InvertMode::INVERT_XY) nx = -nx;
         if (sticks_[i].analog_invert == InvertMode::INVERT_Y || sticks_[i].analog_invert == InvertMode::INVERT_XY) ny = -ny;
 
         // Publish pre-shaping travel (calibrated center + uniform scale) for
         // addons that gate on the physical stick position: deadzone and curve
         // shaping must not move the travel percentage the user configured.
-        normalizedX_[i] = nx;
-        normalizedY_[i] = ny;
+        // When range calibration is present, the magnitude is additionally
+        // remapped to a direction-independent physical-travel fraction so the
+        // travel-key threshold means the same physical push in every direction.
+        normalizedX_[i] = nx / rMax;
+        normalizedY_[i] = ny / rMax;
         normalizedValid_[i] = true;
 
         // Inner deadzone stage admission: gated only on a non-zero deadzone
@@ -574,6 +612,9 @@ void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
     StickState& stick = sticks_[stickNum];
     if (!stick.has_range_calibration) {
         stick.uniform_scale = kUncalibratedScale;
+        for (int i = 0; i < kCircularityDataSize; i++) {
+            stick.range_norm[i] = 0.0f;
+        }
         // Snap is meaningless without per-direction calibration data; keep it
         // disabled so no stale table is ever consulted. (The deadzone
         // mask/translate itself does not need calibration and stays active.)
@@ -603,6 +644,17 @@ void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
     // sane values are ~0.7-1.2. A corrupt tiny sample would otherwise shrink
     // the scale and reduce the stick to a few percent of usable travel.
     stick.uniform_scale = std::clamp(minScale, 0.2f, 1.5f);
+
+    // Per-sector normalized max travel (raw ADC frame): range_data[i] is the
+    // calibrated physical max radius in direction i divided by adcHalf, so
+    // dividing by uniform_scale yields this direction's max output magnitude
+    // after the uniform (min-based) scaling. Used by the travel-key path to
+    // remap output magnitude to a direction-independent physical-travel fraction.
+    for (int i = 0; i < kCircularityDataSize; i++) {
+        stick.range_norm[i] = (stick.range_data[i] > 0.0f)
+            ? (stick.range_data[i] / stick.uniform_scale)
+            : 0.0f;
+    }
 
     // Deadzone feature is off when in_deadzone is zero: process() early-exits
     // before any deadzone/snap work, so keep the snap table fully disabled.

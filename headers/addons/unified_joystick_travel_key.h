@@ -18,6 +18,11 @@ public:
     virtual void reinit();
     virtual std::string name() { return UnifiedJoystickTravelKeyName; }
 
+    // True when either stick has a configured travel-key action with a
+    // non-zero threshold. Used by the analog processor to gate the
+    // per-direction physical-travel remap (which only matters for this addon).
+    static bool isActive();
+
 private:
     void buildMapsAndThresholds();
 

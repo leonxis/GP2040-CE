@@ -42,6 +42,12 @@ private:
         float y_value;
         uint16_t x_center;
         uint16_t y_center;
+        // Effective sampling center and half-scale, resolved once at init
+        // (both sampler sources are fixed 12-bit with a fixed electrical
+        // center, and calibration cannot change at runtime).
+        uint16_t center_x_eff;
+        uint16_t center_y_eff;
+        float adc_half;
         InvertMode analog_invert;
         DpadMode analog_dpad;
         float in_deadzone;
@@ -54,6 +60,11 @@ private:
         uint16_t last_y_adc;
         float range_data[48];
         bool has_range_calibration;
+        // Per-sector normalized max travel = range_data[i] / uniform_scale.
+        // range_data is in the raw ADC (pre-inversion) frame; this table lets
+        // the travel-key consumer remap the uniform-scaled output magnitude to
+        // a direction-independent physical-travel fraction in [0, 1].
+        float range_norm[48];
         float finetune_shape_amplify;
         float uniform_scale; // Precomputed direction-independent scale (set at init)
         // Per-sector snap need (linear deadzone mode): r1_sector - in_deadzone,
@@ -98,6 +109,10 @@ private:
 
     uint32_t usage_curve_profile_1_ = 0;
     uint32_t usage_curve_profile_2_ = 0;
+    // Cached at init: whether the travel-key addon has any configured action.
+    // Read here so the RAM-resident process() hot path never executes the
+    // flash-resident isActive() lookup or touches Storage.
+    bool travel_key_active_ = false;
     StickSource source_ = StickSource::None;
     TempCurveStorage temp_curve_storage_[STICK_COUNT];
     TempBezierStorage temp_bezier_storage_[STICK_COUNT];
