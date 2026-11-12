@@ -1,7 +1,7 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// Board configuration: ESP32-S3 (BLE-only transmitter for wireless-tx-2354)
+// Board configuration: ESP32-S3 transmitter for wireless-tx-2354 (BLE + nRF24)
 //
 // UART link to the Pico (RP2040/RP2354) uses the ESP32-S3 native UART0 pins:
 //   ESP32-S3 GPIO43 (U0TXD, TX) --> Pico GPIO7 (RX)
@@ -32,6 +32,34 @@
 // above 133 Hz and causing intermittent disconnects.
 #define BLE_SEND_PERIOD_MS      8
 #define BLE_IDLE_POLL_MS        50
+
+// ---------------------------------------------------------------------------
+// nRF24L01+ link (SPI2). Active when STATUS radioMode=1; BLE sleeps then.
+// Register config / payload layout / air parameters are aligned with the
+// verified wireless-tx-2354 nrf24_link addon — receiver depends on them.
+// ESP32-S3: GPIO9..13 are free (USB uses GPIO19/20, JTAG uses GPIO39..42).
+// ---------------------------------------------------------------------------
+#define NRF24_CE_GPIO           GPIO_NUM_9
+#define NRF24_CSN_GPIO          10
+#define NRF24_SCK_GPIO          12
+#define NRF24_MOSI_GPIO         11
+#define NRF24_MISO_GPIO         13
+#define NRF24_SPI_CLOCK_HZ      8000000 // 8MHz / MODE0 / MSB
+#define NRF24_CHANNEL           84      // 2.484 GHz
+#define NRF24_PAYLOAD_LEN       15      // [0]=inputMode [1]=seq + 13B input
+#define NRF24_ADDR_BYTES        { 0xE7, 0xE7, 0xE7, 0xE7, 0xE7 }
+
+// Async TX: CE pulse triggers one packet (datasheet: >10us), result polled later
+#define NRF24_CE_PULSE_US       15
+// SETUP_RETR 0x03 (ARD=250us, ARC=3) bounds a transaction to ~1.14 ms;
+// 2.5 ms without TX_DS/MAX_RT means chip misbehaved -> flush + recover
+#define NRF24_TX_TIMEOUT_US     2500
+// Send cadence comes from the Pico side: it pushes one UART INPUT frame every
+// 900us and cb_input forwards each immediately (no local rate limit).
+// Consecutive TX failures before reinitializing the chip (watchdog)
+#define NRF24_FAIL_REINIT_THRESHOLD 500
+// No ACK for this long -> receiver considered offline
+#define NRF24_LINK_DOWN_TIMEOUT_US  1000000
 
 // Task priorities / cores / stacks
 #define UART_RX_TASK_CORE       1
