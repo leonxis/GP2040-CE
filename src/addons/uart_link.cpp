@@ -77,22 +77,32 @@ void UARTLinkAddon::setup() {
     // 用 pioasm 生成的默认配置（含 .side_set 1 opt 对应的 sideset 设置）
     pio_sm_config tx_cfg = uart_tx_program_get_default_config(txOffset);
     sm_config_set_out_pins(&tx_cfg, UART_LINK_TX_PIN, 1);
-    sm_config_set_set_pins(&tx_cfg, UART_LINK_TX_PIN, 1);   // start bit 的 set pins,0 也作用于 TX
+    sm_config_set_set_pins(&tx_cfg, UART_LINK_TX_PIN, 1);   // start/stop bit 的 set pins 作用于 TX
     sm_config_set_sideset_pins(&tx_cfg, UART_LINK_TX_PIN);  // side_set 驱动同一 pin
     sm_config_set_clkdiv(&tx_cfg, clkdiv);
     pio_sm_init(UART_LINK_PIO, UART_LINK_SM_TX, txOffset, &tx_cfg);
+    // 先预置 TX 引脚输出高电平，再设为输出方向，避免 SM 使能前引脚被拉低
+    // 产生假起始位（参考 pico-examples uart_tx_program_init 的做法）
+    pio_sm_set_pins_with_mask64(UART_LINK_PIO, UART_LINK_SM_TX,
+                                1ull << UART_LINK_TX_PIN, 1ull << UART_LINK_TX_PIN);
     // TX 引脚方向设为输出（由 PIO 控制，不能用 gpio_set_dir）
     pio_sm_set_consecutive_pindirs(UART_LINK_PIO, UART_LINK_SM_TX,
                                    UART_LINK_TX_PIN, 1, true);
 
     // --- RX SM：SM1 ---
+    // 显式设为输入方向（pio_gpio_init 不改方向，缺省依赖复位值不可靠）
+    pio_sm_set_consecutive_pindirs(UART_LINK_PIO, UART_LINK_SM_RX,
+                                   UART_LINK_RX_PIN, 1, false);
     // in_shift_right=true：新采样进 ISR 最高位，8 次 LSB-first 采样后高 8 位 = 原始顺序
+    // autopush=true, 阈值 8：8 个数据位由硬件自动入 FIFO，PIO 程序内不再显式 push
     pio_sm_config rx_cfg = uart_rx_program_get_default_config(rxOffset);
     sm_config_set_in_pins(&rx_cfg, UART_LINK_RX_PIN);
     sm_config_set_jmp_pin(&rx_cfg, UART_LINK_RX_PIN);
-    sm_config_set_sideset_pins(&rx_cfg, UART_LINK_RX_PIN);  // side 只写输入引脚，无外部影响
     sm_config_set_clkdiv(&rx_cfg, clkdiv);
     sm_config_set_in_shift(&rx_cfg, true, true, 8);  // 右移 + 自动 push，阈值 8 位
+    // RX FIFO join 后 8 深：ESP32 7 字节 LINK_STATUS 背靠背约 76us 发完，
+    // 默认 4 深会在主循环排空前溢出丢帧；8 深恰好容纳整帧突发
+    sm_config_set_fifo_join(&rx_cfg, PIO_FIFO_JOIN_RX);
     pio_sm_init(UART_LINK_PIO, UART_LINK_SM_RX, rxOffset, &rx_cfg);
 
     // --- DMA ---
@@ -243,8 +253,9 @@ void UARTLinkAddon::handleLinkStatus() {
 
 void __not_in_flash_func(UARTLinkAddon::process)() {
     if (!initialized) return;
-    // PIO RX FIFO 深度 4；主循环 2ms 远快于 ESP32 LINK_STATUS 100ms 心跳，
-    // FIFO 不会溢出丢数据。进循环前已确认非空，pio_sm_get 不阻塞。
+    // PIO RX FIFO join 后 8 深，可容纳 ESP32 一整帧 7 字节背靠背突发；
+    // 主循环每轮排空，LINK_STATUS 心跳 100ms 远大于主循环周期，不会积压。
+    // 进循环前已确认非空，pio_sm_get 不阻塞。
     while (!pio_sm_is_rx_fifo_empty(UART_LINK_PIO, UART_LINK_SM_RX)) {
         uint8_t b = (uint8_t)((pio_sm_get(UART_LINK_PIO, UART_LINK_SM_RX) >> 24) & 0xFF);
         handleRxByte(b);

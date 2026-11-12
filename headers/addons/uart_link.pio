@@ -20,29 +20,30 @@
     out pins, 1   [7]            ; data bit 5
     out pins, 1   [7]            ; data bit 6
     out pins, 1   [7]            ; data bit 7 (MSB)
-    out pins, 1   side 1 [7]     ; stop bit (pin=1, out=side=1 一致)
+    set pins, 1   side 1 [7]     ; stop bit：显式 set 1，不依赖 side-set 覆盖 out
 .wrap
 
 ; ---- RX SM：LSB-first 8N1 UART 接收 ----
 ; 时序：wait 检测起始位下降沿后
 ;   等待 start bit 后半段 4 cycles + bit0 前半 4 cycles = 8 cycles
 ;   然后连续采 8 个数据位，每 bit 8 cycles，正好落在 bit 中间
-; RX FIFO 深度 4；100ms 心跳帧(7B) 在主循环 2ms 周期内必定排空
+; 不使用 side-set：RX 引脚是输入，side-set 无意义，且需保持引脚为输入方向
+; 不显式 push：C 侧配置 in_shift(autopush=true, 阈值 8)，8 个采样位由硬件自动入队；
+;   显式 push 会把清零后的 ISR 再压一次，导致每字节后多出一个 0x00 破坏帧流
+; C 侧 sm_config_set_fifo_join(PIO_FIFO_JOIN_RX)：FIFO 8 深，可容纳整帧 7 字节突发
 .program uart_rx
-.side_set 1 opt
 .wrap_target
-    wait 0 pin, 0   side 0       ; 等待 RX pin 变低（起始位）
-    jmp _after_start side 0 [7]  ; 8 cycles: 到起始位中间稍过后
+    wait 0 pin, 0                ; 等待 RX pin 变低（起始位）
+    jmp _after_start [7]         ; 8 cycles: 到起始位中间稍过后
 _after_start:
-    jmp _sample     side 0 [3]   ; 再加 4 cycles: 正好到 bit0 中间
+    jmp _sample     [3]          ; 再加 4 cycles: 正好到 bit0 中间
 _sample:
-    in pins, 1      side 0 [7]   ; bit 0 (8 cycles)
-    in pins, 1      side 0 [7]   ; bit 1
-    in pins, 1      side 0 [7]   ; bit 2
-    in pins, 1      side 0 [7]   ; bit 3
-    in pins, 1      side 0 [7]   ; bit 4
-    in pins, 1      side 0 [7]   ; bit 5
-    in pins, 1      side 0 [7]   ; bit 6
-    in pins, 1      side 0 [7]   ; bit 7
-    push            side 0 [7]   ; OSR 入 RX FIFO (8 cycles)
+    in pins, 1      [7]          ; bit 0 (8 cycles)
+    in pins, 1      [7]          ; bit 1
+    in pins, 1      [7]          ; bit 2
+    in pins, 1      [7]          ; bit 3
+    in pins, 1      [7]          ; bit 4
+    in pins, 1      [7]          ; bit 5
+    in pins, 1      [7]          ; bit 6
+    in pins, 1      [7]          ; bit 7 (autopush 在此自动入 FIFO)
 .wrap
