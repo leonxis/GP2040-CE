@@ -101,12 +101,12 @@
 #define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
 
 // FN/MT 键映射（config_utils 在未设置时写入背键方案1）
-#define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_L1
-#define HML_RIGHT_FN_ACTION GpioAction::BUTTON_PRESS_R1
+#define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_A1
+#define HML_RIGHT_FN_ACTION GpioAction::BUTTON_PRESS_A1
 #define HML_LEFT_MT_ACTION  GpioAction::BUTTON_PRESS_FN
-#define HML_RIGHT_MT_ACTION GpioAction::BUTTON_PRESS_A1
-#define HML_EXT_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
-#define HML_EXT_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
+#define HML_RIGHT_MT_ACTION GpioAction::MENU_NAVIGATION_TOGGLE
+#define HML_EXT_LEFT_ACTION  GpioAction::BUTTON_PRESS_L2
+#define HML_EXT_RIGHT_ACTION GpioAction::BUTTON_PRESS_R2
 
 // 背键设置插件：逻辑背键映射默认值（仅背键方案1，与 GPIO 解耦）
 #define HML_BACK_L1_ACTION GpioAction::BUTTON_PRESS_B1  // 左背键1
