@@ -44,10 +44,12 @@ static void lp_dispatch(lp_parser_t *p) {
             in.rt      = p->payload[12];
             p->onInput(&in);
         }
-    } else if (p->type == LP_TYPE_STATUS && p->len == 3) {
+    } else if (p->type == LP_TYPE_STATUS && p->len >= 3) {
         if (p->onStatus) {
             lp_status_t st;
             st.inputMode = p->payload[2];
+            // payload[3] (radioMode) from len=4 frames is discarded: this
+            // build only supports BLE. len=3 legacy frames need no handling.
             p->onStatus(&st);
         }
     }
