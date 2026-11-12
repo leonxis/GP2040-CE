@@ -12,7 +12,6 @@
 #include "link_protocol.h"
 #include "input_state.h"
 #include "mode_manager.h"
-#include "nrf24_link.h"
 #include "IMyGamepad.h"
 #include "XboxOneGamepad.h"
 #include "SwitchProController.h"
@@ -25,12 +24,6 @@ const char *NIMBLE_NVS_NAMESPACE;
 InputState g_input;
 volatile TickType_t g_uartLastActiveTick = 0;
 
-// Radio mode from Pico STATUS frames (0=BLE, 1=nRF24). Written by the UART
-// RX task (Core1), consumed by the controller task (Core0).
-volatile uint8_t g_radioMode = 0;
-// Raw inputMode byte from STATUS frames; forwarded into nRF24 payload[0].
-volatile uint8_t g_inputMode = 0;
-
 static BleMode s_mode;
 static IMyGamepad *s_pad = nullptr;
 
@@ -40,21 +33,9 @@ static IMyGamepad *s_pad = nullptr;
 
 static void cb_input(const lp_input_t *in) {
     g_input.publish(in);
-    // nRF24 模式：不自行限流，收到新 INPUT 帧即转发（Pico 以 900us 恒流
-    // 推送，转发节拍即 UART 帧节拍）。poll 顺带收割上一帧的 ACK 结果。
-    if (g_radioMode == 1) {
-        nrf24_link_poll();
-        nrf24_link_send_frame(g_inputMode, in->buttons, in->dpad,
-                              in->lx, in->ly, in->rx, in->ry,
-                              in->lt, in->rt);
-    }
 }
 
 static void cb_status(const lp_status_t *st) {
-    // Publish radio mode first; request_switch below may reboot on an
-    // inputMode change and must not lose the radioMode update.
-    g_radioMode = st->radioMode;
-    g_inputMode = st->inputMode;
     // Unmapped inputModes are ignored; mapped changes persist and reboot.
     mode_manager_request_switch(st->inputMode);
 }
@@ -147,7 +128,6 @@ static void controller_task(void *arg) {
     s_pad = create_pad(s_mode);
     s_pad->start();
     bool bleRunning = true;
-    bool nrfActive = false;
 
     const TickType_t bootTick = xTaskGetTickCount();
     TickType_t lastSend = xTaskGetTickCount();
@@ -161,22 +141,11 @@ static void controller_task(void *arg) {
         const bool linkAlive =
             !afterGrace ||
             (now - g_uartLastActiveTick) < pdMS_TO_TICKS(UART_SILENCE_TIMEOUT_MS);
-        const bool wantNrf = (g_radioMode == 1);
 
-        // --- radio arbitration: BLE and nRF24 never run together ---
-        if (wantNrf && linkAlive && !nrfActive) {
-            if (bleRunning) { s_pad->stop(); bleRunning = false; }
-            nrf24_link_start();
-            nrfActive = true;
-        } else if ((!wantNrf || !linkAlive) && nrfActive) {
-            nrf24_link_sleep();
-            nrfActive = false;
-        }
-
-        if (!wantNrf && linkAlive && !bleRunning) {
+        if (linkAlive && !bleRunning) {
             s_pad->start();
             bleRunning = true;
-        } else if ((wantNrf || !linkAlive) && bleRunning) {
+        } else if (!linkAlive && bleRunning) {
             s_pad->stop();
             bleRunning = false;
         }
@@ -184,28 +153,22 @@ static void controller_task(void *arg) {
         // LINK_STATUS heartbeat, always — this is also the Pico's online check.
         if (now - lastStatus >= pdMS_TO_TICKS(LINK_STATUS_PERIOD_MS)) {
             uint8_t frame[7];
-            // nRF24 mode: report receiver ACK health instead of BLE pairing.
-            const bool connected = nrfActive
-                ? nrf24_link_ok()
-                : (bleRunning && s_pad->getConnectedCount() > 0);
+            const bool connected =
+                bleRunning && s_pad->getConnectedCount() > 0;
             const size_t len =
                 lp_build_link_status(frame, connected ? 1 : 0);
             uart_write_bytes(LINK_UART_NUM, frame, len);
             lastStatus = now;
         }
 
-        if (nrfActive) {
-            // 发送由 UART RX 任务在收到 INPUT 帧时驱动（不限流，见
-            // cb_input）；本任务只负责射频仲裁与 LINK_STATUS 心跳。
-            vTaskDelay(pdMS_TO_TICKS(20));
-        } else if (bleRunning && s_pad->getConnectedCount() > 0) {
+        if (bleRunning && s_pad->getConnectedCount() > 0) {
             InputSnapshot snap;
             g_input.take(&snap);
             s_pad->update(&snap);
             vTaskDelayUntil(&lastSend, pdMS_TO_TICKS(BLE_SEND_PERIOD_MS));
         } else if (!bleRunning) {
-            // Both radios stopped: slow poll to save power; UART RX task
-            // wakes the link the moment bytes arrive (g_uartLastActiveTick).
+            // BLE stopped: slow poll to save power; UART RX task wakes the
+            // link the moment bytes arrive (g_uartLastActiveTick updates).
             vTaskDelay(pdMS_TO_TICKS(200));
         } else {
             vTaskDelay(pdMS_TO_TICKS(BLE_IDLE_POLL_MS));
@@ -242,7 +205,6 @@ extern "C" void app_main(void) {
     ESP_ERROR_CHECK(esp_iface_mac_addr_set(mac, ESP_MAC_BT));
 
     setup_uart();
-    nrf24_link_init();   // bus + pins only; chip stays powered down
 
     g_input.init();
     g_uartLastActiveTick = xTaskGetTickCount();  // boot grace: assume alive

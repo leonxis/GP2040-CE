@@ -1,16 +1,16 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// Board configuration: ESP32-WROOM-32E
+// Board configuration: ESP32-S3 (BLE-only transmitter for wireless-tx-2354)
 //
-// UART link to RP2354 uses the native UART0 pins:
-//   ESP32 GPIO1 (TXD0)  --> RP2354 GPIO19 (RX)
-//   ESP32 GPIO3 (RXD0) <--  RP2354 GPIO18 (TX)
+// UART link to the Pico (RP2040/RP2354) uses the ESP32-S3 native UART0 pins:
+//   ESP32-S3 GPIO43 (U0TXD, TX) --> Pico GPIO7 (RX)
+//   ESP32-S3 GPIO44 (U0RXD, RX) <-- Pico GPIO6 (TX)
 // ---------------------------------------------------------------------------
 
 #define LINK_UART_NUM           UART_NUM_0
-#define LINK_UART_TX_GPIO       1
-#define LINK_UART_RX_GPIO       3
+#define LINK_UART_TX_GPIO       43
+#define LINK_UART_RX_GPIO       44
 #define LINK_UART_BAUD          921600
 #define LINK_UART_RX_BUF_SIZE   1024
 #define LINK_UART_TX_BUF_SIZE   256
@@ -32,33 +32,6 @@
 // above 133 Hz and causing intermittent disconnects.
 #define BLE_SEND_PERIOD_MS      8
 #define BLE_IDLE_POLL_MS        50
-
-// ---------------------------------------------------------------------------
-// nRF24L01+ link (SPI2). Active when STATUS radioMode=1; BLE sleeps then.
-// Register config / payload layout / air parameters are aligned with the
-// verified wireless-tx-2354 nrf24_link addon — receiver depends on them.
-// ---------------------------------------------------------------------------
-#define NRF24_CE_GPIO           9
-#define NRF24_CSN_GPIO          10
-#define NRF24_SCK_GPIO          12
-#define NRF24_MOSI_GPIO         11
-#define NRF24_MISO_GPIO         13
-#define NRF24_SPI_CLOCK_HZ      8000000 // 8MHz / MODE0 / MSB
-#define NRF24_CHANNEL           84      // 2.484 GHz
-#define NRF24_PAYLOAD_LEN       15      // [0]=inputMode [1]=seq + 13B input
-#define NRF24_ADDR_BYTES        { 0xE7, 0xE7, 0xE7, 0xE7, 0xE7 }
-
-// Async TX: CE pulse triggers one packet (datasheet: >10us), result polled later
-#define NRF24_CE_PULSE_US       15
-// SETUP_RETR 0x03 (ARD=250us, ARC=3) bounds a transaction to ~1.14 ms;
-// 2.5 ms without TX_DS/MAX_RT means chip misbehaved -> flush + recover
-#define NRF24_TX_TIMEOUT_US     2500
-// Send cadence comes from the Pico side: it pushes one UART INPUT frame every
-// 900us and cb_input forwards each immediately (no local rate limit).
-// Consecutive TX failures before reinitializing the chip (watchdog)
-#define NRF24_FAIL_REINIT_THRESHOLD 500
-// No ACK for this long -> receiver considered offline
-#define NRF24_LINK_DOWN_TIMEOUT_US  1000000
 
 // Task priorities / cores / stacks
 #define UART_RX_TASK_CORE       1
