@@ -372,7 +372,13 @@ int set_file_data(fs_file *file, string&& data)
 
 DynamicJsonDocument get_post_data()
 {
-    DynamicJsonDocument doc(LWIP_HTTPD_POST_MAX_PAYLOAD_LEN);
+    // 按实际 payload 长度分配，避免每次 POST 固定占用 16KB 堆（RP2040 总堆仅约 53KB）。
+    // 4KB 余量用于 JSON 对象的键/成员开销；上限仍为 16KB。
+    size_t capacity = static_cast<size_t>(http_post_payload_len) + 4096;
+    if (capacity > LWIP_HTTPD_POST_MAX_PAYLOAD_LEN) {
+        capacity = LWIP_HTTPD_POST_MAX_PAYLOAD_LEN;
+    }
+    DynamicJsonDocument doc(capacity);
     deserializeJson(doc, http_post_payload, http_post_payload_len);
     return doc;
 }
@@ -447,6 +453,11 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p)
 {
     LWIP_UNUSED_ARG(connection);
 
+    // lwIP 把整条 pbuf 链的所有权交给本回调，必须由这里释放。
+    // 下面的循环会把 p 推进到 NULL，因此先保存链头再释放；
+    // 原来循环后 pbuf_free(p) 实际释放的是 NULL，每次 POST 都会泄漏 pbuf。
+    struct pbuf *head = p;
+
     // Cache the received data to http_post_payload
     while (p != NULL)
     {
@@ -465,7 +476,7 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p)
     }
 
     // Need to release memory here or will leak
-    pbuf_free(p);
+    pbuf_free(head);
 
     // If the buffer overflows, error out
     if (http_post_payload_len == 0xffff) {
@@ -503,8 +514,15 @@ void addUsedPinsArray(DynamicJsonDocument& doc)
 
 std::string serialize_json(DynamicJsonDocument &doc)
 {
+    const size_t needed = measureJson(doc);
+    // 堆不足时直接返回错误 JSON：std::string 扩容失败会触发 abort，
+    // 设备会停在断点循环里，表现为网页无响应/掉线。这里留出序列化+HTTP 包装的余量。
+    const uint32_t freeHeap = System::getTotalHeap() - System::getUsedHeap();
+    if (needed * 2 + 512 > freeHeap) {
+        return std::string("{\"error\":\"low memory\"}");
+    }
     std::string data;
-    data.reserve(measureJson(doc));
+    data.reserve(needed);
     serializeJson(doc, data);
     return data;
 }
@@ -1218,7 +1236,8 @@ std::string setGamepadOptions()
 
 std::string getGamepadOptions()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    // 实际字段：约 30 个基础项 + fnButtonPin + 16 组 hotkey（每组 3 个字段）
+    const size_t capacity = JSON_OBJECT_SIZE(160);
     DynamicJsonDocument doc(capacity);
 
     GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
@@ -1376,7 +1395,8 @@ std::string setLedOptions()
 
 std::string getLedOptions()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    // 实际字段：7 个基础项 + ledButtonMap 18 项
+    const size_t capacity = JSON_OBJECT_SIZE(80);
     DynamicJsonDocument doc(capacity);
     const LEDOptions& ledOptions = Storage::getInstance().getLedOptions();
     writeDoc(doc, "dataPin", cleanPin(ledOptions.dataPin));
@@ -1508,7 +1528,8 @@ std::string getAmbientOptions()
 
 std::string getButtonLayoutDefs()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    // 左右布局枚举当前合计约 90 项
+    const size_t capacity = JSON_OBJECT_SIZE(120);
     DynamicJsonDocument doc(capacity);
     uint16_t layoutCtr = 0;
 
@@ -2132,7 +2153,8 @@ std::string getHETriggerCalibration()
 
 std::string getHETriggerOptions()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    // 32 个扳机 × 5 个字段 = 160 个成员，外加 32 个数组元素
+    const size_t capacity = JSON_OBJECT_SIZE(200) + JSON_ARRAY_SIZE(32);
     DynamicJsonDocument doc(capacity);
     
     HETriggerInfo * heTriggers = Storage::getInstance().getAddonOptions().heTriggerOptions.triggers;
