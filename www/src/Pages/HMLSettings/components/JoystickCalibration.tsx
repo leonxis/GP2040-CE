@@ -626,6 +626,10 @@ const storedThresholdToBits = (threshold: number): number => {
 	return Math.min(JITTER_BITS_MAX, Math.max(JITTER_BITS_MIN, Math.round(raw)));
 };
 
+/** Outer deadzone sliders: 0–30%, step 0.1 (matches wire encoding). */
+const clampOuterDeadzonePct = (value: number) =>
+	Math.min(30, Math.max(0, Math.round(value * 10) / 10));
+
 const JoystickCalibration = ({
 	values,
 	setFieldValue,
@@ -891,7 +895,9 @@ const JoystickCalibration = ({
 							// Collect circularity data only when error rate is enabled
 							if (leftShowErrorRate) {
 								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-								const circAngleIndex = (Math.round(Math.atan2(rawStickY, rawStickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
+								// Sector must follow the processed (post-invert) direction so the
+								// error-rate polygon stays phase-aligned with the rendered dot.
+								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
 								setLeftFinetuneShapeCircularityData(prev => {
 									const newData = [...prev];
 									if (distance > newData[circAngleIndex]) {
@@ -1079,7 +1085,9 @@ const JoystickCalibration = ({
 							// Collect circularity data only when error rate is enabled
 							if (rightShowErrorRate) {
 								const distance = Math.sqrt(stickX * stickX + stickY * stickY);
-								const circAngleIndex = (Math.round(Math.atan2(rawStickY, rawStickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
+								// Sector must follow the processed (post-invert) direction so the
+								// error-rate polygon stays phase-aligned with the rendered dot.
+								const circAngleIndex = (Math.round(Math.atan2(stickY, stickX) * CIRCULARITY_DATA_SIZE / 2.0 / Math.PI) + CIRCULARITY_DATA_SIZE) % CIRCULARITY_DATA_SIZE;
 								setRightFinetuneShapeCircularityData(prev => {
 									const newData = [...prev];
 									if (distance > newData[circAngleIndex]) {
@@ -1288,6 +1296,11 @@ const JoystickCalibration = ({
 							setLeftFinetuneShapeAmplify(value);
 							setFieldValue('joystickFinetuneShapeAmplify1', value);
 						}}
+						deadzoneLabelKey="CalibrationSettings:hml-outer-deadzone-left"
+						outerDeadzone={values?.joystickOuterDeadzone1 || 0}
+						onOuterDeadzoneChange={(value) =>
+							setFieldValue('joystickOuterDeadzone1', clampOuterDeadzonePct(value))
+						}
 					/>
 
 					{/* Row 1, Column 3: Right finetune shape controls */}
@@ -1298,6 +1311,11 @@ const JoystickCalibration = ({
 							setRightFinetuneShapeAmplify(value);
 							setFieldValue('joystickFinetuneShapeAmplify2', value);
 						}}
+						deadzoneLabelKey="CalibrationSettings:hml-outer-deadzone-right"
+						outerDeadzone={values?.joystickOuterDeadzone2 || 0}
+						onOuterDeadzoneChange={(value) =>
+							setFieldValue('joystickOuterDeadzone2', clampOuterDeadzonePct(value))
+						}
 					/>
 
 					{/* Row 1, Column 4: Right stick canvas (position or curve) */}
