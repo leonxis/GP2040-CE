@@ -551,7 +551,7 @@ void InputMacro::checkRecordHotkey() {
     }
 }
 
-void __not_in_flash_func(InputMacro::preprocess)()
+void InputMacro::preprocess()
 {
     FocusModeOptions * focusModeOptions = &Storage::getInstance().getAddonOptions().focusModeOptions;
     if (focusModeOptions->enabled && focusModeOptions->macroLockEnabled) {
@@ -574,7 +574,7 @@ void __not_in_flash_func(InputMacro::preprocess)()
     runCurrentMacro();
 }
 
-void __not_in_flash_func(InputMacro::process)()
+void InputMacro::process()
 {
     // Reapply stick/trigger values after other addons (like AnalogInput) have
     // processed, so macro values are not overwritten by physical input.
@@ -782,7 +782,7 @@ void InputMacro::recordSample(uint8_t slot, uint64_t now) {
         stopRecording(slot, true);
 }
 
-void __not_in_flash_func(InputMacro::postprocess)(bool sent) {
+void InputMacro::postprocess(bool sent) {
     (void)sent;
     for (uint8_t slot = 0; slot < MACRO_REC_SLOT_COUNT; ++slot) {
         if (recs[slot].active)

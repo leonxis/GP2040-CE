@@ -398,7 +398,7 @@ static void writeLe16(uint8_t* p, int16_t v) {
 	p[1] = (uint8_t)((uint16_t)(v) >> 8);
 }
 
-void __not_in_flash_func(LSM6DSRIMUAddon::outputGyroToSwitchPro)(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
+void LSM6DSRIMUAddon::outputGyroToSwitchPro(Gamepad* gamepad, const int16_t calG[3], const int16_t rawA[3]) {
 	// 先换算到协议单位（与 DS4 同量纲，X 轴在此处完成协议向取反）。
 	int32_t ds4x = -(int32_t)calG[0] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
 	int32_t ds4y = (int32_t)calG[1] * (int32_t)LSM6DSR_GYRO_500DPS_NUMER / (int32_t)LSM6DSR_GYRO_500DPS_DENOM;
@@ -463,14 +463,14 @@ void __not_in_flash_func(LSM6DSRIMUAddon::outputGyroToSwitchPro)(Gamepad* gamepa
 
 // 低区平滑（alpakka hssnf）：小幅度角速度压缩，减少微小抖动，|x|<t 时应用
 // hssnf(t,k,x) = x(1-k) / (1 - x*k/t)，t=1.0, k=0.5
-static float __not_in_flash_func(hssnf)(float t, float k, float x) {
+static float hssnf(float t, float k, float x) {
 	float a = x * (1.0f - k);
 	float b = 1.0f - (x * k / t);
 	return (b != 0.0f) ? (a / b) : x;
 }
 
 // 将陀螺仪输出到 HID 鼠标：mapMode、灵敏度、低区平滑(hssnf)、亚像素累积、轴向反转。
-void __not_in_flash_func(LSM6DSRIMUAddon::outputGyroToMouse)(Gamepad* gamepad, const int16_t calG[3], float dtS) {
+void LSM6DSRIMUAddon::outputGyroToMouse(Gamepad* gamepad, const int16_t calG[3], float dtS) {
 	const int mapMode = gyroMouseMapMode;
 	const int inv = gyroMouseInvert;
 	const float sensLR = gyroMouseSensLR;

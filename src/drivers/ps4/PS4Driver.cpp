@@ -708,7 +708,7 @@ bool __not_in_flash_func(PS4Driver::process)(Gamepad * gamepad) {
     void * report = &ps4Report;
     uint16_t report_size = sizeof(ps4Report);
 
-    if (tud_hid_ready()) {
+    if (reportReady()) {
         // New counter must be in the buffer before send (matches DS4 per-packet counter).
         const uint8_t prev_counter = last_report_counter;
         const uint16_t prev_axis_timing =
@@ -720,7 +720,7 @@ bool __not_in_flash_func(PS4Driver::process)(Gamepad * gamepad) {
         if (deviceType == InputModeDeviceType::INPUT_MODE_DEVICE_TYPE_GAMEPAD) {
             ps4Report.gamepad.axisTiming = static_cast<uint16_t>(now & 0xFFFFu);
         }
-        if (tud_hid_report(0, report, report_size) == true) {
+        if (sendReport(report, report_size) == true) {
             pending_report_counter = prev_counter;
             pending_axis_timing = prev_axis_timing;
             input_report_pending = true;
@@ -782,6 +782,14 @@ bool __not_in_flash_func(PS4Driver::process)(Gamepad * gamepad) {
     }
 
     return reportSent;
+}
+
+bool PS4Driver::reportReady() {
+    return tud_hid_ready();
+}
+
+bool PS4Driver::sendReport(void * report, uint16_t report_size) {
+    return tud_hid_report(0, report, report_size);
 }
 
 // Called by Core1, PS4 key signing will lock the CPU

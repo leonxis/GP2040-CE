@@ -54,9 +54,9 @@ public:
     virtual USBListener * get_usb_auth_listener();
     virtual void onInputReportComplete();
     virtual void onInputReportFailed();
-    bool getAuthSent() { return authsent;}
-    bool getDongleAuthRequired();
-private:
+    virtual bool getAuthSent() { return authsent;}
+    virtual bool getDongleAuthRequired();
+protected:
     uint8_t last_report[CFG_TUD_ENDPOINT0_SIZE] = { };
     uint8_t last_report_counter;
     uint8_t pending_report_counter;
@@ -152,6 +152,10 @@ private:
     GamepadButtonMapping *buttonCymbalGreen;
     GamepadButtonMapping *buttonKickPedalLeft;
     GamepadButtonMapping *buttonKickPedalRight;
+
+    // HID send path: PS4 uses the standard HID API, PS4B uses the composite interface variant.
+    virtual bool reportReady();
+    virtual bool sendReport(void * report, uint16_t report_size);
 };
 
 #endif // _PS4_DRIVER_H_
