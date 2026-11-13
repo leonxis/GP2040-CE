@@ -1,16 +1,16 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// Board configuration: ESP32-S3 transmitter for wireless-tx-2354 (BLE + nRF24)
+// Board configuration: ESP32-WROOM-32E transmitter for wireless-tx-2354 (BLE + nRF24)
 //
-// UART link to the Pico (RP2040/RP2354) uses the ESP32-S3 native UART0 pins:
-//   ESP32-S3 GPIO43 (U0TXD, TX) --> Pico GPIO7 (RX)
-//   ESP32-S3 GPIO44 (U0RXD, RX) <-- Pico GPIO6 (TX)
+// UART link to the Pico (RP2040/RP2354) uses the ESP32 native UART0 pins:
+//   ESP32 GPIO1 (U0TXD, TX) --> Pico GPIO7 (RX)
+//   ESP32 GPIO3 (U0RXD, RX) <-- Pico GPIO6 (TX)
 // ---------------------------------------------------------------------------
 
 #define LINK_UART_NUM           UART_NUM_0
-#define LINK_UART_TX_GPIO       43
-#define LINK_UART_RX_GPIO       44
+#define LINK_UART_TX_GPIO       1
+#define LINK_UART_RX_GPIO       3
 #define LINK_UART_BAUD          921600
 #define LINK_UART_RX_BUF_SIZE   1024
 #define LINK_UART_TX_BUF_SIZE   256
@@ -37,13 +37,13 @@
 // nRF24L01+ link (SPI2). Active when STATUS radioMode=1; BLE sleeps then.
 // Register config / payload layout / air parameters are aligned with the
 // verified wireless-tx-2354 nrf24_link addon — receiver depends on them.
-// ESP32-S3: GPIO9..13 are free (USB uses GPIO19/20, JTAG uses GPIO39..42).
+// ESP32-WROOM-32E: GPIO16..19 and GPIO4 are free (no PSRAM on WROOM).
 // ---------------------------------------------------------------------------
-#define NRF24_CE_GPIO           GPIO_NUM_9
-#define NRF24_CSN_GPIO          10
-#define NRF24_SCK_GPIO          12
-#define NRF24_MOSI_GPIO         11
-#define NRF24_MISO_GPIO         13
+#define NRF24_CE_GPIO           GPIO_NUM_19
+#define NRF24_CSN_GPIO          18
+#define NRF24_SCK_GPIO          17
+#define NRF24_MOSI_GPIO         16
+#define NRF24_MISO_GPIO         4
 #define NRF24_SPI_CLOCK_HZ      8000000 // 8MHz / MODE0 / MSB
 #define NRF24_CHANNEL           84      // 2.484 GHz
 #define NRF24_PAYLOAD_LEN       15      // [0]=inputMode [1]=seq + 13B input
