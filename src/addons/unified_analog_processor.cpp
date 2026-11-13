@@ -230,6 +230,10 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
         analogDeadzoneNormFromRaw(isFirst ? options.anti_deadzone : options.anti_deadzone2),
         0.0f,
         1.0f);
+    stick.outer_deadzone = std::clamp(
+        analogDeadzoneNormFromRaw(isFirst ? options.joystick_outer_deadzone_1 : options.joystick_outer_deadzone_2),
+        0.0f,
+        0.3f);
     stick.fixed_anti_deadzone = isFirst ? options.fixed_anti_deadzone : options.fixed_anti_deadzone2;
     stick.jitter_filter = isFirst ? options.joystick_jitter_filter_1 : options.joystick_jitter_filter_2;
     stick.x_center = static_cast<uint16_t>((isFirst ? options.joystick_center_x : options.joystick_center_x2) > 0
@@ -561,6 +565,20 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
             ny += uy * sticks_[i].anti_deadzone;
         }
 
+        // Outer deadzone: the radius limit is precomputed in updateUniformScale().
+        // Compare squared distances first and only take the square root when
+        // the point actually exceeds the limit.
+        const float outerLimit = sticks_[i].outer_radius_limit;
+        if (outerLimit > 0.0f) {
+            const float distSq = nx * nx + ny * ny;
+            if (distSq > sticks_[i].outer_radius_limit_sq) {
+                const float radius = std::sqrt(distSq);
+                const float ratio = outerLimit / radius;
+                nx *= ratio;
+                ny *= ratio;
+            }
+        }
+
         nx = std::clamp(nx, -1.0f, 1.0f);
         ny = std::clamp(ny, -1.0f, 1.0f);
 
@@ -588,6 +606,8 @@ void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
     StickState& stick = sticks_[stickNum];
     if (!stick.has_range_calibration) {
         stick.uniform_scale = kUncalibratedScale;
+        stick.outer_radius_limit = 0.0f;
+        stick.outer_radius_limit_sq = 0.0f;
         // Snap is meaningless without per-direction calibration data; keep it
         // disabled so no stale table is ever consulted. (The deadzone
         // mask/translate itself does not need calibration and stays active.)
@@ -601,9 +621,15 @@ void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
     // Uniform scale: minimum of the calibration points, ignoring empty slots
     // (a non-positive sample would otherwise zero the scale and divide by 0).
     float minScale = std::numeric_limits<float>::infinity();
+    float maxScale = 0.0f;
     for (int i = 0; i < kCircularityDataSize; i++) {
-        if (stick.range_data[i] > 0.0f && stick.range_data[i] < minScale) {
-            minScale = stick.range_data[i];
+        if (stick.range_data[i] > 0.0f) {
+            if (stick.range_data[i] < minScale) {
+                minScale = stick.range_data[i];
+            }
+            if (stick.range_data[i] > maxScale) {
+                maxScale = stick.range_data[i];
+            }
         }
     }
 
@@ -617,6 +643,16 @@ void UnifiedAnalogProcessorAddon::updateUniformScale(int stickNum) {
     // sane values are ~0.7-1.2. A corrupt tiny sample would otherwise shrink
     // the scale and reduce the stick to a few percent of usable travel.
     stick.uniform_scale = std::clamp(minScale, 0.2f, 1.5f);
+    // Precompute the global outer radius limit (includes the amplify factor
+    // baked into uniform_scale). Keeping it out of process() avoids recomputing
+    // per frame; 0 disables the stage.
+    if (stick.outer_deadzone > 0.0f && maxScale > 0.0f) {
+        stick.outer_radius_limit = (maxScale / stick.uniform_scale) * (1.0f - stick.outer_deadzone);
+        stick.outer_radius_limit_sq = stick.outer_radius_limit * stick.outer_radius_limit;
+    } else {
+        stick.outer_radius_limit = 0.0f;
+        stick.outer_radius_limit_sq = 0.0f;
+    }
 
     // Deadzone feature is off when in_deadzone is zero: process() early-exits
     // before any deadzone/snap work, so keep the snap table fully disabled.

@@ -1261,8 +1261,12 @@ const JoystickCurveSettings = ({
 						const rawY = data.y;
 						const rangeData = values?.joystickRangeData1 || [];
 
-						const { stickX: rawStickX, stickY: rawStickY } = rangeData.length > 0
-							? processJoystickData(rawX, rawY, centerX, centerY, rangeData, adcMax1)
+						// Amplify lives in the backend uniform_scale; mirror it here so
+						// the preview and the outer-deadzone limit match the device.
+						const amplifyFactor = 1.0 + (values?.joystickFinetuneShapeAmplify1 ?? 0) / 100.0;
+						const adjustedRangeData = rangeData.map((v: number) => (v > 0 && amplifyFactor > 0 ? v / amplifyFactor : v));
+						const { stickX: rawStickX, stickY: rawStickY } = adjustedRangeData.length > 0
+							? processJoystickData(rawX, rawY, centerX, centerY, adjustedRangeData, adcMax1)
 							: (() => {
 								const offset_center_x = rawX - centerX;
 								const offset_center_y = rawY - centerY;
@@ -1297,7 +1301,7 @@ const JoystickCurveSettings = ({
 							let target = r - innerDeadzone;
 							// Tiered snap filter (matches backend): neighbor snap-need check,
 							// neighbor travel gate, then interpolated precise trigger.
-							const scale = getUniformScale(rangeData);
+							const scale = getUniformScale(adjustedRangeData);
 							const needAt = (idx: number): number => {
 								const rd = rangeData[idx] || 0;
 								return (rd > 0 && scale > 0) ? rd / scale - innerDeadzone : Infinity;
@@ -1362,6 +1366,23 @@ const JoystickCurveSettings = ({
 							stickY += uy * antiDeadzone;
 						}
 
+						// Outer deadzone: cap the output radius to
+						// max(rangeData)/scale * (1 - od), then clamp.
+						const outerDeadzone = (values?.joystickOuterDeadzone1 || 0) / 100.0;
+						if (outerDeadzone > 0.0 && hasRangeCal) {
+							const outerScale = getUniformScale(adjustedRangeData);
+							if (outerScale > 0) {
+								const maxRange = Math.max(...rangeData);
+								const limit = (maxRange / outerScale) * (1.0 - outerDeadzone);
+								const radius = Math.sqrt(stickX * stickX + stickY * stickY);
+								if (radius > limit && limit > 0.0) {
+									const ratio = limit / radius;
+									stickX *= ratio;
+									stickY *= ratio;
+								}
+							}
+						}
+
 						stickX = Math.max(-1.0, Math.min(1.0, stickX));
 						stickY = Math.max(-1.0, Math.min(1.0, stickY));
 
@@ -1389,8 +1410,12 @@ const JoystickCurveSettings = ({
 						const rawY = data.y;
 						const rangeData = values?.joystickRangeData2 || [];
 
-						const { stickX: rawStickX, stickY: rawStickY } = rangeData.length > 0
-							? processJoystickData(rawX, rawY, centerX, centerY, rangeData, adcMax2)
+						// Amplify lives in the backend uniform_scale; mirror it here so
+						// the preview and the outer-deadzone limit match the device.
+						const amplifyFactor = 1.0 + (values?.joystickFinetuneShapeAmplify2 ?? 0) / 100.0;
+						const adjustedRangeData = rangeData.map((v: number) => (v > 0 && amplifyFactor > 0 ? v / amplifyFactor : v));
+						const { stickX: rawStickX, stickY: rawStickY } = adjustedRangeData.length > 0
+							? processJoystickData(rawX, rawY, centerX, centerY, adjustedRangeData, adcMax2)
 							: (() => {
 								const offset_center_x = rawX - centerX;
 								const offset_center_y = rawY - centerY;
@@ -1425,7 +1450,7 @@ const JoystickCurveSettings = ({
 							let target = r - innerDeadzone;
 							// Tiered snap filter (matches backend): neighbor snap-need check,
 							// neighbor travel gate, then interpolated precise trigger.
-							const scale = getUniformScale(rangeData);
+							const scale = getUniformScale(adjustedRangeData);
 							const needAt = (idx: number): number => {
 								const rd = rangeData[idx] || 0;
 								return (rd > 0 && scale > 0) ? rd / scale - innerDeadzone : Infinity;
@@ -1490,6 +1515,23 @@ const JoystickCurveSettings = ({
 							stickY += uy * antiDeadzone;
 						}
 
+						// Outer deadzone: cap the output radius to
+						// max(rangeData)/scale * (1 - od), then clamp.
+						const outerDeadzone = (values?.joystickOuterDeadzone2 || 0) / 100.0;
+						if (outerDeadzone > 0.0 && hasRangeCal) {
+							const outerScale = getUniformScale(adjustedRangeData);
+							if (outerScale > 0) {
+								const maxRange = Math.max(...rangeData);
+								const limit = (maxRange / outerScale) * (1.0 - outerDeadzone);
+								const radius = Math.sqrt(stickX * stickX + stickY * stickY);
+								if (radius > limit && limit > 0.0) {
+									const ratio = limit / radius;
+									stickX *= ratio;
+									stickY *= ratio;
+								}
+							}
+						}
+
 						stickX = Math.max(-1.0, Math.min(1.0, stickX));
 						stickY = Math.max(-1.0, Math.min(1.0, stickY));
 
@@ -1524,7 +1566,7 @@ const JoystickCurveSettings = ({
 			cancelled = true;
 			if (timeoutId !== null) clearTimeout(timeoutId);
 		};
-	}, [isExpanded, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickCurveEnabled, curveMode, leftCurvePoints, rightCurvePoints, leftBezier, rightBezier]);
+	}, [isExpanded, values.analogAdc1PinX, values.analogAdc1PinY, values.analogAdc2PinX, values.analogAdc2PinY, values.joystickCenterX, values.joystickCenterY, values.joystickCenterX2, values.joystickCenterY2, values.joystickRangeData1, values.joystickRangeData2, values?.analogAdc1Invert, values?.analogAdc2Invert, values?.inner_deadzone, values?.inner_deadzone2, values?.anti_deadzone, values?.anti_deadzone2, values?.fixed_anti_deadzone, values?.fixed_anti_deadzone2, values?.joystickOuterDeadzone1, values?.joystickOuterDeadzone2, values?.joystickFinetuneShapeAmplify1, values?.joystickFinetuneShapeAmplify2, values?.joystickCurveEnabled, curveMode, leftCurvePoints, rightCurvePoints, leftBezier, rightBezier]);
 	
 	// Draw left curve canvas (optimized with requestAnimationFrame throttling)
 	useEffect(() => {

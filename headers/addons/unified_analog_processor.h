@@ -47,6 +47,12 @@ private:
         DpadMode analog_dpad;
         float in_deadzone;
         float anti_deadzone;
+        // Output radial cap fraction (0-0.3); 0 = disabled.
+        float outer_deadzone;
+        // Precomputed at init: (max(range_data)/uniform_scale)*(1-outer_deadzone).
+        // Both are 0 when the stage is disabled or the stick is uncalibrated.
+        float outer_radius_limit;
+        float outer_radius_limit_sq;
         // Inner deadzone mode (repurposed field): false = linear (translate by
         // -dz with full-travel snap), true = fixed (pure mask, untouched outside).
         bool fixed_anti_deadzone;

@@ -124,6 +124,9 @@ const clampRcDecayPercent = (value: number) => Math.min(100, Math.max(3, value))
 /** Inner/anti deadzone sliders: 0–80%, step 0.1 in UI */
 const clampStickDeadzonePct = (value: number) =>
 	Math.min(80, Math.max(0, Math.round(value * 10) / 10));
+/** Outer deadzone sliders: 0–30%, step 0.1 in UI */
+const clampOuterDeadzonePct = (value: number) =>
+	Math.min(30, Math.max(0, Math.round(value * 10) / 10));
 
 export default function AxisTiltOverlaySettings({ values, errors, setFieldValue, saveMessage = '', onSaveClick }: AddonPropTypes) {
 	const { t } = useTranslation();
@@ -262,6 +265,10 @@ export default function AxisTiltOverlaySettings({ values, errors, setFieldValue,
 							<Form.Label className="mb-1">{t('CalibrationSettings:hml-anti-deadzone-left', { pct: (values?.anti_deadzone || 0).toFixed(1) })}</Form.Label>
 							<Form.Range min={0} max={80} step={0.1} value={values?.anti_deadzone || 0} onChange={(e) => setFieldValue('anti_deadzone', clampStickDeadzonePct(parseFloat(e.target.value)))} />
 						</div>
+						<div style={sliderBlockStyle}>
+							<Form.Label className="mb-1">{t('CalibrationSettings:hml-outer-deadzone-left', { pct: (values?.joystickOuterDeadzone1 || 0).toFixed(1) })}</Form.Label>
+							<Form.Range min={0} max={30} step={0.1} value={values?.joystickOuterDeadzone1 || 0} onChange={(e) => setFieldValue('joystickOuterDeadzone1', clampOuterDeadzonePct(parseFloat(e.target.value)))} />
+						</div>
 					</div>
 					<div style={columnCellStyle}>
 						<div style={{ ...row1Style, justifyContent: 'flex-end', gap: '8px' }}>
@@ -292,6 +299,10 @@ export default function AxisTiltOverlaySettings({ values, errors, setFieldValue,
 						<div style={sliderBlockStyle}>
 							<Form.Label className="mb-1">{t('CalibrationSettings:hml-anti-deadzone-right', { pct: (values?.anti_deadzone2 || 0).toFixed(1) })}</Form.Label>
 							<Form.Range min={0} max={80} step={0.1} value={values?.anti_deadzone2 || 0} onChange={(e) => setFieldValue('anti_deadzone2', clampStickDeadzonePct(parseFloat(e.target.value)))} />
+						</div>
+						<div style={sliderBlockStyle}>
+							<Form.Label className="mb-1">{t('CalibrationSettings:hml-outer-deadzone-right', { pct: (values?.joystickOuterDeadzone2 || 0).toFixed(1) })}</Form.Label>
+							<Form.Range min={0} max={30} step={0.1} value={values?.joystickOuterDeadzone2 || 0} onChange={(e) => setFieldValue('joystickOuterDeadzone2', clampOuterDeadzonePct(parseFloat(e.target.value)))} />
 						</div>
 					</div>
 				</div>

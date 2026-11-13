@@ -55,6 +55,18 @@ function encodeStickDeadzoneToDevice(percent: number): number {
 	return Math.round(p * 10);
 }
 
+/** Outer deadzone wire: tenths of a percent, 0–300; UI uses percent 0–30. */
+function decodeStickOuterDeadzoneFromDevice(raw: unknown): number {
+	const n = Number(raw);
+	if (Number.isNaN(n)) return 0;
+	return Math.min(30, Math.max(0, Math.floor(n) / 10));
+}
+
+function encodeStickOuterDeadzoneToDevice(percent: number): number {
+	const p = Math.min(30, Math.max(0, percent));
+	return Math.round(p * 10);
+}
+
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
 	errors: FormikErrors<typeof DEFAULT_VALUES>;
@@ -99,6 +111,9 @@ export const DEFAULT_VALUES = {
 	...gamepadUSBHostState,
 	...HETriggerState,
 	...axisTiltOverlaySettingsState,
+	// HML-owned stick calibration fields (percent in UI, tenths on the wire).
+	joystickOuterDeadzone1: 0.0,
+	joystickOuterDeadzone2: 0.0,
 } as const;
 
 export const FormContext = ({ setStoredData }) => {
@@ -118,6 +133,8 @@ export const FormContext = ({ setStoredData }) => {
 			merged.inner_deadzone2 = decodeStickDeadzoneFromDevice(merged.inner_deadzone2);
 			merged.anti_deadzone = decodeStickDeadzoneFromDevice(merged.anti_deadzone);
 			merged.anti_deadzone2 = decodeStickDeadzoneFromDevice(merged.anti_deadzone2);
+			merged.joystickOuterDeadzone1 = decodeStickOuterDeadzoneFromDevice(merged.joystickOuterDeadzone1);
+			merged.joystickOuterDeadzone2 = decodeStickOuterDeadzoneFromDevice(merged.joystickOuterDeadzone2);
 			setValues(merged);
 			setStoredData(JSON.parse(JSON.stringify(merged)));
 		}
@@ -139,6 +156,8 @@ const FLOAT_KEYS = [
 	'inner_deadzone2',
 	'anti_deadzone',
 	'anti_deadzone2',
+	'joystickOuterDeadzone1',
+	'joystickOuterDeadzone2',
 	'axisTiltOverlayRightYPercent1',
 	'axisTiltOverlayRightYPercent2',
 	'axisTiltOverlayRightYPercent3',
@@ -241,6 +260,8 @@ export default function CalibrationSettings() {
 		resultObject.inner_deadzone2 = encodeStickDeadzoneToDevice(Number(values.inner_deadzone2 ?? 0));
 		resultObject.anti_deadzone = encodeStickDeadzoneToDevice(Number(values.anti_deadzone ?? 0));
 		resultObject.anti_deadzone2 = encodeStickDeadzoneToDevice(Number(values.anti_deadzone2 ?? 0));
+		resultObject.joystickOuterDeadzone1 = encodeStickOuterDeadzoneToDevice(Number(values.joystickOuterDeadzone1 ?? 0));
+		resultObject.joystickOuterDeadzone2 = encodeStickOuterDeadzoneToDevice(Number(values.joystickOuterDeadzone2 ?? 0));
 		sanitizeData(resultObject);
 		const result = await WebApi.setAddonsOptions(resultObject);
 		if (result && result.error) {

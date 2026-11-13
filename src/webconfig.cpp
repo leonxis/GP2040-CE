@@ -2255,6 +2255,9 @@ std::string setAddonOptions()
     docToValue(analogOptions.joystick_finetune_shape_amplify_2, doc, "joystickFinetuneShapeAmplify2");
     docToValue(analogOptions.joystick_jitter_filter_1, doc, "joystickJitterFilter1");
     docToValue(analogOptions.joystick_jitter_filter_2, doc, "joystickJitterFilter2");
+    // Outer deadzone (tenths of a percent, 0-300)
+    docToValue(analogOptions.joystick_outer_deadzone_1, doc, "joystickOuterDeadzone1");
+    docToValue(analogOptions.joystick_outer_deadzone_2, doc, "joystickOuterDeadzone2");
     // Read curve points (stored as JSON array of {x, y} objects, max 6 points)
     if (doc.containsKey("joystickCurvePoints1") && doc["joystickCurvePoints1"].is<JsonArray>()) {
         JsonArray curvePoints1 = doc["joystickCurvePoints1"];
@@ -2812,6 +2815,8 @@ std::string getAddonOptions()
     writeDoc(doc, "joystickFinetuneShapeAmplify2", analogOptions.joystick_finetune_shape_amplify_2);
     writeDoc(doc, "joystickJitterFilter1", analogOptions.joystick_jitter_filter_1);
     writeDoc(doc, "joystickJitterFilter2", analogOptions.joystick_jitter_filter_2);
+    writeDoc(doc, "joystickOuterDeadzone1", analogOptions.joystick_outer_deadzone_1);
+    writeDoc(doc, "joystickOuterDeadzone2", analogOptions.joystick_outer_deadzone_2);
     // Write curve points
     JsonArray curvePoints1 = doc.createNestedArray("joystickCurvePoints1");
     for (pb_size_t i = 0; i < analogOptions.joystick_curve_points_1_count && i < 6; i++) {

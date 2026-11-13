@@ -849,6 +849,20 @@ const JoystickCalibration = ({
 								stickY += uy * antiDeadzone;
 							}
 							
+							// Step 6.5: Outer deadzone (matches backend: cap the output
+							// radius to max(rangeData)/scale * (1 - od), then clamp).
+							const outerDeadzone1 = (values?.joystickOuterDeadzone1 || 0) / 100.0;
+							if (outerDeadzone1 > 0.0 && hasRangeCal && detailData.scale > 0) {
+								const maxRange = Math.max(...originalRangeData);
+								const limit = (maxRange / detailData.scale) * (1.0 - outerDeadzone1);
+								const radius = Math.sqrt(stickX * stickX + stickY * stickY);
+								if (radius > limit && limit > 0.0) {
+									const ratio = limit / radius;
+									stickX *= ratio;
+									stickY *= ratio;
+								}
+							}
+
 							// Step 7: Square trimming (matches backend: clamped after curve and anti-deadzone)
 							stickX = Math.max(-1.0, Math.min(1.0, stickX));
 							stickY = Math.max(-1.0, Math.min(1.0, stickY));
@@ -1025,6 +1039,20 @@ const JoystickCalibration = ({
 								stickY += uy * antiDeadzone;
 							}
 							
+							// Step 6.5: Outer deadzone (matches backend: cap the output
+							// radius to max(rangeData)/scale * (1 - od), then clamp).
+							const outerDeadzone2 = (values?.joystickOuterDeadzone2 || 0) / 100.0;
+							if (outerDeadzone2 > 0.0 && hasRangeCal && detailData.scale > 0) {
+								const maxRange = Math.max(...originalRangeData);
+								const limit = (maxRange / detailData.scale) * (1.0 - outerDeadzone2);
+								const radius = Math.sqrt(stickX * stickX + stickY * stickY);
+								if (radius > limit && limit > 0.0) {
+									const ratio = limit / radius;
+									stickX *= ratio;
+									stickY *= ratio;
+								}
+							}
+
 							// Step 7: Square trimming (matches backend: clamped after curve and anti-deadzone)
 							stickX = Math.max(-1.0, Math.min(1.0, stickX));
 							stickY = Math.max(-1.0, Math.min(1.0, stickY));
@@ -1109,6 +1137,8 @@ const JoystickCalibration = ({
 		values?.anti_deadzone2,
 		values?.fixed_anti_deadzone,
 		values?.fixed_anti_deadzone2,
+		values?.joystickOuterDeadzone1,
+		values?.joystickOuterDeadzone2,
 		values?.analogAdc1Invert,
 		values?.analogAdc2Invert,
 		values?.joystickJitterFilter1,
