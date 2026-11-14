@@ -1,7 +1,6 @@
 #include "addons/key_layer.h"
 
 #include "addons/back_button_divider.h"
-#include "addons/two_key_touchpad.h"
 #include "addons/unified_voltage_switch.h"
 #include "hml_back_mapping_preset.h"
 #include "storagemanager.h"
@@ -49,10 +48,8 @@ void KeyLayerAddon::buildCache() {
         ActionMappingCommon::parseActionMapping(layer.pins[pin], layerEntry_[pin]);
     }
 
-    // 3. 活动背键方案（6 背键 + 触摸左右键）+ 背键激活器
-    const HmlBackMappingPreset& preset =
-        getActiveHmlBackPreset(storage.getAddonOptions());
-    const BackButtonAddonOptions& bb = preset.backButton;
+    // 3. 活动背键方案（6 背键）+ 背键激活器
+    const BackButtonAddonOptions& bb = getActiveBackButtonOptions(storage.getAddonOptions());
 
     const GpioMappingInfo* backMappings[kBackKeyCount] = {
         &bb.leftElMapping, &bb.rightErMapping,
@@ -69,11 +66,6 @@ void KeyLayerAddon::buildCache() {
             a.mode = info.activatorMode;
         }
     }
-
-    // 触摸左右键仅 parse（作为外部键在激活帧聚合其输出）；
-    // 触摸键/使能键不具备激活器资格，不收集其 activatorMode
-    ActionMappingCommon::parseActionMapping(preset.leftKeyMapping, touchEntry_[0]);
-    ActionMappingCommon::parseActionMapping(preset.rightKeyMapping, touchEntry_[1]);
 
     // 4. FN/MT 电压档位激活器：FN=level3，MT=level0（与 unified_voltage_switch 档位表一致）
     const FnKeyMappingOptions& fn = getActiveFnKeyMappingOptions(storage.getAddonOptions());
@@ -107,10 +99,9 @@ void KeyLayerAddon::reinit() {
     prevMasterEnabled_ = false;
 }
 
-void KeyLayerAddon::bindExternal(BackButtonDividerAddon* backDiv, TwoKeyTouchpadAddon* twoKey,
+void KeyLayerAddon::bindExternal(BackButtonDividerAddon* backDiv,
                                  UnifiedVoltageSwitchAddon* voltageSwitch) {
     backDiv_ = backDiv;
-    twoKey_ = twoKey;
     voltageSwitch_ = voltageSwitch;
 }
 
@@ -191,16 +182,12 @@ void __not_in_flash_func(KeyLayerAddon::preprocess)() {
     // 4) 总闸关或无激活器：零动作（基础输出由 read()/外部插件各自保证）
     if (!layerMasterOn_ || !anyOn) return;
 
-    // 5) 聚合外部键（背键/触摸）实际输出
+    // 5) 聚合外部键（背键）实际输出
     MaskAcc ext{};
     for (uint8_t i = 0; i < kBackKeyCount; i++) {
         if (backDiv_ != nullptr && backDiv_->isIndexStable(i)) {
             accumulate(ext, backEntry_[i]);
         }
-    }
-    if (twoKey_ != nullptr) {
-        if (twoKey_->isSideActive(0)) accumulate(ext, touchEntry_[0]);
-        if (twoKey_->isSideActive(1)) accumulate(ext, touchEntry_[1]);
     }
 
     // 6) 聚合主控：层槽该 pin 有映射（enabled）→ 层槽，否则 → 基础

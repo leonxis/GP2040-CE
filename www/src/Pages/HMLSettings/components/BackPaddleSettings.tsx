@@ -7,7 +7,6 @@ import { AppContext } from '../../../Contexts/AppContext';
 import { MaskPayload } from '../../../Store/useProfilesStore';
 import CustomSelect from '../../../Components/CustomSelect';
 import { getButtonLabels } from '../../../Data/Buttons';
-import { BUTTON_ACTIONS, PinActionValues } from '../../../Data/Pins';
 import WebApi from '../../../Services/WebApi';
 import {
 	OptionType,
@@ -34,7 +33,6 @@ type AppContextShape = {
 type PresetBundle = {
 	back: Record<string, MaskPayload>;
 	fn: Record<string, MaskPayload>;
-	twoKey: Record<string, MaskPayload>;
 };
 
 const emptyBack = (): Record<string, MaskPayload> => ({
@@ -55,15 +53,9 @@ const emptyFn = (): Record<string, MaskPayload> => ({
 	extRightTrigger: { ...defaultPinData },
 });
 
-const emptyTwoKey = (): Record<string, MaskPayload> => ({
-	leftKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
-	rightKey: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
-});
-
 const cloneBundle = (b: PresetBundle): PresetBundle => ({
 	back: Object.fromEntries(Object.entries(b.back).map(([k, v]) => [k, { ...v }])),
 	fn: Object.fromEntries(Object.entries(b.fn).map(([k, v]) => [k, { ...v }])),
-	twoKey: Object.fromEntries(Object.entries(b.twoKey).map(([k, v]) => [k, { ...v }])),
 });
 
 const parseBack = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
@@ -84,24 +76,13 @@ const parseFn = (data: Record<string, { action?: number; customButtonMask?: numb
 	extRightTrigger: toMaskPayload(data.extRightTrigger),
 });
 
-const parseTwoKey = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number; activatorMode?: number }>) => ({
-	leftKey: data.leftKey
-		? toMaskPayload(data.leftKey)
-		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
-	rightKey: data.rightKey
-		? toMaskPayload(data.rightKey)
-		: { action: BUTTON_ACTIONS.NONE as PinActionValues, customButtonMask: 0, customDpadMask: 0, activatorMode: 0 },
-});
-
 function BackPaddleSettingsBody({
 	presetIndex,
-	twoKeyTouchpadEnabled,
 	bundle,
 	onBundleChange,
 	onSaved,
 }: {
 	presetIndex: number;
-	twoKeyTouchpadEnabled: boolean;
 	bundle: PresetBundle;
 	onBundleChange: (next: PresetBundle) => void;
 	onSaved: () => void;
@@ -113,7 +94,6 @@ function BackPaddleSettingsBody({
 
 	const backAddonOptions = bundle.back;
 	const fnOptions = bundle.fn;
-	const twoKeyOptions = bundle.twoKey;
 
 	const buttonNames = useMemo(() => {
 		const defaultButtons = getButtonLabels('gp2040', false);
@@ -141,11 +121,9 @@ function BackPaddleSettingsBody({
 		onBundleChange({ ...bundle, back: { ...bundle.back, [key]: payload } });
 	const patchFn = (key: string, payload: MaskPayload) =>
 		onBundleChange({ ...bundle, fn: { ...bundle.fn, [key]: payload } });
-	const patchTwoKey = (key: string, payload: MaskPayload) =>
-		onBundleChange({ ...bundle, twoKey: { ...bundle.twoKey, [key]: payload } });
 
 	const handleSaveAll = useCallback(async () => {
-		const { back, fn, twoKey } = bundle;
+		const { back, fn } = bundle;
 		setSaveMessage('');
 		setIsSaving(true);
 		try {
@@ -171,15 +149,8 @@ function BackPaddleSettingsBody({
 				extLeftTrigger: fn.extLeftTrigger,
 				extRightTrigger: fn.extRightTrigger,
 			});
-			const twoKeyResult = await WebApi.setTwoKeyTouchpadOptions({
-				presetIndex,
-				setActive: true,
-				section: 'twoKey',
-				leftKey: twoKey.leftKey,
-				rightKey: twoKey.rightKey,
-			});
 			// WebApi setters return false/null on failure instead of throwing
-			if (backOk !== true || fnOk !== true || twoKeyResult == null) {
+			if (backOk !== true || fnOk !== true) {
 				setSaveMessage(t('Common:saved-error-message'));
 				setTimeout(() => setSaveMessage(''), 3000);
 				return;
@@ -262,20 +233,6 @@ function BackPaddleSettingsBody({
 			</Card>
 
 			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
-				<Card.Body>
-					{twoKeyTouchpadEnabled ? (
-						<Row className="g-3">
-							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l', false)}
-							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r', false)}
-						</Row>
-					) : (
-						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
-					)}
-				</Card.Body>
-			</Card>
-
-			<Card style={{ marginBottom: '1rem' }}>
 				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
@@ -312,39 +269,35 @@ function BackPaddleSettingsBody({
 
 export default function BackPaddleSettings() {
 	const [selectedTab, setSelectedTab] = useState<PresetTabKey>('preset-0');
-	const [twoKeyTouchpadEnabled, setTwoKeyTouchpadEnabled] = useState(false);
 	const [presets, setPresets] = useState<PresetBundle[]>([
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+		{ back: emptyBack(), fn: emptyFn() },
+		{ back: emptyBack(), fn: emptyFn() },
+		{ back: emptyBack(), fn: emptyFn() },
 	]);
 	const snapshotRef = useRef<PresetBundle[]>([
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
-		{ back: emptyBack(), fn: emptyFn(), twoKey: emptyTwoKey() },
+		{ back: emptyBack(), fn: emptyFn() },
+		{ back: emptyBack(), fn: emptyFn() },
+		{ back: emptyBack(), fn: emptyFn() },
 	]);
 
 	useEffect(() => {
 		(async () => {
-			const global = await WebApi.getTwoKeyTouchpadOptions();
-			if (global) {
-				setTwoKeyTouchpadEnabled(Boolean(global.enabled));
-				const ap = Number(global.activePreset ?? 0);
-				setSelectedTab(PRESET_TAB_KEYS[ap] ?? 'preset-0');
-			}
 			const loaded: PresetBundle[] = [];
+			let activePreset = 0;
 			for (let i = 0; i < 3; i++) {
-				const [back, fn, twoKey] = await Promise.all([
+				const [back, fn] = await Promise.all([
 					WebApi.getBackButtonAddonOptions(i),
 					WebApi.getFnKeyMappingOptions(i),
-					WebApi.getTwoKeyTouchpadOptions(i),
 				]);
+				if (i === 0) {
+					activePreset = Number(back?.activePreset ?? 0);
+				}
 				loaded.push({
 					back: back ? parseBack(back as Parameters<typeof parseBack>[0]) : emptyBack(),
 					fn: fn ? parseFn(fn as Parameters<typeof parseFn>[0]) : emptyFn(),
-					twoKey: twoKey ? parseTwoKey(twoKey as Parameters<typeof parseTwoKey>[0]) : emptyTwoKey(),
 				});
 			}
+			setSelectedTab(PRESET_TAB_KEYS[activePreset] ?? 'preset-0');
 			setPresets(loaded);
 			snapshotRef.current = loaded.map(cloneBundle);
 		})();
@@ -378,7 +331,6 @@ export default function BackPaddleSettings() {
 			{(index) => (
 				<BackPaddleSettingsBody
 					presetIndex={index}
-					twoKeyTouchpadEnabled={twoKeyTouchpadEnabled}
 					bundle={presets[index]}
 					onBundleChange={(next) =>
 						setPresets((prev) => {

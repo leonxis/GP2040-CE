@@ -11,14 +11,13 @@
 #define KEY_LAYER_ADDON_NAME "按键映射层"
 
 class BackButtonDividerAddon;
-class TwoKeyTouchpadAddon;
 class UnifiedVoltageSwitchAddon;
 
 // 按键映射层插件：
 // 当前基础映射（1 或 2）对应的层槽（sets[1]/sets[2]）总闸开启，
 // 且任一激活器有效（HOLD 按住 / TOGGLE 翻转 ON）时，对主控引脚输出做
 // 一次性重写：层槽该 pin 非 NONE → 层槽映射，NONE → 基础映射。
-// 背键/触摸键不参与切换，其输出与层状态无关（仅可作为激活器来源）。
+// 背键不参与切换，其输出与层状态无关（仅可作为激活器来源）。
 class KeyLayerAddon : public GPAddon {
 public:
     virtual bool available();
@@ -30,7 +29,7 @@ public:
     virtual void reinit();
 
     // 由 gp2040.cpp 在插件注册后绑定（未加载的插件为 nullptr）
-    void bindExternal(BackButtonDividerAddon* backDiv, TwoKeyTouchpadAddon* twoKey,
+    void bindExternal(BackButtonDividerAddon* backDiv,
                       UnifiedVoltageSwitchAddon* voltageSwitch);
 
 private:
@@ -44,7 +43,7 @@ private:
     };
 
     struct ActivatorCtx {
-        // 主控引脚 / 背键 / FN-MT 电压档位可作激活器；触摸左/右键与使能键不具备激活器资格
+        // 主控引脚 / 背键 / FN-MT 电压档位可作激活器
         enum Src : uint8_t { MAIN, BACK, VOLTAGE } src;
         uint8_t index = 0;            // MAIN=pin, BACK=背键序号, VOLTAGE=side*4+level
         ActivatorMode mode = ACTIVATOR_OFF;
@@ -62,13 +61,11 @@ private:
     static constexpr uint8_t kBackKeyCount = 6;
     static constexpr uint8_t kVoltageKeyCount = 4;  // 左FN/右FN/左MT/右MT
     ActionMappingCommon::ActionMappingEntry backEntry_[kBackKeyCount];
-    ActionMappingCommon::ActionMappingEntry touchEntry_[2];
     ActivatorCtx activators_[NUM_BANK0_GPIOS + kBackKeyCount + kVoltageKeyCount];
     uint8_t activatorCount_ = 0;
 
     bool prevMasterEnabled_ = false;
     BackButtonDividerAddon* backDiv_ = nullptr;
-    TwoKeyTouchpadAddon* twoKey_ = nullptr;
     UnifiedVoltageSwitchAddon* voltageSwitch_ = nullptr;
 };
 

@@ -130,8 +130,6 @@ export default {
 	'hml-display-label': 'Display',
 	'hml-display-hint':
 		'Turns off the display and related interface. For PS5G, disabling the display can help reach 1000 Hz report rate.',
-	'hml-two-key-touchpad-label': '2-key touchpad',
-	'hml-two-key-touchpad-hint': 'Same as 4-key touchpad; disables the display.',
 	'hml-report-rate-label': 'Report rate',
 	'hml-report-rate-hint': 'Host connection report rate. Enabling gyro may reduce the effective rate.',
 	'hml-screen-customization-button': 'Screen customization',
@@ -207,7 +205,6 @@ export default {
 	'hml-invert-xy': 'X/Y axes',
 	'hml-stick-invert-left': 'Left stick invert',
 	'hml-stick-invert-right': 'Right stick invert',
-	'hml-touchpad-mapping-title': 'Touchpad mapping',
 	'hml-fn-key-mapping-title': 'FN key mapping',
 	'hml-key-swap-title': 'Button swap',
 };

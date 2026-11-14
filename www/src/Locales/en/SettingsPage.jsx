@@ -245,8 +245,6 @@ export default {
 	'hml-display-label': 'Display',
 	'hml-display-hint':
 		'Turns off the display and related interface. For PS5G, disabling the display can help reach 1000 Hz report rate.',
-	'hml-two-key-touchpad-label': '2-key touchpad',
-	'hml-two-key-touchpad-hint': 'Same as 4-key touchpad; disables the display.',
 	'hml-wireless-24g-label': 'Extended 2.4G wireless',
 	'hml-bluetooth-extension-label': 'Extended Bluetooth',
 	'hml-wireless-module-hint': 'Insert the wireless expansion module into the built-in USB port to enable.',
@@ -325,7 +323,6 @@ export default {
 	'hml-invert-xy': 'X/Y axes',
 	'hml-stick-invert-left': 'Left stick invert',
 	'hml-stick-invert-right': 'Right stick invert',
-	'hml-touchpad-mapping-title': 'Touchpad mapping',
 	'hml-fn-key-mapping-title': 'FN key mapping',
 	'hml-key-swap-title': 'Button swap',
 	'hml-key-swap-profile-manage-hint':

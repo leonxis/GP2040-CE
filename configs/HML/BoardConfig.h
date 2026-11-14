@@ -94,11 +94,7 @@
 // LSM6 插件默认：关闭（SPI0/CS 在 lsm6dsr_imu 中硬编码）
 #define LSM6DSR_DEFAULT_ENABLED 0
 
-// 背键/FN/触摸左右键：仅用于首次初始化「背键方案1」(hmlBackMappingPresetOptions.presets[0])；方案2/3 出厂为 NONE
-// 2键触摸板硬件开关（全局，与方案无关）：0=关闭
-#define HML_TWOKEY_TOUCHPAD_ENABLED 0
-#define HML_TWOKEY_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
-#define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
+// 背键/FN 键：仅用于首次初始化「背键方案1」(hmlBackMappingPresetOptions.presets[0])；方案2/3 出厂为 NONE
 
 // FN/MT 键映射（config_utils 在未设置时写入背键方案1）
 #define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_A1

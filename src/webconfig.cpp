@@ -102,7 +102,6 @@ static bool parseApiRequestPresetIndex(const char* name, int& outPresetIndex) {
     }
 
     static const char* presetApiPaths[] = {
-        "/api/getTwoKeyTouchpadOptions",
         "/api/getBackButtonAddonOptions",
         "/api/getFnKeyMappingOptions",
     };
@@ -645,137 +644,6 @@ static void readMapping(GpioMappingInfo& m, const DynamicJsonDocument& doc, cons
     docToValue(m.activatorMode, doc, key, "activatorMode");
 }
 
-// GPIO12 = 2键触摸板使能键；开启时主循环不映射该引脚，由插件输出 enableKey/leftKey/rightKey
-static constexpr Pin_t TWO_KEY_TOUCHPAD_ENABLE_GPIO = 12;
-
-static std::string serializeTwoKeyTouchpadGlobalDoc() {
-    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    const TwoKeyTouchpadOptions& opts = addonOptions.twoKeyTouchpadOptions;
-    const size_t capacity = JSON_OBJECT_SIZE(8) + (JSON_OBJECT_SIZE(3) + 10);
-    DynamicJsonDocument doc(capacity);
-    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    writeMapping(doc, "enableKey", opts.enableKeyMapping);
-    writeActivePresetDoc(doc, addonOptions);
-    return serialize_json(doc);
-}
-
-static std::string applySetTwoKeyTouchpadGlobal(const DynamicJsonDocument& doc) {
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    TwoKeyTouchpadOptions& opts = addonOptions.twoKeyTouchpadOptions;
-    addonOptions.has_twoKeyTouchpadOptions = true;
-
-    bool oldEnabled = opts.enabled;
-    if (doc.containsKey("enabled")) {
-        opts.enabled = doc["enabled"].as<int>() != 0;
-        opts.has_enabled = true;
-    }
-    if (doc.containsKey("enableKey")) {
-        readMapping(opts.enableKeyMapping, doc, "enableKey");
-        opts.has_enableKeyMapping = true;
-    }
-
-    GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;
-    ProfileOptions& profiles = Storage::getInstance().getProfileOptions();
-    Pin_t pin12 = TWO_KEY_TOUCHPAD_ENABLE_GPIO;
-
-    if (opts.enabled && !oldEnabled) {
-        GpioMappingInfo captured = gpioMappings[pin12];
-        if (captured.action == GpioAction::ASSIGNED_TO_ADDON || captured.action == GpioAction::RESERVED) {
-            if (opts.enableKeyMapping.action != GpioAction::ASSIGNED_TO_ADDON &&
-                opts.enableKeyMapping.action != GpioAction::RESERVED) {
-                captured = opts.enableKeyMapping;
-            } else {
-                captured.action = GpioAction::BUTTON_PRESS_A2;
-                captured.customButtonMask = 0;
-                captured.customDpadMask = 0;
-            }
-        }
-        opts.enableKeyMapping = captured;
-        opts.has_enableKeyMapping = true;
-    }
-
-    if (opts.enabled) {
-        gpioMappings[pin12].action = GpioAction::NONE;
-        gpioMappings[pin12].customButtonMask = 0;
-        gpioMappings[pin12].customDpadMask = 0;
-        gpioMappings[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
-        for (int i = 0; i < 3; i++) {
-            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::NONE;
-            profiles.gpioMappingsSets[i].pins[pin12].customButtonMask = 0;
-            profiles.gpioMappingsSets[i].pins[pin12].customDpadMask = 0;
-            profiles.gpioMappingsSets[i].pins[pin12].action = GpioAction::ASSIGNED_TO_ADDON;
-        }
-    } else {
-        GpioMappingInfo restored = opts.enableKeyMapping;
-        if (restored.action == GpioAction::ASSIGNED_TO_ADDON || restored.action == GpioAction::RESERVED) {
-            restored.action = GpioAction::BUTTON_PRESS_A2;
-            restored.customButtonMask = 0;
-            restored.customDpadMask = 0;
-        }
-        gpioMappings[pin12] = restored;
-        for (int i = 0; i < 3; i++) {
-            profiles.gpioMappingsSets[i].pins[pin12] = restored;
-        }
-    }
-
-    Storage::getInstance().setFunctionalPinMappings();
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-
-    return serializeTwoKeyTouchpadGlobalDoc();
-}
-
-std::string getTwoKeyTouchpadGlobalOptions() {
-    return serializeTwoKeyTouchpadGlobalDoc();
-}
-
-std::string setTwoKeyTouchpadGlobalOptions() {
-    DynamicJsonDocument doc = get_post_data();
-    return applySetTwoKeyTouchpadGlobal(doc);
-}
-
-std::string getTwoKeyTouchpadOptions() {
-    if (g_apiRequestPresetIndex < 0 || g_apiRequestPresetIndex > 2) {
-        DynamicJsonDocument doc(0);
-        return serialize_json(doc);
-    }
-
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    const size_t capacity = JSON_OBJECT_SIZE(8) + 2 * (JSON_OBJECT_SIZE(3) + 10);
-    DynamicJsonDocument doc(capacity);
-    const HmlBackMappingPreset& preset =
-        getHmlBackPresetAt(addonOptions, (uint32_t)g_apiRequestPresetIndex);
-    writeMapping(doc, "leftKey", preset.leftKeyMapping);
-    writeMapping(doc, "rightKey", preset.rightKeyMapping);
-    writeActivePresetDoc(doc, addonOptions);
-    return serialize_json(doc);
-}
-
-std::string setTwoKeyTouchpadOptions() {
-    DynamicJsonDocument doc = get_post_data();
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-
-    if (!doc.containsKey("presetIndex") || !doc.containsKey("section")) {
-        return serialize_json(doc);
-    }
-    const char* section = doc["section"] | "";
-    if (strcmp(section, "twoKey") != 0) {
-        return serialize_json(doc);
-    }
-    const int presetIndex = doc["presetIndex"].as<int>();
-    if (presetIndex < 0 || presetIndex > 2) {
-        return serialize_json(doc);
-    }
-
-    HmlBackMappingPreset& preset = getHmlBackPresetAt(addonOptions, (uint32_t)presetIndex);
-    readMapping(preset.leftKeyMapping, doc, "leftKey");
-    readMapping(preset.rightKeyMapping, doc, "rightKey");
-    preset.has_leftKeyMapping = preset.has_rightKeyMapping = true;
-    preset.leftKeyMapping.has_action = preset.rightKeyMapping.has_action = true;
-    applyHmlBackActivePresetFromDoc(doc, addonOptions);
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
 std::string getBackButtonAddonOptions() {
     AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
     const uint32_t presetIndexU = (uint32_t)presetIndexFromRequestOrDefault();
@@ -1300,8 +1168,6 @@ std::string getGamepadOptions()
             hasFnAction(bb.rightBack2Mapping) ||
             hasFnAction(bb.leftElMapping) ||
             hasFnAction(bb.rightErMapping) ||
-            hasFnAction(activePreset.leftKeyMapping) ||
-            hasFnAction(activePreset.rightKeyMapping) ||
             hasFnAction(fn.leftFnMapping) ||
             hasFnAction(fn.rightFnMapping) ||
             hasFnAction(fn.leftMtMapping) ||
@@ -3703,8 +3569,6 @@ typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
     { "/api/setDisplayOptions", setDisplayOptions },
-    { "/api/setTwoKeyTouchpadOptions", setTwoKeyTouchpadOptions },
-    { "/api/setTwoKeyTouchpadGlobalOptions", setTwoKeyTouchpadGlobalOptions },
     { "/api/setBackButtonAddonOptions", setBackButtonAddonOptions },
     { "/api/setADS8332Options", setADS8332Options },
     { "/api/setLSM6DSROptions", setLSM6DSROptions },
@@ -3732,8 +3596,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setSplashImage", setSplashImage },
     { "/api/reboot", reboot },
     { "/api/getDisplayOptions", getDisplayOptions },
-    { "/api/getTwoKeyTouchpadOptions", getTwoKeyTouchpadOptions },
-    { "/api/getTwoKeyTouchpadGlobalOptions", getTwoKeyTouchpadGlobalOptions },
     { "/api/getBackButtonAddonOptions", getBackButtonAddonOptions },
     { "/api/getADS8332Options", getADS8332Options },
     { "/api/getLSM6DSROptions", getLSM6DSROptions },

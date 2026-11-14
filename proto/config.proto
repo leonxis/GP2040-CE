@@ -852,7 +852,7 @@ message AddonOptions
     optional HmlBackMappingPresetOptions hmlBackMappingPresetOptions = 33;
     optional MCP3208Options mcp3208Options = 34;
     optional LSM6DSROptions lsm6dsrOptions = 35;
-    optional TwoKeyTouchpadOptions twoKeyTouchpadOptions = 37;
+    reserved 37;
     // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz
     optional uint32 reportRate = 36 [default = 1000];
     optional ADS8332Options ads8332Options = 39;
@@ -912,14 +912,6 @@ message FnKeyMappingOptions
     optional GpioMappingInfo rightExtTriggerMapping = 6;
 }
 
-message TwoKeyTouchpadOptions
-{
-    optional bool enabled = 1 [default = false];
-    // 使能键映射：开启 2 键触摸板时从 GPIO12 当前映射复制，关闭时恢复到 GPIO12
-    // 左右触摸键映射仅存于 HmlBackMappingPreset.leftKeyMapping / rightKeyMapping
-    optional GpioMappingInfo enableKeyMapping = 4;
-}
-
 // 背键设置插件使用的逻辑背键映射（与具体 GPIO 解耦，仅持久化映射值）
 message BackButtonAddonOptions
 {
@@ -931,13 +923,12 @@ message BackButtonAddonOptions
     optional GpioMappingInfo rightErMapping = 6;  // GPIO24 右背键 ER
 }
 
-// 背键/FN/触摸左右键三套可切换方案（field 33）；activePreset 为当前启用索引 0..2
+// 背键/FN 三套可切换方案（field 33）；activePreset 为当前启用索引 0..2
 message HmlBackMappingPreset
 {
     optional BackButtonAddonOptions backButton = 1;
     optional FnKeyMappingOptions fnKey = 2;
-    optional GpioMappingInfo leftKeyMapping = 3;
-    optional GpioMappingInfo rightKeyMapping = 4;
+    reserved 3, 4;
 }
 
 message HmlBackMappingPresetOptions

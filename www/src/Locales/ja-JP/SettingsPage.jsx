@@ -208,8 +208,6 @@ export default {
 	'hml-display-label': 'ディスプレイ',
 	'hml-display-hint':
 		'ディスプレイと関連インターフェースをオフにします。PS5Gではディスプレイをオフにすると1000Hz報告率に近づけます。',
-	'hml-two-key-touchpad-label': '2キータッチパッド',
-	'hml-two-key-touchpad-hint': '4キーと同様で、ディスプレイを無効にします。',
 	'hml-wireless-24g-label': '拡張2.4Gワイヤレス',
 	'hml-bluetooth-extension-label': '拡張Bluetooth',
 	'hml-wireless-module-hint': '有効にするには内蔵USBポートにワイヤレス拡張モジュールを接続してください。',
@@ -285,7 +283,6 @@ export default {
 	'hml-invert-xy': 'X/Y軸',
 	'hml-stick-invert-left': '左スティック反転',
 	'hml-stick-invert-right': '右スティック反転',
-	'hml-touchpad-mapping-title': 'タッチパッド割り当て',
 	'hml-fn-key-mapping-title': 'FNキー割り当て',
 	'hml-key-swap-title': 'ボタン入れ替え',
 	'hml-key-swap-profile-manage-hint':

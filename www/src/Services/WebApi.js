@@ -146,36 +146,6 @@ async function getDisplayOptions() {
 	}
 }
 
-async function getTwoKeyTouchpadOptions(presetIndex) {
-	try {
-		const url =
-			presetIndex === undefined || presetIndex === null
-				? `${baseUrl}/api/getTwoKeyTouchpadGlobalOptions`
-				: `${baseUrl}/api/getTwoKeyTouchpadOptions/${presetIndex}`;
-		const response = await Http.get(url);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
-}
-
-async function setTwoKeyTouchpadOptions(options) {
-	try {
-		const isPreset =
-			options?.presetIndex !== undefined &&
-			options?.presetIndex !== null &&
-			options?.section === 'twoKey';
-		const url = isPreset
-			? `${baseUrl}/api/setTwoKeyTouchpadOptions`
-			: `${baseUrl}/api/setTwoKeyTouchpadGlobalOptions`;
-		const response = await Http.post(url, options);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
-}
-
 async function getBackButtonAddonOptions(presetIndex) {
 	try {
 		const url = `${baseUrl}/api/getBackButtonAddonOptions/${presetIndex ?? 0}`;
@@ -741,8 +711,6 @@ export default {
 	resetSettings,
 	getDisplayOptions,
 	setDisplayOptions,
-	getTwoKeyTouchpadOptions,
-	setTwoKeyTouchpadOptions,
 	getBackButtonAddonOptions,
 	setBackButtonAddonOptions,
 	getFnKeyMappingOptions,

@@ -1052,7 +1052,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
     INIT_UNSET_PROPERTY(config.addonOptions, cpuOverclockLevel, (CpuOverclockLevel)CPU_OVERCLOCK_NORMAL);
 
-    // HML 背键/FN/触摸三套方案（所有 BoardConfig 构建均编译）
+    // HML 背键/FN 三套方案（所有 BoardConfig 构建均编译）
     {
         HmlBackMappingPresetOptions& presetOpts = getHmlBackMappingPresetOptions(config.addonOptions);
         if (presetOpts.presets_count == 0) {
@@ -1065,17 +1065,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
             ensureHmlBackMappingPresetSlots(presetOpts, 3);
         }
     }
-
-#if defined(HML_TWOKEY_TOUCHPAD_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, HML_TWOKEY_TOUCHPAD_ENABLED);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.twoKeyTouchpadOptions, enabled, 0);
-#endif
-    if (!config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping) {
-        config.addonOptions.twoKeyTouchpadOptions.enableKeyMapping = config.gpioMappings.pins[12];
-        config.addonOptions.twoKeyTouchpadOptions.has_enableKeyMapping = true;
-    }
-    config.addonOptions.has_twoKeyTouchpadOptions = true;
 
     // keyboardMapping
     INIT_UNSET_PROPERTY(config.addonOptions.keyboardHostOptions, enabled, KEYBOARD_HOST_ENABLED);
@@ -1420,15 +1409,6 @@ void gpioMappingsMigrationCore(Config& config)
     if (config.addonOptions.linearTriggerOptions.enabled) {
         markAddonPinIfUsed(LINEAR_R2_PIN);
         markAddonPinIfUsed(LINEAR_L2_PIN);
-    }
-
-    // 2-key touchpad uses I2C1 SDA/SCL as left/right inputs, and GPIO12 as dedicated enable key.
-    if (config.addonOptions.twoKeyTouchpadOptions.enabled) {
-        if (isValidPin(peripheralOptions.blockI2C1.sda))
-            markAddonPinIfUsed(peripheralOptions.blockI2C1.sda);
-        if (isValidPin(peripheralOptions.blockI2C1.scl))
-            markAddonPinIfUsed(peripheralOptions.blockI2C1.scl);
-        markAddonPinIfUsed(12);
     }
 
     // migrate I2C addons to use peripheral manager

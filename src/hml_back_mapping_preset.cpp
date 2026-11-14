@@ -49,11 +49,6 @@ void initHmlBackMappingPresetNone(HmlBackMappingPreset& preset) {
     fn.has_leftExtTriggerMapping = true;
     initGpioMappingNone(fn.rightExtTriggerMapping);
     fn.has_rightExtTriggerMapping = true;
-
-    initGpioMappingNone(preset.leftKeyMapping);
-    preset.has_leftKeyMapping = true;
-    initGpioMappingNone(preset.rightKeyMapping);
-    preset.has_rightKeyMapping = true;
 }
 
 void initHmlBackMappingPresetScheme1FromBoardConfig(HmlBackMappingPreset& scheme1) {
@@ -89,17 +84,6 @@ void initHmlBackMappingPresetScheme1FromBoardConfig(HmlBackMappingPreset& scheme
     fn.rightExtTriggerMapping.action = HML_EXT_RIGHT_ACTION;
     fn.rightExtTriggerMapping.has_action = true;
     fn.has_rightExtTriggerMapping = true;
-#endif
-
-#if defined(HML_TWOKEY_LEFT_ACTION)
-    scheme1.leftKeyMapping.action = HML_TWOKEY_LEFT_ACTION;
-    scheme1.leftKeyMapping.has_action = true;
-    scheme1.has_leftKeyMapping = true;
-#endif
-#if defined(HML_TWOKEY_RIGHT_ACTION)
-    scheme1.rightKeyMapping.action = HML_TWOKEY_RIGHT_ACTION;
-    scheme1.rightKeyMapping.has_action = true;
-    scheme1.has_rightKeyMapping = true;
 #endif
 
     BackButtonAddonOptions& bb = scheme1.backButton;

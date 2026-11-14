@@ -54,7 +54,6 @@ void parseActionMapping(const GpioMappingInfo& mapping, ActionMappingEntry& entr
 void parseActionMapping(GpioAction action, uint32_t customButtonMask, uint32_t customDpadMask, ActionMappingEntry& entry);
 
 void applyActionMappingEntry(Gamepad* gamepad, const ActionMappingEntry& entry);
-void clearActionMappingEntry(Gamepad* gamepad, const ActionMappingEntry& entry);
 
 class ActionOutputScope {
 public:

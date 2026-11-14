@@ -223,8 +223,6 @@ export default {
 		'当设置Xinput模式且使用主机USB认证，或者设置为PS5General模式时，需要打开本开关并插入验证器',
 	'hml-display-label': '显示屏',
 	'hml-display-hint': '将关闭显示器以及对应接口，PS5G模式建议关闭显示屏获得1000Hz回报率',
-	'hml-two-key-touchpad-label': '2键触摸板',
-	'hml-two-key-touchpad-hint': '启用后将禁用显示屏',
 	'hml-wireless-24g-label': '扩展2.4G无线',
 	'hml-bluetooth-extension-label': '扩展蓝牙',
 	'hml-wireless-module-hint': '需要在内置USB接口插入无线扩展模块才可启用',
@@ -299,7 +297,6 @@ export default {
 	'hml-invert-xy': 'X/Y 轴',
 	'hml-stick-invert-left': '左摇杆反转',
 	'hml-stick-invert-right': '右摇杆反转',
-	'hml-touchpad-mapping-title': '触摸板映射',
 	'hml-fn-key-mapping-title': 'FN键映射',
 	'hml-key-swap-title': '按键交换',
 	'hml-key-swap-profile-manage-hint':
