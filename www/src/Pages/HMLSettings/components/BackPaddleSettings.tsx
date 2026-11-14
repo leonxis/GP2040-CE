@@ -64,10 +64,11 @@ const BACK_KEY_LABELS: Record<string, string> = {
 	rightBack2: 'hml-back-right2',
 	leftBack3: 'hml-back-left3',
 	rightBack3: 'hml-back-right3',
-	leftFn: 'hml-back-leftfn',
-	rightFn: 'hml-back-rightfn',
-	leftMt: 'hml-back-leftmt',
-	rightMt: 'hml-back-rightmt',
+	// 硬件丝印 FN/MT 与配置字段命名相反，界面按硬件丝印显示
+	leftFn: 'hml-back-leftmt',
+	rightFn: 'hml-back-rightmt',
+	leftMt: 'hml-back-leftfn',
+	rightMt: 'hml-back-rightfn',
 };
 
 const emptyTwoKey = (): Record<string, MaskPayload> => ({
