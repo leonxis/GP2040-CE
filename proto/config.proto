@@ -495,6 +495,10 @@ message AnalogOptions
     optional BezierControl joystick_bezier_2 = 77;
     // Bezier presets shared by both sticks (max 4)
     repeated BezierPreset joystick_bezier_presets = 78 [(nanopb).max_count = 4];
+    // Outer deadzone: cap the output radius to (max(range_data)/uniform_scale) * (1 - od).
+    // Stored as tenths of a percent (0-300 = 0.0%-30.0%), 0 = disabled.
+    optional uint32 joystick_outer_deadzone_1 = 79 [default = 0];
+    optional uint32 joystick_outer_deadzone_2 = 80 [default = 0];
 }
 
 message TurboOptions
