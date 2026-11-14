@@ -51,6 +51,8 @@ export default {
 	'hml-outer-amplify-label': '外圈放大系数: {{value}}%',
 	'hml-outer-amplify-hint': '可以等比放大外圈形状。',
 	'hml-outer-deadzone-hint': '可以使外圈形状接近圆形。',
+	'hml-outer-deadzone-left': '左摇杆外圈死区: {{pct}}%',
+	'hml-outer-deadzone-right': '右摇杆外圈死区: {{pct}}%',
 	'hml-yup-linear-trigger': '启用线性扳机',
 	'hml-yup-left-deadzone': '左扳机死区',
 	'hml-yup-right-deadzone': '右扳机死区',

@@ -52,6 +52,8 @@ export default {
 	'hml-outer-amplify-label': 'Outer scale factor: {{value}}%',
 	'hml-outer-amplify-hint': 'Scales the outer shape proportionally.',
 	'hml-outer-deadzone-hint': 'Makes the outer shape closer to a circle.',
+	'hml-outer-deadzone-left': 'Left stick outer deadzone: {{pct}}%',
+	'hml-outer-deadzone-right': 'Right stick outer deadzone: {{pct}}%',
 	'hml-yup-linear-trigger': 'Linear triggers',
 	'hml-yup-left-deadzone': 'Left trigger deadzone',
 	'hml-yup-right-deadzone': 'Right trigger deadzone',

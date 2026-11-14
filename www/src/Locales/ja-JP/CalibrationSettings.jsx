@@ -52,6 +52,8 @@ export default {
 	'hml-outer-amplify-label': '外周スケール: {{value}}%',
 	'hml-outer-amplify-hint': '外周形状を比例拡大できます。',
 	'hml-outer-deadzone-hint': '外周形状を円に近づけられます。',
+	'hml-outer-deadzone-left': '左スティック外周デッドゾーン: {{pct}}%',
+	'hml-outer-deadzone-right': '右スティック外周デッドゾーン: {{pct}}%',
 	'hml-yup-linear-trigger': '線形トリガー',
 	'hml-yup-left-deadzone': '左トリガーデッドゾーン',
 	'hml-yup-right-deadzone': '右トリガーデッドゾーン',
