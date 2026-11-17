@@ -226,7 +226,7 @@ export default {
 	'hml-upgrade-instruction-1': '1. 最初に「更新確認」を押して最新ファームをダウンロードします。',
 	'hml-upgrade-instruction-2': '2. 有効な情報が表示されたら「アップグレードモード」を押します。',
 	'hml-upgrade-instruction-3': '3. 書き込みモードで「ファームウェアアップグレード」を押してファームウェアを自動ダウンロードし、RPI-RP2 ドライブへ手動コピーします。',
-	'hml-upgrade-manual-copy-hint': 'ファームウェアのダウンロードを開始しました。GNS.uf2 を RPI-RP2 ドライブのルートへ手動でコピーしてください。',
+	'hml-upgrade-manual-copy-hint': 'ファームウェアのダウンロードを開始しました。HML2040.uf2 を RPI-RP2 ドライブのルートへ手動でコピーしてください。',
 	'hml-upgrade-manual-modal-title': 'ファームウェア操作の案内',
 	'hml-upgrade-manual-modal-step1':
 		'1. ブラウザがアップデート用ファームウェアをダウンロードします。',

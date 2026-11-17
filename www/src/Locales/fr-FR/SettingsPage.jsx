@@ -229,7 +229,7 @@ export default {
 	'hml-upgrade-instruction-3':
 		'3. In flashing mode, click Firmware Upgrade to automatically download firmware, then manually copy it to the RPI-RP2 drive.',
 	'hml-upgrade-manual-copy-hint':
-		'Firmware download started. Please manually copy GNS.uf2 to the root directory of the RPI-RP2 drive.',
+		'Firmware download started. Please manually copy HML2040.uf2 to the root directory of the RPI-RP2 drive.',
 	'hml-upgrade-manual-modal-title': 'Instructions de copie du firmware',
 	'hml-upgrade-manual-modal-step1':
 		'1. Le navigateur va télécharger le fichier de mise à jour du firmware.',

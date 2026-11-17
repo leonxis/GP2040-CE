@@ -72,11 +72,8 @@ static inline uint16_t ads8332ReadDataWord(PeripheralSPI* spi, int8_t csPin) {
 ADS8332ADCAddon* ADS8332ADCAddon::s_instance_ = nullptr;
 
 bool ADS8332ADCAddon::available() {
-    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
-    if (!opts.enabled) {
-        return false;
-    }
-    return PeripheralManager::getInstance().isSPIEnabled(ADS8332_HW_SPI_BLOCK);
+    // 固件侧永久禁用，不读取前端开关。
+    return false;
 }
 
 void ADS8332ADCAddon::setup() {

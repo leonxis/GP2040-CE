@@ -13,21 +13,40 @@
 
 // Main pin mapping Configuration
 //                                                  // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
-#define GPIO_PIN_23 GpioAction::BUTTON_PRESS_UP     // UP     | UP     | UP      | UP       | UP     | UP     |
-#define GPIO_PIN_08 GpioAction::BUTTON_PRESS_DOWN   // DOWN   | DOWN   | DOWN    | DOWN     | DOWN   | DOWN   |
-#define GPIO_PIN_16 GpioAction::BUTTON_PRESS_LEFT   // LEFT   | LEFT   | LEFT    | LEFT     | LEFT   | LEFT   |
-#define GPIO_PIN_17 GpioAction::BUTTON_PRESS_RIGHT  // RIGHT  | RIGHT  | RIGHT   | RIGHT    | RIGHT  | RIGHT  |
-#define GPIO_PIN_15 GpioAction::BUTTON_PRESS_B1     // B1     | A      | B       | Cross    | 2      | K1     |
-#define GPIO_PIN_09 GpioAction::BUTTON_PRESS_B2     // B2     | B      | A       | Circle   | 3      | K2     |
-#define GPIO_PIN_28 GpioAction::BUTTON_PRESS_R2     // R2     | RT     | ZR      | R2       | 8      | K3     |
-#define GPIO_PIN_29 GpioAction::BUTTON_PRESS_L2     // L2     | LT     | ZL      | L2       | 7      | K4     |
-#define GPIO_PIN_13 GpioAction::BUTTON_PRESS_B3     // B3     | X      | Y       | Square   | 1      | P1     |
-#define GPIO_PIN_14 GpioAction::BUTTON_PRESS_B4     // B4     | Y      | X       | Triangle | 4      | P2     |
-#define GPIO_PIN_21 GpioAction::BUTTON_PRESS_R1     // R1     | RB     | R       | R1       | 6      | P3     |
-#define GPIO_PIN_22 GpioAction::BUTTON_PRESS_L1     // L1     | LB     | L       | L1       | 5      | P4     |
-#define GPIO_PIN_18 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
-#define GPIO_PIN_19 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
-#define GPIO_PIN_12 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
+#define GPIO_PIN_13 GpioAction::BUTTON_PRESS_UP     // UP     | UP     | UP      | UP       | UP     | UP     |
+#define GPIO_PIN_12 GpioAction::BUTTON_PRESS_DOWN   // DOWN   | DOWN   | DOWN    | DOWN     | DOWN   | DOWN   |
+#define GPIO_PIN_03 GpioAction::BUTTON_PRESS_LEFT   // LEFT   | LEFT   | LEFT    | LEFT     | LEFT   | LEFT   |
+#define GPIO_PIN_02 GpioAction::BUTTON_PRESS_RIGHT  // RIGHT  | RIGHT  | RIGHT   | RIGHT    | RIGHT  | RIGHT  |
+#define GPIO_PIN_04 GpioAction::BUTTON_PRESS_B1     // B1     | A      | B       | Cross    | 2      | K1     |
+#define GPIO_PIN_10 GpioAction::BUTTON_PRESS_B2     // B2     | B      | A       | Circle   | 3      | K2     |
+#define GPIO_PIN_07 GpioAction::BUTTON_PRESS_R2     // R2     | RT     | ZR      | R2       | 8      | K3     |
+#define GPIO_PIN_18 GpioAction::BUTTON_PRESS_L2     // L2     | LT     | ZL      | L2       | 7      | K4     |
+#define GPIO_PIN_09 GpioAction::BUTTON_PRESS_B3     // B3     | X      | Y       | Square   | 1      | P1     |
+#define GPIO_PIN_05 GpioAction::BUTTON_PRESS_B4     // B4     | Y      | X       | Triangle | 4      | P2     |
+#define GPIO_PIN_06 GpioAction::BUTTON_PRESS_R1     // R1     | RB     | R       | R1       | 6      | P3     |
+#define GPIO_PIN_19 GpioAction::BUTTON_PRESS_L1     // L1     | LB     | L       | L1       | 5      | P4     |
+#define GPIO_PIN_00 GpioAction::BUTTON_PRESS_S1     // S1     | Back   | Minus   | Select   | 9      | Coin   |
+#define GPIO_PIN_01 GpioAction::BUTTON_PRESS_S2     // S2     | Start  | Plus    | Start    | 10     | Start  |
+#define GPIO_PIN_17 GpioAction::BUTTON_PRESS_L3     // L3     | LS     | LS      | L3       | 11     | LS     | 
+#define GPIO_PIN_24 GpioAction::BUTTON_PRESS_R3     // R3     | RS     | RS      | R3       | 12     | RS     |
+#define GPIO_PIN_11 GpioAction::BUTTON_PRESS_A1     // A1     | Guide  | Home    | PS       | 13     | ~      |
+#define GPIO_PIN_08 GpioAction::BUTTON_PRESS_A2     // A2     | ~      | Capture | ~        | 14     | ~      |
+ 
+
+// Setting GPIO pins to assigned by add-on
+//
+#define GPIO_PIN_14 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_15 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_16 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_21 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_22 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_23 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_25 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_26 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_27 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_28 GpioAction::ASSIGNED_TO_ADDON
+#define GPIO_PIN_29 GpioAction::ASSIGNED_TO_ADDON
 
 // Keyboard Mapping Configuration
 //                                            // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
@@ -51,131 +70,38 @@
 #define KEY_BUTTON_A2   HID_KEY_F2            // A2     | ~      | Capture | ~        | 14     | ~      |
 #define KEY_BUTTON_FN   -1                    // Hotkey Function                                        |
 
-// Setting GPIO pins to assigned by add-on
-#define GPIO_PIN_00 GpioAction::ASSIGNED_TO_ADDON // SPI0 RX
-#define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // SPI0 CS
-#define GPIO_PIN_02 GpioAction::ASSIGNED_TO_ADDON // SPI0 SCK
-#define GPIO_PIN_03 GpioAction::ASSIGNED_TO_ADDON // SPI0 TX
-#define GPIO_PIN_04 GpioAction::ASSIGNED_TO_ADDON // CONVST
-#define GPIO_PIN_05 GpioAction::ASSIGNED_TO_ADDON // CS-LSM6（SPI0）
-#define GPIO_PIN_06 GpioAction::ASSIGNED_TO_ADDON //D+
-#define GPIO_PIN_07 GpioAction::ASSIGNED_TO_ADDON //D-
-#define GPIO_PIN_10 GpioAction::ASSIGNED_TO_ADDON //SDA
-#define GPIO_PIN_11 GpioAction::ASSIGNED_TO_ADDON //SCL
-#define GPIO_PIN_20 GpioAction::ASSIGNED_TO_ADDON //LED
-#define GPIO_PIN_24 GpioAction::ASSIGNED_TO_ADDON // 右背键 ER
-#define GPIO_PIN_25 GpioAction::ASSIGNED_TO_ADDON // 左背键 EL
-
-// SPI0: 开启，RX=GPIO0, CS=GPIO1, SCK=GPIO2, TX=GPIO3
-#ifdef SPI0_ENABLED
-#undef SPI0_ENABLED
-#endif
-#define SPI0_ENABLED 1
-
-#ifdef SPI0_PIN_RX
-#undef SPI0_PIN_RX
-#endif
-#ifdef SPI0_PIN_CS
-#undef SPI0_PIN_CS
-#endif
-#ifdef SPI0_PIN_SCK
-#undef SPI0_PIN_SCK
-#endif
-#ifdef SPI0_PIN_TX
-#undef SPI0_PIN_TX
-#endif
-#define SPI0_PIN_RX 0
-#define SPI0_PIN_CS 1
-#define SPI0_PIN_SCK 2
-#define SPI0_PIN_TX 3
-
-// ADS8332 插件默认：启用（SPI0/CS/CONVST 在 ads8332_adc 中硬编码）
-#define ADS8332_DEFAULT_ENABLED 0
-// LSM6 插件默认：关闭（SPI0/CS 在 lsm6dsr_imu 中硬编码）
-#define LSM6DSR_DEFAULT_ENABLED 0
-
-// 背键/FN/触摸左右键：仅用于首次初始化「背键方案1」(hmlBackMappingPresetOptions.presets[0])；方案2/3 出厂为 NONE
-// 2键触摸板硬件开关（全局，与方案无关）：0=关闭
-#define HML_TWOKEY_TOUCHPAD_ENABLED 0
-#define HML_TWOKEY_LEFT_ACTION  GpioAction::BUTTON_PRESS_L3
-#define HML_TWOKEY_RIGHT_ACTION GpioAction::BUTTON_PRESS_R3
-
-// FN/MT 键映射（config_utils 在未设置时写入背键方案1）
-#define HML_LEFT_FN_ACTION  GpioAction::BUTTON_PRESS_A1
-#define HML_RIGHT_FN_ACTION GpioAction::BUTTON_PRESS_A1
-#define HML_LEFT_MT_ACTION  GpioAction::BUTTON_PRESS_FN
-#define HML_RIGHT_MT_ACTION GpioAction::MENU_NAVIGATION_TOGGLE
-#define HML_EXT_LEFT_ACTION  GpioAction::BUTTON_PRESS_L2
-#define HML_EXT_RIGHT_ACTION GpioAction::BUTTON_PRESS_R2
-
-// 背键设置插件：逻辑背键映射默认值（仅背键方案1，与 GPIO 解耦）
-#define HML_BACK_L1_ACTION GpioAction::BUTTON_PRESS_B1  // 左背键1
-#define HML_BACK_R1_ACTION GpioAction::BUTTON_PRESS_B2  // 右背键1
-#define HML_BACK_L2_ACTION GpioAction::BUTTON_PRESS_B3 // 左背键2
-#define HML_BACK_R2_ACTION GpioAction::BUTTON_PRESS_B4  // 右背键2
-#define HML_BACK_EL_ACTION GpioAction::BUTTON_PRESS_B1  // 左背键 EL (GPIO25)
-#define HML_BACK_ER_ACTION GpioAction::BUTTON_PRESS_B2  // 右背键 ER (GPIO24)
-
-// 摇杆叠加 RC 增益：首次写入存储时的默认值（RC 抖动强度 / 抖动幅度 / 衰减范围，单位 %）
-#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED1_DEFAULT 100.0f
-#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED2_DEFAULT 4.0f
-#define AXIS_TILT_OVERLAY_RC_GAIN_RESERVED3_DEFAULT 3.0f
-
 // LED Configuration
-#define BOARD_LEDS_PIN 20
-#define LED_BRIGHTNESS_MAXIMUM 35
+#define BOARD_LEDS_PIN 16
+#define LED_BRIGHTNESS_MAXIMUM 80
 #define CASE_RGB_TYPE  CASE_RGB_TYPE_AMBIENT
 #define CASE_RGB_INDEX 0
 #define CASE_RGB_COUNT 1
 
 // analog stick configuration
-#define ANALOG_INPUT_ENABLED 0
-#define ANALOG_ADC_1_VRX            -1
-#define ANALOG_ADC_1_VRY            -1
+#define ANALOG_INPUT_ENABLED        1
+#define ANALOG_ADC_1_VRX            27
+#define ANALOG_ADC_1_VRY            26
+#define ANALOG_ADC_2_VRX            29
+#define ANALOG_ADC_2_VRY            28
 #define ANALOG_ADC_1_MODE           DPAD_MODE_LEFT_ANALOG
-#define ANALOG_ADC_2_VRX            -1
-#define ANALOG_ADC_2_VRY            -1
 #define ANALOG_ADC_2_MODE           DPAD_MODE_RIGHT_ANALOG
-#define DEFAULT_INNER_DEADZONE 0
-#define DEFAULT_INNER_DEADZONE2 0
-#define DEFAULT_ANTI_DEADZONE 0
-#define DEFAULT_ANTI_DEADZONE2 0
-#define ANALOG_ADC_1_INVERT         INVERT_X
-#define ANALOG_ADC_2_INVERT         INVERT_X
-
-
-// Input Modes
-#define DEFAULT_INPUT_MODE INPUT_MODE_PS4B
-
-// mini led
-#define MINI_MENU_GAMEPAD_INPUT 1
-#define HAS_I2C_DISPLAY 0
-// HML 显示屏走 I2C1（I2C0 仅由外设映射开关控制）
-#define DISPLAY_I2C_BLOCK i2c1
-#ifndef I2C0_ENABLED
-#define I2C0_ENABLED 0
-#endif
-#ifndef I2C1_ENABLED
-#define I2C1_ENABLED 0
-#endif
-#ifndef I2C1_PIN_SDA
-#define I2C1_PIN_SDA 10
-#endif
-#ifndef I2C1_PIN_SCL
-#define I2C1_PIN_SCL 11
-#endif
-#define SPLASH_MODE SPLASH_MODE_STATIC
-#define SPLASH_DURATION 1000
+#define DEFAULT_INNER_DEADZONE      0
+#define DEFAULT_INNER_DEADZONE2     0
+#define DEFAULT_ANTI_DEADZONE       0
+#define DEFAULT_ANTI_DEADZONE2      0
+#define ANALOG_ADC_1_INVERT        INVERT_X
+#define ANALOG_ADC_2_INVERT        INVERT_X
 
 // USB Passthrough
-#define USB_PERIPHERAL_ENABLED 0
+//#define USB_PERIPHERAL_ENABLED 1
 #ifndef USB_PERIPHERAL_PIN_DPLUS
-#define USB_PERIPHERAL_PIN_DPLUS 6
+#define USB_PERIPHERAL_PIN_DPLUS 14
 #endif
+//#define USB_PERIPHERAL_PIN_ORDER 0
 
 // PS AUTH
 #define DEFAULT_PS4CONTROLLER_TYPE PS4_CONTROLLER
-#define DEFAULT_PS4_ID_MODE PS4_ID_CONSOLE
+#define DEFAULT_PS4_ID_MODE PS4_ID_EMULATION
 #define DEFAULT_PS4AUTHENTICATION_TYPE INPUT_MODE_AUTH_TYPE_KEYS
 
 // PS4 Authentication Keys - Embedded from /home/leonxis/FTP/
@@ -246,6 +172,32 @@
   0x1D, 0xD3, 0x19, 0x0A, 0x42, 0x50, 0x3A, 0x05, 0x83, 0x3A, 0xFC, 0xB9, 0x7A, 0x25, 0xD9, 0x86, \
   0xA5, 0xF1, 0x67, 0xB0, 0x06, 0x34, 0x57, 0xAB, 0xBC, 0xFB, 0x8B, 0x2A, 0x90, 0xFF, 0x32, 0x82, \
   0x08, 0x2A, 0x83, 0x60, 0x78, 0x2C, 0x86, 0x62, 0x1C, 0xCA, 0x0D, 0xEE, 0xEE, 0xF7, 0x67, 0xF1
+
+// Input Modes
+#define DEFAULT_INPUT_MODE INPUT_MODE_PS4B
+#define DEFAULT_INPUT_MODE_B2 -1
+#define DEFAULT_INPUT_MODE_B3 -1
+#define DEFAULT_INPUT_MODE_B4 -1
+#define DEFAULT_INPUT_MODE_B1 -1
+#define DEFAULT_INPUT_MODE_R2 -1
+#define DEFAULT_INPUT_MODE_L2 -1
+#define DEFAULT_INPUT_MODE_R1 -1
+#define DEFAULT_INPUT_MODE_L1 -1
+
+// mini led
+#define MINI_MENU_GAMEPAD_INPUT 1 
+#define HAS_I2C_DISPLAY 1
+#ifndef I2C0_ENABLED
+#define I2C0_ENABLED 1
+#endif
+#ifndef I2C0_PIN_SDA
+#define I2C0_PIN_SDA 20
+#endif
+#ifndef I2C0_PIN_SCL
+#define I2C0_PIN_SCL 21
+#endif
+#define SPLASH_MODE SPLASH_MODE_STATIC
+#define SPLASH_DURATION 1
 
 // MINI LED layout
  #define BUTTON_LAYOUT BUTTON_LAYOUT_BOARD_DEFINED_A

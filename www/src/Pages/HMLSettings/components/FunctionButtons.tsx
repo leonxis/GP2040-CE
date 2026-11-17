@@ -1,16 +1,10 @@
 import { Button, Form, Row, Col } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useMemo } from 'react';
-import { Formik } from 'formik';
-import * as yup from 'yup';
 
 import Section from '../../../Components/Section';
 import { useGamepadOptions } from '../hooks/useGamepadOptions';
 import WebApi from '../../../Services/WebApi';
-import TriggerCalibrationSettings, {
-	triggerCalibrationScheme,
-	triggerCalibrationState,
-} from './TriggerCalibration';
 import TurboSettings from './TurboSettings';
 
 type AddonOptions = Record<string, unknown>;
@@ -38,8 +32,6 @@ export default function FunctionButtons() {
 	const { values, setValues, isLoading } = useGamepadOptions();
 	const [saveMessage, setSaveMessage] = useState('');
 	const [addonOptions, setAddonOptions] = useState<AddonOptions | null>(null);
-	const [triggerCalibInitial, setTriggerCalibInitial] = useState(triggerCalibrationState);
-	const [triggerSaveMessage, setTriggerSaveMessage] = useState('');
 
 	useEffect(() => {
 		let cancelled = false;
@@ -47,18 +39,6 @@ export default function FunctionButtons() {
 			const data = await WebApi.getAddonsOptions();
 			if (!cancelled && data) {
 				setAddonOptions(data);
-				const merged = { ...triggerCalibrationState };
-				(Object.keys(triggerCalibrationState) as (keyof typeof triggerCalibrationState)[]).forEach((k) => {
-					const v = data[k as string];
-					if (v !== undefined && v !== null) {
-						if (k === 'leftTriggerInvert' || k === 'rightTriggerInvert') {
-							(merged as Record<string, unknown>)[k] = v ? 1 : 0;
-						} else {
-							(merged as Record<string, unknown>)[k] = v;
-						}
-					}
-				});
-				setTriggerCalibInitial(merged);
 			}
 		}
 		loadAddons();
@@ -66,19 +46,6 @@ export default function FunctionButtons() {
 			cancelled = true;
 		};
 	}, []);
-
-	const triggerSchema = useMemo(() => yup.object().shape(triggerCalibrationScheme), []);
-
-	const handleTriggerSubmit = async (vals: typeof triggerCalibrationState) => {
-		setTriggerSaveMessage('');
-		const ok = await WebApi.setAddonsOptions(vals as Record<string, unknown>);
-		setTriggerSaveMessage(
-			ok ? t('Common:saved-success-message') : t('Common:saved-error-message'),
-		);
-		if (ok) {
-			setTimeout(() => setTriggerSaveMessage(''), 3000);
-		}
-	};
 
 	// 翻译方向键模式选项
 	const translatedDpadModes = DPAD_MODES.map(({ labelKey, value }) => ({
@@ -313,22 +280,6 @@ export default function FunctionButtons() {
 		</Section>
 
 			<TurboSettings />
-
-			<Formik
-				enableReinitialize
-				validationSchema={triggerSchema}
-				initialValues={triggerCalibInitial}
-				onSubmit={handleTriggerSubmit}
-			>
-				{({ handleSubmit, values, setFieldValue }) => (
-					<TriggerCalibrationSettings
-						values={values}
-						setFieldValue={setFieldValue}
-						saveMessage={triggerSaveMessage}
-						onSaveClick={() => handleSubmit()}
-					/>
-				)}
-			</Formik>
 		</div>
 	);
 }

@@ -16,13 +16,8 @@ static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
 };
 
 bool MCP3208ADCAddon::available() {
-    const AddonOptions& addonOptions =
-        Storage::getInstance().getAddonOptions();
-    if (!addonOptions.mcp3208Options.enabled ||
-        addonOptions.ads8332Options.enabled) {
-        return false;
-    }
-    return PeripheralManager::getInstance().isSPIEnabled(MCP3208_HW_SPI_BLOCK);
+    // 固件侧永久禁用，不读取前端开关。
+    return false;
 }
 
 // Static instance for webconfig to read raw stick values (no AddonManager dependency)

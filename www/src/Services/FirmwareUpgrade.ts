@@ -1,9 +1,9 @@
-const FIRMWARE_DOWNLOAD_URL = 'https://gns.chobits.site:8443/GNS/updata.uf2';
-const LATEST_INFO_URL = 'https://gns.chobits.site:8443/GNS/latest.json';
-const LATEST_INFO_KEY = 'GNS2040';
+const FIRMWARE_DOWNLOAD_URL = 'https://gns.chobits.site:8443/GNS/HML2040.uf2';
+const LATEST_INFO_URL = 'https://gns.chobits.site:8443/GNS/hml.json';
+const LATEST_INFO_KEY = 'HML2040';
 const LATEST_REQUEST_TIMEOUT_MS = 10000;
 const FIRMWARE_REQUEST_TIMEOUT_MS = 60000;
-const TARGET_UF2_FILENAME = 'GNS.uf2';
+const TARGET_UF2_FILENAME = 'HML2040.uf2';
 const CACHE_DB_NAME = 'gp2040_firmware_cache';
 const CACHE_DB_VERSION = 1;
 const CACHE_STORE = 'firmware';
@@ -111,7 +111,7 @@ function parseLatestResponseData(data: unknown): LatestInfo {
 	const version = item?.version;
 	const releaseNote = item?.release_note;
 	if (typeof version !== 'string' || typeof releaseNote !== 'string') {
-		throw new Error('Invalid latest.json format');
+		throw new Error('Invalid hml.json format');
 	}
 	return { version, releaseNote };
 }

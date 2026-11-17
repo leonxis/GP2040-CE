@@ -16,9 +16,8 @@ static constexpr float CH25_T4_RATIO = 3596.0f / 4095.0f;
 }
 
 bool UnifiedVoltageSwitchAddon::available() {
-    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    return addonOptions.ads8332Options.enabled ||
-        addonOptions.mcp3208Options.enabled;
+    // 固件侧永久禁用：不使用 MCP3208/ADS8332 双通道电压档位映射按键输出。
+    return false;
 }
 
 void UnifiedVoltageSwitchAddon::setup() {

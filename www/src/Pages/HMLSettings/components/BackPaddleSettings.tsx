@@ -112,7 +112,6 @@ function BackPaddleSettingsBody({
 	const [isSaving, setIsSaving] = useState(false);
 
 	const backAddonOptions = bundle.back;
-	const fnOptions = bundle.fn;
 	const twoKeyOptions = bundle.twoKey;
 
 	const buttonNames = useMemo(() => {
@@ -139,8 +138,6 @@ function BackPaddleSettingsBody({
 
 	const patchBack = (key: string, payload: MaskPayload) =>
 		onBundleChange({ ...bundle, back: { ...bundle.back, [key]: payload } });
-	const patchFn = (key: string, payload: MaskPayload) =>
-		onBundleChange({ ...bundle, fn: { ...bundle.fn, [key]: payload } });
 	const patchTwoKey = (key: string, payload: MaskPayload) =>
 		onBundleChange({ ...bundle, twoKey: { ...bundle.twoKey, [key]: payload } });
 
@@ -201,12 +198,11 @@ function BackPaddleSettingsBody({
 	}, [appContext, bundle, onSaved, presetIndex, t]);
 
 	const backMappingRows = [
-		{ key: 'leftEl', labelKey: 'hml-paddle-left-el' },
-		{ key: 'rightEr', labelKey: 'hml-paddle-right-er' },
-		{ key: 'leftBack1', labelKey: 'hml-paddle-left-1' },
-		{ key: 'rightBack1', labelKey: 'hml-paddle-right-1' },
-		{ key: 'leftBack2', labelKey: 'hml-paddle-left-2' },
-		{ key: 'rightBack2', labelKey: 'hml-paddle-right-2' },
+		{ key: 'leftBack1', labelKey: 'hml-paddle-left-1', gpio: 'GPIO15' },
+		{ key: 'rightBack1', labelKey: 'hml-paddle-right-1', gpio: 'GPIO14' },
+		{ key: 'leftBack2', labelKey: 'hml-paddle-left-2', gpio: 'GPIO22' },
+		{ key: 'rightBack2', labelKey: 'hml-paddle-right-2', gpio: 'GPIO25' },
+		{ key: 'leftEl', labelKey: 'hml-paddle-headphone', gpio: 'GPIO23' },
 	];
 
 	const selectRow = (
@@ -215,11 +211,15 @@ function BackPaddleSettingsBody({
 		onChange: (p: MaskPayload) => void,
 		id: string,
 		showActivator: boolean,
+		gpio?: string,
 	) => (
 		<Col sm={6} md={6} key={id}>
 			<div className="d-flex align-items-center">
 				<div className="d-flex flex-shrink-0" style={{ width: '10rem' }}>
-					<label>{t(`CalibrationSettings:${labelKey}`)}</label>
+					<label>
+						{t(`CalibrationSettings:${labelKey}`)}
+						{gpio ? ` (${gpio})` : ''}
+					</label>
 				</div>
 				<CustomSelect
 					isClearable
@@ -254,37 +254,9 @@ function BackPaddleSettingsBody({
 				<Card.Header>{t('SettingsPage:hml-tab-back-buttons')}</Card.Header>
 				<Card.Body>
 					<Row className="g-3">
-						{backMappingRows.map(({ key, labelKey }) =>
-							selectRow(labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`, true),
+						{backMappingRows.map(({ key, labelKey, gpio }) =>
+							selectRow(labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`, true, gpio),
 						)}
-					</Row>
-				</Card.Body>
-			</Card>
-
-			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
-				<Card.Body>
-					{twoKeyTouchpadEnabled ? (
-						<Row className="g-3">
-							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l', false)}
-							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r', false)}
-						</Row>
-					) : (
-						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
-					)}
-				</Card.Body>
-			</Card>
-
-			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
-				<Card.Body>
-					<Row className="g-3">
-						{selectRow('hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l', true)}
-						{selectRow('hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r', true)}
-						{selectRow('hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l', true)}
-						{selectRow('hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r', true)}
-						{selectRow('hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l', false)}
-						{selectRow('hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r', false)}
 					</Row>
 					<Row className="mt-3">
 						<Col sm={4}>
@@ -304,6 +276,20 @@ function BackPaddleSettingsBody({
 							)}
 						</Col>
 					</Row>
+				</Card.Body>
+			</Card>
+
+			<Card style={{ marginBottom: '1rem' }}>
+				<Card.Header>{t('SettingsPage:hml-touchpad-mapping-title')}</Card.Header>
+				<Card.Body>
+					{twoKeyTouchpadEnabled ? (
+						<Row className="g-3">
+							{selectRow('hml-touch-left', twoKeyOptions.leftKey, (p) => patchTwoKey('leftKey', p), 'tk-l', false)}
+							{selectRow('hml-touch-right', twoKeyOptions.rightKey, (p) => patchTwoKey('rightKey', p), 'tk-r', false)}
+						</Row>
+					) : (
+						<p className="text-muted mb-0">{t('CalibrationSettings:hml-touchpad-disabled-hint')}</p>
+					)}
 				</Card.Body>
 			</Card>
 		</div>

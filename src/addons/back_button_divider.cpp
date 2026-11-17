@@ -37,8 +37,8 @@ enum BackMapIndex : uint8_t {
 };
 
 bool BackButtonDividerAddon::available() {
-    // 始终可用：由是否设置了背键映射决定是否实际输出
-    return true;
+    // 固件侧永久禁用，不读取前端开关。
+    return false;
 }
 
 void BackButtonDividerAddon::buildMappings() {

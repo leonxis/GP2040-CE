@@ -145,10 +145,8 @@ static float __not_in_flash_func(bezierFindT)(float xTarget, float c1x, float c2
 UnifiedAnalogProcessorAddon* UnifiedAnalogProcessorAddon::s_instance_ = nullptr;
 
 bool UnifiedAnalogProcessorAddon::available() {
-    const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    return addonOptions.analogOptions.enabled ||
-        addonOptions.ads8332Options.enabled ||
-        addonOptions.mcp3208Options.enabled;
+    // 摇杆输入仅由前端「模拟摇杆」开关启用，使用板载 ADC。
+    return Storage::getInstance().getAddonOptions().analogOptions.enabled;
 }
 
 void UnifiedAnalogProcessorAddon::setup() {
@@ -175,16 +173,8 @@ bool UnifiedAnalogProcessorAddon::getNormalizedStick(uint8_t stickNum, float& nx
 
 void UnifiedAnalogProcessorAddon::resolveSource() {
     const AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    // Source priority only selects provider; coordinate semantics are unified:
+    // 外部 ADC 插件已永久禁用，摇杆输入固定为板载 ADC。
     // stick0 => ANALOG_ADC_1_VRX/VRY, stick1 => ANALOG_ADC_2_VRX/VRY.
-    if (addonOptions.ads8332Options.enabled) {
-        source_ = StickSource::ADS8332;
-        return;
-    }
-    if (addonOptions.mcp3208Options.enabled) {
-        source_ = StickSource::MCP3208;
-        return;
-    }
     if (addonOptions.analogOptions.enabled) {
         source_ = StickSource::OnboardADC;
         return;

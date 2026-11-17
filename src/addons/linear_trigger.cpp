@@ -32,8 +32,8 @@ static uint8_t adcToTriggerIncreasing(uint16_t raw, int32_t idleLow, int32_t pre
 }
 
 bool LinearTriggerAddon::available() {
-    const LinearTriggerOptions& opts = Storage::getInstance().getAddonOptions().linearTriggerOptions;
-    return opts.enabled;
+    // 固件侧永久禁用，不读取前端开关。
+    return false;
 }
 
 // releasedRaw > maxRaw：松开为高 ADC

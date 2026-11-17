@@ -39,6 +39,7 @@
 #include "addons/linear_trigger.h"
 #include "addons/two_key_touchpad.h"
 #include "addons/back_button_divider.h"
+#include "addons/back_button_gpio.h"
 #include "addons/key_layer.h"
 #include "addons/tg16_input.h"
 
@@ -74,15 +75,15 @@ static const uint16_t MAIN_LOOP_GATE_LOCK_COMPLETIONS = 128;
 static uint16_t cached_joystick_mid = GAMEPAD_JOYSTICK_MID;
 static float cached_dpad_deadzone = 0.1f;
 static float cached_dpad_threshold = 0.1f;
-static const uint8_t WEBCONFIG_BOOT_GPIO = 19; //修改为GPIO19
-static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_A = 18;
-static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_B = 19;
-static const uint8_t RUNTIME_HOTKEY_WEBCONFIG_GPIO = 21;
-static const uint8_t RUNTIME_HOTKEY_USB_BOOT_GPIO = 22;
-static const uint8_t RUNTIME_HOTKEY_MODE_X_GPIO = 15;
-static const uint8_t RUNTIME_HOTKEY_MODE_O_GPIO = 9;
-static const uint8_t RUNTIME_HOTKEY_MODE_SQUARE_GPIO = 13;
-static const uint8_t RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO = 14;
+static const uint8_t WEBCONFIG_BOOT_GPIO = 1; //修改为GPIO1
+static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_A = 0;
+static const uint8_t RUNTIME_HOTKEY_SHARED_GPIO_B = 1;
+static const uint8_t RUNTIME_HOTKEY_WEBCONFIG_GPIO = 6;
+static const uint8_t RUNTIME_HOTKEY_USB_BOOT_GPIO = 19;
+static const uint8_t RUNTIME_HOTKEY_MODE_X_GPIO = 4;
+static const uint8_t RUNTIME_HOTKEY_MODE_O_GPIO = 10;
+static const uint8_t RUNTIME_HOTKEY_MODE_SQUARE_GPIO = 9;
+static const uint8_t RUNTIME_HOTKEY_MODE_TRIANGLE_GPIO = 5;
 
 enum class RuntimeHotkeyAction {
 	NONE,
@@ -652,12 +653,18 @@ void GP2040::setup() {
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new TwoKeyTouchpadAddon());
 	addons.LoadAddon(new BackButtonDividerAddon());
+	addons.LoadAddon(new BackButtonGpioAddon());
 	// 映射层：须在背键/触摸板之后（查其实际输出态）、LinearTrigger 之前（按最终位重算）
 	// available()=层槽任一总闸开启；全关时插件不注册，bindExternal 须随之守卫
 	if (addons.LoadAddon(new KeyLayerAddon())) {
 		if (KeyLayerAddon* kl = (KeyLayerAddon*)addons.GetAddon(KEY_LAYER_ADDON_NAME)) {
+			BackButtonDividerAddon* backDiv =
+				(BackButtonDividerAddon*)addons.GetAddon(BACK_BUTTON_GPIO_ADDON_NAME);
+			if (backDiv == nullptr) {
+				backDiv = (BackButtonDividerAddon*)addons.GetAddon(BACK_BUTTON_DIVIDER_ADDON_NAME);
+			}
 			kl->bindExternal(
-				(BackButtonDividerAddon*)addons.GetAddon(BACK_BUTTON_DIVIDER_ADDON_NAME),
+				backDiv,
 				(TwoKeyTouchpadAddon*)addons.GetAddon(TWO_KEY_TOUCHPAD_ADDON_NAME),
 				(UnifiedVoltageSwitchAddon*)addons.GetAddon(UnifiedVoltageSwitchName));
 		}

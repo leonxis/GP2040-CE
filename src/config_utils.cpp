@@ -1026,8 +1026,8 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, 0);
 #endif
     config.addonOptions.has_ads8332Options = true;
-    config.addonOptions.mcp3208Options.enabled =
-        !config.addonOptions.ads8332Options.enabled;
+    // ADS8332 / MCP3208 插件已在固件侧永久禁用，两者默认均为关闭。
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, 0);
     config.addonOptions.mcp3208Options.has_enabled = true;
     config.addonOptions.has_mcp3208Options = true;
 #if defined(LSM6DSR_DEFAULT_ENABLED)

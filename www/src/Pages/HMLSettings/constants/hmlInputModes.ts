@@ -91,7 +91,6 @@ export const TABS: readonly HmlSettingsTabItem[] = [
 	{ key: 'mode', labelKey: 'hml-tab-mode' },
 	{ key: 'calibration', labelKey: 'hml-tab-calibration' },
 	{ key: 'button-settings', labelKey: 'hml-tab-button-settings' },
-	{ key: 'motion', labelKey: 'hml-tab-motion' },
 	{ key: 'function-buttons', labelKey: 'hml-tab-function-buttons' },
 	{ key: 'hardware', labelKey: 'hml-tab-hardware' },
 	{ key: 'backup-reset', labelKey: 'hml-tab-backup-reset' },

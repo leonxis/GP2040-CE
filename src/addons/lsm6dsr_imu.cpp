@@ -102,16 +102,8 @@ static void spiWriteReg(PeripheralSPI* spi, int8_t csPin, uint8_t reg, uint8_t v
 }
 
 bool LSM6DSRIMUAddon::available() {
-	const InputMode inputMode = Storage::getInstance().getGamepadOptions().inputMode;
-	if (inputMode != INPUT_MODE_PS4 && inputMode != INPUT_MODE_PS4B && inputMode != INPUT_MODE_SWITCH_PRO) {
-		return false;
-	}
-	const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-	if (!opts.enabled) return false;
-	PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(LSM6DSR_HW_SPI_BLOCK);
-	if (!PeripheralManager::getInstance().isSPIEnabled(LSM6DSR_HW_SPI_BLOCK) || !spi || !spi->configured)
-		return false;
-	return true;
+	// 固件侧永久禁用，不读取前端开关。
+	return false;
 }
 
 void LSM6DSRIMUAddon::setup() {

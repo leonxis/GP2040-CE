@@ -12,8 +12,8 @@
 AnalogInput* AnalogInput::s_instance_ = nullptr;
 
 bool AnalogInput::available() {
-    // 固件侧强制禁用板载 ADC 模拟摇杆插件，不读取前端 AnalogInputEnabled。
-    return false;
+    // 板载 ADC 摇杆输入源由前端「模拟摇杆」开关启用。
+    return Storage::getInstance().getAddonOptions().analogOptions.enabled;
 }
 
 void AnalogInput::setup() {
