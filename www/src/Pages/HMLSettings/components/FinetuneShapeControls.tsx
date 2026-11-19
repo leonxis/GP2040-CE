@@ -6,12 +6,18 @@ interface FinetuneShapeControlsProps {
 	title: string;
 	amplify: number;
 	onAmplifyChange: (value: number) => void;
+	deadzoneLabelKey: string;
+	outerDeadzone: number;
+	onOuterDeadzoneChange: (value: number) => void;
 }
 
 const FinetuneShapeControls: React.FC<FinetuneShapeControlsProps> = ({
 	title,
 	amplify,
 	onAmplifyChange,
+	deadzoneLabelKey,
+	outerDeadzone,
+	onOuterDeadzoneChange,
 }) => {
 	const { t } = useTranslation();
 	return (
@@ -40,6 +46,19 @@ const FinetuneShapeControls: React.FC<FinetuneShapeControlsProps> = ({
 						/>
 						<p className="text-muted small mt-1 mb-0">
 							{t('CalibrationSettings:hml-outer-amplify-hint')}
+						</p>
+					</div>
+					<div>
+						<Form.Label className="mb-1">{t(deadzoneLabelKey, { pct: outerDeadzone.toFixed(1) })}</Form.Label>
+						<Form.Range
+							min={0}
+							max={30}
+							step={0.1}
+							value={outerDeadzone}
+							onChange={(e) => onOuterDeadzoneChange(parseFloat(e.target.value))}
+						/>
+						<p className="text-muted small mt-1 mb-0">
+							{t('CalibrationSettings:hml-outer-deadzone-hint')}
 						</p>
 					</div>
 				</div>

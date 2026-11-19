@@ -291,23 +291,6 @@ void applyActionMappingEntry(Gamepad* gamepad, const ActionMappingEntry& entry) 
     }
 }
 
-void clearActionMappingEntry(Gamepad* gamepad, const ActionMappingEntry& entry) {
-    if (gamepad == nullptr || !entry.enabled) {
-        return;
-    }
-
-    gamepad->state.buttons &= ~entry.buttonMask;
-    gamepad->state.dpad &= static_cast<uint8_t>(~entry.dpadMask);
-    gamepad->state.aux &= static_cast<uint16_t>(~entry.auxMask);
-    gamepad->addonKeyboardKeyMask &= ~entry.keyboardMask;
-    gamepad->addonMouseButtonMask &= static_cast<uint8_t>(~entry.mouseButtonMask);
-    gamepad->addonTouchpadSwipeMask &= static_cast<uint8_t>(~entry.touchpadSwipeMask);
-
-    if (entry.complexAction != GpioAction::NONE) {
-        clearComplexAction(gamepad, entry.complexAction);
-    }
-}
-
 void ActionOutputScope::reset() {
     lastButtons_ = 0;
     lastDpad_ = 0;

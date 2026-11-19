@@ -58,10 +58,6 @@ export default function HardwareConfig() {
 		},
 	});
 	const [displayOptions, setDisplayOptions] = useState({ enabled: 0 });
-	const [twoKeyTouchpadOptions, setTwoKeyTouchpadOptions] = useState({
-		enabled: 0,
-		enableKey: { action: -10, customButtonMask: 0, customDpadMask: 0 },
-	});
 	const [wirelessLinkOptions, setWirelessLinkOptions] = useState({
 		wireless24gLinkEnabled: 0,
 		bluetoothLinkEnabled: 0,
@@ -99,7 +95,6 @@ export default function HardwareConfig() {
 				// 进而触发渲染崩溃。串行可降低后端并发压力，且任一失败不影响后续请求。
 				const peripheral = await WebApi.getPeripheralOptions();
 				const display = await WebApi.getDisplayOptions();
-				const twoKeyTouchpad = await WebApi.getTwoKeyTouchpadOptions();
 				const led = await WebApi.getLedOptions();
 				const ambient = await WebApi.getAmbientOptions();
 				const addons = await WebApi.getAddonsOptions();
@@ -107,14 +102,6 @@ export default function HardwareConfig() {
 
 				setPeripheralOptions(peripheral);
 				setDisplayOptions(display || { enabled: 0 });
-				setTwoKeyTouchpadOptions({
-					enabled: Number(twoKeyTouchpad?.enabled) ? 1 : 0,
-					enableKey: twoKeyTouchpad?.enableKey ?? {
-						action: -10,
-						customButtonMask: 0,
-						customDpadMask: 0,
-					},
-				});
 				setReportRate(
 					[250, 500, 1000].includes(Number(addons?.reportRate))
 						? Number(addons.reportRate)
@@ -221,10 +208,6 @@ export default function HardwareConfig() {
 			// 设备 HTTP POST 共用单缓冲区，须顺序提交
 			await WebApi.setPeripheralOptions(dataToSave);
 			await WebApi.setDisplayOptions(displayOptions);
-			await WebApi.setTwoKeyTouchpadOptions({
-				enabled: twoKeyTouchpadOptions?.enabled ? 1 : 0,
-				enableKey: twoKeyTouchpadOptions?.enableKey,
-			});
 			await WebApi.setAddonsOptions({ reportRate, cpuOverclockLevel });
 			// 无线扩展开关与 USB验证器互斥（后端同样做兜底归一化）
 			await WebApi.setGamepadOptions({
@@ -359,45 +342,10 @@ export default function HardwareConfig() {
 										},
 									},
 								}));
-								// 打开显示屏时自动关闭 2键触摸板
-								if (isEnabled) {
-									setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: 0 }));
-								}
 							}}
 						/>
 						<span className="text-muted">
 							{t('SettingsPage:hml-display-hint')}
-						</span>
-					</div>
-
-					{/* 2键触摸板开关 */}
-					<div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-						<Form.Check
-							type="switch"
-							id="two-key-touchpad-switch"
-							label={t('SettingsPage:hml-two-key-touchpad-label')}
-							checked={Boolean(twoKeyTouchpadOptions?.enabled)}
-							onChange={(e) => {
-								const isEnabled = e.target.checked ? 1 : 0;
-								setTwoKeyTouchpadOptions((prev) => ({ ...prev, enabled: isEnabled }));
-								// 打开 2 键触摸板时自动关闭显示屏与 I2C1（共用 I2C1 SDA/SCL 引脚）
-								if (isEnabled) {
-									setDisplayOptions((prev) => ({ ...prev, enabled: 0 }));
-									setPeripheralOptions((prev) => ({
-										...prev,
-										peripheral: {
-											...prev.peripheral,
-											i2c1: {
-												...prev.peripheral?.i2c1,
-												enabled: 0,
-											},
-										},
-									}));
-								}
-							}}
-						/>
-						<span className="text-muted">
-							{t('SettingsPage:hml-two-key-touchpad-hint')}
 						</span>
 					</div>
 
