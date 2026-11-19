@@ -47,6 +47,7 @@ export default {
 	'hml-button-confirm': 'OK',
 	'hml-button-cancel': 'Cancel',
 	'hml-error-rate-label': 'Error rate',
+	'hml-oversampling-label': 'Oversampling',
 	'hml-view-calibration-data-button': 'View calibration data',
 	'hml-ads8332-iir-enable': 'IIR filter',
 	'hml-ads8332-iir-strength': 'Strength: {{value}}',

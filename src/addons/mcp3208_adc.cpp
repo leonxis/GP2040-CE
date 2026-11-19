@@ -102,6 +102,9 @@ void MCP3208ADCAddon::setup() {
     spiProfile_ = {};
     spiOk_ = false;
     csPin_ = -1;
+    // 网页「超采样」开关：每通道连续转换 4 次取平均，输出仍为 12bit
+    oversampling_ =
+        Storage::getInstance().getAddonOptions().mcp3208Options.oversampling;
     // Initialize stick channels to center so first frame is neutral.
     const uint16_t center = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
     for (int i = 0; i < 8; i++) adcValues_[i] = 0;
@@ -124,6 +127,8 @@ void MCP3208ADCAddon::setup() {
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(MCP3208_HW_SPI_BLOCK);
     if (!spi || !spi->configured) return;
     spi_ = spi;
+    // SPI0 与 ADS8332 共享：固定 1MHz/MODE0/MSB，setup 配置一次，
+    // 后续每帧由 prepareSPITransaction 恢复。
     spiProfile_ = spi_->makeBaudrateProfile(MCP3208_SPI_HZ);
     if (!spiProfile_.valid()) return;
     spi_->beginTransaction(spiProfile_, SPI_MSB_FIRST, SPI_MODE0);
@@ -178,6 +183,7 @@ void __not_in_flash_func(MCP3208ADCAddon::process)() {
         return;
     }
 
+    // 超采样状态在 setup 时已缓存（oversampling_），由 readChannelsBatched 应用
     uint16_t xValues[MCP3208_STICK_COUNT] = {};
     uint16_t yValues[MCP3208_STICK_COUNT] = {};
     for (uint8_t stick = 0; stick < MCP3208_STICK_COUNT; stick++) {
@@ -213,12 +219,24 @@ bool __not_in_flash_func(MCP3208ADCAddon::readChannelsBatched)(
         if (commandIndex < 0) {
             return false;
         }
-        uint8_t rx[3] = {};
-        spi_->select(csPin_);
-        spi_->transfer(MCP3208_TX_COMMANDS[commandIndex], rx, 3);
-        spi_->deselect();
+        const int samples = oversampling_ ? MCP3208_OVERSAMPLE_COUNT : 1;
+        uint16_t sum = 0;
+        for (int s = 0; s < samples; s++) {
+            uint8_t rx[3] = {};
+            spi_->select(csPin_);
+            spi_->transfer(MCP3208_TX_COMMANDS[commandIndex], rx, 3);
+            spi_->deselect();
+            // Datasheet tCSH（两次转换间 CS 高电平）最小 500ns；
+            // 同一 process() 内连续读通道时补足该间隔。
+            busy_wait_us(1);
+            sum = static_cast<uint16_t>(
+                sum + (((rx[1] & 0x0F) << 8) | rx[2]));
+        }
+        // 4 次平均后仍为 12bit 量程（0..4095），兼容 unified_analog_processor
         values[channels[i]] = static_cast<uint16_t>(
-            ((rx[1] & 0x0F) << 8) | rx[2]);
+            oversampling_
+                ? (sum + (MCP3208_OVERSAMPLE_COUNT / 2)) / MCP3208_OVERSAMPLE_COUNT
+                : sum);
     }
     return true;
 }

@@ -1030,6 +1030,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
         !config.addonOptions.ads8332Options.enabled;
     config.addonOptions.mcp3208Options.has_enabled = true;
     config.addonOptions.has_mcp3208Options = true;
+    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, oversampling, false);
 #if defined(LSM6DSR_DEFAULT_ENABLED)
     INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);
 #else

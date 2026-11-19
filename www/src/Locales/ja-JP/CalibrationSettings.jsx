@@ -47,6 +47,7 @@ export default {
 	'hml-button-confirm': 'OK',
 	'hml-button-cancel': 'キャンセル',
 	'hml-error-rate-label': '誤差率',
+	'hml-oversampling-label': 'オーバーサンプリング',
 	'hml-view-calibration-data-button': 'キャリブレーションデータを表示',
 	'hml-ads8332-iir-enable': 'IIRフィルター',
 	'hml-ads8332-iir-strength': '強度: {{value}}',

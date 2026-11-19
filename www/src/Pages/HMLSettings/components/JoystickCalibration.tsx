@@ -1323,7 +1323,7 @@ const JoystickCalibration = ({
 							onCenterYChange={(value) => setFieldValue('joystickCenterY', value)}
 							convertToXInputNormalized={convertToXInputNormalized}
 						/>
-						<div style={{ display: 'flex', justifyContent: 'center' }}>
+						<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
 							<Form.Check
 								type="switch"
 								label={t('CalibrationSettings:hml-error-rate-label')}
@@ -1335,6 +1335,12 @@ const JoystickCalibration = ({
 										setLeftFinetuneShapeCircularityData(new Array(CIRCULARITY_DATA_SIZE).fill(0));
 									}
 								}}
+							/>
+							<Form.Check
+								type="switch"
+								label={t('CalibrationSettings:hml-oversampling-label')}
+								checked={Boolean(values?.mcp3208Oversampling)}
+								onChange={(e) => setFieldValue('mcp3208Oversampling', e.target.checked ? 1 : 0)}
 							/>
 						</div>
 					</div>
