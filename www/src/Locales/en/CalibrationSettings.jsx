@@ -47,6 +47,7 @@ export default {
 	'hml-button-confirm': 'OK',
 	'hml-button-cancel': 'Cancel',
 	'hml-error-rate-label': 'Error rate',
+	'hml-oversampling-label': 'Oversampling',
 	'hml-view-calibration-data-button': 'View calibration data',
 	'hml-stick-step-settings': 'Stick step settings',
 	'hml-outer-amplify-label': 'Outer scale factor: {{value}}%',

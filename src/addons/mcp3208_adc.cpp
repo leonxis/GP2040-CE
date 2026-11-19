@@ -1,5 +1,8 @@
 #include "addons/mcp3208_adc.h"
 #include "peripheralmanager.h"
+#include "storagemanager.h"
+
+#include "pico/time.h"
 
 static const uint8_t MCP3208_CHANNELS[MCP3208_READ_CHANNELS] = {0, 1, 6, 7};
 static const uint8_t MCP3208_TX_COMMANDS[MCP3208_READ_CHANNELS][3] = {
@@ -73,6 +76,9 @@ void MCP3208ADCAddon::setup() {
     spi_ = nullptr;
     spiOk_ = false;
     csPin_ = -1;
+    // 网页「超采样」开关：每通道连续转换 4 次取平均，输出仍为 12bit
+    oversampling_ =
+        Storage::getInstance().getAddonOptions().mcp3208Options.oversampling;
     // Initialize stick channels to center so first frame is neutral.
     const uint16_t center = static_cast<uint16_t>(MCP3208_ADC_MAX_HALF);
     for (StickSnapshot& snapshot : stickSnapshots_) {
@@ -93,7 +99,7 @@ void MCP3208ADCAddon::setup() {
     PeripheralSPI* spi = PeripheralManager::getInstance().getSPI(MCP3208_HW_SPI_BLOCK);
     if (!spi || !spi->configured) return;
     spi_ = spi;
-    // SPI0 由 MCP3208 独占：1.5MHz/MODE0/MSB 仅在 setup 配置一次，运行时不再切频。
+    // SPI0 由 MCP3208 独占：1MHz/MODE0/MSB 仅在 setup 配置一次，运行时不再切频。
     spi_->beginTransaction(MCP3208_SPI_HZ, SPI_MSB_FIRST, SPI_MODE0);
 
     spiOk_ = true;
@@ -104,14 +110,17 @@ void __not_in_flash_func(MCP3208ADCAddon::process)() {
         return;
     }
 
+    // 超采样状态在 setup 时已缓存，循环中不再读取配置
+    const bool oversampling = oversampling_;
+
     uint16_t xValues[MCP3208_STICK_COUNT] = {};
     uint16_t yValues[MCP3208_STICK_COUNT] = {};
     for (int stick = 0; stick < MCP3208_STICK_COUNT; stick++) {
         const uint8_t x = stick_channels_[stick].x_channel;
         const uint8_t y = stick_channels_[stick].y_channel;
         if (x >= 8 || y >= 8 ||
-            !readChannel(x, xValues[stick]) ||
-            !readChannel(y, yValues[stick])) {
+            !readChannel(x, xValues[stick], oversampling) ||
+            !readChannel(y, yValues[stick], oversampling)) {
             return;
         }
     }
@@ -120,7 +129,8 @@ void __not_in_flash_func(MCP3208ADCAddon::process)() {
 
 bool __not_in_flash_func(MCP3208ADCAddon::readChannel)(
     uint8_t channel,
-    uint16_t& value
+    uint16_t& value,
+    bool oversampling
 ) {
     if (!spi_ || !spiOk_ || channel >= 8) {
         return false;
@@ -129,12 +139,24 @@ bool __not_in_flash_func(MCP3208ADCAddon::readChannel)(
         if (MCP3208_CHANNELS[i] != channel) {
             continue;
         }
-        uint8_t rx[3];
-        spi_->select(csPin_);
-        spi_->transfer(MCP3208_TX_COMMANDS[i], rx, 3);
-        spi_->deselect();
+        const int samples = oversampling ? MCP3208_OVERSAMPLE_COUNT : 1;
+        uint16_t sum = 0;
+        for (int s = 0; s < samples; s++) {
+            uint8_t rx[3];
+            spi_->select(csPin_);
+            spi_->transfer(MCP3208_TX_COMMANDS[i], rx, 3);
+            spi_->deselect();
+            // Datasheet tCSH（两次转换间 CS 高电平）最小 500ns；
+            // 同一 process() 内连续读通道时补足该间隔。
+            busy_wait_us(1);
+            sum = static_cast<uint16_t>(
+                sum + (((rx[1] & 0x0F) << 8) | rx[2]));
+        }
+        // 4 次平均后仍为 12bit 量程（0..4095），兼容 unified_analog_processor
         value = static_cast<uint16_t>(
-            ((rx[1] & 0x0F) << 8) | rx[2]);
+            oversampling
+                ? (sum + (MCP3208_OVERSAMPLE_COUNT / 2)) / MCP3208_OVERSAMPLE_COUNT
+                : sum);
         return true;
     }
     return false;

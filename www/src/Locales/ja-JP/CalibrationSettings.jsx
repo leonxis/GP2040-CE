@@ -47,6 +47,7 @@ export default {
 	'hml-button-confirm': 'OK',
 	'hml-button-cancel': 'キャンセル',
 	'hml-error-rate-label': '誤差率',
+	'hml-oversampling-label': 'オーバーサンプリング',
 	'hml-view-calibration-data-button': 'キャリブレーションデータを表示',
 	'hml-stick-step-settings': 'スティックステップ設定',
 	'hml-outer-amplify-label': '外周スケール: {{value}}%',
