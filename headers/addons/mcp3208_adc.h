@@ -23,7 +23,7 @@ static constexpr int8_t MCP3208_HW_CS_PIN = 1;
 #define MCP3208_ADC_MAX         4095
 #define MCP3208_ADC_MAX_HALF    (MCP3208_ADC_MAX * 0.5f)
 #define MCP3208_STICK_COUNT     2
-// 超采样次数：开启后每通道连续转换 N 次取平均，结果仍为 12bit（0..4095）
+// 超采样次数：开启后每个摇杆通道连续转换 N 次取平均，结果仍为 12bit（0..4095）
 #define MCP3208_OVERSAMPLE_COUNT 4
 
 class MCP3208ADCAddon : public GPAddon {

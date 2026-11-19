@@ -102,7 +102,7 @@ void MCP3208ADCAddon::setup() {
     spiProfile_ = {};
     spiOk_ = false;
     csPin_ = -1;
-    // 网页「超采样」开关：每通道连续转换 4 次取平均，输出仍为 12bit
+    // 网页「超采样」开关：每个摇杆通道连续转换 4 次取平均，输出仍为 12bit
     oversampling_ =
         Storage::getInstance().getAddonOptions().mcp3208Options.oversampling;
     // Initialize stick channels to center so first frame is neutral.
@@ -219,7 +219,14 @@ bool __not_in_flash_func(MCP3208ADCAddon::readChannelsBatched)(
         if (commandIndex < 0) {
             return false;
         }
-        const int samples = oversampling_ ? MCP3208_OVERSAMPLE_COUNT : 1;
+        // 超采样仅作用于摇杆通道（CH0/CH1/CH6/CH7），CH2/CH5 四档开关保持单次采样
+        const bool oversampleThisChannel =
+            oversampling_ &&
+            (channels[i] == stick_channels_[0].x_channel ||
+             channels[i] == stick_channels_[0].y_channel ||
+             channels[i] == stick_channels_[1].x_channel ||
+             channels[i] == stick_channels_[1].y_channel);
+        const int samples = oversampleThisChannel ? MCP3208_OVERSAMPLE_COUNT : 1;
         uint16_t sum = 0;
         for (int s = 0; s < samples; s++) {
             uint8_t rx[3] = {};
@@ -234,7 +241,7 @@ bool __not_in_flash_func(MCP3208ADCAddon::readChannelsBatched)(
         }
         // 4 次平均后仍为 12bit 量程（0..4095），兼容 unified_analog_processor
         values[channels[i]] = static_cast<uint16_t>(
-            oversampling_
+            oversampleThisChannel
                 ? (sum + (MCP3208_OVERSAMPLE_COUNT / 2)) / MCP3208_OVERSAMPLE_COUNT
                 : sum);
     }
