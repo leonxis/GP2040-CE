@@ -16,6 +16,13 @@
 
 #define ADC_COUNT 2
 
+// 网页「超采样」开启时，板载 ADC 每通道连续转换次数
+#define ANALOG_OVERSAMPLE_COUNT 64
+// 64 次 12bit 采样求和后每 4 次平均对应 1 个 14bit LSB
+#define ANALOG_OVERSAMPLE_DIVISOR (ANALOG_OVERSAMPLE_COUNT / 4)
+// 超采样输出的 14bit 量程（与 12bit 的 4095 对应）
+#define ANALOG_OVERSAMPLE_ADC_MAX ((1 << 14) - 1)
+
 class AnalogInput : public GPAddon {
 public:
     virtual bool available();
@@ -50,6 +57,7 @@ private:
     } sticks_[ADC_COUNT];
 
     static AnalogInput* s_instance_;
+    bool oversampling_;
 
     void refreshConfigFromStorage();
     uint16_t readPinRaw(Pin_t pinAdc);

@@ -18,6 +18,8 @@ namespace {
 // analog.cpp defines the same ADC_MAX macro name, so a macro here would
 // collide on any future include change.
 constexpr uint16_t kAdcMax = (1 << 12) - 1;
+// Onboard ADC 超采样开启后输出的 14bit 量程；校准中心在两种量程间自动换算。
+constexpr uint16_t kAdcMaxOversampled = (1 << 14) - 1;
 constexpr float kAdcMaxHalf = kAdcMax * 0.5f;
 constexpr float kAnalogCenter = 0.5f;
 constexpr int kCircularityDataSize = 48;
@@ -285,6 +287,22 @@ void UnifiedAnalogProcessorAddon::initializeStickFromOptions(int stickNum, const
     }
 }
 
+// 校准中心以 12bit 或 14bit 原始量程保存；读取时按当前源量程换算。
+uint16_t __not_in_flash_func(scaleCalibratedCenter)(uint16_t center, uint16_t adcMax) {
+    if (center == 0) {
+        return 0;
+    }
+    if (adcMax > kAdcMax && center <= kAdcMax) {
+        return static_cast<uint16_t>(
+            (static_cast<uint32_t>(center) * adcMax) / kAdcMax);
+    }
+    if (adcMax <= kAdcMax && center > kAdcMax) {
+        return static_cast<uint16_t>(
+            (static_cast<uint32_t>(center) * kAdcMax) / kAdcMaxOversampled);
+    }
+    return center;
+}
+
 uint16_t __not_in_flash_func(UnifiedAnalogProcessorAddon::quantizeRaw)(int stickNum, uint16_t value, bool isXAxis, uint16_t adcMax) {
     uint32_t step = sticks_[stickNum].jitter_filter;
     uint16_t* last = isXAxis ? &sticks_[stickNum].last_x_adc : &sticks_[stickNum].last_y_adc;
@@ -495,10 +513,16 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
         rawY = quantizeRaw(i, rawY, false, adcMax);
         // If center is uncalibrated (0) or out of range for the active source
         // (stale flash data), use source-native center (12-bit/16-bit aware).
+        // 校准中心按存储时的量程（12bit/14bit）换算到当前源量程，
+        // 避免超采样开关切换后旧校准失效。
         const uint16_t calibratedXCenter =
-            (sticks_[i].x_center > 0u && sticks_[i].x_center <= adcMax) ? sticks_[i].x_center : xCenter;
+            sticks_[i].x_center > 0u
+                ? scaleCalibratedCenter(sticks_[i].x_center, adcMax)
+                : xCenter;
         const uint16_t calibratedYCenter =
-            (sticks_[i].y_center > 0u && sticks_[i].y_center <= adcMax) ? sticks_[i].y_center : yCenter;
+            sticks_[i].y_center > 0u
+                ? scaleCalibratedCenter(sticks_[i].y_center, adcMax)
+                : yCenter;
         const float adcHalf = static_cast<float>(adcMax) * 0.5f;
 
         float cx = xValid ? static_cast<float>(rawX) - static_cast<float>(calibratedXCenter) : 0.0f;

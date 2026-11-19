@@ -34,11 +34,16 @@ void AnalogInput::refreshConfigFromStorage() {
     sticks_[1].x_pin = analogOptions.analogAdc2PinX;
     sticks_[1].y_pin = analogOptions.analogAdc2PinY;
 
+    // 沿用网页「超采样」开关：开启时板载 ADC 每通道连续采样 64 次并输出 14bit
+    oversampling_ = Storage::getInstance().getAddonOptions().mcp3208Options.oversampling;
+
+    const uint16_t neutral = static_cast<uint16_t>(
+        oversampling_ ? ANALOG_OVERSAMPLE_ADC_MAX * 0.5f : ADC_MAX_HALF);
     for (int i = 0; i < ADC_COUNT; i++) {
         sticks_[i].x_pin_adc = sticks_[i].x_pin - ADC_PIN_OFFSET;
         sticks_[i].y_pin_adc = sticks_[i].y_pin - ADC_PIN_OFFSET;
-        sticks_[i].raw_x = static_cast<uint16_t>(ADC_MAX_HALF);
-        sticks_[i].raw_y = static_cast<uint16_t>(ADC_MAX_HALF);
+        sticks_[i].raw_x = neutral;
+        sticks_[i].raw_y = neutral;
         sticks_[i].has_x = isValidPin(sticks_[i].x_pin);
         sticks_[i].has_y = isValidPin(sticks_[i].y_pin);
 
@@ -53,7 +58,14 @@ void AnalogInput::refreshConfigFromStorage() {
 
 uint16_t AnalogInput::readPinRaw(Pin_t pinAdc) {
     adc_select_input(pinAdc);
-    return adc_read();
+    if (!oversampling_) {
+        return adc_read();
+    }
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < ANALOG_OVERSAMPLE_COUNT; i++) {
+        sum += adc_read();
+    }
+    return static_cast<uint16_t>((sum + ANALOG_OVERSAMPLE_DIVISOR / 2) / ANALOG_OVERSAMPLE_DIVISOR);
 }
 
 void AnalogInput::preprocess() {
@@ -88,10 +100,12 @@ bool AnalogInput::getRawStickForProcessor(
     const SamplerStick& stick = s_instance_->sticks_[stickNum];
     x = stick.raw_x;
     y = stick.raw_y;
-    xCenter = static_cast<uint16_t>(ADC_MAX_HALF);
-    yCenter = static_cast<uint16_t>(ADC_MAX_HALF);
+    // 超采样开启时输出 14bit 量程，否则维持 12bit。
+    const uint16_t max = s_instance_->oversampling_ ? ANALOG_OVERSAMPLE_ADC_MAX : ADC_MAX;
+    xCenter = static_cast<uint16_t>(max * 0.5f);
+    yCenter = static_cast<uint16_t>(max * 0.5f);
     xValid = stick.has_x;
     yValid = stick.has_y;
-    adcMax = ADC_MAX;
+    adcMax = max;
     return true;
 }

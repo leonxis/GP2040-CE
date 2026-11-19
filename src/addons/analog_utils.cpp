@@ -37,18 +37,29 @@ bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMa
     Pin_t xPin = (stickNum == 0) ? analogOptions.analogAdc1PinX : analogOptions.analogAdc2PinX;
     Pin_t yPin = (stickNum == 0) ? analogOptions.analogAdc1PinY : analogOptions.analogAdc2PinY;
 
+    const bool oversample = Storage::getInstance().getAddonOptions().mcp3208Options.oversampling;
+    auto readPin = [oversample](uint8_t channel) -> uint32_t {
+        adc_select_input(channel);
+        if (!oversample) {
+            return adc_read();
+        }
+        uint32_t sum = 0;
+        for (uint8_t i = 0; i < ANALOG_OVERSAMPLE_COUNT; i++) {
+            sum += adc_read();
+        }
+        return (sum + ANALOG_OVERSAMPLE_DIVISOR / 2) / ANALOG_OVERSAMPLE_DIVISOR;
+    };
+
     if (isValidPin(xPin)) {
         adc_gpio_init(xPin);
-        adc_select_input(xPin - ADC_PIN_OFFSET);
-        x = adc_read();
+        x = readPin(xPin - ADC_PIN_OFFSET);
     }
     if (isValidPin(yPin)) {
         adc_gpio_init(yPin);
-        adc_select_input(yPin - ADC_PIN_OFFSET);
-        y = adc_read();
+        y = readPin(yPin - ADC_PIN_OFFSET);
     }
 
-    adcMax = 4095u;
+    adcMax = oversample ? ANALOG_OVERSAMPLE_ADC_MAX : 4095u;
     return true;
 }
 
