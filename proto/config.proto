@@ -862,8 +862,10 @@ message AddonOptions
 }
 
 // MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
+// oversampling: 每个摇杆通道连续采样 4 次取平均（仍输出 12bit），CH2/CH5 不参与，默认关闭。
 message MCP3208Options {
     optional bool enabled = 1 [default = false];
+    optional bool oversampling = 2 [default = false];
 }
 
 // ADS8332 ADC: 仅实现基础摇杆输出（CH0/CH1/CH6/CH7 -> LX/LY/RY/RX）

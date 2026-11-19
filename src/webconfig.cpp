@@ -2565,6 +2565,8 @@ std::string setAddonOptions()
     docToValue(lsm6dsrOptions.gyroMouseDeadzone, doc, "lsm6dsrGyroMouseDeadzone");
     if (doc.containsKey("lsm6dsrGyroMouseDeadzone")) lsm6dsrOptions.has_gyroMouseDeadzone = true;
     docToValue(Storage::getInstance().getAddonOptions().reportRate, doc, "reportRate");
+    // MCP3208 每通道连续采样 4 次取平均（仍 12bit），默认关闭
+    docToValue(Storage::getInstance().getAddonOptions().mcp3208Options.oversampling, doc, "mcp3208Oversampling");
     // 超频等级需限定在有效枚举范围内，非法值会导致 nanopb 编码失败而无法保存配置
     if (doc["cpuOverclockLevel"] != nullptr) {
         int32_t ocLevel = doc["cpuOverclockLevel"].as<int32_t>();
@@ -2930,6 +2932,7 @@ std::string getAddonOptions()
     writeDoc(doc, "lsm6dsrGyroMouseSensUD", lsm6dsrOptions.gyroMouseSensUD);
     writeDoc(doc, "lsm6dsrGyroMouseDeadzone", lsm6dsrOptions.gyroMouseDeadzone);
     writeDoc(doc, "reportRate", Storage::getInstance().getAddonOptions().reportRate);
+    writeDoc(doc, "mcp3208Oversampling", Storage::getInstance().getAddonOptions().mcp3208Options.oversampling ? 1 : 0);
     writeDoc(doc, "cpuOverclockLevel", (int32_t)Storage::getInstance().getAddonOptions().cpuOverclockLevel);
     {
         JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");

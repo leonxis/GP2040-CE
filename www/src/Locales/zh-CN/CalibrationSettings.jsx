@@ -46,6 +46,7 @@ export default {
 	'hml-button-confirm': '确定',
 	'hml-button-cancel': '取消',
 	'hml-error-rate-label': '误差率',
+	'hml-oversampling-label': '超采样',
 	'hml-view-calibration-data-button': '查看校准数据',
 	'hml-ads8332-iir-enable': 'IIR滤波',
 	'hml-ads8332-iir-strength': '强度：{{value}}',

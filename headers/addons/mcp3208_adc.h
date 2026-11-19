@@ -10,16 +10,21 @@
 #define MCP3208_ADC_ADDON_NAME "MCP3208 ADC"
 
 // HML fixed wiring: shares SPI0 and CS GPIO1 with the ADS8332 option.
+// SPI0 时钟固定 1MHz/MODE0/MSB，setup 配置一次后无运行时切频。
 static constexpr uint8_t MCP3208_HW_SPI_BLOCK = 0;
 static constexpr int8_t MCP3208_HW_CS_PIN = 1;
 
-#define MCP3208_SPI_HZ          1500000u
+// Datasheet fCLK 上限：2.0MHz @VDD=5V，1.0MHz @VDD=2.7V。
+// 本板 MCP3208 由 3.3V 供电，按 2.7V 档取 1MHz 上限。
+#define MCP3208_SPI_HZ          1000000u
 
 // 通道：CH0=左X, CH1=左Y, CH6=右Y, CH7=右X；CH2/CH5=四档开关；CH3/CH4 悬空不读
 #define MCP3208_READ_CHANNELS    6   // 0,1,2,5,6,7
 #define MCP3208_ADC_MAX         4095
 #define MCP3208_ADC_MAX_HALF    (MCP3208_ADC_MAX * 0.5f)
 #define MCP3208_STICK_COUNT     2
+// 超采样次数：开启后每个摇杆通道连续转换 N 次取平均，结果仍为 12bit（0..4095）
+#define MCP3208_OVERSAMPLE_COUNT 4
 
 class MCP3208ADCAddon : public GPAddon {
 public:
@@ -87,6 +92,7 @@ private:
     int8_t csPin_;            // Chip select GPIO (硬编码)
     uint16_t adcValues_[8];   // Auxiliary CH2/CH5 cache; sticks use published snapshots.
     bool spiOk_;
+    bool oversampling_;       // setup 时从配置读取并缓存
     SamplerStickChannelConfig stick_channels_[MCP3208_STICK_COUNT];
     SamplerDividerChannelConfig divider_channels_;
     // CH2/CH5 采样降频计数器：仅控制 raw 采样频率，不承担映射/防抖状态
