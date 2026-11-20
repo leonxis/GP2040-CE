@@ -76,7 +76,7 @@ void MCP3208ADCAddon::setup() {
     spi_ = nullptr;
     spiOk_ = false;
     csPin_ = -1;
-    // 网页「超采样」开关：每通道连续转换 4 次取平均，输出仍为 12bit
+    // 网页「超采样」开关：每通道连续转换 2 次取平均，输出仍为 12bit
     oversampling_ =
         Storage::getInstance().getAddonOptions().mcp3208Options.oversampling;
     // Initialize stick channels to center so first frame is neutral.
@@ -152,7 +152,7 @@ bool __not_in_flash_func(MCP3208ADCAddon::readChannel)(
             sum = static_cast<uint16_t>(
                 sum + (((rx[1] & 0x0F) << 8) | rx[2]));
         }
-        // 4 次平均后仍为 12bit 量程（0..4095），兼容 unified_analog_processor
+        // 2 次平均后仍为 12bit 量程（0..4095），兼容 unified_analog_processor
         value = static_cast<uint16_t>(
             oversampling
                 ? (sum + (MCP3208_OVERSAMPLE_COUNT / 2)) / MCP3208_OVERSAMPLE_COUNT

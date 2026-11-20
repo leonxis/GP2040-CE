@@ -111,7 +111,7 @@ export const DEFAULT_VALUES = {
 	// HML-owned stick calibration fields (percent in UI, tenths on the wire).
 	joystickOuterDeadzone1: 0.0,
 	joystickOuterDeadzone2: 0.0,
-	// MCP3208 超采样：0=关闭（默认），1=每通道连续采样 4 次取平均
+	// MCP3208 超采样：0=关闭（默认），1=每通道连续采样 2 次取平均
 	mcp3208Oversampling: 0,
 } as const;
 

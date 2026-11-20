@@ -855,7 +855,7 @@ message AddonOptions
 
 // MCP3208 ADC: 摇杆采样 CH0/CH1/CH6/CH7，0.82V 固定 L3/R3
 // 插件恒启用（固件 mcp3208_adc 中硬编码 SPI/CS），enabled 字段仅为兼容旧配置保留并强制为 true。
-// oversampling: 每个通道连续采样 4 次取平均（仍输出 12bit），默认关闭。
+// oversampling: 每个通道连续采样 2 次取平均（仍输出 12bit），默认关闭。
 message MCP3208Options {
     optional bool enabled = 1 [default = false];
     optional bool oversampling = 2 [default = false];
