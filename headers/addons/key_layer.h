@@ -11,7 +11,6 @@
 #define KEY_LAYER_ADDON_NAME "按键映射层"
 
 class BackButtonDividerAddon;
-class UnifiedVoltageSwitchAddon;
 
 // 按键映射层插件：
 // 当前基础映射（1 或 2）对应的层槽（sets[1]/sets[2]）总闸开启，
@@ -29,8 +28,7 @@ public:
     virtual void reinit();
 
     // 由 gp2040.cpp 在插件注册后绑定（未加载的插件为 nullptr）
-    void bindExternal(BackButtonDividerAddon* backDiv,
-                      UnifiedVoltageSwitchAddon* voltageSwitch);
+    void bindExternal(BackButtonDividerAddon* backDiv);
 
 private:
     struct MaskAcc {
@@ -43,9 +41,9 @@ private:
     };
 
     struct ActivatorCtx {
-        // 主控引脚 / 背键 / FN-MT 电压档位可作激活器
-        enum Src : uint8_t { MAIN, BACK, VOLTAGE } src;
-        uint8_t index = 0;            // MAIN=pin, BACK=背键序号, VOLTAGE=side*4+level
+        // 主控引脚 / 背键可作激活器
+        enum Src : uint8_t { MAIN, BACK } src;
+        uint8_t index = 0;            // MAIN=pin, BACK=背键序号
         ActivatorMode mode = ACTIVATOR_OFF;
         bool lastLevel = false;
         bool toggleOn = false;
@@ -59,14 +57,12 @@ private:
     ActionMappingCommon::ActionMappingEntry layerEntry_[NUM_BANK0_GPIOS];
     bool layerMasterOn_ = false;
     static constexpr uint8_t kBackKeyCount = 6;
-    static constexpr uint8_t kVoltageKeyCount = 4;  // 左FN/右FN/左MT/右MT
     ActionMappingCommon::ActionMappingEntry backEntry_[kBackKeyCount];
-    ActivatorCtx activators_[NUM_BANK0_GPIOS + kBackKeyCount + kVoltageKeyCount];
+    ActivatorCtx activators_[NUM_BANK0_GPIOS + kBackKeyCount];
     uint8_t activatorCount_ = 0;
 
     bool prevMasterEnabled_ = false;
     BackButtonDividerAddon* backDiv_ = nullptr;
-    UnifiedVoltageSwitchAddon* voltageSwitch_ = nullptr;
 };
 
 #endif

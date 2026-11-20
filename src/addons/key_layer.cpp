@@ -1,7 +1,6 @@
 #include "addons/key_layer.h"
 
 #include "addons/back_button_divider.h"
-#include "addons/unified_voltage_switch.h"
 #include "hml_back_mapping_preset.h"
 #include "storagemanager.h"
 #include "gamepad.h"
@@ -67,24 +66,7 @@ void KeyLayerAddon::buildCache() {
         }
     }
 
-    // 4. FN/MT 电压档位激活器：FN=level3，MT=level0（与 unified_voltage_switch 档位表一致）
-    const FnKeyMappingOptions& fn = getActiveFnKeyMappingOptions(storage.getAddonOptions());
-    const GpioMappingInfo* voltageMappings[kVoltageKeyCount] = {
-        &fn.leftFnMapping,   // side 0, level 3
-        &fn.rightFnMapping,  // side 1, level 3
-        &fn.leftMtMapping,   // side 0, level 0
-        &fn.rightMtMapping,  // side 1, level 0
-    };
-    const uint8_t voltageSide[kVoltageKeyCount] = { 0, 1, 0, 1 };
-    const uint8_t voltageLevel[kVoltageKeyCount] = { 3, 3, 0, 0 };
-    for (uint8_t i = 0; i < kVoltageKeyCount; i++) {
-        if (voltageMappings[i]->activatorMode != ACTIVATOR_OFF) {
-            ActivatorCtx& a = activators_[activatorCount_++];
-            a.src = ActivatorCtx::VOLTAGE;
-            a.index = (uint8_t)(voltageSide[i] * 4 + voltageLevel[i]);
-            a.mode = voltageMappings[i]->activatorMode;
-        }
-    }
+    // 4. FN/MT 电压档位激活器已移除（FN/MT 键映射功能删除）
 }
 
 void KeyLayerAddon::setup() {
@@ -99,10 +81,8 @@ void KeyLayerAddon::reinit() {
     prevMasterEnabled_ = false;
 }
 
-void KeyLayerAddon::bindExternal(BackButtonDividerAddon* backDiv,
-                                 UnifiedVoltageSwitchAddon* voltageSwitch) {
+void KeyLayerAddon::bindExternal(BackButtonDividerAddon* backDiv) {
     backDiv_ = backDiv;
-    voltageSwitch_ = voltageSwitch;
 }
 
 void KeyLayerAddon::accumulate(MaskAcc& m,
@@ -142,10 +122,6 @@ void __not_in_flash_func(KeyLayerAddon::preprocess)() {
                 break;
             case ActivatorCtx::BACK:
                 level = backDiv_ != nullptr && backDiv_->isIndexStable(a.index);
-                break;
-            case ActivatorCtx::VOLTAGE:
-                level = voltageSwitch_ != nullptr &&
-                        voltageSwitch_->isLevelStable((uint8_t)(a.index >> 2), (uint8_t)(a.index & 0x03));
                 break;
         }
         levels[i] = level;

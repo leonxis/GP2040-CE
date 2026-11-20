@@ -1357,8 +1357,8 @@ const JoystickCalibration = ({
 							<Form.Check
 								type="switch"
 								label={t('CalibrationSettings:hml-oversampling-label')}
-								checked={Boolean(values?.mcp3208Oversampling)}
-								onChange={(e) => setFieldValue('mcp3208Oversampling', e.target.checked ? 1 : 0)}
+								checked={Boolean(values?.analogOversampling)}
+								onChange={(e) => setFieldValue('analogOversampling', e.target.checked ? 1 : 0)}
 							/>
 						</div>
 					</div>

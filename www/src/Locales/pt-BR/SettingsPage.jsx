@@ -99,7 +99,6 @@ export default {
 	'hml-button-settings-hub-desc-hotkey': 'Hotkey combos and related options.',
 	'hml-button-settings-hub-desc-macro': 'Macro editor; all buttons and analog stick directions.',
 	'hml-mapping-preset-tab-placeholder': 'Preset 1',
-	'hml-tab-motion': 'Motion',
 	'hml-tab-macros': 'Macros',
 	'hml-tab-hotkeys': 'Hotkey features',
 	'hml-tab-function-buttons': 'Other features',
@@ -130,7 +129,7 @@ export default {
 	'hml-display-hint':
 		'Turns off the display and related interface. For PS5G, disabling the display can help reach 1000 Hz report rate.',
 	'hml-report-rate-label': 'Report rate',
-	'hml-report-rate-hint': 'Host connection report rate. Enabling gyro may reduce the effective rate.',
+	'hml-report-rate-hint': 'Host connection report rate.',
 	'hml-screen-customization-button': 'Screen customization',
 	'hml-upgrade-open-modal-button': 'Check upgrade',
 	'hml-upgrade-entry-hint': 'Check controller firmware upgrade',
@@ -204,6 +203,5 @@ export default {
 	'hml-invert-xy': 'X/Y axes',
 	'hml-stick-invert-left': 'Left stick invert',
 	'hml-stick-invert-right': 'Right stick invert',
-	'hml-fn-key-mapping-title': 'FN key mapping',
 	'hml-key-swap-title': 'Button swap',
 };

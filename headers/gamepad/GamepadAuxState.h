@@ -138,7 +138,7 @@ struct GamepadAuxSensors
 
     GamepadAuxRGBSensor statusLight;
 
-    /** LSM6DSR → NS Pro 报告 0x30 内 36 字节 IMU（3×(accel xyz + gyro xyz) LE），由插件填充 */
+    /** IMU 插件 → NS Pro 报告 0x30 内 36 字节 IMU（3×(accel xyz + gyro xyz) LE），由插件填充 */
     bool switchProImuDataActive = false;
     uint8_t switchProImuData[36] = {};
 };

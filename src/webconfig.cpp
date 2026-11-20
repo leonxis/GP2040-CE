@@ -37,7 +37,6 @@
 #include "addons/input_macro.h"
 #include "addons/analog_utils.h"
 #include "addons/linear_trigger.h"
-#include "addons/lsm6dsr_imu.h"
 #include "hardware/gpio.h"
 #include "hml_back_mapping_preset.h"
 
@@ -55,15 +54,6 @@ static char http_post_payload[LWIP_HTTPD_POST_MAX_PAYLOAD_LEN];
 static uint16_t http_post_payload_len = 0;
 
 static int g_apiRequestPresetIndex = -1;
-
-static void setExternalADCSelection(AddonOptions& addonOptions, bool ads8332Enabled) {
-    addonOptions.ads8332Options.enabled = ads8332Enabled;
-    addonOptions.ads8332Options.has_enabled = true;
-    addonOptions.has_ads8332Options = true;
-    addonOptions.mcp3208Options.enabled = !ads8332Enabled;
-    addonOptions.mcp3208Options.has_enabled = true;
-    addonOptions.has_mcp3208Options = true;
-}
 
 static void resetApiRequestPresetIndex() {
     g_apiRequestPresetIndex = -1;
@@ -103,7 +93,6 @@ static bool parseApiRequestPresetIndex(const char* name, int& outPresetIndex) {
 
     static const char* presetApiPaths[] = {
         "/api/getBackButtonAddonOptions",
-        "/api/getFnKeyMappingOptions",
     };
     for (const char* apiPath : presetApiPaths) {
         if (parsePresetIndexFromPathSuffix(name, apiPath, outPresetIndex)) {
@@ -691,196 +680,6 @@ std::string setBackButtonAddonOptions() {
     return serialize_json(doc);
 }
 
-std::string getADS8332Options() {
-    const size_t capacity = JSON_OBJECT_SIZE(2);
-    DynamicJsonDocument doc(capacity);
-    const ADS8332Options& opts = Storage::getInstance().getAddonOptions().ads8332Options;
-    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    return serialize_json(doc);
-}
-
-std::string setADS8332Options() {
-    DynamicJsonDocument doc = get_post_data();
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    ADS8332Options& opts = addonOptions.ads8332Options;
-    docToValue(opts.enabled, doc, "enabled");
-    setExternalADCSelection(addonOptions, opts.enabled);
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
-std::string getLSM6DSROptions() {
-    const size_t capacity = JSON_OBJECT_SIZE(16) + JSON_ARRAY_SIZE(16);
-    DynamicJsonDocument doc(capacity);
-    const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-    writeDoc(doc, "enabled", opts.enabled ? 1 : 0);
-    writeDoc(doc, "lsm6dsrOutputMode", opts.outputMode);
-    writeDoc(doc, "lsm6dsrOffsetGyroX", opts.offsetGyroX);
-    writeDoc(doc, "lsm6dsrOffsetGyroY", opts.offsetGyroY);
-    writeDoc(doc, "lsm6dsrOffsetGyroZ", opts.offsetGyroZ);
-    writeDoc(doc, "lsm6dsrCalibrateGyroRequested", opts.calibrateGyroRequested ? 1 : 0);
-    writeDoc(doc, "lsm6dsrEngageMode", opts.engageMode);
-    writeDoc(doc, "lsm6dsrOneEuroFilterEnabled", opts.gyroOneEuroFilterEnabled ? 1 : 0);
-    writeDoc(doc, "lsm6dsrOffsetAccelX", opts.offsetAccelX);
-    writeDoc(doc, "lsm6dsrOffsetAccelY", opts.offsetAccelY);
-    writeDoc(doc, "lsm6dsrOffsetAccelZ", opts.offsetAccelZ);
-    writeDoc(doc, "lsm6dsrGyroMouseMapMode", opts.gyroMouseMapMode);
-    writeDoc(doc, "lsm6dsrGyroMouseInvert", opts.gyroMouseInvert);
-    writeDoc(doc, "lsm6dsrGyroMouseSensLR", opts.gyroMouseSensLR);
-    writeDoc(doc, "lsm6dsrGyroMouseSensUD", opts.gyroMouseSensUD);
-    writeDoc(doc, "lsm6dsrGyroMouseDeadzone", opts.gyroMouseDeadzone);
-    JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
-    for (size_t i = 0; i < opts.gyroEngageKeys_count && i < 16; i++) {
-        arr.add(opts.gyroEngageKeys[i]);
-    }
-    return serialize_json(doc);
-}
-
-std::string calibrateLSM6DSRGyro() {
-    const size_t capacity = JSON_OBJECT_SIZE(6);
-    DynamicJsonDocument doc(capacity);
-    int32_t ox = 0, oy = 0, oz = 0;
-    bool ok = lsm6dsr_calibrate_gyro(&ox, &oy, &oz);
-    doc["ok"] = ok;
-    doc["offsetGyroX"] = ox;
-    doc["offsetGyroY"] = oy;
-    doc["offsetGyroZ"] = oz;
-    if (ok) {
-        LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-        opts.offsetGyroX = ox;
-        opts.offsetGyroY = oy;
-        opts.offsetGyroZ = oz;
-    }
-    return serialize_json(doc);
-}
-
-std::string calibrateLSM6DSRAccel() {
-    const size_t capacity = JSON_OBJECT_SIZE(6);
-    DynamicJsonDocument doc(capacity);
-    int32_t ox = 0, oy = 0, oz = 0;
-    bool ok = lsm6dsr_calibrate_accel(&ox, &oy, &oz);
-    doc["ok"] = ok;
-    doc["offsetAccelX"] = ox;
-    doc["offsetAccelY"] = oy;
-    doc["offsetAccelZ"] = oz;
-    if (ok) {
-        LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-        opts.offsetAccelX = ox;
-        opts.offsetAccelY = oy;
-        opts.offsetAccelZ = oz;
-    }
-    return serialize_json(doc);
-}
-
-std::string getLSM6DSRImuData() {
-    const size_t capacity = JSON_OBJECT_SIZE(10) + 120; // 6 axis + debug + 3 offset
-    DynamicJsonDocument doc(capacity);
-    doc["debug"] = true;
-    const LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-    doc["offsetGyroX"] = opts.offsetGyroX;
-    doc["offsetGyroY"] = opts.offsetGyroY;
-    doc["offsetGyroZ"] = opts.offsetGyroZ;
-    // 网页模式下主循环不跑 addon preprocess，故按需做一次 SPI 读取以保证数据实时
-    int16_t gyro[3] = {0}, accel[3] = {0};
-    if (getLSM6DSRRawData(gyro, accel)) {
-        doc["gyroX"] = (int32_t)gyro[0];
-        doc["gyroY"] = (int32_t)gyro[1];
-        doc["gyroZ"] = (int32_t)gyro[2];
-        doc["accelX"] = (int32_t)accel[0];
-        doc["accelY"] = (int32_t)accel[1];
-        doc["accelZ"] = (int32_t)accel[2];
-    } else {
-        doc["gyroX"] = 0;
-        doc["gyroY"] = 0;
-        doc["gyroZ"] = 0;
-        doc["accelX"] = 0;
-        doc["accelY"] = 0;
-        doc["accelZ"] = 0;
-    }
-    return serialize_json(doc);
-}
-
-std::string setLSM6DSROptions() {
-    DynamicJsonDocument doc = get_post_data();
-    LSM6DSROptions& opts = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-    docToValue(opts.enabled, doc, "enabled");
-    docToValue(opts.outputMode, doc, "lsm6dsrOutputMode");
-    docToValue(opts.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
-    docToValue(opts.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
-    docToValue(opts.offsetGyroZ, doc, "lsm6dsrOffsetGyroZ");
-    if (doc.containsKey("lsm6dsrCalibrateGyroRequested")) {
-        opts.calibrateGyroRequested = doc["lsm6dsrCalibrateGyroRequested"].as<bool>();
-    }
-    docToValue(opts.engageMode, doc, "lsm6dsrEngageMode");
-    if (doc.containsKey("lsm6dsrOneEuroFilterEnabled")) {
-        opts.gyroOneEuroFilterEnabled = doc["lsm6dsrOneEuroFilterEnabled"].as<int>() != 0;
-    }
-    docToValue(opts.offsetAccelX, doc, "lsm6dsrOffsetAccelX");
-    docToValue(opts.offsetAccelY, doc, "lsm6dsrOffsetAccelY");
-    docToValue(opts.offsetAccelZ, doc, "lsm6dsrOffsetAccelZ");
-    docToValue(opts.gyroMouseMapMode, doc, "lsm6dsrGyroMouseMapMode");
-    docToValue(opts.gyroMouseInvert, doc, "lsm6dsrGyroMouseInvert");
-    if (doc.containsKey("lsm6dsrGyroMouseSensLR")) opts.gyroMouseSensLR = doc["lsm6dsrGyroMouseSensLR"].as<float>();
-    if (doc.containsKey("lsm6dsrGyroMouseSensUD")) opts.gyroMouseSensUD = doc["lsm6dsrGyroMouseSensUD"].as<float>();
-    docToValue(opts.gyroMouseDeadzone, doc, "lsm6dsrGyroMouseDeadzone");
-    if (doc.containsKey("lsm6dsrGyroMouseDeadzone")) opts.has_gyroMouseDeadzone = true;
-    if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
-        JsonArray arr = doc["lsm6dsrEngageKeys"];
-        opts.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
-        for (size_t i = 0; i < opts.gyroEngageKeys_count; i++) {
-            opts.gyroEngageKeys[i] = (int32_t)arr[i].as<int>();
-        }
-    }
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
-std::string getFnKeyMappingOptions() {
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    const uint32_t presetIndexU = (uint32_t)presetIndexFromRequestOrDefault();
-    const size_t capacity = JSON_OBJECT_SIZE(52);
-    DynamicJsonDocument doc(capacity);
-    const FnKeyMappingOptions& fn = getHmlBackPresetAt(addonOptions, presetIndexU).fnKey;
-    writeMapping(doc, "leftFn", fn.leftFnMapping);
-    writeMapping(doc, "rightFn", fn.rightFnMapping);
-    writeMapping(doc, "leftMt", fn.leftMtMapping);
-    writeMapping(doc, "rightMt", fn.rightMtMapping);
-    writeMapping(doc, "extLeftTrigger", fn.leftExtTriggerMapping);
-    writeMapping(doc, "extRightTrigger", fn.rightExtTriggerMapping);
-    writeActivePresetDoc(doc, addonOptions);
-    return serialize_json(doc);
-}
-
-std::string setFnKeyMappingOptions() {
-    DynamicJsonDocument doc = get_post_data();
-    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    if (!doc.containsKey("presetIndex")) {
-        return serialize_json(doc);
-    }
-    const int presetIndex = doc["presetIndex"].as<int>();
-    if (presetIndex < 0 || presetIndex > 2) {
-        return serialize_json(doc);
-    }
-    FnKeyMappingOptions& fn = getHmlBackPresetAt(addonOptions, (uint32_t)presetIndex).fnKey;
-    readMapping(fn.leftFnMapping, doc, "leftFn");
-    readMapping(fn.rightFnMapping, doc, "rightFn");
-    readMapping(fn.leftMtMapping, doc, "leftMt");
-    readMapping(fn.rightMtMapping, doc, "rightMt");
-    readMapping(fn.leftExtTriggerMapping, doc, "extLeftTrigger");
-    readMapping(fn.rightExtTriggerMapping, doc, "extRightTrigger");
-    fn.leftFnMapping.has_action = true;
-    fn.rightFnMapping.has_action = true;
-    fn.leftMtMapping.has_action = true;
-    fn.rightMtMapping.has_action = true;
-    fn.leftExtTriggerMapping.has_action = true;
-    fn.rightExtTriggerMapping.has_action = true;
-    fn.has_leftFnMapping = fn.has_rightFnMapping = fn.has_leftMtMapping = fn.has_rightMtMapping = true;
-    fn.has_leftExtTriggerMapping = fn.has_rightExtTriggerMapping = true;
-    applyHmlBackActivePresetFromDoc(doc, addonOptions);
-    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
-    return serialize_json(doc);
-}
-
 std::string getSplashImage()
 {
     const DisplayOptions& displayOptions = Storage::getInstance().getDisplayOptions();
@@ -1160,20 +959,13 @@ std::string getGamepadOptions()
 
         const HmlBackMappingPreset& activePreset = getActiveHmlBackPreset(addonOptions);
         const BackButtonAddonOptions& bb = activePreset.backButton;
-        const FnKeyMappingOptions& fn = activePreset.fnKey;
         if (
             hasFnAction(bb.leftBack1Mapping) ||
             hasFnAction(bb.rightBack1Mapping) ||
             hasFnAction(bb.leftBack2Mapping) ||
             hasFnAction(bb.rightBack2Mapping) ||
             hasFnAction(bb.leftElMapping) ||
-            hasFnAction(bb.rightErMapping) ||
-            hasFnAction(fn.leftFnMapping) ||
-            hasFnAction(fn.rightFnMapping) ||
-            hasFnAction(fn.leftMtMapping) ||
-            hasFnAction(fn.rightMtMapping) ||
-            hasFnAction(fn.leftExtTriggerMapping) ||
-            hasFnAction(fn.rightExtTriggerMapping)
+            hasFnAction(bb.rightErMapping)
         ) {
             fnButtonPin = 0; // virtual FN source exists; UI only checks for -1 sentinel
         }
@@ -2395,44 +2187,9 @@ std::string setAddonOptions()
     docToValue(gamepadUSBHostOptions.enabled, doc, "GamepadUSBHostAddonEnabled");
 
     AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
-    if (doc.containsKey("ADS8332AddonEnabled")) {
-        setExternalADCSelection(addonOptions, doc["ADS8332AddonEnabled"].as<bool>());
-    } else if (doc.containsKey("MCP3208AddonEnabled")) {
-        setExternalADCSelection(addonOptions, !doc["MCP3208AddonEnabled"].as<bool>());
-    }
-
-    LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-    docToValue(lsm6dsrOptions.enabled, doc, "LSM6DSRAddonEnabled");
-    docToValue(lsm6dsrOptions.outputMode, doc, "lsm6dsrOutputMode");
-    docToValue(lsm6dsrOptions.offsetGyroX, doc, "lsm6dsrOffsetGyroX");
-    docToValue(lsm6dsrOptions.offsetGyroY, doc, "lsm6dsrOffsetGyroY");
-    docToValue(lsm6dsrOptions.offsetGyroZ, doc, "lsm6dsrOffsetGyroZ");
-    docToValue(lsm6dsrOptions.offsetAccelX, doc, "lsm6dsrOffsetAccelX");
-    docToValue(lsm6dsrOptions.offsetAccelY, doc, "lsm6dsrOffsetAccelY");
-    docToValue(lsm6dsrOptions.offsetAccelZ, doc, "lsm6dsrOffsetAccelZ");
-    if (doc.containsKey("lsm6dsrCalibrateGyroRequested")) {
-        lsm6dsrOptions.calibrateGyroRequested = doc["lsm6dsrCalibrateGyroRequested"].as<bool>();
-    }
-    docToValue(lsm6dsrOptions.engageMode, doc, "lsm6dsrEngageMode");
-    if (doc.containsKey("lsm6dsrOneEuroFilterEnabled")) {
-        lsm6dsrOptions.gyroOneEuroFilterEnabled = doc["lsm6dsrOneEuroFilterEnabled"].as<int>() != 0;
-    }
-    if (doc.containsKey("lsm6dsrEngageKeys") && doc["lsm6dsrEngageKeys"].is<JsonArray>()) {
-        JsonArray arr = doc["lsm6dsrEngageKeys"];
-        lsm6dsrOptions.gyroEngageKeys_count = (size_t)std::min((size_t)arr.size(), (size_t)16);
-        for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count; i++) {
-            lsm6dsrOptions.gyroEngageKeys[i] = (int32_t)arr[i].as<int>();
-        }
-    }
-    docToValue(lsm6dsrOptions.gyroMouseMapMode, doc, "lsm6dsrGyroMouseMapMode");
-    docToValue(lsm6dsrOptions.gyroMouseInvert, doc, "lsm6dsrGyroMouseInvert");
-    if (doc.containsKey("lsm6dsrGyroMouseSensLR")) lsm6dsrOptions.gyroMouseSensLR = doc["lsm6dsrGyroMouseSensLR"].as<float>();
-    if (doc.containsKey("lsm6dsrGyroMouseSensUD")) lsm6dsrOptions.gyroMouseSensUD = doc["lsm6dsrGyroMouseSensUD"].as<float>();
-    docToValue(lsm6dsrOptions.gyroMouseDeadzone, doc, "lsm6dsrGyroMouseDeadzone");
-    if (doc.containsKey("lsm6dsrGyroMouseDeadzone")) lsm6dsrOptions.has_gyroMouseDeadzone = true;
-    docToValue(Storage::getInstance().getAddonOptions().reportRate, doc, "reportRate");
-    // MCP3208 每通道连续采样 4 次取平均（仍 12bit），默认关闭
-    docToValue(Storage::getInstance().getAddonOptions().mcp3208Options.oversampling, doc, "mcp3208Oversampling");
+    docToValue(addonOptions.reportRate, doc, "reportRate");
+    // 板载 ADC 超采样：每通道连续采样 64 次取平均（输出 14bit），默认关闭
+    docToValue(addonOptions.analogOptions.oversampling, doc, "analogOversampling");
     // 超频等级需限定在有效枚举范围内，非法值会导致 nanopb 编码失败而无法保存配置
     if (doc["cpuOverclockLevel"] != nullptr) {
         int32_t ocLevel = doc["cpuOverclockLevel"].as<int32_t>();
@@ -2776,37 +2533,9 @@ std::string getAddonOptions()
     }
     // EMA smoothing removed - no longer used
     writeDoc(doc, "AnalogInputEnabled", analogOptions.enabled);
-    const ADS8332Options& ads8332Options = Storage::getInstance().getAddonOptions().ads8332Options;
-    writeDoc(doc, "ADS8332AddonEnabled", ads8332Options.enabled ? 1 : 0);
-    const MCP3208Options& mcp3208Options = Storage::getInstance().getAddonOptions().mcp3208Options;
-    writeDoc(doc, "MCP3208AddonEnabled", mcp3208Options.enabled ? 1 : 0);
-    const LSM6DSROptions& lsm6dsrOptions = Storage::getInstance().getAddonOptions().lsm6dsrOptions;
-    writeDoc(doc, "LSM6DSRAddonEnabled", lsm6dsrOptions.enabled ? 1 : 0);
-    writeDoc(doc, "lsm6dsrOutputMode", lsm6dsrOptions.outputMode);
-    writeDoc(doc, "lsm6dsrOffsetGyroX", lsm6dsrOptions.offsetGyroX);
-    writeDoc(doc, "lsm6dsrOffsetGyroY", lsm6dsrOptions.offsetGyroY);
-    writeDoc(doc, "lsm6dsrOffsetGyroZ", lsm6dsrOptions.offsetGyroZ);
-    writeDoc(doc, "lsm6dsrOffsetAccelX", lsm6dsrOptions.offsetAccelX);
-    writeDoc(doc, "lsm6dsrOffsetAccelY", lsm6dsrOptions.offsetAccelY);
-    writeDoc(doc, "lsm6dsrOffsetAccelZ", lsm6dsrOptions.offsetAccelZ);
-    writeDoc(doc, "lsm6dsrCalibrateGyroRequested", lsm6dsrOptions.calibrateGyroRequested ? 1 : 0);
-    writeDoc(doc, "lsm6dsrEngageMode", lsm6dsrOptions.engageMode);
-    writeDoc(doc, "lsm6dsrOneEuroFilterEnabled", lsm6dsrOptions.gyroOneEuroFilterEnabled ? 1 : 0);
-    writeDoc(doc, "lsm6dsrGyroMouseMapMode", lsm6dsrOptions.gyroMouseMapMode);
-    writeDoc(doc, "lsm6dsrGyroMouseInvert", lsm6dsrOptions.gyroMouseInvert);
-    writeDoc(doc, "lsm6dsrGyroMouseSensLR", lsm6dsrOptions.gyroMouseSensLR);
-    writeDoc(doc, "lsm6dsrGyroMouseSensUD", lsm6dsrOptions.gyroMouseSensUD);
-    writeDoc(doc, "lsm6dsrGyroMouseDeadzone", lsm6dsrOptions.gyroMouseDeadzone);
     writeDoc(doc, "reportRate", Storage::getInstance().getAddonOptions().reportRate);
-    writeDoc(doc, "mcp3208Oversampling", Storage::getInstance().getAddonOptions().mcp3208Options.oversampling ? 1 : 0);
+    writeDoc(doc, "analogOversampling", analogOptions.oversampling ? 1 : 0);
     writeDoc(doc, "cpuOverclockLevel", (int32_t)Storage::getInstance().getAddonOptions().cpuOverclockLevel);
-    {
-        JsonArray arr = doc.createNestedArray("lsm6dsrEngageKeys");
-        for (size_t i = 0; i < lsm6dsrOptions.gyroEngageKeys_count && i < 16; i++) {
-            arr.add(lsm6dsrOptions.gyroEngageKeys[i]);
-        }
-    }
-
     const BootselButtonOptions& bootselButtonOptions = Storage::getInstance().getAddonOptions().bootselButtonOptions;
     writeDoc(doc, "bootselButtonMap", bootselButtonOptions.buttonMap);
     writeDoc(doc, "BootselButtonAddonEnabled", bootselButtonOptions.enabled);
@@ -3573,9 +3302,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
     { "/api/setDisplayOptions", setDisplayOptions },
     { "/api/setBackButtonAddonOptions", setBackButtonAddonOptions },
-    { "/api/setADS8332Options", setADS8332Options },
-    { "/api/setLSM6DSROptions", setLSM6DSROptions },
-    { "/api/setFnKeyMappingOptions", setFnKeyMappingOptions },
     { "/api/setPreviewDisplayOptions", setPreviewDisplayOptions },
     { "/api/setGamepadOptions", setGamepadOptions },
     { "/api/setLedOptions", setLedOptions },
@@ -3600,12 +3326,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/reboot", reboot },
     { "/api/getDisplayOptions", getDisplayOptions },
     { "/api/getBackButtonAddonOptions", getBackButtonAddonOptions },
-    { "/api/getADS8332Options", getADS8332Options },
-    { "/api/getLSM6DSROptions", getLSM6DSROptions },
-    { "/api/getLSM6DSRImuData", getLSM6DSRImuData },
-    { "/api/calibrateLSM6DSRGyro", calibrateLSM6DSRGyro },
-    { "/api/calibrateLSM6DSRAccel", calibrateLSM6DSRAccel },
-    { "/api/getFnKeyMappingOptions", getFnKeyMappingOptions },
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },
     { "/api/getButtonLayouts", getButtonLayouts },

@@ -16,11 +16,7 @@
 // Inputs for Core0
 #include "addons/analog.h"
 #include "addons/unified_analog_processor.h"
-#include "addons/unified_voltage_switch.h"
 #include "addons/unified_joystick_travel_key.h"
-#include "addons/ads8332_adc.h"
-#include "addons/mcp3208_adc.h"
-#include "addons/lsm6dsr_imu.h"
 #include "addons/bootsel_button.h"
 #include "addons/focus_mode.h"
 #include "addons/dualdirectional.h"
@@ -647,8 +643,6 @@ void GP2040::setup() {
 	addons.LoadUSBAddon(new KeyboardHostAddon());
 	addons.LoadUSBAddon(new GamepadUSBHostAddon());
 	addons.LoadAddon(new AnalogInput());
-	addons.LoadAddon(new UnifiedVoltageSwitchAddon());
-	addons.LoadAddon(new LSM6DSRIMUAddon());
 	addons.LoadAddon(new HETriggerAddon());
 	addons.LoadAddon(new BackButtonDividerAddon());
 	addons.LoadAddon(new BackButtonGpioAddon());
@@ -661,12 +655,10 @@ void GP2040::setup() {
 			if (backDiv == nullptr) {
 				backDiv = (BackButtonDividerAddon*)addons.GetAddon(BACK_BUTTON_DIVIDER_ADDON_NAME);
 			}
-			kl->bindExternal(
-				backDiv,
-				(UnifiedVoltageSwitchAddon*)addons.GetAddon(UnifiedVoltageSwitchName));
+			kl->bindExternal(backDiv);
 		}
 	}
-	// 须在背键/FN 电压映射之后：preprocess 内合并 ADC 与映射的 L2/R2（含 lt/rt）
+	// 须在背键映射之后：preprocess 内合并 ADC 与映射的 L2/R2（含 lt/rt）
 	addons.LoadAddon(new LinearTriggerAddon());
 	addons.LoadAddon(new BootselButtonAddon());
 	addons.LoadAddon(new DualDirectionalInput());
@@ -680,10 +672,6 @@ void GP2040::setup() {
 	// Input override addons
 	addons.LoadAddon(new ReverseInput());
 	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
-	// ADC providers sample in process(); register late so sampling happens
-	// immediately before the unified analog processor consumes cached stick data.
-	addons.LoadAddon(new ADS8332ADCAddon());
-	addons.LoadAddon(new MCP3208ADCAddon());
 	addons.LoadAddon(new UnifiedAnalogProcessorAddon());
 	addons.LoadAddon(new UnifiedJoystickTravelKeyAddon());
 	addons.LoadAddon(new InputMacro());

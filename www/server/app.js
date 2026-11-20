@@ -433,22 +433,6 @@ app.get('/api/getAddonsOptions', (req, res) => {
 		SliderSOCDInputEnabled: 1,
 		TurboInputEnabled: 1,
 		SNESpadAddonEnabled: 1,
-		ADS8332AddonEnabled: 0,
-		LSM6DSRAddonEnabled: 0,
-		lsm6dsrOutputMode: 0,
-		lsm6dsrOffsetGyroX: 0,
-		lsm6dsrOffsetGyroY: 0,
-		lsm6dsrOffsetGyroZ: 0,
-		lsm6dsrOffsetAccelX: 0,
-		lsm6dsrOffsetAccelY: 0,
-		lsm6dsrOffsetAccelZ: 0,
-		lsm6dsrCalibrateGyroRequested: 0,
-		lsm6dsrEngageMode: 0,
-		lsm6dsrEngageKeys: [],
-		lsm6dsrGyroMouseMapMode: 0,
-		lsm6dsrGyroMouseInvert: 0,
-		lsm6dsrGyroMouseSensLR: 1,
-		lsm6dsrGyroMouseSensUD: 1,
 		encoderOneEnabled: 0,
 		encoderOnePinA: -1,
 		encoderOnePinB: -1,
@@ -758,32 +742,6 @@ app.post('/api/getHETriggerCalibration', (req, res) => {
 	});
 });
 
-app.get('/api/getLSM6DSRImuData', (req, res) => {
-	// Stub: real implementation would read from device. Returns 6-axis (gyro XYZ + accel XYZ) + debug.
-	return res.send({
-		gyroX: 0,
-		gyroY: 0,
-		gyroZ: 0,
-		accelX: 0,
-		accelY: 0,
-		accelZ: 0,
-		offsetGyroX: 0,
-		offsetGyroY: 0,
-		offsetGyroZ: 0,
-		debug: true,
-	});
-});
-
-app.get('/api/calibrateLSM6DSRGyro', (req, res) => {
-	// Stub for dev: real implementation runs on device.
-	return res.send({ ok: false, offsetGyroX: 0, offsetGyroY: 0, offsetGyroZ: 0 });
-});
-
-app.get('/api/calibrateLSM6DSRAccel', (req, res) => {
-	// Stub for dev: real implementation runs on device.
-	return res.send({ ok: false, offsetAccelX: 0, offsetAccelY: 0, offsetAccelZ: 0 });
-});
-
 const emptyMapping = { action: 0, customButtonMask: 0, customDpadMask: 0 };
 
 const hmlBackPresetStubs = [
@@ -810,33 +768,6 @@ const hmlBackPresetStubs = [
 		rightBack2: emptyMapping,
 		leftEl: emptyMapping,
 		rightEr: emptyMapping,
-	},
-];
-
-const hmlFnPresetStubs = [
-	{
-		leftFn: emptyMapping,
-		rightFn: emptyMapping,
-		leftMt: emptyMapping,
-		rightMt: emptyMapping,
-		extLeftTrigger: emptyMapping,
-		extRightTrigger: emptyMapping,
-	},
-	{
-		leftFn: { action: 27, customButtonMask: 0, customDpadMask: 0 },
-		rightFn: emptyMapping,
-		leftMt: emptyMapping,
-		rightMt: emptyMapping,
-		extLeftTrigger: emptyMapping,
-		extRightTrigger: emptyMapping,
-	},
-	{
-		leftFn: emptyMapping,
-		rightFn: emptyMapping,
-		leftMt: emptyMapping,
-		rightMt: emptyMapping,
-		extLeftTrigger: emptyMapping,
-		extRightTrigger: emptyMapping,
 	},
 ];
 
@@ -873,25 +804,6 @@ app.get('/api/getBackButtonAddonOptions/:presetIndex', (req, res) => {
 	});
 });
 
-app.get('/api/getFnKeyMappingOptions', (req, res) => {
-	const presetIndex = parsePresetIndex(req) ?? 0;
-	return res.send({
-		...hmlFnPresetStubs[presetIndex],
-		activePreset: hmlActivePreset,
-	});
-});
-
-app.get('/api/getFnKeyMappingOptions/:presetIndex', (req, res) => {
-	const presetIndex = Number(req.params.presetIndex);
-	if (!Number.isInteger(presetIndex) || presetIndex < 0 || presetIndex > 2) {
-		return res.status(400).send({ error: 'invalid presetIndex' });
-	}
-	return res.send({
-		...hmlFnPresetStubs[presetIndex],
-		activePreset: hmlActivePreset,
-	});
-});
-
 app.post('/api/setBackButtonAddonOptions', (req, res) => {
 	const body = req.body || {};
 	const index = Number(body.presetIndex);
@@ -903,25 +815,6 @@ app.post('/api/setBackButtonAddonOptions', (req, res) => {
 			rightBack2: body.rightBack2 || emptyMapping,
 			leftEl: body.leftEl || emptyMapping,
 			rightEr: body.rightEr || emptyMapping,
-		};
-		if (body.setActive !== false) {
-			hmlActivePreset = index;
-		}
-	}
-	return res.send(body);
-});
-
-app.post('/api/setFnKeyMappingOptions', (req, res) => {
-	const body = req.body || {};
-	const index = Number(body.presetIndex);
-	if (Number.isInteger(index) && index >= 0 && index <= 2) {
-		hmlFnPresetStubs[index] = {
-			leftFn: body.leftFn || emptyMapping,
-			rightFn: body.rightFn || emptyMapping,
-			leftMt: body.leftMt || emptyMapping,
-			rightMt: body.rightMt || emptyMapping,
-			extLeftTrigger: body.extLeftTrigger || emptyMapping,
-			extRightTrigger: body.extRightTrigger || emptyMapping,
 		};
 		if (body.setActive !== false) {
 			hmlActivePreset = index;

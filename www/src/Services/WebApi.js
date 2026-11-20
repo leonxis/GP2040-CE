@@ -166,26 +166,6 @@ async function setBackButtonAddonOptions(options) {
 	}
 }
 
-async function getFnKeyMappingOptions(presetIndex) {
-	try {
-		const url = `${baseUrl}/api/getFnKeyMappingOptions/${presetIndex ?? 0}`;
-		const response = await Http.get(url);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
-}
-
-async function setFnKeyMappingOptions(options) {
-	try {
-		await Http.post(`${baseUrl}/api/setFnKeyMappingOptions`, options);
-		return true;
-	} catch (error) {
-		console.error(error);
-		return false;
-	}
-}
-
 async function setDisplayOptions(options, isPreview) {
 	let newOptions = sanitizeRequest(options);
 	newOptions.enabled = parseInt(options.enabled);
@@ -623,38 +603,6 @@ async function getHETriggerCalibration(settings) {
 	return Http.post(`${baseUrl}/api/getHETriggerCalibration`, settings);
 }
 
-async function getLSM6DSRImuData() {
-	try {
-		const response = await Http.get(`${baseUrl}/api/getLSM6DSRImuData`);
-		return response?.data;
-	} catch (e) {
-		console.error(e);
-		return undefined;
-	}
-}
-
-/** 执行陀螺仪零偏校准，返回 { ok, offsetGyroX, offsetGyroY, offsetGyroZ } */
-async function calibrateLSM6DSRGyro() {
-	try {
-		const response = await Http.get(`${baseUrl}/api/calibrateLSM6DSRGyro`);
-		return response?.data;
-	} catch (e) {
-		console.error(e);
-		return { ok: false, offsetGyroX: 0, offsetGyroY: 0, offsetGyroZ: 0 };
-	}
-}
-
-/** 执行加速度计零漂校准（水平面/重力方向，alpakka 方法），返回 { ok, offsetAccelX, offsetAccelY, offsetAccelZ } */
-async function calibrateLSM6DSRAccel() {
-	try {
-		const response = await Http.get(`${baseUrl}/api/calibrateLSM6DSRAccel`);
-		return response?.data;
-	} catch (e) {
-		console.error(e);
-		return { ok: false, offsetAccelX: 0, offsetAccelY: 0, offsetAccelZ: 0 };
-	}
-}
-
 // POST function to set our channels, select, and ADC pin
 async function setHETriggerCalibration(settings) {
 	return Http.post(`${baseUrl}/api/setHETriggerCalibration`, settings);
@@ -713,8 +661,6 @@ export default {
 	setDisplayOptions,
 	getBackButtonAddonOptions,
 	setBackButtonAddonOptions,
-	getFnKeyMappingOptions,
-	setFnKeyMappingOptions,
 	getGamepadOptions,
 	setGamepadOptions,
 	getLedOptions,
@@ -740,9 +686,6 @@ export default {
 	setPeripheralOptions,
 	getHETriggerCalibration,
 	setHETriggerCalibration,
-	getLSM6DSRImuData,
-	calibrateLSM6DSRGyro,
-	calibrateLSM6DSRAccel,
 	getHETriggerOptions,
 	setHETriggerOptions,
 	getButtonLayouts,

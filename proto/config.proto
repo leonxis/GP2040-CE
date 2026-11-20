@@ -499,6 +499,8 @@ message AnalogOptions
     // Stored as tenths of a percent (0-300 = 0.0%-30.0%), 0 = disabled.
     optional uint32 joystick_outer_deadzone_1 = 79 [default = 0];
     optional uint32 joystick_outer_deadzone_2 = 80 [default = 0];
+    // 板载 ADC 超采样：每通道连续采样 64 次取平均，输出 14bit（0..16383）
+    optional bool oversampling = 81 [default = false];
 }
 
 message TurboOptions
@@ -850,68 +852,12 @@ message AddonOptions
     optional HETriggerOptions heTriggerOptions = 30;
     optional LinearTriggerOptions linearTriggerOptions = 31;
     optional HmlBackMappingPresetOptions hmlBackMappingPresetOptions = 33;
-    optional MCP3208Options mcp3208Options = 34;
-    optional LSM6DSROptions lsm6dsrOptions = 35;
-    reserved 37;
+    reserved 34, 35, 37, 39;
     // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz
     optional uint32 reportRate = 36 [default = 1000];
-    optional ADS8332Options ads8332Options = 39;
     optional AxisTiltOverlayOptions axisTiltOverlayOptions = 40;
     // RP2040 CPU 超频等级：0=普通144MHz, 1=中度156MHz, 2=重度168MHz, 3=发烧180MHz
     optional CpuOverclockLevel cpuOverclockLevel = 41 [default = CPU_OVERCLOCK_NORMAL];
-}
-
-// MCP3208 ADC: CH2/CH5 四档开关使用 FnKeyMappingOptions（左MT/右MT、左FN/右FN、Ext左/右扳机），0.82V 固定 L3/R3
-// oversampling: 每个摇杆通道连续采样 4 次取平均（仍输出 12bit），CH2/CH5 不参与，默认关闭。
-message MCP3208Options {
-    optional bool enabled = 1 [default = false];
-    optional bool oversampling = 2 [default = false];
-}
-
-// ADS8332 ADC: 仅实现基础摇杆输出（CH0/CH1/CH6/CH7 -> LX/LY/RY/RX）
-// SPI 块与 CS/CONVST GPIO 在固件 ads8332_adc 中硬编码。
-message ADS8332Options
-{
-    optional bool enabled = 1 [default = false];
-}
-
-// LSM6DSR 陀螺仪：SPI 块与 CS 在固件 lsm6dsr_imu 中硬编码；此处持久化开关与运行参数。
-// outputMode: 0=DS4 原生陀螺仪, 1=模拟右摇杆, 2=模拟鼠标（仅 0 已实现）
-// calibrateGyroRequested: 由 HML 校准页设置，addon 执行采样后清零并保存
-// engageMode: 0=一直生效, 1=按下按键生效, 2=按下按键暂停（仅持久化，功能未实现）
-// gyroEngageKeys: 生效使能键，GpioAction 枚举值列表（仅持久化，功能未实现）
-message LSM6DSROptions
-{
-    optional bool enabled = 1 [default = false];
-    optional int32 outputMode = 4 [default = 0];  // 0=DS4, 3=鼠标（左/右摇杆已移除）
-    optional int32 offsetGyroX = 5 [default = 0];
-    optional int32 offsetGyroY = 6 [default = 0];
-    optional int32 offsetGyroZ = 7 [default = 0];
-    optional bool calibrateGyroRequested = 8 [default = false];
-    optional int32 engageMode = 9 [default = 0];   // 0=always, 1=on_key, 2=pause_on_key
-    repeated int32 gyroEngageKeys = 10 [(nanopb).max_count = 16];
-    optional bool gyroOneEuroFilterEnabled = 13 [default = true];  // 一欧元滤波：低通平滑
-    // 加速度计零漂校准（水平面/重力方向，alpakka 方法）：三轴平均减零偏，Z 再减 1G
-    optional int32 offsetAccelX = 17 [default = 0];
-    optional int32 offsetAccelY = 18 [default = 0];
-    optional int32 offsetAccelZ = 19 [default = 0];
-    // 陀螺仪模拟鼠标（outputMode=3 时生效）
-    optional int32 gyroMouseMapMode = 20 [default = 0];   // 0=XY轴模拟, 1=XZ轴模拟
-    optional int32 gyroMouseInvert = 21 [default = 0];    // 0=无, 1=反转左右, 2=反转上下, 3=全部反转
-    optional float gyroMouseSensLR = 22 [default = 1.0]; // 左右灵敏度，范围 0.5~3.0
-    optional float gyroMouseSensUD = 23 [default = 1.0]; // 上下灵敏度
-    optional int32 gyroMouseDeadzone = 24 [default = 12]; // 鼠标死区（LSB，建议 0~80）
-}
-
-message FnKeyMappingOptions
-{
-    // 左FN/右FN、左MT/右MT、Ext左/右扳机 由外部分压电压档位（如 ADS8332 经 UnifiedVoltageSwitch）决定，无独立 GPIO 引脚
-    optional GpioMappingInfo leftFnMapping = 1;
-    optional GpioMappingInfo rightFnMapping = 2;
-    optional GpioMappingInfo leftMtMapping = 3;
-    optional GpioMappingInfo rightMtMapping = 4;
-    optional GpioMappingInfo leftExtTriggerMapping = 5;
-    optional GpioMappingInfo rightExtTriggerMapping = 6;
 }
 
 // 背键设置插件使用的逻辑背键映射（与具体 GPIO 解耦，仅持久化映射值）
@@ -925,12 +871,11 @@ message BackButtonAddonOptions
     optional GpioMappingInfo rightErMapping = 6;  // GPIO24 右背键 ER
 }
 
-// 背键/FN 三套可切换方案（field 33）；activePreset 为当前启用索引 0..2
+// 背键三套可切换方案（field 33）；activePreset 为当前启用索引 0..2
 message HmlBackMappingPreset
 {
     optional BackButtonAddonOptions backButton = 1;
-    optional FnKeyMappingOptions fnKey = 2;
-    reserved 3, 4;
+    reserved 2, 3, 4;
 }
 
 message HmlBackMappingPresetOptions

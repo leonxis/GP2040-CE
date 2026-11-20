@@ -5,9 +5,9 @@
 #include "hardware/pio.h"
 #include "hardware/dma.h"
 
-// PIO UART 引脚硬编码（HML/RP2040，GPIO6/7，与 USB0 D-/D+ 互斥）
-#define UART_LINK_RX_PIN  7
-#define UART_LINK_TX_PIN  6
+// PIO UART 引脚硬编码（HML/RP2040，GPIO14=RX / GPIO15=TX）
+#define UART_LINK_RX_PIN  14
+#define UART_LINK_TX_PIN  15
 
 #ifndef UART_LINK_BAUD
 #define UART_LINK_BAUD 921600

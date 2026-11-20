@@ -11,7 +11,6 @@ import WebApi from '../../../Services/WebApi';
 import JoystickCalibration from './JoystickCalibration';
 import JoystickCurveSettings from './JoystickCurveSettings';
 import { analogScheme, analogState } from '../../../Addons/Analog';
-import { lsm6dsrScheme, lsm6dsrState } from '../../../Addons/LSM6DSR';
 import { bootselScheme, bootselState } from '../../../Addons/Bootsel';
 import {
 	dualDirectionScheme,
@@ -79,7 +78,6 @@ export type AddonPropTypes = {
 
 export const schema = yup.object().shape({
 	...analogScheme,
-	...lsm6dsrScheme,
 	...bootselScheme,
 	...turboScheme,
 	...reverseScheme,
@@ -96,7 +94,6 @@ export const schema = yup.object().shape({
 
 export const DEFAULT_VALUES = {
 	...analogState,
-	...lsm6dsrState,
 	...bootselState,
 	...turboState,
 	...reverseState,
@@ -114,8 +111,8 @@ export const DEFAULT_VALUES = {
 	// HML-owned stick calibration fields (percent in UI, tenths on the wire).
 	joystickOuterDeadzone1: 0.0,
 	joystickOuterDeadzone2: 0.0,
-	// MCP3208 超采样：0=关闭（默认），1=每个摇杆通道连续采样 4 次取平均
-	mcp3208Oversampling: 0,
+	// 板载 ADC 超采样：0=关闭（默认），1=每个摇杆通道连续采样 64 次取平均
+	analogOversampling: 0,
 } as const;
 
 export const FormContext = ({ setStoredData }) => {
@@ -166,8 +163,6 @@ const FLOAT_KEYS = [
 	'axisTiltOverlayRcGainReserved1',
 	'axisTiltOverlayRcGainReserved2',
 	'axisTiltOverlayRcGainReserved3',
-	'lsm6dsrGyroMouseSensLR',
-	'lsm6dsrGyroMouseSensUD',
 ];
 
 export const sanitizeData = (values) => {
@@ -242,7 +237,7 @@ export default function CalibrationSettings() {
 
 		// Handle array fields specially - only update if changed
 		const valuesSchema = flattenObject(values);
-		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2', 'joystickCurvePresets', 'joystickBezierPresets', 'lsm6dsrEngageKeys'];
+		const arrayFields = ['joystickRangeData1', 'joystickRangeData2', 'joystickCurvePoints1', 'joystickCurvePoints2', 'joystickBezierPresets'];
 		const resultObject = { ...data };
 		arrayFields.forEach(field => {
 			const newVal = get(valuesSchema, field);

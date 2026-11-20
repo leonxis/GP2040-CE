@@ -34,8 +34,8 @@ void AnalogInput::refreshConfigFromStorage() {
     sticks_[1].x_pin = analogOptions.analogAdc2PinX;
     sticks_[1].y_pin = analogOptions.analogAdc2PinY;
 
-    // 沿用网页「超采样」开关：开启时板载 ADC 每通道连续采样 64 次并输出 14bit
-    oversampling_ = Storage::getInstance().getAddonOptions().mcp3208Options.oversampling;
+    // 板载 ADC 超采样开关：开启时每通道连续采样 64 次并输出 14bit
+    oversampling_ = analogOptions.oversampling;
 
     const uint16_t neutral = static_cast<uint16_t>(
         oversampling_ ? ANALOG_OVERSAMPLE_ADC_MAX * 0.5f : ADC_MAX_HALF);

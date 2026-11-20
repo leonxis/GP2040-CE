@@ -286,7 +286,6 @@ src/webconfig.cpp
 src/addons/analog.cpp
 src/addons/unified_analog_processor.cpp
 src/addons/action_mapping_common.cpp
-src/addons/unified_voltage_switch.cpp
 src/addons/unified_joystick_travel_key.cpp
 src/addons/analog_utils.cpp
 src/addons/bootsel_button.cpp
@@ -296,9 +295,6 @@ src/addons/linear_trigger.cpp
 src/addons/back_button_divider.cpp
 src/addons/back_button_gpio.cpp
 src/addons/key_layer.cpp
-src/addons/ads8332_adc.cpp
-src/addons/mcp3208_adc.cpp
-src/addons/lsm6dsr_imu.cpp
 src/addons/dualdirectional.cpp
 src/addons/keyboard_host.cpp
 src/addons/keyboard_host_listener.cpp

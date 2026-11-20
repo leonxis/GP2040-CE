@@ -30,12 +30,9 @@ type AppContextShape = {
 	buttonLabels?: { buttonLabelType?: string; swapTpShareLabels?: boolean };
 };
 
-type PresetBundle = {
-	back: Record<string, MaskPayload>;
-	fn: Record<string, MaskPayload>;
-};
+type PresetBundle = Record<string, MaskPayload>;
 
-const emptyBack = (): Record<string, MaskPayload> => ({
+const emptyBack = (): PresetBundle => ({
 	leftEl: { ...defaultPinData },
 	rightEr: { ...defaultPinData },
 	leftBack1: { ...defaultPinData },
@@ -44,19 +41,8 @@ const emptyBack = (): Record<string, MaskPayload> => ({
 	rightBack2: { ...defaultPinData },
 });
 
-const emptyFn = (): Record<string, MaskPayload> => ({
-	leftFn: { ...defaultPinData },
-	rightFn: { ...defaultPinData },
-	leftMt: { ...defaultPinData },
-	rightMt: { ...defaultPinData },
-	extLeftTrigger: { ...defaultPinData },
-	extRightTrigger: { ...defaultPinData },
-});
-
-const cloneBundle = (b: PresetBundle): PresetBundle => ({
-	back: Object.fromEntries(Object.entries(b.back).map(([k, v]) => [k, { ...v }])),
-	fn: Object.fromEntries(Object.entries(b.fn).map(([k, v]) => [k, { ...v }])),
-});
+const cloneBundle = (b: PresetBundle): PresetBundle =>
+	Object.fromEntries(Object.entries(b).map(([k, v]) => [k, { ...v }]));
 
 const parseBack = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
 	leftEl: toMaskPayload(data.leftEl),
@@ -65,15 +51,6 @@ const parseBack = (data: Record<string, { action?: number; customButtonMask?: nu
 	rightBack1: toMaskPayload(data.rightBack1),
 	leftBack2: toMaskPayload(data.leftBack2),
 	rightBack2: toMaskPayload(data.rightBack2),
-});
-
-const parseFn = (data: Record<string, { action?: number; customButtonMask?: number; customDpadMask?: number }>) => ({
-	leftFn: toMaskPayload(data.leftFn),
-	rightFn: toMaskPayload(data.rightFn),
-	leftMt: toMaskPayload(data.leftMt),
-	rightMt: toMaskPayload(data.rightMt),
-	extLeftTrigger: toMaskPayload(data.extLeftTrigger),
-	extRightTrigger: toMaskPayload(data.extRightTrigger),
 });
 
 function BackPaddleSettingsBody({
@@ -92,8 +69,7 @@ function BackPaddleSettingsBody({
 	const [saveMessage, setSaveMessage] = useState('');
 	const [isSaving, setIsSaving] = useState(false);
 
-	const backAddonOptions = bundle.back;
-	const fnOptions = bundle.fn;
+	const backAddonOptions = bundle;
 
 	const buttonNames = useMemo(() => {
 		const defaultButtons = getButtonLabels('gp2040', false);
@@ -118,39 +94,24 @@ function BackPaddleSettingsBody({
 	);
 
 	const patchBack = (key: string, payload: MaskPayload) =>
-		onBundleChange({ ...bundle, back: { ...bundle.back, [key]: payload } });
-	const patchFn = (key: string, payload: MaskPayload) =>
-		onBundleChange({ ...bundle, fn: { ...bundle.fn, [key]: payload } });
+		onBundleChange({ ...bundle, [key]: payload });
 
 	const handleSaveAll = useCallback(async () => {
-		const { back, fn } = bundle;
 		setSaveMessage('');
 		setIsSaving(true);
 		try {
-			// 设备 HTTP POST 共用单缓冲区（http_post_payload），并发提交会互相覆盖，
-			// 导致请求挂起或写入错误数据，须顺序提交。
 			const backOk = await WebApi.setBackButtonAddonOptions({
 				presetIndex,
 				setActive: true,
-				leftEl: back.leftEl,
-				rightEr: back.rightEr,
-				leftBack1: back.leftBack1,
-				rightBack1: back.rightBack1,
-				leftBack2: back.leftBack2,
-				rightBack2: back.rightBack2,
-			});
-			const fnOk = await WebApi.setFnKeyMappingOptions({
-				presetIndex,
-				setActive: true,
-				leftFn: fn.leftFn,
-				rightFn: fn.rightFn,
-				leftMt: fn.leftMt,
-				rightMt: fn.rightMt,
-				extLeftTrigger: fn.extLeftTrigger,
-				extRightTrigger: fn.extRightTrigger,
+				leftEl: bundle.leftEl,
+				rightEr: bundle.rightEr,
+				leftBack1: bundle.leftBack1,
+				rightBack1: bundle.rightBack1,
+				leftBack2: bundle.leftBack2,
+				rightBack2: bundle.rightBack2,
 			});
 			// WebApi setters return false/null on failure instead of throwing
-			if (backOk !== true || fnOk !== true) {
+			if (backOk !== true) {
 				setSaveMessage(t('Common:saved-error-message'));
 				setTimeout(() => setSaveMessage(''), 3000);
 				return;
@@ -163,7 +124,7 @@ function BackPaddleSettingsBody({
 			setSaveMessage(t('Common:saved-success-message'));
 			setTimeout(() => setSaveMessage(''), 3000);
 		} catch (error) {
-			console.error('Failed to save HML paddle / touchpad / Fn mappings:', error);
+			console.error('Failed to save HML paddle mappings:', error);
 			setSaveMessage(t('Common:saved-error-message'));
 			setTimeout(() => setSaveMessage(''), 3000);
 		} finally {
@@ -232,20 +193,6 @@ function BackPaddleSettingsBody({
 							selectRow(labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`, true, gpio),
 						)}
 					</Row>
-				</Card.Body>
-			</Card>
-
-			<Card style={{ marginBottom: '1rem' }}>
-				<Card.Header>{t('SettingsPage:hml-fn-key-mapping-title')}</Card.Header>
-				<Card.Body>
-					<Row className="g-3">
-						{selectRow('hml-fn-left', fnOptions.leftFn, (p) => patchFn('leftFn', p), 'fn-l', true)}
-						{selectRow('hml-fn-right', fnOptions.rightFn, (p) => patchFn('rightFn', p), 'fn-r', true)}
-						{selectRow('hml-mt-left', fnOptions.leftMt, (p) => patchFn('leftMt', p), 'mt-l', true)}
-						{selectRow('hml-mt-right', fnOptions.rightMt, (p) => patchFn('rightMt', p), 'mt-r', true)}
-						{selectRow('hml-ext-l2', fnOptions.extLeftTrigger, (p) => patchFn('extLeftTrigger', p), 'ex-l', false)}
-						{selectRow('hml-ext-r2', fnOptions.extRightTrigger, (p) => patchFn('extRightTrigger', p), 'ex-r', false)}
-					</Row>
 					<Row className="mt-3">
 						<Col sm={4}>
 							<Button variant="primary" onClick={handleSaveAll} disabled={isSaving}>
@@ -273,14 +220,14 @@ function BackPaddleSettingsBody({
 export default function BackPaddleSettings() {
 	const [selectedTab, setSelectedTab] = useState<PresetTabKey>('preset-0');
 	const [presets, setPresets] = useState<PresetBundle[]>([
-		{ back: emptyBack(), fn: emptyFn() },
-		{ back: emptyBack(), fn: emptyFn() },
-		{ back: emptyBack(), fn: emptyFn() },
+		emptyBack(),
+		emptyBack(),
+		emptyBack(),
 	]);
 	const snapshotRef = useRef<PresetBundle[]>([
-		{ back: emptyBack(), fn: emptyFn() },
-		{ back: emptyBack(), fn: emptyFn() },
-		{ back: emptyBack(), fn: emptyFn() },
+		emptyBack(),
+		emptyBack(),
+		emptyBack(),
 	]);
 
 	useEffect(() => {
@@ -288,17 +235,11 @@ export default function BackPaddleSettings() {
 			const loaded: PresetBundle[] = [];
 			let activePreset = 0;
 			for (let i = 0; i < 3; i++) {
-				const [back, fn] = await Promise.all([
-					WebApi.getBackButtonAddonOptions(i),
-					WebApi.getFnKeyMappingOptions(i),
-				]);
+				const back = await WebApi.getBackButtonAddonOptions(i);
 				if (i === 0) {
 					activePreset = Number(back?.activePreset ?? 0);
 				}
-				loaded.push({
-					back: back ? parseBack(back as Parameters<typeof parseBack>[0]) : emptyBack(),
-					fn: fn ? parseFn(fn as Parameters<typeof parseFn>[0]) : emptyFn(),
-				});
+				loaded.push(back ? parseBack(back as Parameters<typeof parseBack>[0]) : emptyBack());
 			}
 			setSelectedTab(PRESET_TAB_KEYS[activePreset] ?? 'preset-0');
 			setPresets(loaded);

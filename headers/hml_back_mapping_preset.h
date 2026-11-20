@@ -10,7 +10,6 @@ HmlBackMappingPreset& getActiveHmlBackPreset(AddonOptions& addonOptions);
 const HmlBackMappingPreset& getActiveHmlBackPreset(const AddonOptions& addonOptions);
 
 const BackButtonAddonOptions& getActiveBackButtonOptions(const AddonOptions& addonOptions);
-const FnKeyMappingOptions& getActiveFnKeyMappingOptions(const AddonOptions& addonOptions);
 
 HmlBackMappingPreset& getHmlBackPresetAt(AddonOptions& addonOptions, uint32_t presetIndex);
 const HmlBackMappingPreset& getHmlBackPresetAt(const AddonOptions& addonOptions, uint32_t presetIndex);

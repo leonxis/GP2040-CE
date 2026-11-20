@@ -30,9 +30,6 @@
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
 #include "addons/linear_trigger.h"
-#include "addons/ads8332_adc.h"
-#include "addons/mcp3208_adc.h"
-#include "addons/lsm6dsr_imu.h"
 #include "addons/tg16_input.h"
 
 #include "CRC32.h"
@@ -644,6 +641,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2PinY, ANALOG_ADC_2_VRY);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2Mode, ANALOG_ADC_2_MODE);
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, analogAdc2Invert, ANALOG_ADC_2_INVERT);
+    INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, oversampling, false);
     // forced_circularity removed - replaced by range calibration
     INIT_UNSET_PROPERTY(config.addonOptions.analogOptions, inner_deadzone, DEFAULT_INNER_DEADZONE);
     // outer_deadzone removed - replaced by range calibration
@@ -1014,46 +1012,10 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerInvert, false);
     INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerInvert, false);
 #endif
-    if (!config.addonOptions.ads8332Options.has_enabled &&
-        config.addonOptions.mcp3208Options.has_enabled) {
-        config.addonOptions.ads8332Options.enabled =
-            !config.addonOptions.mcp3208Options.enabled;
-        config.addonOptions.ads8332Options.has_enabled = true;
-    }
-#if defined(ADS8332_DEFAULT_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, ADS8332_DEFAULT_ENABLED);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.ads8332Options, enabled, 0);
-#endif
-    config.addonOptions.has_ads8332Options = true;
-    // ADS8332 / MCP3208 插件已在固件侧永久禁用，两者默认均为关闭。
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, enabled, 0);
-    config.addonOptions.mcp3208Options.has_enabled = true;
-    config.addonOptions.has_mcp3208Options = true;
-    INIT_UNSET_PROPERTY(config.addonOptions.mcp3208Options, oversampling, false);
-#if defined(LSM6DSR_DEFAULT_ENABLED)
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, LSM6DSR_DEFAULT_ENABLED);
-#else
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, enabled, 0);
-#endif
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, outputMode, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroX, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroY, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetGyroZ, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelX, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelY, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, offsetAccelZ, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, calibrateGyroRequested, false);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, engageMode, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseMapMode, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseInvert, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensLR, 1.0f);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseSensUD, 1.0f);
-    INIT_UNSET_PROPERTY(config.addonOptions.lsm6dsrOptions, gyroMouseDeadzone, 12);
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
     INIT_UNSET_PROPERTY(config.addonOptions, cpuOverclockLevel, (CpuOverclockLevel)CPU_OVERCLOCK_NORMAL);
 
-    // HML 背键/FN 三套方案（所有 BoardConfig 构建均编译）
+    // HML 背键三套方案（所有 BoardConfig 构建均编译）
     {
         HmlBackMappingPresetOptions& presetOpts = getHmlBackMappingPresetOptions(config.addonOptions);
         if (presetOpts.presets_count == 0) {
@@ -1554,16 +1516,6 @@ void gpioMappingsMigrationCore(Config& config)
         markAddonPinIfUsed(config.addonOptions.heTriggerOptions.selectPin1);
         markAddonPinIfUsed(config.addonOptions.heTriggerOptions.selectPin2);
         markAddonPinIfUsed(config.addonOptions.heTriggerOptions.selectPin3);
-    }
-
-    if (config.addonOptions.ads8332Options.enabled) {
-        markAddonPinIfUsed((Pin_t)ADS8332_HW_CS_PIN);
-        markAddonPinIfUsed((Pin_t)ADS8332_HW_CONVST_PIN);
-    } else if (config.addonOptions.mcp3208Options.enabled) {
-        markAddonPinIfUsed((Pin_t)MCP3208_HW_CS_PIN);
-    }
-    if (config.addonOptions.lsm6dsrOptions.enabled) {
-        markAddonPinIfUsed((Pin_t)LSM6DSR_HW_CS_PIN);
     }
 
     for (Pin_t pin = 0; pin < (Pin_t)NUM_BANK0_GPIOS; pin++) {

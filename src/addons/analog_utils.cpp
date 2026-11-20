@@ -1,7 +1,5 @@
 #include "addons/analog_utils.h"
 #include "addons/analog.h"  // For ADC_PIN_OFFSET definition
-#include "addons/ads8332_adc.h"
-#include "addons/mcp3208_adc.h"
 #include "storagemanager.h"
 #include "eventmanager.h"
 #include "hardware/adc.h"
@@ -19,15 +17,6 @@ bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMa
     y = 0;
     adcMax = 0;
 
-    // Match Core0 addon write priority for stick fields:
-    // ADS8332 -> MCP3208 -> Onboard ADC
-    if (ADS8332ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
-        return true;
-    }
-    if (MCP3208ADCAddon::getRawStickForWebConfig(stickNum, x, y, adcMax)) {
-        return true;
-    }
-
     const AnalogOptions& analogOptions = Storage::getInstance().getAddonOptions().analogOptions;
     if (!analogOptions.enabled) {
         return false;
@@ -37,7 +26,7 @@ bool readJoystickADC(uint8_t stickNum, uint32_t& x, uint32_t& y, uint32_t& adcMa
     Pin_t xPin = (stickNum == 0) ? analogOptions.analogAdc1PinX : analogOptions.analogAdc2PinX;
     Pin_t yPin = (stickNum == 0) ? analogOptions.analogAdc1PinY : analogOptions.analogAdc2PinY;
 
-    const bool oversample = Storage::getInstance().getAddonOptions().mcp3208Options.oversampling;
+    const bool oversample = analogOptions.oversampling;
     auto readPin = [oversample](uint8_t channel) -> uint32_t {
         adc_select_input(channel);
         if (!oversample) {

@@ -34,57 +34,10 @@ void initHmlBackMappingPresetNone(HmlBackMappingPreset& preset) {
     bb.has_leftElMapping = true;
     initGpioMappingNone(bb.rightErMapping);
     bb.has_rightErMapping = true;
-
-    preset.has_fnKey = true;
-    FnKeyMappingOptions& fn = preset.fnKey;
-    initGpioMappingNone(fn.leftFnMapping);
-    fn.has_leftFnMapping = true;
-    initGpioMappingNone(fn.rightFnMapping);
-    fn.has_rightFnMapping = true;
-    initGpioMappingNone(fn.leftMtMapping);
-    fn.has_leftMtMapping = true;
-    initGpioMappingNone(fn.rightMtMapping);
-    fn.has_rightMtMapping = true;
-    initGpioMappingNone(fn.leftExtTriggerMapping);
-    fn.has_leftExtTriggerMapping = true;
-    initGpioMappingNone(fn.rightExtTriggerMapping);
-    fn.has_rightExtTriggerMapping = true;
 }
 
 void initHmlBackMappingPresetScheme1FromBoardConfig(HmlBackMappingPreset& scheme1) {
     initHmlBackMappingPresetNone(scheme1);
-
-    FnKeyMappingOptions& fn = scheme1.fnKey;
-#if defined(HML_LEFT_FN_ACTION)
-    fn.leftFnMapping.action = HML_LEFT_FN_ACTION;
-    fn.leftFnMapping.has_action = true;
-    fn.has_leftFnMapping = true;
-#endif
-#if defined(HML_RIGHT_FN_ACTION)
-    fn.rightFnMapping.action = HML_RIGHT_FN_ACTION;
-    fn.rightFnMapping.has_action = true;
-    fn.has_rightFnMapping = true;
-#endif
-#if defined(HML_LEFT_MT_ACTION)
-    fn.leftMtMapping.action = HML_LEFT_MT_ACTION;
-    fn.leftMtMapping.has_action = true;
-    fn.has_leftMtMapping = true;
-#endif
-#if defined(HML_RIGHT_MT_ACTION)
-    fn.rightMtMapping.action = HML_RIGHT_MT_ACTION;
-    fn.rightMtMapping.has_action = true;
-    fn.has_rightMtMapping = true;
-#endif
-#if defined(HML_EXT_LEFT_ACTION)
-    fn.leftExtTriggerMapping.action = HML_EXT_LEFT_ACTION;
-    fn.leftExtTriggerMapping.has_action = true;
-    fn.has_leftExtTriggerMapping = true;
-#endif
-#if defined(HML_EXT_RIGHT_ACTION)
-    fn.rightExtTriggerMapping.action = HML_EXT_RIGHT_ACTION;
-    fn.rightExtTriggerMapping.has_action = true;
-    fn.has_rightExtTriggerMapping = true;
-#endif
 
     BackButtonAddonOptions& bb = scheme1.backButton;
 #if defined(HML_BACK_L1_ACTION)
@@ -153,7 +106,6 @@ HmlBackMappingPreset& getActiveHmlBackPreset(AddonOptions& addonOptions) {
     const uint32_t index = clampActivePresetIndex(opts.activePreset, opts.presets_count);
     ensureHmlBackMappingPresetSlots(opts, (pb_size_t)(index + 1));
     opts.presets[index].has_backButton = true;
-    opts.presets[index].has_fnKey = true;
     return opts.presets[index];
 }
 
@@ -171,10 +123,6 @@ const BackButtonAddonOptions& getActiveBackButtonOptions(const AddonOptions& add
     return getActiveHmlBackPreset(addonOptions).backButton;
 }
 
-const FnKeyMappingOptions& getActiveFnKeyMappingOptions(const AddonOptions& addonOptions) {
-    return getActiveHmlBackPreset(addonOptions).fnKey;
-}
-
 HmlBackMappingPreset& getHmlBackPresetAt(AddonOptions& addonOptions, uint32_t presetIndex) {
     if (presetIndex > 2) {
         presetIndex = 2;
@@ -182,7 +130,6 @@ HmlBackMappingPreset& getHmlBackPresetAt(AddonOptions& addonOptions, uint32_t pr
     HmlBackMappingPresetOptions& opts = getHmlBackMappingPresetOptions(addonOptions);
     ensureHmlBackMappingPresetSlots(opts, (pb_size_t)(presetIndex + 1));
     opts.presets[presetIndex].has_backButton = true;
-    opts.presets[presetIndex].has_fnKey = true;
     return opts.presets[presetIndex];
 }
 

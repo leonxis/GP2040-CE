@@ -1,8 +1,6 @@
 #include "addons/unified_analog_processor.h"
 
 #include "addons/analog.h"
-#include "addons/ads8332_adc.h"
-#include "addons/mcp3208_adc.h"
 #include "config.pb.h"
 #include "drivermanager.h"
 #include "gamepad.h"
@@ -14,7 +12,7 @@
 #include <limits>
 
 namespace {
-// MCP3208 is a fixed 12-bit source. Typed constants instead of macros —
+// ADC source constants. Typed constants instead of macros —
 // analog.cpp defines the same ADC_MAX macro name, so a macro here would
 // collide on any future include change.
 constexpr uint16_t kAdcMax = (1 << 12) - 1;
@@ -497,11 +495,7 @@ void __not_in_flash_func(UnifiedAnalogProcessorAddon::process)() {
 
         bool hasSource = false;
         // The sampler contract guarantees unified stick semantics across sources.
-        if (source_ == StickSource::ADS8332) {
-            hasSource = ADS8332ADCAddon::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
-        } else if (source_ == StickSource::MCP3208) {
-            hasSource = MCP3208ADCAddon::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
-        } else if (source_ == StickSource::OnboardADC) {
+        if (source_ == StickSource::OnboardADC) {
             hasSource = AnalogInput::getRawStickForProcessor(i, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax);
         }
         if (!hasSource) {

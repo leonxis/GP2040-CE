@@ -70,7 +70,6 @@ const HML_PANEL_KEYS = [
 	'mode',
 	'button-settings',
 	'calibration',
-	'motion',
 	'function-buttons',
 	'hardware',
 	'backup-reset',

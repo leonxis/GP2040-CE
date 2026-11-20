@@ -33,8 +33,6 @@ private:
     static UnifiedAnalogProcessorAddon* s_instance_;
     enum class StickSource : uint8_t {
         None = 0,
-        ADS8332,
-        MCP3208,
         OnboardADC,
     };
 

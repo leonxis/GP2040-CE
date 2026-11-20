@@ -13,8 +13,6 @@
 #include "events/GPRestartEvent.h"
 #include "hml_back_mapping_preset.h"
 #include "addons/analog.h"
-#include "addons/mcp3208_adc.h"
-#include "addons/ads8332_adc.h"
 
 #include <cstring>
 #include "pico/stdlib.h"
@@ -131,8 +129,6 @@ static void sColor(int v) {
 }
 static int gLedOff() { return LOP().turnOffWhenSuspended ? 1 : 0; }
 static void sLedOff(int v) { LOP().turnOffWhenSuspended = v ? true : false; }
-static int gGyro() { return AOP2().lsm6dsrOptions.enabled ? 1 : 0; }
-static void sGyro(int v) { AOP2().lsm6dsrOptions.enabled = v ? true : false; needsReboot = true; }
 
 // USB 验证器开关（对应网页配置 GNS设置-硬件配置 中的 USB验证器，即 blockUSB0.enabled）
 static int gUsbAuth() { return POP().blockUSB0.enabled ? 1 : 0; }
@@ -181,15 +177,11 @@ static void sInnerDz2(int v) { AOP2().analogOptions.inner_deadzone2 = (uint32_t)
 static int gAntiDz2() { return (int)AOP2().analogOptions.anti_deadzone2; }
 static void sAntiDz2(int v) { AOP2().analogOptions.anti_deadzone2 = (uint32_t)v; needsReboot = true; }
 
-// 读取摇杆原始ADC值（尝试三种源）
+// 读取摇杆原始ADC值（板载 ADC）
 static bool readRawStick(uint8_t stickNum, uint16_t& rawX, uint16_t& rawY) {
     uint16_t xCenter, yCenter, adcMax;
     bool xValid, yValid;
     if (AnalogInput::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
-        return xValid && yValid;
-    if (MCP3208ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
-        return xValid && yValid;
-    if (ADS8332ADCAddon::getRawStickForProcessor(stickNum, rawX, rawY, xCenter, yCenter, xValid, yValid, adcMax))
         return xValid && yValid;
     return false;
 }
@@ -246,7 +238,7 @@ static void sBackPreset(int v) {
 // 7=圆(B2=6), 8=叉(B1=5), 9=菜单(S1=13), 10=选项(S2=14),
 // 11=L1(=9), 12=L2(=11), 13=R1(=10), 14=R2(=12), 15=L3(=17), 16=R3(=18)
 // 17=OTHER(网页前端设置的菜单外映射项，显示但不可改，保存时保留原值)
-static const int BACK_ACTION_MAP[] = {-10, 1, 2, 3, 4, 7, 8, 6, 5, 14, 13, 9, 11, 10, 12, 17, 18};
+static const int BACK_ACTION_MAP[] = {-10, 1, 2, 3, 4, 7, 8, 6, 5, 13, 14, 9, 11, 10, 12, 17, 18};
 static const char* const N_BACK_ACTION[] = {
   "无","上","下","左","右","方块","三角","圆","叉","菜单","选项","L1","L2","R1","R2","L3","R3","OTHER"
 };
@@ -261,10 +253,6 @@ static int backActionToIndex(int action) {
 static int gBackEl() {
   const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
   return backActionToIndex((int)bb.leftElMapping.action);
-}
-static int gBackEr() {
-  const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
-  return backActionToIndex((int)bb.rightErMapping.action);
 }
 static int gBackL1() {
   const BackButtonAddonOptions& bb = getActiveBackButtonOptions(AOP2());
@@ -290,14 +278,6 @@ static void sBackEl(int v) {
   p.backButton.leftElMapping.action = (GpioAction)BACK_ACTION_MAP[v];
   p.backButton.leftElMapping.has_action = true;
   p.backButton.has_leftElMapping = true;
-}
-static void sBackEr(int v) {
-  needsReboot = true;
-  if (v == BACK_ACTION_OTHER_IDX) return;
-  HmlBackMappingPreset& p = getActiveHmlBackPreset(AOP2());
-  p.backButton.rightErMapping.action = (GpioAction)BACK_ACTION_MAP[v];
-  p.backButton.rightErMapping.has_action = true;
-  p.backButton.has_rightErMapping = true;
 }
 static void sBackL1(int v) {
   needsReboot = true;
@@ -415,10 +395,9 @@ static LiteOpt optOnboard[] = {
   {"保存设置", OPT_ACTION, 0, 0, 0, NULL, 0, "", gSave, sSave},
   {"恢复默认", OPT_ACTION, 0, 0, 0, NULL, 0, "", gReset, sReset},
 };
-// 页面1 背键映射：6 个背键（EL/ER/L1/R1/L2/R2），每个可选 18 种映射（含 OTHER 占位）
+// 页面1 背键映射：5 个 GPIO 背键（耳机/左1/右1/左2/右2），每个可选 18 种映射（含 OTHER 占位）
 static LiteOpt optBackMap[] = {
-  {"左背键EL", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackEl, sBackEl},
-  {"右背键ER", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackEr, sBackEr},
+  {"耳机背键", OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackEl, sBackEl},
   {"左背键1",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackL1, sBackL1},
   {"右背键1",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackR1, sBackR1},
   {"左背键2",  OPT_ENUM, 0, 17, 1, N_BACK_ACTION, 18, "", gBackL2, sBackL2},
@@ -434,7 +413,6 @@ static LiteOpt optStick[] = {
 };
 // 页面3 硬件开关（验证器 / 无线 / BLE 三者互斥）
 static LiteOpt optHardware[] = {
-  {"陀螺仪", OPT_BOOL, 0, 1, 1, NULL, 0, "", gGyro, sGyro},
   {"验证器", OPT_BOOL, 0, 1, 1, NULL, 0, "", gUsbAuth, sUsbAuth},
   {"无线模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gWireless24g, sWireless24g},
   {"BLE模式", OPT_BOOL, 0, 1, 1, NULL, 0, "", gBtLink, sBtLink},
@@ -462,9 +440,9 @@ static LiteOpt optLed[] = {
 
 // 每页单分区，section 恒为 0
 static LiteSection secOnboard[]  = {{"板载方案", optOnboard, 5}};
-static LiteSection secBackMap[]  = {{"背键映射", optBackMap, 6}};
+static LiteSection secBackMap[]  = {{"背键映射", optBackMap, 5}};
 static LiteSection secStick[]    = {{"摇杆", optStick, 5}};
-static LiteSection secHardware[] = {{"硬件开关", optHardware, 4}};
+static LiteSection secHardware[] = {{"硬件开关", optHardware, 3}};
 static LiteSection secFunc[]     = {{"功能设置", optFunc, 7}};
 static LiteSection secLed[]      = {{"彩灯", optLed, 7}};
 
@@ -483,7 +461,7 @@ static bool calibPromptOpen = false;
 static int snap[10];
 static int lastSavedInputMode = -1;
 
-// 保存后按需重启（输入模式/陀螺仪/校准等改动需要重启生效）
+// 保存后按需重启（输入模式/校准等改动需要重启生效）
 static void maybeRebootIfNeeded() {
   int cur = (int)GOP().inputMode;
   if (cur != lastSavedInputMode) {

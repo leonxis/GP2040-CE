@@ -11,8 +11,6 @@ import { AppContext } from '../Contexts/AppContext';
 
 import WebApi from '../Services/WebApi';
 import Analog, { analogScheme, analogState } from '../Addons/Analog';
-import ADS8332, { ads8332Scheme, ads8332State } from '../Addons/ADS8332';
-import LSM6DSR, { lsm6dsrScheme, lsm6dsrState } from '../Addons/LSM6DSR';
 import Bootsel, { bootselScheme, bootselState } from '../Addons/Bootsel';
 import DualDirection, {
 	dualDirectionScheme,
@@ -48,8 +46,6 @@ export type AddonPropTypes = {
 
 const schema = yup.object().shape({
 	...analogScheme,
-	...ads8332Scheme,
-	...lsm6dsrScheme,
 	...bootselScheme,
 	...reverseScheme,
 	...dualDirectionScheme,
@@ -74,14 +70,10 @@ const FLOAT_KEYS = [
 	'joystickFinetuneShapeXBottomPercent2',
 	'joystickFinetuneShapeYLeftPercent2',
 	'joystickFinetuneShapeYRightPercent2',
-	'lsm6dsrGyroMouseSensLR',
-	'lsm6dsrGyroMouseSensUD',
 ];
 
 export const DEFAULT_VALUES = {
 	...analogState,
-	...ads8332State,
-	...lsm6dsrState,
 	...bootselState,
 	...reverseState,
 	...dualDirectionState,
@@ -99,8 +91,6 @@ export const DEFAULT_VALUES = {
 const ADDONS = [
 	Keyboard,
 	GamepadUSBHost,
-	ADS8332,
-	LSM6DSR,
 	Analog,
 	Tilt,
 	Bootsel,
