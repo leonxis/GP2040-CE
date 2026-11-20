@@ -59,6 +59,40 @@ static void resetApiRequestPresetIndex() {
     g_apiRequestPresetIndex = -1;
 }
 
+// USB 验证器 / 无线扩展占用 GPIO14/15 时，左右背键1 标记为已分配给插件；
+// 两者都关闭后恢复为未分配，避免前端下拉框永久锁死。
+static void syncBack1PinsForLinkAddons() {
+    AddonOptions& addonOptions = Storage::getInstance().getAddonOptions();
+    const bool usbValidator = Storage::getInstance().getPeripheralOptions().blockUSB0.enabled;
+    const GamepadOptions& gamepadOptions = Storage::getInstance().getGamepadOptions();
+    const bool occupied = usbValidator ||
+                          gamepadOptions.wireless24gLinkEnabled ||
+                          gamepadOptions.bluetoothLinkEnabled;
+    for (uint32_t i = 0; i < 3; i++) {
+        BackButtonAddonOptions& bb = getHmlBackPresetAt(addonOptions, i).backButton;
+        if (occupied) {
+            bb.leftBack1Mapping.action = GpioAction::ASSIGNED_TO_ADDON;
+            bb.leftBack1Mapping.has_action = true;
+            bb.has_leftBack1Mapping = true;
+            bb.rightBack1Mapping.action = GpioAction::ASSIGNED_TO_ADDON;
+            bb.rightBack1Mapping.has_action = true;
+            bb.has_rightBack1Mapping = true;
+        } else {
+            // 关闭时只在当前为「已分配给插件」的槽位上恢复，避免覆盖用户自定义映射
+            if (bb.leftBack1Mapping.action == GpioAction::ASSIGNED_TO_ADDON) {
+                bb.leftBack1Mapping.action = GpioAction::NONE;
+                bb.leftBack1Mapping.has_action = true;
+                bb.has_leftBack1Mapping = true;
+            }
+            if (bb.rightBack1Mapping.action == GpioAction::ASSIGNED_TO_ADDON) {
+                bb.rightBack1Mapping.action = GpioAction::NONE;
+                bb.rightBack1Mapping.has_action = true;
+                bb.has_rightBack1Mapping = true;
+            }
+        }
+    }
+}
+
 static int presetIndexFromRequestOrDefault() {
     if (g_apiRequestPresetIndex >= 0 && g_apiRequestPresetIndex <= 2) {
         return g_apiRequestPresetIndex;
@@ -863,6 +897,7 @@ std::string setGamepadOptions()
     } else if (gamepadOptions.bluetoothLinkEnabled) {
         Storage::getInstance().getPeripheralOptions().blockUSB0.enabled = false;
     }
+    syncBack1PinsForLinkAddons();
     // Copy USB descriptor strings
     size_t strSize = sizeof(gamepadOptions.usbDescManufacturer);
     strncpy(gamepadOptions.usbDescManufacturer, doc["usbDescManufacturer"], strSize - 1);
@@ -1653,6 +1688,7 @@ std::string setPeripheralOptions()
         gamepadOptions.bluetoothLinkEnabled = false;
         gamepadOptions.wireless24gLinkEnabled = false;
     }
+    syncBack1PinsForLinkAddons();
 
     // need to reserve previous/next pin for dp
     GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;

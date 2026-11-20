@@ -7,6 +7,7 @@ import { AppContext } from '../../../Contexts/AppContext';
 import { MaskPayload } from '../../../Store/useProfilesStore';
 import CustomSelect from '../../../Components/CustomSelect';
 import { getButtonLabels } from '../../../Data/Buttons';
+import { BUTTON_ACTIONS } from '../../../Data/Pins';
 import WebApi from '../../../Services/WebApi';
 import {
 	OptionType,
@@ -56,11 +57,13 @@ const parseBack = (data: Record<string, { action?: number; customButtonMask?: nu
 function BackPaddleSettingsBody({
 	presetIndex,
 	bundle,
+	linkOccupied,
 	onBundleChange,
 	onSaved,
 }: {
 	presetIndex: number;
 	bundle: PresetBundle;
+	linkOccupied: boolean;
 	onBundleChange: (next: PresetBundle) => void;
 	onSaved: () => void;
 }) {
@@ -70,6 +73,19 @@ function BackPaddleSettingsBody({
 	const [isSaving, setIsSaving] = useState(false);
 
 	const backAddonOptions = bundle;
+	const isBack1 = (key: string) => key === 'leftBack1' || key === 'rightBack1';
+	// USB 验证器 / 无线扩展占用 GPIO15/14 时，左右背键1 固定显示为「已分配给插件」
+	const getRowData = (key: string): MaskPayload => {
+		const stored = backAddonOptions[key] ?? defaultPinData;
+		if (!isBack1(key)) return stored;
+		if (linkOccupied) {
+			return { ...defaultPinData, action: BUTTON_ACTIONS.ASSIGNED_TO_ADDON };
+		}
+		// 关闭占用后清理历史遗留的 ASSIGNED，避免下拉框被永久锁死
+		return stored.action === BUTTON_ACTIONS.ASSIGNED_TO_ADDON
+			? { ...defaultPinData }
+			: stored;
+	};
 
 	const buttonNames = useMemo(() => {
 		const defaultButtons = getButtonLabels('gp2040', false);
@@ -93,8 +109,10 @@ function BackPaddleSettingsBody({
 		[buttonNames, t],
 	);
 
-	const patchBack = (key: string, payload: MaskPayload) =>
+	const patchBack = (key: string, payload: MaskPayload) => {
+		if (isBack1(key) && linkOccupied) return;
 		onBundleChange({ ...bundle, [key]: payload });
+	};
 
 	const handleSaveAll = useCallback(async () => {
 		setSaveMessage('');
@@ -105,8 +123,8 @@ function BackPaddleSettingsBody({
 				setActive: true,
 				leftEl: bundle.leftEl,
 				rightEr: bundle.rightEr,
-				leftBack1: bundle.leftBack1,
-				rightBack1: bundle.rightBack1,
+				leftBack1: getRowData('leftBack1'),
+				rightBack1: getRowData('rightBack1'),
 				leftBack2: bundle.leftBack2,
 				rightBack2: bundle.rightBack2,
 			});
@@ -130,7 +148,7 @@ function BackPaddleSettingsBody({
 		} finally {
 			setIsSaving(false);
 		}
-	}, [appContext, bundle, onSaved, presetIndex, t]);
+	}, [appContext, bundle, linkOccupied, onSaved, presetIndex, t]);
 
 	const backMappingRows = [
 		{ key: 'leftBack1', labelKey: 'hml-paddle-left-1', gpio: 'GPIO15' },
@@ -190,7 +208,7 @@ function BackPaddleSettingsBody({
 				<Card.Body>
 					<Row className="g-3">
 						{backMappingRows.map(({ key, labelKey, gpio }) =>
-							selectRow(labelKey, backAddonOptions[key] || defaultPinData, (p) => patchBack(key, p), `back-${key}`, true, gpio),
+							selectRow(labelKey, getRowData(key), (p) => patchBack(key, p), `back-${key}`, true, gpio),
 						)}
 					</Row>
 					<Row className="mt-3">
@@ -229,9 +247,21 @@ export default function BackPaddleSettings() {
 		emptyBack(),
 		emptyBack(),
 	]);
+	const [linkOccupied, setLinkOccupied] = useState(false);
 
 	useEffect(() => {
 		(async () => {
+			// USB 验证器 / 无线扩展占用 GPIO15/14 时，左右背键1 显示为已分配给插件
+			const [peripheral, gamepad] = await Promise.all([
+				WebApi.getPeripheralOptions(),
+				WebApi.getGamepadOptions(),
+			]);
+			setLinkOccupied(
+				Boolean(peripheral?.peripheral?.usb0?.enabled) ||
+				Boolean(gamepad?.wireless24gLinkEnabled) ||
+				Boolean(gamepad?.bluetoothLinkEnabled),
+			);
+
 			const loaded: PresetBundle[] = [];
 			let activePreset = 0;
 			for (let i = 0; i < 3; i++) {
@@ -276,6 +306,7 @@ export default function BackPaddleSettings() {
 				<BackPaddleSettingsBody
 					presetIndex={index}
 					bundle={presets[index]}
+					linkOccupied={linkOccupied}
 					onBundleChange={(next) =>
 						setPresets((prev) => {
 							const copy = [...prev];
