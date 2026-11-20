@@ -217,6 +217,9 @@ bool __not_in_flash_func(MCP3208ADCAddon::readChannelsBatched)(
         spi_->select(csPin_);
         spi_->transfer(MCP3208_TX_COMMANDS[commandIndex], rx, 3);
         spi_->deselect();
+        // Datasheet tCSH（两次转换间 CS 高电平）最小 500ns；
+        // 同一 process() 内连续读通道时补足该间隔。
+        busy_wait_us(1);
         values[channels[i]] = static_cast<uint16_t>(
             ((rx[1] & 0x0F) << 8) | rx[2]);
     }

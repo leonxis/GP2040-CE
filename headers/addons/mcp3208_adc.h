@@ -13,7 +13,9 @@
 static constexpr uint8_t MCP3208_HW_SPI_BLOCK = 0;
 static constexpr int8_t MCP3208_HW_CS_PIN = 1;
 
-#define MCP3208_SPI_HZ          1500000u
+// Datasheet fCLK 上限：2.0MHz @VDD=5V，1.0MHz @VDD=2.7V。
+// 本板 MCP3208 由 3.3V 供电，按 2.7V 档取 1MHz 上限。
+#define MCP3208_SPI_HZ          1000000u
 
 // 通道：CH0=左X, CH1=左Y, CH6=右Y, CH7=右X；CH2/CH5=四档开关；CH3/CH4 悬空不读
 #define MCP3208_READ_CHANNELS    6   // 0,1,2,5,6,7
