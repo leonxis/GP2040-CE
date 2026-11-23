@@ -291,7 +291,6 @@ src/addons/analog_utils.cpp
 src/addons/bootsel_button.cpp
 src/addons/focus_mode.cpp
 src/addons/he_trigger.cpp
-src/addons/linear_trigger.cpp
 src/addons/back_button_divider.cpp
 src/addons/back_button_gpio.cpp
 src/addons/key_layer.cpp

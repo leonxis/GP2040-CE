@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { Button, Form, Modal } from 'react-bootstrap';
+import { Form } from 'react-bootstrap';
 import { Formik, FormikErrors, FormikHandlers, FormikHelpers, useFormikContext } from 'formik';
 import * as yup from 'yup';
 import { useTranslation } from 'react-i18next';
@@ -221,7 +221,6 @@ export default function CalibrationSettings() {
 	const [saveMessageCurve, setSaveMessageCurve] = useState('');
 	const [saveMessageAxisOverlay, setSaveMessageAxisOverlay] = useState('');
 	const [storedData, setStoredData] = useState({});
-	const [triggerErrorModalShow, setTriggerErrorModalShow] = useState(false);
 	const lastSaveSectionRef = useRef<SaveSection | null>(null);
 
 	const { t } = useTranslation();
@@ -261,10 +260,6 @@ export default function CalibrationSettings() {
 		resultObject.joystickOuterDeadzone2 = encodeStickOuterDeadzoneToDevice(Number(values.joystickOuterDeadzone2 ?? 0));
 		sanitizeData(resultObject);
 		const result = await WebApi.setAddonsOptions(resultObject);
-		if (result && result.error) {
-			setTriggerErrorModalShow(true);
-			return;
-		}
 		if (!result) {
 			const msg = t('Common:saved-error-message');
 			if (section === 'joystick') setSaveMessageJoystick(msg);
@@ -282,17 +277,6 @@ export default function CalibrationSettings() {
 
 	return (
 		<div>
-			<Modal show={triggerErrorModalShow} onHide={() => setTriggerErrorModalShow(false)} centered>
-				<Modal.Header closeButton>
-					<Modal.Title>{t('CalibrationSettings:hml-modal-title-hint')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>{t('CalibrationSettings:hml-trigger-mapping-error')}</Modal.Body>
-				<Modal.Footer>
-					<Button variant="primary" onClick={() => setTriggerErrorModalShow(false)}>
-						{t('CalibrationSettings:hml-button-ok')}
-					</Button>
-				</Modal.Footer>
-			</Modal>
 			<Formik
 			enableReinitialize={true}
 			validationSchema={schema}

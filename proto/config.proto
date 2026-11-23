@@ -805,21 +805,6 @@ message HETriggerOptions
     optional int32 smoothingFactor = 13;
 }
 
-message LinearTriggerOptions
-{
-    optional bool enabled = 1 [default = false];
-    optional uint32 leftTriggerDeadzone = 4 [default = 5];
-    optional uint32 rightTriggerDeadzone = 5 [default = 5];
-    optional uint32 leftTriggerTravel = 6 [default = 95];
-    optional uint32 rightTriggerTravel = 7 [default = 95];
-    optional int32 leftTriggerReleasedRaw = 8 [default = 4095];   // 校准：松开时 ADC
-    optional int32 rightTriggerReleasedRaw = 9 [default = 4095];
-    optional int32 leftTriggerMaxRaw = 10 [default = 0];          // 校准：按到底时 ADC
-    optional int32 rightTriggerMaxRaw = 11 [default = 0];
-    optional bool leftTriggerInvert = 12 [default = false];       // true=按下 ADC 升高，由校准自动设定
-    optional bool rightTriggerInvert = 13 [default = false];
-}
-
 message AddonOptions
 {
     optional BootselButtonOptions bootselButtonOptions = 1;
@@ -850,7 +835,7 @@ message AddonOptions
     optional GamepadUSBHostOptions gamepadUSBHostOptions = 28;
     optional TG16Options tg16Options = 29;
     optional HETriggerOptions heTriggerOptions = 30;
-    optional LinearTriggerOptions linearTriggerOptions = 31;
+    reserved 31; // 已移除的 LinearTriggerOptions
     optional HmlBackMappingPresetOptions hmlBackMappingPresetOptions = 33;
     reserved 34, 35, 37, 39;
     // HML 回报率选项：250=250Hz, 500=500Hz, 1000=1KHz, 2000=2KHz, 4000=4KHz, 8000=8KHz

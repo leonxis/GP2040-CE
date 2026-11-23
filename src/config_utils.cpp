@@ -29,7 +29,6 @@
 #include "addons/rotaryencoder.h"
 #include "addons/gamepad_usb_host.h"
 #include "addons/he_trigger.h"
-#include "addons/linear_trigger.h"
 #include "addons/tg16_input.h"
 
 #include "CRC32.h"
@@ -999,19 +998,6 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     // reminder that this must be set or else nanopb won't retain anything
     config.addonOptions.heTriggerOptions.triggers_count = HETRIGGER_COUNT;
 
-#ifdef LINEAR_TRIGGER_ENABLED
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, enabled, LINEAR_TRIGGER_ENABLED);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerDeadzone, 5);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerDeadzone, 5);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerTravel, 95);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerTravel, 95);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerReleasedRaw, 4095);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerReleasedRaw, 4095);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerMaxRaw, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerMaxRaw, 0);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, leftTriggerInvert, false);
-    INIT_UNSET_PROPERTY(config.addonOptions.linearTriggerOptions, rightTriggerInvert, false);
-#endif
     INIT_UNSET_PROPERTY(config.addonOptions, reportRate, (uint32_t)1000);
     INIT_UNSET_PROPERTY(config.addonOptions, cpuOverclockLevel, (CpuOverclockLevel)CPU_OVERCLOCK_NORMAL);
 
@@ -1368,12 +1354,6 @@ void gpioMappingsMigrationCore(Config& config)
         fromBoardConfig(i, boardConfig[i]);
     }
 
-    // Linear trigger uses fixed pins: GPIO28 = R2, GPIO29 = L2. When on → 28/29 = ASSIGNED_TO_ADDON. When off, leave 28/29 as in loaded config.
-    if (config.addonOptions.linearTriggerOptions.enabled) {
-        markAddonPinIfUsed(LINEAR_R2_PIN);
-        markAddonPinIfUsed(LINEAR_L2_PIN);
-    }
-
     // migrate I2C addons to use peripheral manager
     if (!peripheralOptions.blockI2C0.enabled && (
             (config.displayOptions.enabled && (config.displayOptions.deprecatedI2cBlock == 0))
@@ -1579,6 +1559,24 @@ void gpioMappingsMigrationProfiles(Config& config)
     config.profileOptions.gpioMappingsSets_count = 3;
 
     config.migrations.buttonProfilesMigrated = true;
+}
+
+// 线性扳机插件已移除。它曾使用 GPIO28(R2)/GPIO29(L2) 作为硬件扳机引脚，并在关闭时
+// 把这对引脚还原成 R2/L2 映射；该残留会与占用 28/29 的附件（如模拟摇杆 ADC）冲突。
+// 板级配置把 28/29 保留给附件，这里把成对的遗留映射清回 ASSIGNED_TO_ADDON。
+static void clearLinearTriggerRemnants(Config& config) {
+    const auto clearPair = [](auto& mappings) {
+        if (mappings.pins[28].action == GpioAction::BUTTON_PRESS_R2 &&
+                mappings.pins[29].action == GpioAction::BUTTON_PRESS_L2) {
+            mappings.pins[28].action = GpioAction::ASSIGNED_TO_ADDON;
+            mappings.pins[29].action = GpioAction::ASSIGNED_TO_ADDON;
+        }
+    };
+
+    clearPair(config.gpioMappings);
+    for (pb_size_t i = 0; i < config.profileOptions.gpioMappingsSets_count; i++) {
+        clearPair(config.profileOptions.gpioMappingsSets[i]);
+    }
 }
 
 void migrateTurboPinToGpio(Config& config) {
@@ -1856,6 +1854,8 @@ void ConfigUtils::load(Config& config)
     migrateMacroPinsToGpio(config);
     // Migrate old JS slider add-on to core
     migrateJSliderToCore(config);
+    // Clear linear trigger leftovers on GPIO28/29
+    clearLinearTriggerRemnants(config);
 
     // Update boardVersion, in case we migrated from an older version
     strncpy(config.boardVersion, GP2040VERSION, sizeof(config.boardVersion));
@@ -2502,6 +2502,7 @@ bool ConfigUtils::fromJSON(Config& config, const char* data, size_t dataLen)
     migrateTurboPinToGpio(config);
     migrateAuthenticationMethods(config);
     migrateMacroPinsToGpio(config);
+    clearLinearTriggerRemnants(config);
 
     return true;
 }

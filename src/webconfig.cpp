@@ -1,6 +1,6 @@
 #include "config.pb.h"
 #include "base64.h"
-// adc_gpio_init / adc_read (HE calibration, linear triggers)
+// adc_gpio_init / adc_read (HE calibration)
 #include "hardware/adc.h"
 #include "helper.h"
 
@@ -36,7 +36,6 @@
 #include "lwip/def.h"
 #include "addons/input_macro.h"
 #include "addons/analog_utils.h"
-#include "addons/linear_trigger.h"
 #include "hardware/gpio.h"
 #include "hml_back_mapping_preset.h"
 
@@ -2275,56 +2274,6 @@ std::string setAddonOptions()
     docToValue(heTriggerOptions.emaSmoothing, doc, "heTriggerSmoothing");
     docToValue(heTriggerOptions.smoothingFactor, doc, "heTriggerSmoothingFactor");
 
-    // Validate linear trigger before writing: if enabling, GP28/29 must be R2/L2. If not, return error and do not save any trigger options.
-    bool enablingLinearTrigger = doc.containsKey("linearTriggerEnabled") && doc["linearTriggerEnabled"].as<bool>();
-    if (enablingLinearTrigger) {
-        GpioMappings& maps = Storage::getInstance().getGpioMappings();
-        bool pin28Ok = (maps.pins[LINEAR_R2_PIN].action == GpioAction::BUTTON_PRESS_R2 || maps.pins[LINEAR_R2_PIN].action == GpioAction::ASSIGNED_TO_ADDON);
-        bool pin29Ok = (maps.pins[LINEAR_L2_PIN].action == GpioAction::BUTTON_PRESS_L2 || maps.pins[LINEAR_L2_PIN].action == GpioAction::ASSIGNED_TO_ADDON);
-        if (!pin28Ok || !pin29Ok) {
-            doc["error"] = "没有为扳机分配线性硬件";
-            return serialize_json(doc);
-        }
-    }
-
-    LinearTriggerOptions& linearTriggerOptions = Storage::getInstance().getAddonOptions().linearTriggerOptions;
-    docToValue(linearTriggerOptions.enabled, doc, "linearTriggerEnabled");
-    docToValue(linearTriggerOptions.leftTriggerDeadzone, doc, "leftTriggerDeadzone");
-    docToValue(linearTriggerOptions.rightTriggerDeadzone, doc, "rightTriggerDeadzone");
-    docToValue(linearTriggerOptions.leftTriggerTravel, doc, "leftTriggerTravel");
-    docToValue(linearTriggerOptions.rightTriggerTravel, doc, "rightTriggerTravel");
-    docToValue(linearTriggerOptions.leftTriggerReleasedRaw, doc, "leftTriggerReleasedRaw");
-    docToValue(linearTriggerOptions.rightTriggerReleasedRaw, doc, "rightTriggerReleasedRaw");
-    docToValue(linearTriggerOptions.leftTriggerMaxRaw, doc, "leftTriggerMaxRaw");
-    docToValue(linearTriggerOptions.rightTriggerMaxRaw, doc, "rightTriggerMaxRaw");
-    docToValue(linearTriggerOptions.leftTriggerInvert, doc, "leftTriggerInvert");
-    docToValue(linearTriggerOptions.rightTriggerInvert, doc, "rightTriggerInvert");
-
-    // Sync GPIO mapping: when linear trigger on → 28/29 = ASSIGNED_TO_ADDON.
-    // When turning off (28/29 were ASSIGNED_TO_ADDON) → reset to 28=R2, 29=L2. When linear trigger stays off, do not touch 28/29.
-    {
-        GpioMappings& maps = Storage::getInstance().getGpioMappings();
-        ProfileOptions& profiles = Storage::getInstance().getProfileOptions();
-        if (linearTriggerOptions.enabled) {
-            maps.pins[LINEAR_R2_PIN].action = GpioAction::ASSIGNED_TO_ADDON;
-            maps.pins[LINEAR_L2_PIN].action = GpioAction::ASSIGNED_TO_ADDON;
-            for (int i = 0; i < 3; i++) {
-                profiles.gpioMappingsSets[i].pins[LINEAR_R2_PIN].action = GpioAction::ASSIGNED_TO_ADDON;
-                profiles.gpioMappingsSets[i].pins[LINEAR_L2_PIN].action = GpioAction::ASSIGNED_TO_ADDON;
-            }
-        } else {
-            bool wasAssigned = (maps.pins[LINEAR_R2_PIN].action == GpioAction::ASSIGNED_TO_ADDON && maps.pins[LINEAR_L2_PIN].action == GpioAction::ASSIGNED_TO_ADDON);
-            if (wasAssigned) {
-                maps.pins[LINEAR_R2_PIN].action = GpioAction::BUTTON_PRESS_R2;
-                maps.pins[LINEAR_L2_PIN].action = GpioAction::BUTTON_PRESS_L2;
-                for (int i = 0; i < 3; i++) {
-                    profiles.gpioMappingsSets[i].pins[LINEAR_R2_PIN].action = GpioAction::BUTTON_PRESS_R2;
-                    profiles.gpioMappingsSets[i].pins[LINEAR_L2_PIN].action = GpioAction::BUTTON_PRESS_L2;
-                }
-            }
-        }
-    }
-
     // Curve points are passed through in the response (they are stored in web config JSON)
     // Note: Curve points are not stored in protobuf, only in web config for frontend use
     // They will be persisted in the web config file
@@ -2723,33 +2672,6 @@ std::string getAddonOptions()
     writeDoc(doc, "heTriggerSmoothing", heTriggerOptions.emaSmoothing);
     writeDoc(doc, "heTriggerSmoothingFactor", heTriggerOptions.smoothingFactor);
 
-    const LinearTriggerOptions& linearTriggerOptions = Storage::getInstance().getAddonOptions().linearTriggerOptions;
-    writeDoc(doc, "linearTriggerEnabled", linearTriggerOptions.enabled);
-    writeDoc(doc, "leftTriggerDeadzone", linearTriggerOptions.leftTriggerDeadzone);
-    writeDoc(doc, "rightTriggerDeadzone", linearTriggerOptions.rightTriggerDeadzone);
-    writeDoc(doc, "leftTriggerTravel", linearTriggerOptions.leftTriggerTravel);
-    writeDoc(doc, "rightTriggerTravel", linearTriggerOptions.rightTriggerTravel);
-    writeDoc(doc, "leftTriggerReleasedRaw", linearTriggerOptions.leftTriggerReleasedRaw);
-    writeDoc(doc, "rightTriggerReleasedRaw", linearTriggerOptions.rightTriggerReleasedRaw);
-    writeDoc(doc, "leftTriggerMaxRaw", linearTriggerOptions.leftTriggerMaxRaw);
-    writeDoc(doc, "rightTriggerMaxRaw", linearTriggerOptions.rightTriggerMaxRaw);
-    writeDoc(doc, "leftTriggerInvert", linearTriggerOptions.leftTriggerInvert);
-    writeDoc(doc, "rightTriggerInvert", linearTriggerOptions.rightTriggerInvert);
-
-    return serialize_json(doc);
-}
-
-std::string getTriggerAdcValues()
-{
-    DynamicJsonDocument doc(JSON_OBJECT_SIZE(4));
-    adc_gpio_init(LINEAR_L2_PIN);
-    adc_gpio_init(LINEAR_R2_PIN);
-    adc_select_input(LINEAR_L2_PIN - 26);
-    uint16_t leftRaw = adc_read();
-    adc_select_input(LINEAR_R2_PIN - 26);
-    uint16_t rightRaw = adc_read();
-    doc["leftTriggerRaw"] = leftRaw;
-    doc["rightTriggerRaw"] = rightRaw;
     return serialize_json(doc);
 }
 
@@ -3371,7 +3293,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getProfileOptions", getProfileOptions },
     { "/api/getKeyMappings", getKeyMappings },
     { "/api/getAddonsOptions", getAddonOptions },
-    { "/api/getTriggerAdcValues", getTriggerAdcValues },
     { "/api/getMacroAddonOptions", getMacroAddonOptions },
     { "/api/resetSettings", resetSettings },
     { "/api/getSplashImage", getSplashImage },
